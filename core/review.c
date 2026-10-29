@@ -99,7 +99,7 @@ static void set_frev(Para *p, u32 a, u32 b, u16 n)
 void rv_track_para(Doc *d, const Para *old, Para *cur)
 {
   int rid = (int)d->rvtrack - 1;
-  u32 io = 0, ic = 0, pos = 0, so = 0, sc = 0;
+  u32 io = 0, ic = 0, pos = 0;
   u32 seg[64][2]; u16 segn[64]; int ns = 0, k;
   if (!d->rvtrack || (d->rvsettings & RVS_NOFMT) || !old || !cur) return;
   if (old->len != cur->len || memcmp(old->t, cur->t, old->len)) return;     /* the text changed: not a formatting change */
@@ -116,10 +116,9 @@ void rv_track_para(Doc *d, const Para *old, Para *cur)
       }
     }
     pos = e;
-    if (eo == e) { so = eo; io++; }
-    if (ec == e) { sc = ec; ic++; }
+    if (eo == e) io++;
+    if (ec == e) ic++;
   }
-  (void)so; (void)sc;
   for (k = 0; k < ns; k++) set_frev(cur, seg[k][0], seg[k][1], segn[k]);
   /* an empty paragraph's one run (its mark's look) */
   if (!cur->len && !old->r[0].f.frev && !cur->r[0].f.frev && rv_cf_diff(&old->r[0].f, &cur->r[0].f))

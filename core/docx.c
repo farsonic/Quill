@@ -2331,10 +2331,9 @@ static void wp5_read_setting(Ctx *c, Xml *x)
   else if (!strcmp(x->name, "doNotTrackMoves") && !wp5_false(xml_attr(x, "val"))) c->d->rvsettings |= RVS_NOMOVES;
   else if (!strcmp(x->name, "doNotTrackFormatting") && !wp5_false(xml_attr(x, "val"))) c->d->rvsettings |= RVS_NOFMT;
 }
-/* the document's part of a relationship type (suffix), parsed: each START with one of the names to fn */
-static int wp5_part(Ctx *c, ZipReader *z, const char *docrels, size_t rn, const char *base, const char *suffix, char *path, size_t cap, char **xml, size_t *n)
+/* the document's part of a relationship type (suffix): its name in path and its text (malloc'd) in *xml; 0 if none */
+static int wp5_part(ZipReader *z, const char *docrels, size_t rn, const char *base, const char *suffix, char *path, size_t cap, char **xml, size_t *n)
 {
-  (void)c;
   path[0] = 0;
   rel_target(docrels, rn, suffix, base, path, cap);
   return path[0] && (*xml = part(z, path, n)) != NULL;
@@ -2359,7 +2358,7 @@ static void wp5_read_parts(Ctx *c, ZipReader *z, const char *docrels, size_t rn,
   Xml x;
   if (!docrels) return;
   /* the people: each w15:person kept as it is (how they signed in), by author */
-  if (wp5_part(c, z, docrels, rn, base, "/people", path, sizeof path, &xml, &n)) {
+  if (wp5_part(z, docrels, rn, base, "/people", path, sizeof path, &xml, &n)) {
     xml_init(&x, xml, n);
     while (xml_next(&x) != XT_EOF)
       if (x.type == XT_START && !strcmp(x.name, "person")) {
@@ -2373,7 +2372,7 @@ static void wp5_read_parts(Ctx *c, ZipReader *z, const char *docrels, size_t rn,
     xml_free(&x); free(xml);
     keep_remove(d, path);                         /* (WP0 kept it verbatim; it is read now) */
   }
-  if (!c->ncm || !wp5_part(c, z, docrels, rn, base, "/comments", path, sizeof path, &xml, &n)) return;
+  if (!c->ncm || !wp5_part(z, docrels, rn, base, "/comments", path, sizeof path, &xml, &n)) return;
   /* each comment's last paragraph's w14:paraId, which the other parts name it by */
   {
     int cur = -1, cap = 0;
@@ -2402,7 +2401,7 @@ static void wp5_read_parts(Ctx *c, ZipReader *z, const char *docrels, size_t rn,
     xml_free(&x); free(xml);
   }
   /* replies and Resolve */
-  if (np && wp5_part(c, z, docrels, rn, base, "/commentsExtended", path, sizeof path, &xml, &n)) {
+  if (np && wp5_part(z, docrels, rn, base, "/commentsExtended", path, sizeof path, &xml, &n)) {
     xml_init(&x, xml, n);
     while (xml_next(&x) != XT_EOF)
       if (x.type == XT_START && !strcmp(x.name, "commentEx")) {
@@ -2415,7 +2414,7 @@ static void wp5_read_parts(Ctx *c, ZipReader *z, const char *docrels, size_t rn,
     xml_free(&x); free(xml);
   }
   /* durable ids, and the times in UTC by them */
-  if (np && wp5_part(c, z, docrels, rn, base, "/commentsIds", path, sizeof path, &xml, &n)) {
+  if (np && wp5_part(z, docrels, rn, base, "/commentsIds", path, sizeof path, &xml, &n)) {
     xml_init(&x, xml, n);
     while (xml_next(&x) != XT_EOF)
       if (x.type == XT_START && !strcmp(x.name, "commentId")) {
@@ -2425,7 +2424,7 @@ static void wp5_read_parts(Ctx *c, ZipReader *z, const char *docrels, size_t rn,
       }
     xml_free(&x); free(xml);
   }
-  if (np && wp5_part(c, z, docrels, rn, base, "/commentsExtensible", path, sizeof path, &xml, &n)) {
+  if (np && wp5_part(z, docrels, rn, base, "/commentsExtensible", path, sizeof path, &xml, &n)) {
     xml_init(&x, xml, n);
     while (xml_next(&x) != XT_EOF)
       if (x.type == XT_START && !strcmp(x.name, "commentExtensible")) {
