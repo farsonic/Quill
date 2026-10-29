@@ -52,6 +52,7 @@ typedef struct {
   u32 enotebase;              /* the same for endnotes */
   u8 hyph;                    /* laid out with hyphenation */
   u8 shaped;                  /* its lines made room for floating objects (laid out afresh next time) */
+  struct Layout *lay;         /* (WP22b) the layout it belongs to (its notes' numbers as shown) */
   u32 rvsig;                  /* WP5: how tracked changes were shown when it was laid out (rv_sig) */
 } ParaLay;
 /* an object's size on the page (turned: the box round it) */
@@ -81,6 +82,13 @@ typedef struct {
 /* each page's page setup and section; first: that section's first page; last: it is the document's last section */
 typedef struct { const PageSetup *pg; const SectFmt *sec; u32 first; u8 last; } PageInfo;
 
+/* (WP22b) notes: each one's number as shown (0: not referred to yet), its format (NNF_, core/notes.h),
+   first number and whether it is counted afresh on each page; a long footnote's lines l0..l1 shown on
+   a page (the rest overleaf, under the continuation separator); a line above endnotes (cont: the
+   continuation separator, at the top of a page they go on to) */
+typedef struct NoteNum { u32 lab; u16 start; u8 fmt, perpage; } NoteNum;
+typedef struct NoteCut { u32 page, note, l0, l1; } NoteCut;
+typedef struct NoteSepAt { u32 page; i32 y; u8 cont; } NoteSepAt;
 typedef struct Layout {
   Doc *d;
   FontSet *fs;
@@ -111,6 +119,13 @@ typedef struct Layout {
   u32 laid;                   /* paragraphs laid out afresh by the last update (for tests and timing) */
   struct { u32 key; FaceSize *z; } fcache[64];      /* format -> metrics (font substitution is slow) */
   int nfcache;
+  /* (WP22b) */
+  NoteNum *fnn, *enn;         /* each footnote's and endnote's number as shown */
+  NoteCut *ncut; u32 nncut, ncutcap;   /* footnotes split across pages */
+  NoteSepAt *enseps; u32 nenseps, ensepcap;   /* the lines above endnotes (each section's, or the document's) */
+  u32 encap;                  /* room in en */
+  i32 sepw;                   /* the line lay_notes or lay_endnotes last gave: its length (twips), 0 none */
+  u8 notesep_cont;            /* ... and it is a continuation separator (the text area's width) */
 } Layout;
 
 /* a header or footer laid out for one page (its page fields filled in) */
@@ -130,13 +145,14 @@ void lay_page_hf(Layout *L, u32 page, int *which, int *sect);
    the left margin, as body text */
 int  lay_furniture(Layout *L, u32 page, int footer, Furn *f);
 void lay_furniture_free(Furn *f);    /* frees what lay_furniture, lay_notes, lay_endnotes and lay_textbox fill in */
-/* the footnotes at the bottom of a page, laid out (y set), and where the line above them goes;
-   0 if the page has none */
+/* the footnotes at the bottom of a page (or under its text), laid out (y set), and where the line
+   above them goes (-1: none; L->sepw its length); 0 if the page has none */
 int  lay_notes(Layout *L, u32 page, Furn *f, i32 *sepy);
 /* the endnotes on a page (after the document's text), laid out (y set), and where the line above them
    goes (-1: not on this page); 0 if the page has none */
 int  lay_endnotes(Layout *L, u32 page, Furn *f, i32 *sepy);
-/* the number a BX_NOTE box shows; the label a BX_NOTE or BX_ENOTE box shows ("3", "iii") */
+/* the number a BX_NOTE box shows (counted in the text); the label a BX_NOTE or BX_ENOTE box shows ("3",
+   "iii", or as the Footnote and Endnote window set it: core/notes.h) */
 u32  lay_note_number(ParaLay *pl, u32 box);
 void lay_note_label(ParaLay *pl, u32 box, char *out);
 void lay_roman(u32 n, char *out);    /* lower case: i, ii, iii, iv...; out at least 16 bytes */
