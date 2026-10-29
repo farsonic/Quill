@@ -506,8 +506,30 @@ static void sample(const char *dir)
   lay_free(L); doc_free(d);
 }
 
+/* WP2IN=file.docx: read, its fields listed, updated, written again (WP2OUT/again.docx) */
+static void probe(const char *path)
+{
+  unsigned lost;
+  char err[200];
+  Doc *d = doc_load_file(path, &lost, err, sizeof err);
+  Layout *L;
+  FieldEnv fe;
+  int k;
+  if (!d) { printf("  can't read %s: %s\n", path, err); return; }
+  for (k = 0; k < d->nfields; k++) printf("  field %d:%s\n", k, d->fields[k].code);
+  dump(d);
+  L = laid(d);
+  field_env(&fe); fe.L = L;
+  printf("  updated %d\n", field_update_all(d, &fe));
+  dump(d);
+  if (getenv("WP2DBG")) { u32 pi, o; for (pi = 0; pi < d->np; pi++) { printf("  %u:", (unsigned)pi); for (o = 0; o < d->p[pi]->len; o++) printf(" %02x", (u8)d->p[pi]->t[o]); printf("\n"); } }
+  if (getenv("WP2OUT")) { char o[512]; snprintf(o, sizeof o, "%s/again.docx", getenv("WP2OUT")); doc_save_file(d, o); }
+  lay_free(L); doc_free(d);
+}
+
 void test_wp2(void)
 {
+  if (getenv("WP2IN")) probe(getenv("WP2IN"));
   if (getenv("WP2OUT")) sample(getenv("WP2OUT"));
   captions();
   contents_and_figures();

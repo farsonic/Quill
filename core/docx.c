@@ -1730,6 +1730,7 @@ static void parse_run(Xml *x, PCtx *pc)
     }
     if (!strcmp(n, "fldChar")) { fld_char(x, pc, &f); continue; }      /* WP1: fields */
     else if (fld_text(x, c, n, &f)) continue;
+    else if (c->field == 1 && !strcmp(n, "tab") && c->fr && c->fr->n && c->fr->f[c->fr->n - 1].state == 1) buf_addc(&c->fr->f[c->fr->n - 1].code, '\t');   /* (WP2: a tab in a code, as LibreOffice writes INDEX \e) */
     else if (c->field == 1) ;                                  /* field code: left out */
     else if (c->field == 2 && c->fieldkind) ;                  /* a page number's result: the placeholder stands for it */
     else if (!strcmp(n, "t") || (!strcmp(n, "delText") && pc->rev == REV_DEL)) {

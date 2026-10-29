@@ -268,6 +268,18 @@ static int xe_levels(const char *s, XEnt *x)
     if (n + 1 < sizeof x->key[0]) x->key[lv][n++] = *s;
   }
   if (lv < XLEV) { x->key[lv][n] = 0; lv++; }
+  {
+    /* spaces round each level off, empty levels at the end left out ("Apple: " is LibreOffice's "Apple") */
+    int i;
+    for (i = 0; i < lv; i++) {
+      char *k = x->key[i];
+      size_t m;
+      while (k[0] == ' ') memmove(k, k + 1, strlen(k));
+      m = strlen(k);
+      while (m && k[m - 1] == ' ') k[--m] = 0;
+    }
+    while (lv > 1 && !x->key[lv - 1][0]) lv--;
+  }
   return lv;
 }
 /* the letter group of a sorting key: 'a'..'z', 'n' + 1 for the Spanish n with tilde (as 27), 0 symbols */
