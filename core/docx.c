@@ -1349,9 +1349,14 @@ static void fld_char(Xml *x, PCtx *pc, CharFmt *f)
     n = xml_raw(x, &raw);
     if (!pend && n) {
       /* its children (a form field's w:ffData...), kept as they are */
-      const char *in = memchr(raw, '>', n), *end = raw + n;
-      while (end > raw && *end != '<') end--;
-      if (in && end > in + 1) o->ffdata = str_ndup(in + 1, (size_t)(end - in - 1));
+      const char *in = memchr(raw, '>', n), *end = NULL, *q;
+      for (q = raw + 1; q + 1 < raw + n && !end; q++) {
+        const char *nm = q + 2, *gt, *colon;
+        if (q[0] != '<' || q[1] != '/' || !(gt = memchr(nm, '>', (size_t)(raw + n - nm)))) continue;
+        if ((colon = memchr(nm, ':', (size_t)(gt - nm)))) nm = colon + 1;
+        if (gt - nm == 7 && !strncmp(nm, "fldChar", 7)) end = q;       /* its closing tag */
+      }
+      if (in && end && end > in + 1) o->ffdata = str_ndup(in + 1, (size_t)(end - in - 1));
     }
     r->n++;
   } else if (t && !strcmp(t, "separate") && r->n) {
@@ -2280,7 +2285,10 @@ static void read_field_parts(Ctx *c, ZipReader *z)
     if (i == 0) field_read_core(c->d, xml, n); else if (i == 1) field_read_app(c->d, xml, n); else field_read_custom(c->d, xml, n);
     free(xml);
   }
-  free(c->fr); c->fr = NULL;
+  if (c->fr) {                          /* (fields a damaged file left open) */
+    for (i = 0; i < c->fr->n; i++) { buf_free(&c->fr->f[i].code); buf_free(&c->fr->f[i].res); free(c->fr->f[i].ffdata); }
+    free(c->fr); c->fr = NULL;
+  }
 }
 /* ------------------------------------------------------------------ */
 /* the work packages' reading hooks (WP0). Each package puts the call to its own function on a line

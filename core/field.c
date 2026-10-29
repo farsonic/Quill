@@ -753,6 +753,7 @@ int field_list(Doc *d, Pos a, Pos b, Pos *at, int max) { return list_in(d, body(
 /* evaluating */
 void field_env(FieldEnv *e) { memset(e, 0, sizeof *e); field_time_now(&e->now); }
 static int eval_flat(Doc *d, Paras s, const char *code, Pos at, const FieldEnv *e, char *out, size_t cap, long seqv);
+static int eval_nested;          /* evaluating a field inside another's code */
 /* code with each nested field replaced by its result (worked out, or the one it has) */
 static char *resolve(Doc *d, Paras s, const char *code, Pos at, const FieldEnv *e)
 {
@@ -767,7 +768,11 @@ static char *resolve(Doc *d, Paras s, const char *code, Pos at, const FieldEnv *
       while (sep < end) { if (*sep == FLD_OPEN) depth++; else if (*sep == FLD_CLOSE) depth--; else if (*sep == FLD_SEP && depth == 0) break; sep++; }
       inner = str_ndup(code + 1, (size_t)(sep - code - 1));
       flat = inner ? resolve(d, s, inner, at, e) : NULL;
-      if (flat && eval_flat(d, s, flat, at, e, res, sizeof res, -1) == FE_TEXT) buf_adds(&b, res);
+      int got;
+      eval_nested++;
+      got = flat && eval_flat(d, s, flat, at, e, res, sizeof res, -1) == FE_TEXT;
+      eval_nested--;
+      if (got) buf_adds(&b, res);
       else if (sep < end) {
         /* its own result, without nested fields' codes */
         const char *r = sep + 1;
@@ -819,9 +824,9 @@ static int heading_level(Doc *d, const Para *q)
   if (st && ieq_n(st->id, "Heading", 7) && st->id[7] >= '1' && st->id[7] <= '9' && !st->id[8]) return st->id[7] - '0';
   return 0;
 }
-/* SEQ counters: one per identifier; level: \s n of its fields (a heading of that level or above
-   starts it again) */
-typedef struct { char id[48]; long v; int level; } SeqCounter;
+/* SEQ counters: one per identifier; minhead: the highest heading (smallest level) met since its last
+   field (0 none), for \s n, which starts the numbering again after a heading of level n or above */
+typedef struct { char id[48]; long v; int minhead; } SeqCounter;
 typedef struct { SeqCounter c[32]; int n; } SeqState;
 static SeqCounter *seq_slot(SeqState *ss, const char *id)
 {
@@ -832,16 +837,10 @@ static SeqCounter *seq_slot(SeqState *ss, const char *id)
   snprintf(ss->c[ss->n].id, sizeof ss->c[ss->n].id, "%s", id);
   return &ss->c[ss->n++];
 }
-static void seq_level(SeqState *ss, const char *code)
-{
-  char id[48], lv[8];
-  SeqCounter *c;
-  if (field_switch(code, 's', 0, lv, sizeof lv) && atoi(lv) > 0 && field_arg(code, 0, id, sizeof id) && (c = seq_slot(ss, id))) c->level = atoi(lv);
-}
 static void seq_heading(SeqState *ss, int hl)
 {
   int i;
-  for (i = 0; i < ss->n; i++) if (ss->c[i].level && hl <= ss->c[i].level) ss->c[i].v = 0;
+  for (i = 0; i < ss->n; i++) if (!ss->c[i].minhead || hl < ss->c[i].minhead) ss->c[i].minhead = hl;
 }
 /* a SEQ field met in order: its number (and the counter moved on) */
 static long seq_step(SeqState *ss, const char *code)
@@ -849,7 +848,8 @@ static long seq_step(SeqState *ss, const char *code)
   char id[48], v[32];
   SeqCounter *c;
   if (!field_arg(code, 0, id, sizeof id) || !(c = seq_slot(ss, id))) return 0;
-  seq_level(ss, code);
+  if (field_switch(code, 's', 0, v, sizeof v) && atoi(v) > 0 && c->minhead && c->minhead <= atoi(v)) c->v = 0;
+  c->minhead = 0;
   if (field_switch(code, 'r', 0, v, sizeof v) && v[0]) c->v = atol(v);
   else if (field_switch(code, 'c', 0, v, sizeof v)) ;
   else c->v++;
@@ -882,7 +882,6 @@ static long seq_value(Doc *d, Paras s, Pos at, const char *flat)
 {
   SeqState ss;
   memset(&ss, 0, sizeof ss);
-  seq_level(&ss, flat);
   seq_walk(d, s, &ss, &at, NULL, NULL);
   return seq_step(&ss, flat);
 }
@@ -998,6 +997,7 @@ static int eval_flat(Doc *d, Paras s, const char *flat, Pos at, const FieldEnv *
       if (v[0] && field_switch(flat, 'f', 0, af, sizeof af)) { size_t n = strlen(v); put(v, sizeof v, &n, af); }
       return text_result(flat, v, out, cap);
     }
+    if (eval_nested) return FE_KEEP;                          /* (in another's code: the value it had) */
     snprintf(out, cap, "\xC2\xAB%s\xC2\xBB", a0);            /* «name», as Word shows a merge field without data */
     return FE_TEXT;
   }
