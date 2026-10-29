@@ -1221,6 +1221,8 @@
 /* ---- begin WP14b (tools/lang/wp14b.py) */
 /* ---- end WP14b */
 /* ---- begin WP15a (tools/lang/wp15a.py) */
+  { { "Chart", "Diagramm", "Graphique", "Gr\341fico", "Grafico" } },
+  { { "SmartArt", "SmartArt", "SmartArt", "SmartArt", "SmartArt" } },
 /* ---- end WP15a */
 /* ---- begin WP15b (tools/lang/wp15b.py) */
 /* ---- end WP15b */

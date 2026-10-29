@@ -6,6 +6,7 @@
 #include "zip.h"
 #include "docx.h"
 #include "image.h"
+#include "chart.h"                 /* (WP15a) charts and SmartArt */
 
 /* Windows-1252's 0x80-0x9F (0: not used) */
 static const u16 cp1252_hi[32] = {
@@ -396,10 +397,89 @@ static void fix4(Buf *b, i32 v)
   long a = v < 0 ? -(long)v : v, w = a / TRIG_ONE, f = (a % TRIG_ONE) * 10000 / TRIG_ONE;
   buf_printf(b, "%s%ld.%04ld ", v < 0 ? "-" : "", w, f);
 }
+/* (WP15a) a chart or SmartArt (its pack's primitives, pixels at 96 dpi: 15 twips each) in the w x h box
+   whose bottom left is x0, y0 in PDF space */
+static void pdf_pack(Pdf *p, Buf *b, const Image *im, i32 x0, i32 y0, i32 w, i32 h)
+{
+  Doc *d = p->L->d;
+  const char *fam = d->defcf.font < d->nfonts ? d->fonts[d->defcf.font] : "Calibri";
+  const PrimList *l = pack_prims(im->pack, w, h, p->L->fs, fam);
+  int i, k, font = d->defcf.font < d->nfonts ? d->defcf.font : 0;
+  for (k = 0; k < d->nfonts; k++) if (im->pack->font[0] && str_ieq(d->fonts[k], im->pack->font)) font = k;
+#define PX(v) ((long)x0 + (long)(v) * 15)
+#define PY(v) ((long)y0 + h - (long)(v) * 15)
+  if (!l) return;
+  buf_printf(b, "q %ld %ld %ld %ld re W n 1 j\n", (long)x0, (long)y0, (long)w, (long)h);
+  for (i = 0; i < l->n; i++) {
+    const Prim *q = &l->p[i];
+    long lw = (long)(q->width ? q->width : 1) * 15;
+    switch (q->t) {
+    case PR_RECT:
+      if (q->fill) { colour(b, q->fill & 0xFFFFFF, "rg"); buf_printf(b, "%ld %ld %ld %ld re f\n", PX(q->x), PY(q->y + q->h), (long)q->w * 15, (long)q->h * 15); }
+      if (q->line) { colour(b, q->line & 0xFFFFFF, "RG"); buf_printf(b, "%ld w %ld %ld %ld %ld re S\n", lw, PX(q->x), PY(q->y + q->h), (long)q->w * 15, (long)q->h * 15); }
+      break;
+    case PR_LINE: case PR_POLY:
+      if (q->np < 2 || (!q->fill && !q->line)) break;
+      for (k = 0; k < q->np; k++) buf_printf(b, "%ld %ld %s ", PX(q->pts[2 * k]), PY(q->pts[2 * k + 1]), k ? "l" : "m");
+      if (q->t == PR_POLY) buf_adds(b, "h ");
+      if (q->t == PR_POLY && q->fill) colour(b, q->fill & 0xFFFFFF, "rg");
+      if (q->line) { colour(b, q->line & 0xFFFFFF, "RG"); buf_printf(b, "%ld w ", lw); }
+      buf_adds(b, q->t == PR_LINE ? "S\n" : q->fill && q->line ? "B\n" : q->fill ? "f\n" : "S\n");
+      break;
+    case PR_ELLIPSE: {
+      /* four Bezier quarters; 0.5523 of the radius out along the tangents */
+      long rx = (long)q->w * 15 / 2, ry = (long)q->h * 15 / 2, cx = PX(q->x) + rx, cy = PY(q->y) - ry, kx = rx * 5523 / 10000, ky = ry * 5523 / 10000;
+      if (!q->fill && !q->line) break;
+      buf_printf(b, "%ld %ld m %ld %ld %ld %ld %ld %ld c %ld %ld %ld %ld %ld %ld c %ld %ld %ld %ld %ld %ld c %ld %ld %ld %ld %ld %ld c h ",
+                 cx + rx, cy, cx + rx, cy + ky, cx + kx, cy + ry, cx, cy + ry, cx - kx, cy + ry, cx - rx, cy + ky, cx - rx, cy,
+                 cx - rx, cy - ky, cx - kx, cy - ry, cx, cy - ry, cx + kx, cy - ry, cx + rx, cy - ky, cx + rx, cy);
+      if (q->fill) colour(b, q->fill & 0xFFFFFF, "rg");
+      if (q->line) { colour(b, q->line & 0xFFFFFF, "RG"); buf_printf(b, "%ld w ", lw); }
+      buf_adds(b, q->fill && q->line ? "B\n" : q->fill ? "f\n" : "S\n");
+      break; }
+    case PR_TEXT: {
+      CharFmt f;
+      FaceSize *z;
+      long tw, asc, ht, bx, top;
+      if (!q->text) break;
+      memset(&f, 0, sizeof f);
+      f.font = (u8)font;
+      f.size = (u16)(q->size * 3 / 2 > 0 ? q->size * 3 / 2 : 1);
+      f.color = q->line & 0xFFFFFF;
+      f.flags = (u8)((q->bold ? CF_BOLD : 0) | (q->italic ? CF_ITALIC : 0));
+      if (!(z = lay_face(p->L, &f))) break;
+      tw = (long)fonts_text(z, q->text, (u32)strlen(q->text)) / QFINE;
+      asc = z->ascent; ht = z->ascent + z->descent;
+      if (!q->vert) {
+        bx = PX(q->x) - (q->align == 1 ? tw / 2 : q->align == 2 ? tw : 0);
+        top = PY(q->y) + (q->valign == 1 ? ht / 2 : q->valign == 2 ? ht : 0);
+        text(p, b, &f, q->text, (u32)strlen(q->text), (i32)bx, (i32)(top - asc), (i32)tw);
+      } else {
+        /* reading upwards: its box ht wide and tw high, the baseline asc in from its left */
+        long left = PX(q->x) - (q->align == 1 ? ht / 2 : q->align == 2 ? ht : 0), bottom = PY(q->y) - (q->valign == 1 ? tw / 2 : q->valign == 2 ? tw : 0);
+        buf_printf(b, "q 0 1 -1 0 %ld %ld cm\n", left + asc, bottom);
+        text(p, b, &f, q->text, (u32)strlen(q->text), 0, 0, (i32)tw);
+        buf_adds(b, "Q\n");
+      }
+      break; }
+    }
+  }
+  buf_adds(b, "Q\n");
+  if (im->lstyle != PB_NONE && im->lwidth) {
+    i32 olw = im->lwidth * 5 / 2;
+    colour(b, im->lcolor, "RG");
+    buf_printf(b, "%ld w ", (long)(olw < 5 ? 5 : olw));
+    dash(b, im->lstyle, olw);
+    buf_printf(b, "%ld %ld %ld %ld re S [] 0 d\n", (long)x0, (long)y0, (long)w, (long)h);
+  }
+#undef PX
+#undef PY
+}
 /* one simple object (pt: as obj_parts gives it) with its centre at cx, cy in PDF space */
 static void pdf_leaf(Pdf *p, Buf *b, const ObjPart *pt, i32 cx, i32 cy)
 {
   const Image *im = pt->im;
+  if (im->pack) { pdf_pack(p, b, im, cx - pt->cx / 2, cy - pt->cy / 2, pt->cx, pt->cy); return; }   /* (WP15a) */
   i32 w = pt->cx, h = pt->cy, lw = im->lwidth * 5 / 2, c = icos(pt->rot), sn = isin(pt->rot);
   int fx = pt->flip & 1 ? -1 : 1, fy = pt->flip & 2 ? -1 : 1, ri;
   int outline = im->lstyle != PB_NONE && im->lwidth;

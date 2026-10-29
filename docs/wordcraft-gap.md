@@ -691,7 +691,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 
 ### SmartArt Design (7: ✅ 0 · 🟨 0 · ⬜ 7 · ➖ 0)
 
-- ⬜ Add Shape (Create Graphic) `smartArt.addShape` — SmartArt isn't read: `report_lost()` warns of "pictures it cannot read" and saving leaves it out [WP15c]
+- ⬜ Add Shape (Create Graphic) `smartArt.addShape` — SmartArt is read, drawn from its saved drawing and kept through a save (WP15a), but not edited [WP15c]
 - ⬜ Promote (Create Graphic) `smartArt.promote` [WP15c]
 - ⬜ Demote (Create Graphic) `smartArt.demote` [WP15c]
 - ⬜ Text Pane (Create Graphic) `smartArt.textPane` [WP15c]
@@ -701,7 +701,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 
 ### Chart Design (5: ✅ 0 · 🟨 0 · ⬜ 5 · ➖ 0)
 
-- ⬜ Change Chart Type (Type) `chart.type` — charts aren't read: `report_lost()` warns and saving leaves them out [WP15b]
+- ⬜ Change Chart Type (Type) `chart.type` — charts are read, drawn from their cached values and kept through a save (WP15a), but not edited [WP15b]
 - ⬜ Edit Data (Data) `chart.editData` [WP15b]
 - ⬜ Chart Title (Chart Layouts) `chart.title` [WP15b]
 - ⬜ Legend (Chart Layouts) `chart.legend` [WP15b]
@@ -811,7 +811,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Group shapes and drawing canvas** — groups (`wpg:`), nested, ✅; drawing canvases (`wpc:`) not read (README roadmap).
 - 🟨 **VML (`w:pict`, `v:shape`, `v:textbox`)** — only Word's text watermark is read and written (docx.c line 927); VML pictures, text boxes and shapes are not read (README "Not read yet"). WordCraft reads VML pictures, text boxes, lines, rectangles, ovals and presets.
 - 🟨 **Alt text** — pictures, shapes, text boxes and groups (`descr`) ✅; `title`, the decorative mark (`adec:decorative`) and table alt text (`w:tblCaption`, `w:tblDescription`) not read.
-- ⬜ **Charts (`c:chart`) and SmartArt (`dgm`)** — not read: `report_lost()` warns of "pictures it cannot read" and saving leaves them out. WordCraft draws charts from their cached data and SmartArt from its stored drawing, and writes both.
+- ✅ **Charts (`c:chart`, `cx:chart`) and SmartArt (`dgm`)** [WP15a] — read and kept: each one's parts (the chart part with its embedded workbook, colour and style parts; SmartArt's data, layout, quick style, colour and drawing parts; and the theme their colours refer to, which Quill writes only with them) stay byte for byte with their relationships and ids through a save (core/chartkeep.c, `ObjPack` on `Image.pack`; copies share them, a copy pasted into another document gets new part names and its .rels follows them); Excel 2016's charts are written back inside `mc:AlternateContent` as Word does. Drawn on screen and in the PDF from their cached values (core/chart.c, Ledger's chart layout: column, bar, line, area in their stacked and 100% forms, pie, doughnut, scatter, bubble, radar, stock, combo, and the chartex histogram, waterfall, funnel, treemap, sunburst, box & whisker; other kinds, such as surface, as a frame with the title) and SmartArt from its saved `dsp:drawing` (core/smartart.c: shapes, fills, outlines, text). In line or floating with any wrap, selected, moved and resized as pictures are; `report_lost()` no longer counts them. Checked: tests/test_wp15a.c (41 checks on tests/data/charts.docx: every part byte for byte through two saves, relationship ids, content types, pasting, deleting) and LibreOffice draws Quill's saved file as it draws the original.
 - ⬜ **OLE objects (`w:object`)** — dropped (WordCraft shows their picture and saves them back whole).
 - 🟨 **Native Word ink (`w14:contentPart`)** — dropped; WordCraft keeps it opaque.
 - ⬜ **Equations (OMML `m:oMath`)** — not read or written; WordCraft reads every ECMA-376 §22.1 element, lays it out (OpenType MATH) and writes it.
@@ -852,7 +852,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Page borders** — one kind on all four sides; no art borders, no per-section borders.
 - 🟨 **Watermarks** — text ✅; picture watermarks ⬜.
 - ⬜ **Character effects in layout and drawing** — hidden text (and showing it with marks), outline/shadow/emboss/engrave, enclosed characters, WordArt transforms.
-- ⬜ **Equations, charts, SmartArt drawn on the page** — see 2.2.
+- 🟨 **Equations, charts, SmartArt drawn on the page** — charts and SmartArt ✅ [WP15a] (see 2.2); equations ⬜ [WP14a].
 - ✅ **Metric-compatible fonts** — Liberation, Carlito, Caladea measured from their TrueType metrics, as WordCraft does (WordCraft also ships its own substitutes for more families).
 
 ### 2.4 Editing

@@ -287,6 +287,8 @@ typedef struct {
    holding it), the text wrapping round it, or behind or in front of the text */
 #define MAX_IMAGES 16384
 enum { OBJ_PICTURE, OBJ_SHAPE, OBJ_TEXTBOX, OBJ_GROUP };
+enum { OBJ_CHART = 8, OBJ_SMARTART = 9 };     /* (WP15a) a chart or SmartArt: its parts and model in Image.pack (core/chart.h) */
+#define OBJ_IS_GRAPHIC(k) ((k) == OBJ_CHART || (k) == OBJ_SMARTART)
 enum { WRAP_INLINE, WRAP_SQUARE, WRAP_TIGHT, WRAP_TOPBOTTOM, WRAP_BEHIND, WRAP_FRONT };
 enum { POS_COLUMN, POS_PAGE, POS_MARGIN, POS_PARA };     /* what a float's position is from (x: column, page or margin; y: paragraph, page or margin) */
 enum { PA_NONE, PA_START, PA_CENTER, PA_END };            /* or where it is aligned in that: left/top, centre, right/bottom */
@@ -324,6 +326,8 @@ typedef struct DocImage {
   i32 *poly; u16 npoly;
   i32 z;                    /* floating objects: the order they stack in, higher in front (equal ones in the
                                order their anchors come); Word's relativeHeight */
+  struct ObjPack *pack;     /* (WP15a) a chart's or SmartArt's parts and model (core/chart.h), shared between the
+                               entries copies make (counted); NULL for other objects */
 } Image;
 /* an object copied (dst a new entry): its text, objects and outline copied; its picture shared (it
    stays with the entry that brought it), or with own, copied too. 0 if out of memory (dst then holds

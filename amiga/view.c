@@ -38,6 +38,7 @@
 #include "../core/table.h"
 #include "../core/image.h"
 #include "../core/toc.h"
+#include "../core/chart.h"                 /* (WP15a) charts and SmartArt */
 #include "../core/spell.h"
 #include "ids.h"
 #include <libraries/gadtools.h>        /* NM_BARLABEL: a line between menu items */
@@ -750,6 +751,127 @@ static void thick_line(struct RastPort *rp, LONG ax, LONG ay, LONG bx, LONG by, 
   }
 }
 static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Placed *pc, LONG px, LONG py, Pos slo, Pos shi, int sel);
+/* ---- (WP15a) charts and SmartArt: their pack's primitives (pixels at 96 dpi, 15 twips each) */
+/* a polygon (xy: n points, pixels x 16) filled row by row, with room for many crossings (area charts) */
+static void pk_fill(struct RastPort *rp, const LONG *xy, int n)
+{
+  LONG y0 = 0x7FFFFFFF, y1 = -0x7FFFFFFF, y, xs[64];
+  int i, j, m;
+  for (i = 0; i < n; i++) { if (xy[2 * i + 1] < y0) y0 = xy[2 * i + 1]; if (xy[2 * i + 1] > y1) y1 = xy[2 * i + 1]; }
+  for (y = (y0 >> 4); y <= (y1 >> 4); y++) {
+    LONG sy = y * 16 + 8;
+    for (i = 0, m = 0; i < n && m < 64; i++) {
+      LONG ax = xy[2 * i], ay = xy[2 * i + 1], bx = xy[2 * ((i + 1) % n)], by = xy[2 * ((i + 1) % n) + 1];
+      if ((ay <= sy) != (by <= sy)) xs[m++] = ax + (sy - ay) * (bx - ax) / (by - ay);
+    }
+    for (i = 1; i < m; i++) for (j = i; j > 0 && xs[j - 1] > xs[j]; j--) { LONG t = xs[j]; xs[j] = xs[j - 1]; xs[j - 1] = t; }
+    for (i = 0; i + 1 < m; i += 2) {
+      LONG a = (xs[i] + 8) >> 4, b = ((xs[i + 1] + 8) >> 4) - 1;
+      if (b >= a) RectFill(rp, a, y, b, y);
+    }
+  }
+}
+/* text turned to read upwards, its box's top left at x, y (drawn through a one-plane bitmap; Ledger's chartview.c) */
+static void pk_text_up(struct RastPort *rp, struct TextFont *tf, const char *t, LONG x, LONG y, LONG pen)
+{
+  struct RastPort trp;
+  struct BitMap *bm;
+  LONG w, h, i, j;
+  InitRastPort(&trp);
+  SetFont(&trp, tf);
+  w = TextLength(&trp, (STRPTR)t, (ULONG)strlen(t));
+  h = tf->tf_YSize;
+  if (w <= 0 || w > 1000 || !(bm = AllocBitMap((ULONG)w, (ULONG)h, 1, BMF_CLEAR, NULL))) return;
+  trp.BitMap = bm;
+  SetAPen(&trp, 1); SetDrMd(&trp, JAM1);
+  Move(&trp, 0, tf->tf_Baseline);
+  Text(&trp, (STRPTR)t, (ULONG)strlen(t));
+  SetAPen(rp, pen);
+  for (j = 0; j < h; j++)
+    for (i = 0; i < w; i++)
+      if (ReadPixel(&trp, i, j)) WritePixel(rp, x + j, y + w - 1 - i);
+  FreeBitMap(bm);
+}
+/* object im (a chart or SmartArt) w x h twips with its top left at pixel x, y */
+static void draw_pack(struct Data *d, Object *obj, struct RastPort *rp, const Image *im, LONG x, LONG y, i32 w, i32 h)
+{
+  Doc *doc = d->doc;
+  const char *fam = doc->defcf.font < doc->nfonts ? doc->fonts[doc->defcf.font] : "Calibri";
+  const PrimList *l = pack_prims(im->pack, w, h, d->fs, fam);
+  int i, k, font = doc->defcf.font < doc->nfonts ? doc->defcf.font : 0;
+  LONG xy[2 * 200];
+#define SX(v) (x + tx(d, (i32)(v) * 15))
+#define SY(v) (y + tx(d, (i32)(v) * 15))
+  if (!l) return;
+  for (k = 0; k < doc->nfonts; k++) if (im->pack->font[0] && str_ieq(doc->fonts[k], im->pack->font)) font = k;
+  SetDrMd(rp, JAM1);
+  for (i = 0; i < l->n; i++) {
+    const Prim *p = &l->p[i];
+    int th = (int)tx(d, (i32)(p->width ? p->width : 1) * 15);
+    if (th < 1) th = 1;
+    if (th > 8) th = 8;
+    switch (p->t) {
+    case PR_RECT: {
+      LONG a = SX(p->x), b = SY(p->y), c = SX(p->x + p->w) - 1, e = SY(p->y + p->h) - 1;
+      if (c < a) c = a;
+      if (e < b) e = b;
+      if (p->fill) { SetAPen(rp, pen_bg(d, obj, (p->fill & 0xFFFFFF) ? p->fill & 0xFFFFFF : 0x010101)); RectFill(rp, a, b, c, e); }
+      if (p->line) { SetAPen(rp, pen_for(d, obj, p->line & 0xFFFFFF)); Move(rp, a, b); Draw(rp, c, b); Draw(rp, c, e); Draw(rp, a, e); Draw(rp, a, b); }
+      break; }
+    case PR_LINE: case PR_POLY: {
+      int n = p->np < 200 ? p->np : 200;
+      for (k = 0; k < n; k++) { xy[2 * k] = SX(p->pts[2 * k]) * 16 + 8; xy[2 * k + 1] = SY(p->pts[2 * k + 1]) * 16 + 8; }
+      if (p->t == PR_POLY && p->fill && n >= 3) { SetAPen(rp, pen_bg(d, obj, (p->fill & 0xFFFFFF) ? p->fill & 0xFFFFFF : 0x010101)); pk_fill(rp, xy, n); }
+      if (p->line && n >= 2) {
+        SetAPen(rp, pen_for(d, obj, p->line & 0xFFFFFF));
+        for (k = 0; k + 1 < n + (p->t == PR_POLY); k++) thick_line(rp, xy[2 * k], xy[2 * k + 1], xy[2 * ((k + 1) % n)], xy[2 * ((k + 1) % n) + 1], p->t == PR_LINE ? th : 1);
+      }
+      break; }
+    case PR_ELLIPSE: {
+      LONG rx = tx(d, (i32)p->w * 15) / 2, ry = tx(d, (i32)p->h * 15) / 2, cx = SX(p->x) + rx, cy = SY(p->y) + ry;
+      if (p->fill) {
+        for (k = 0; k < 32; k++) { xy[2 * k] = cx * 16 + (LONG)((long)rx * 16 * icos(k * 1125 / 10) / TRIG_ONE); xy[2 * k + 1] = cy * 16 + (LONG)((long)ry * 16 * isin(k * 1125 / 10) / TRIG_ONE); }
+        SetAPen(rp, pen_bg(d, obj, (p->fill & 0xFFFFFF) ? p->fill & 0xFFFFFF : 0x010101));
+        if (rx > 0 && ry > 0) pk_fill(rp, xy, 32); else WritePixel(rp, cx, cy);
+      }
+      if (p->line) { SetAPen(rp, pen_for(d, obj, p->line & 0xFFFFFF)); DrawEllipse(rp, cx, cy, rx > 0 ? rx : 1, ry > 0 ? ry : 1); }
+      break; }
+    case PR_TEXT: {
+      CharFmt f;
+      struct TextFont *tf;
+      char t[300];
+      LONG tw, th2, ax, ay;
+      if (!p->text) break;
+      memset(&f, 0, sizeof f);
+      f.font = (u8)font; f.size = (u16)(p->size * 3 / 2 > 0 ? p->size * 3 / 2 : 1);
+      f.flags = (u8)((p->bold ? CF_BOLD : 0) | (p->italic ? CF_ITALIC : 0));
+      utf8_to_latin1(p->text, strlen(p->text), t, sizeof t);
+      tf = screen_font(d, &f);
+      SetFont(rp, tf ? tf : ((struct GfxBase *)GfxBase)->DefaultFont);
+      SetSoftStyle(rp, 0, FSF_BOLD | FSF_ITALIC | FSF_UNDERLINED);
+      tw = TextLength(rp, (STRPTR)t, (ULONG)strlen(t)); th2 = rp->TxHeight;
+      if (p->vert) {
+        ax = SX(p->x) - (p->align == 1 ? th2 / 2 : p->align == 2 ? th2 : 0);
+        ay = SY(p->y) - (p->valign == 1 ? tw / 2 : p->valign == 2 ? tw : 0);
+        pk_text_up(rp, tf ? tf : ((struct GfxBase *)GfxBase)->DefaultFont, t, ax, ay, pen_for(d, obj, p->line & 0xFFFFFF));
+        break;
+      }
+      ax = SX(p->x) - (p->align == 1 ? tw / 2 : p->align == 2 ? tw : 0);
+      ay = SY(p->y) - (p->valign == 1 ? th2 / 2 : p->valign == 2 ? th2 : 0);
+      SetAPen(rp, pen_for(d, obj, p->line & 0xFFFFFF));
+      Move(rp, ax, ay + rp->TxBaseline);
+      Text(rp, (STRPTR)t, (ULONG)strlen(t));
+      break; }
+    }
+  }
+  if (im->lstyle != PB_NONE && im->lwidth) {
+    LONG a = x, b = y, c = x + tx(d, w) - 1, e = y + tx(d, h) - 1;
+    SetAPen(rp, pen_for(d, obj, im->lcolor));
+    Move(rp, a, b); Draw(rp, c, b); Draw(rp, c, e); Draw(rp, a, e); Draw(rp, a, b);
+  }
+#undef SX
+#undef SY
+}
 /* a simple object (pt: as obj_parts gives it) with its centre at cx, cy twips on the page at (pl, pt) */
 static void draw_leaf(struct Data *d, Object *obj, struct RastPort *rp, const ObjPart *part, LONG pl, LONG pt, i32 cx, i32 cy)
 {
@@ -760,6 +882,7 @@ static void draw_leaf(struct Data *d, Object *obj, struct RastPort *rp, const Ob
   i32 bx, by;
   t.cx = part->cx; t.cy = part->cy; t.rot = part->rot; t.flip = part->flip;
   bx = cx - OBJ_W(&t) / 2; by = cy - OBJ_H(&t) / 2;          /* its box's top left */
+  if (src->pack) { draw_pack(d, obj, rp, src, pl + tx(d, cx - part->cx / 2), pt + tx(d, cy - part->cy / 2), part->cx, part->cy); return; }   /* (WP15a) */
   outline = src->lstyle != PB_NONE && src->lwidth;
   th = (int)tx(d, src->lwidth * 5 / 2);
   if (th < 1) th = 1;
@@ -881,7 +1004,7 @@ static void draw_object(struct Data *d, Object *obj, struct RastPort *rp, int k,
       SetAPen(rp, d->pen_page);
       RectFill(rp, cx - 2, cy - 2, cx + 2, cy + 2);
     }
-    if (im->wrap != WRAP_INLINE) {
+    if (im->wrap != WRAP_INLINE && !OBJ_IS_GRAPHIC(im->kind)) {
       LONG cx = x + (w - 1) / 2, cy = y - ROT_HANDLE;
       SetAPen(rp, d->pen_text);
       Move(rp, cx, y - 1); Draw(rp, cx, cy + 4);
@@ -1895,11 +2018,11 @@ static void update_toolbar(struct Data *d)
     if (pic_near(d, &at)) rs.on |= RBIT(RB_PICTURE);
     {
       int ok = sel_object(d, NULL);
-      if (ok >= 0 && ok < doc->nimages) rs.on2 |= RBIT((doc->images[ok].kind == OBJ_PICTURE ? RB_PICSEL : RB_SHAPESEL) - 32);
+      if (ok >= 0 && ok < doc->nimages) rs.on2 |= RBIT((doc->images[ok].kind == OBJ_PICTURE || OBJ_IS_GRAPHIC(doc->images[ok].kind) ? RB_PICSEL : RB_SHAPESEL) - 32);   /* (WP15a: charts as pictures) */
       if (ok >= 0 && ok < doc->nimages && doc->images[ok].kind == OBJ_GROUP) rs.on2 |= RBIT(RB_GROUPSEL - 32);
       if (d->nmsel >= 2) rs.on2 |= RBIT(RB_MULTISEL - 32);
       if (d->nmsel >= 2 || (ok >= 0 && ok < doc->nimages && doc->images[ok].wrap != WRAP_INLINE)) rs.on2 |= RBIT(RB_FLOATSEL - 32);
-      if (ok >= 0 && ok < doc->nimages && doc->images[ok].kind != OBJ_PICTURE && doc->images[ok].kind != OBJ_GROUP) rs.on2 |= RBIT(RB_ONESHAPE - 32);
+      if (ok >= 0 && ok < doc->nimages && doc->images[ok].kind != OBJ_PICTURE && doc->images[ok].kind != OBJ_GROUP && !OBJ_IS_GRAPHIC(doc->images[ok].kind)) rs.on2 |= RBIT(RB_ONESHAPE - 32);
     }
     rs.font = f.font < doc->nfonts ? doc->fonts[f.font] : "";
     rs.size = f.size;
@@ -3439,20 +3562,21 @@ static Object *ctx_object(struct Data *d, Object *obj, int k, Pos at)
   static const char *const rots[] = { "Rotate Right 90\260", "Rotate Left 90\260", "Flip Vertical", "Flip Horizontal", "More Rotation Options..." };
   const Image *im = &d->doc->images[k];
   int pic = im->kind == OBJ_PICTURE, grp = im->kind == OBJ_GROUP, chosen = 0, j;
+  int gfx = OBJ_IS_GRAPHIC(im->kind);       /* (WP15a) a chart or SmartArt: as a picture, without crop or rotation */
   for (j = 0; j < d->nmsel; j++) if (!pos_cmp(d->msel[j], at)) chosen = 1;
   if (!chosen) d->nmsel = 0;            /* (right-clicking one of the Shift-clicked objects keeps them, for Group) */
   caret_hide(d, obj);
   d->anchor = at; d->caret = at; d->caret.off += 4; d->pending = 0;
   refresh(d, obj, 0);
-  if (!(d->ctxmenu = MenuObject, MUIA_Menu_Title, (ULONG)tr(pic ? "Picture" : grp ? "Group" : "Shape"), End)) return NULL;
+  if (!(d->ctxmenu = MenuObject, MUIA_Menu_Title, (ULONG)tr(gfx ? (im->kind == OBJ_CHART ? "Chart" : "SmartArt") : pic ? "Picture" : grp ? "Group" : "Shape"), End)) return NULL;
   ctx_item(d->ctxmenu, tr("Cut"), CTX_CUT, 1);
   ctx_item(d->ctxmenu, tr("Copy"), CTX_COPY, 1);
   ctx_item(d->ctxmenu, tr("Paste"), CTX_PASTE, 1);
   ctx_item(d->ctxmenu, (const char *)NM_BARLABEL, 0, 1);
-  if (!pic && !grp) ctx_item(d->ctxmenu, tr("Edit Text"), CTX_ID(ID_EDITTEXT), 1);
-  ctx_item(d->ctxmenu, tr(pic ? "Format Picture..." : "Format Shape..."), CTX_ID(ID_OBJLAYOUT), 1);
+  if (!pic && !grp && !gfx) ctx_item(d->ctxmenu, tr("Edit Text"), CTX_ID(ID_EDITTEXT), 1);
+  ctx_item(d->ctxmenu, tr(pic || gfx ? "Format Picture..." : "Format Shape..."), CTX_ID(ID_OBJLAYOUT), 1);
   ctx_sub(d->ctxmenu, tr("Wrap Text"), ID_OBJWRAPDD, wraps, 7);
-  ctx_sub(d->ctxmenu, tr("Rotate"), ID_OBJROTDD, rots, 5);
+  if (!gfx) ctx_sub(d->ctxmenu, tr("Rotate"), ID_OBJROTDD, rots, 5);
   ctx_item(d->ctxmenu, tr("Size..."), CTX_ID(ID_OBJSIZE), 1);
   if (pic) ctx_item(d->ctxmenu, tr("Crop..."), CTX_ID(ID_OBJCROP), 1);
   if (d->nmsel >= 2 || grp) {
@@ -3706,7 +3830,7 @@ static int handle_at(struct Data *d, Object *obj, LONG mx, LONG my, FloatBox *bo
   if (k < 0 || !obj_box(d, at, k, box)) return 0;
   box_screen(d, obj, box, &x, &y);
   w = tx(d, box->w); h = tx(d, box->h);
-  if (box->wrap != WRAP_INLINE && mx >= x + (w - 1) / 2 - 5 && mx <= x + (w - 1) / 2 + 5 && my >= y - ROT_HANDLE - 5 && my <= y - ROT_HANDLE + 5) return 10;
+  if (box->wrap != WRAP_INLINE && !OBJ_IS_GRAPHIC(d->doc->images[k].kind) && mx >= x + (w - 1) / 2 - 5 && mx <= x + (w - 1) / 2 + 5 && my >= y - ROT_HANDLE - 5 && my <= y - ROT_HANDLE + 5) return 10;   /* (WP15a: charts don't turn) */
   for (i = 0; i < 8; i++) {
     LONG cx = x + oh_x[i] * (w - 1) / 2, cy = y + oh_y[i] * (h - 1) / 2;
     if (mx >= cx - 4 && mx <= cx + 4 && my >= cy - 4 && my <= cy + 4) return i + 1;
