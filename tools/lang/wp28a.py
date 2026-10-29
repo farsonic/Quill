@@ -4,4 +4,6 @@
 # changing it run python3 tools/mklang.py, which writes these rows into WP28a's section of
 # amiga/lang_table.h.
 W = [
+("Save As Rich Text...", "Als Rich-Text speichern...", "Enregistrer en RTF...", "Guardar como RTF...", "Salva come RTF..."),
+("Save as Rich Text Format", "Im Rich-Text-Format speichern", "Enregistrer au format RTF", "Guardar en formato RTF", "Salva in formato RTF"),
 ]

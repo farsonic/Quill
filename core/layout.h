@@ -12,7 +12,8 @@
 #include "doc.h"
 #include "fonts.h"
 
-enum { BX_TEXT, BX_SPACE, BX_TAB, BX_BREAK, BX_PIC, BX_NOTE, BX_MARK, BX_ENOTE, BX_DROP, BX_FLOAT, BX_FIELD };   /* BX_FIELD: a page
+enum { BX_TEXT, BX_SPACE, BX_TAB, BX_BREAK, BX_PIC, BX_NOTE, BX_MARK, BX_ENOTE, BX_DROP, BX_FLOAT, BX_FIELD,
+       BX_REVHIDE };   /* BX_REVHIDE (WP5): text a tracked change hides as shown (Display for Review), no width */   /* BX_FIELD: a page
                                                              field (FIELD_PAGE, FIELD_PAGES) in the body or a story being edited */   /* BX_FLOAT: a floating
                                                              object's reference, no width (the object is in Layout.floats) */   /* BX_BREAK: a line break ('\v'), drawn as nothing;
                                                              BX_PIC: a picture; BX_NOTE: a footnote's number;
@@ -26,6 +27,7 @@ typedef struct {
   u8 nspace;                  /* BX_SPACE: how many spaces */
   i32 x, w;                   /* from the line's start (its indent), after alignment */
   CharFmt f;
+  u8 rvmark;                  /* WP5: a tracked change as shown (a bar beside its line: RVK_ kind + 1), 0 none */
 } Box;
 
 typedef struct {
@@ -51,6 +53,8 @@ typedef struct {
   u8 hyph;                    /* laid out with hyphenation */
   u8 shaped;                  /* its lines made room for floating objects (laid out afresh next time) */
   struct Layout *lay;         /* (WP22b) the layout it belongs to (its notes' numbers as shown) */
+  u8 hidden;                  /* WP9: it has hidden text, laid out shown (1) or left out (0); 2: it has none */
+  u32 rvsig;                  /* WP5: how tracked changes were shown when it was laid out (rv_sig) */
 } ParaLay;
 /* an object's size on the page (turned: the box round it) */
 #define OBJ_W(im) obj_w(im)
@@ -123,7 +127,10 @@ typedef struct Layout {
   u32 encap;                  /* room in en */
   i32 sepw;                   /* the line lay_notes or lay_endnotes last gave: its length (twips), 0 none */
   u8 notesep_cont;            /* ... and it is a continuation separator (the text area's width) */
+  u8 showhidden;              /* WP9: hidden text laid out (formatting marks shown), else it takes no room (and the PDF leaves it out) */
 } Layout;
+/* WP9: a box of hidden text that takes no room in L */
+#define LAY_HIDDEN(L, b) (((b)->f.fx2 & FX2_HIDDEN) && !(L)->showhidden)
 
 /* a header or footer laid out for one page (its page fields filled in) */
 typedef struct { Para *p; ParaLay pl; i32 y; } FPara;     /* y: the top of its first line from the page top */

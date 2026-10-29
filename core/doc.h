@@ -30,9 +30,34 @@ typedef struct {
   i16 position;             /* raised (lowered if negative), half-points */
   u16 link;                 /* a hyperlink: Doc.links index + 1 (0: not a link) */
   u16 bmark;                /* in a bookmark: Doc.bmarks index + 1 (0: none) */
+  /* (work packages: new fields go below, at the end) */
+  /* WP9 character formatting: */
+  u16 fx2;                  /* FX2_ effects and the enclosure (FX2_ENCLOSE bits) */
+  u16 fx2mask;              /* (only in a value given to cf_apply: which fx2 bits CM_FX2 changes; 0 all of them) */
+  u32 ulcolor;              /* the underline's colour: 0 the text's, else HL_ON | 0xRRGGBB */
+  u32 shade;                /* character shading (w:shd, kept apart from the highlight): 0 none, else HL_ON | 0xRRGGBB */
+  u16 rx;                   /* run properties kept verbatim (w14 text effects, w:effect): charfx.h rx_text(rx), 0 none */
+  u16 frev;                 /* WP5: a tracked formatting change (w:rPrChange): Doc.frevs index + 1, 0 none */
+  u8 move;                  /* WP5: a tracked insertion or deletion that is a move (w:moveTo, w:moveFrom):
+                               Doc.rvmoves index + 1 (its name), 0 not a move */
 } CharFmt;
 enum { REV_NONE, REV_INS, REV_DEL };
 enum { FX_SMALLCAPS = 1, FX_DSTRIKE = 2, FX_BORDER = 4 };   /* FX_BORDER: a box round the characters (w:bdr) */
+/* WP9: CharFmt.fx2. Hidden text (w:vanish: shown with formatting marks, else left out of the layout
+   and the PDF), outline (hollow letters), shadow, emboss and engrave (w:imprint), and enclosed
+   characters (Word's eq \o\ac field: a circle, square, triangle or diamond round them, the symbol
+   enlarged or the text shrunk) */
+enum { FX2_HIDDEN = 1, FX2_OUTLINE = 2, FX2_SHADOW = 4, FX2_EMBOSS = 8, FX2_ENGRAVE = 16,
+       FX2_ENCLOSE = 0xE0,       /* the enclosure's shape: (fx2 & FX2_ENCLOSE) >> 5, EN_ */
+       FX2_ENLARGE = 0x100 };    /* with an enclosure: the symbol enlarged (else the text shrunk) */
+enum { EN_NONE, EN_CIRCLE, EN_SQUARE, EN_TRIANGLE, EN_DIAMOND };
+#define FX2_RELIEF (FX2_OUTLINE | FX2_SHADOW | FX2_EMBOSS | FX2_ENGRAVE)
+#define ENCLOSURE(f) (((f)->fx2 & FX2_ENCLOSE) >> 5)
+/* WP9's CM_ bits (CM_FX2 is the bit the CF_ flags leave unused); in CM_LOOK and CM_ALL */
+#define CM_FX2     0x80U
+#define CM_ULCOLOR 0x40000000U
+#define CM_SHADE   0x20000000U
+#define CM_RX      0x10000000U
 enum { UL_SINGLE, UL_DOUBLE, UL_THICK, UL_DOTTED, UL_DASHED, UL_WAVE, UL_WORDS, UL_N };
 #define HL_ON 0x01000000UL
 /* which fields a formatting change touches */
@@ -43,10 +68,11 @@ enum { CM_BOLD = 1, CM_ITALIC = 2, CM_UNDERLINE = 4, CM_STRIKE = 8, CM_SUPER = 1
        CM_LINK = 0x100000,       /* (not in CM_ALL: clearing formatting or painting it keeps links, as in Word) */
        CM_BMARK = 0x200000,      /* (nor this: bookmarks stay where they are) */
        CM_CBORDER = 0x400000,    /* FX_BORDER */
-       CM_LOOK = 0x4FCFFF,       /* how it looks (not its character style nor tracked changes) */
-       CM_ALL = 0x4FEFFF };       /* CM_ALL leaves tracked changes alone */
+       CM_LOOK = 0x704FCFFF,     /* how it looks (not its character style nor tracked changes; WP9's bits too) */
+       CM_ALL = 0x704FEFFF };     /* CM_ALL leaves tracked changes alone */
+#define CM_FREV 0x08000000U        /* WP5: CharFmt.frev (not in CM_ALL; CM_REV carries move with rev) */
 
-enum { AL_LEFT, AL_CENTER, AL_RIGHT, AL_JUSTIFY };
+enum { AL_LEFT, AL_CENTER, AL_RIGHT, AL_JUSTIFY, AL_DISTRIBUTE };   /* AL_DISTRIBUTE (WP10): every line spread out, the last too (w:jc distribute) */
 enum { LS_AUTO, LS_ATLEAST, LS_EXACT };    /* line spacing rule: line is 240ths of a line, or twips */
 /* table cells: a table is a run of paragraphs with the same table number; a cell is a run with
    the same row and column. So positions, editing and undo work in tables as anywhere else. */
@@ -135,6 +161,7 @@ typedef struct {
   u32 shade;                /* the paragraph's fill: 0 none, else HL_ON | 0xRRGGBB */
   Cell cell;                /* the (innermost) table cell it is in */
   Cell outer;               /* a table inside a table cell: the outer table's cell (table 0: not nested) */
+  u16 prev;                 /* WP5: a tracked paragraph formatting change (w:pPrChange): Doc.frevs index + 1, 0 none */
 } ParaFmt;
 /* a paragraph's borders: those with the same borders run together in one box, "between" lines
    separating them */
@@ -144,6 +171,7 @@ enum { LEAD_NONE, LEAD_DOT, LEAD_HYPHEN, LEAD_LINE };
 enum { PM_STYLE = 1, PM_ALIGN = 2, PM_INDENT = 4, PM_SPACING = 8, PM_LINE = 16, PM_TABS = 32, PM_KEEP = 64, PM_LIST = 128,
        PM_BREAK = 256, PM_CELL = 512, PM_SECT = 1024, PM_DROP = 2048,
        PM_BORDER = 0x1000, PM_SHADE = 0x2000, PM_PAGINATION = 0x4000 /* keeplines, nowidow */, PM_CONTEXT = 0x8000,
+       PM_PREV = 0x40000000,     /* WP5: prev (not in PM_ALL) */
        PM_ALL = 0xF1FF };   /* PM_ALL leaves the cell, the section and drop caps alone */
 #define PM_STYLED (PM_ALL & ~PM_STYLE)    /* what a paragraph style can set */
 #define in_table(pf) ((pf)->cell.table != 0)
@@ -157,7 +185,8 @@ int same_cell(const ParaFmt *a, const ParaFmt *b);
 const Cell *cell_in(const ParaFmt *pf, u16 t);
 
 /* lists: a definition per list (a .docx w:num with its abstract numbering resolved) */
-enum { NF_BULLET, NF_DECIMAL, NF_LOWER_LETTER, NF_UPPER_LETTER, NF_LOWER_ROMAN, NF_UPPER_ROMAN, NF_NONE };
+enum { NF_BULLET, NF_DECIMAL, NF_LOWER_LETTER, NF_UPPER_LETTER, NF_LOWER_ROMAN, NF_UPPER_ROMAN, NF_NONE,
+       NF_DECIMAL_ZERO, NF_ORDINAL, NF_CARDINAL_TEXT, NF_ORDINAL_TEXT };   /* (WP10: 01 02; 1st 2nd; One Two; First Second) */
 typedef struct {
   u8 fmt;
   u16 start;
@@ -372,7 +401,14 @@ void enote_utf8(char *out, int index);   /* an endnote reference: 4 bytes and a 
 /* comments: where one starts and ends is marked in the text with U+F8000 + n and U+FC000 + n for
    Doc.comments[n]. The marks have no width; like pictures they move, copy and undo with the text */
 #define MAX_COMMENTS 16384
-typedef struct { char author[64], initials[12], date[24]; Story text; } Comment;
+typedef struct {
+  char author[64], initials[12], date[24]; Story text;
+  /* WP5: replies and Resolve (commentsExtended, commentsIds, commentsExtensible) */
+  int parent;               /* a reply: Doc.comments index + 1 of the comment it answers (0: it starts a thread) */
+  u8 done;                  /* resolved (w15:done) */
+  u32 durable;              /* its durable id (w16cid), 0 none yet */
+  char dateutc[24];         /* its time in UTC (w16cex:dateUtc), "" unknown */
+} Comment;
 #define IS_CSTART(t) ((u8)(t)[0] == 0xF3 && ((u8)(t)[1] & 0xFC) == 0xB8)
 #define IS_CEND(t) ((u8)(t)[0] == 0xF3 && ((u8)(t)[1] & 0xFC) == 0xBC)
 #define IS_MARK(t) ((u8)(t)[0] == 0xF3 && ((u8)(t)[1] & 0xF8) == 0xB8)       /* either */
@@ -432,6 +468,15 @@ typedef struct Doc {
      settings.xml's m:mathPr kept verbatim */
   struct MathEq **maths; int nmaths, mathcap;
   char *mathpr;
+  /* WP5 (core/review.h): tracked formatting changes, how changes and comments are shown, the people,
+     move names, property changes of tables and sections kept verbatim, tracking formatting now */
+  struct FmtRev *frevs; int nfrevs;   /* only added to (undo may bring back runs that refer to any) */
+  struct RevView *rview;    /* Display for Review and Show Markup (NULL: All Markup, everything shown) */
+  struct Person *people; int npeople;   /* people.xml: authors and how they signed in */
+  char (*rvmoves)[40]; int nrvmoves;    /* moves' names (w:name of their ranges) */
+  struct KeptChange *kchg; int nkchg;   /* w:tblPrChange, w:trPrChange, w:tcPrChange, w:sectPrChange ... */
+  u16 rvtrack;              /* formatting changes are being tracked: Doc.revs index + 1 of their author, 0 not */
+  u8 rvsettings;            /* settings.xml's w:revisionView read (bit 0) */
   /* WP1 fields (core/field.h): the records the field marks in the text name (only added to), every
      field showing its code (Alt+F9; not saved), and what the file says for the fields (docProps...) */
   struct Field *fields; int nfields;

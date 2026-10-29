@@ -43,9 +43,11 @@
 #include "../core/math.h"
 #include "../core/spell.h"
 #include "../core/field.h"
+#include "../core/review.h"
 #include "ids.h"
 #include <libraries/gadtools.h>        /* NM_BARLABEL: a line between menu items */
 #include "wphooks.h"
+#include "wp_charpara.h"                /* (WP9, WP10) */
 #include "theme.h"
 #include "lang.h"
 
@@ -109,7 +111,8 @@ struct Data {
   UBYTE *wm_mask; LONG wm_w, wm_h, wm_zoom; char wm_text[64]; int wm_horiz;   /* the watermark, turned, as a 1-bit mask (made for a zoom) */
   Layout *plain;                        /* in web layout: the document on pages too (PDF export, page numbers), made when asked */
   int shown;                            /* between MUIM_Show and MUIM_Hide (hidden, it keeps its event handler) */
-  struct { WORD x0, y0, x1, y1; int k; } balloon[24]; int nballoon;   /* the comments' balloons drawn (view coordinates) */
+  struct { WORD x0, y0, x1, y1; int k; int kind; Pos a, b; } balloon[24]; int nballoon;   /* the balloons drawn (view coordinates): a comment's
+                                           (kind RVI_COMMENT, k its index) or a change's (WP5, a..b what it is about) */
   u32 cver, cpara; int copen;           /* comments open at the start of paragraph cpara (as of document version cver) */
   int brush;                            /* the format painter: the next selection gets brushfmt */
   CharFmt brushfmt;
@@ -256,7 +259,7 @@ static LONG doc_height(struct Data *d)
 /* the column beside the page for the comments' balloons (when there are comments and they are shown) */
 static LONG col_w(struct Data *d)
 {
-  if (!d->doc || !d->doc->ncomments || !d->tb || !(d->tb->uibits & RBIT(RB_SHOWCOMMENTS)) || d->vmode != VM_PRINT) return 0;
+  if (!d->doc || !d->tb || !(d->tb->uibits & RBIT(RB_SHOWCOMMENTS)) || d->vmode != VM_PRINT || !rv_any_margin(d->doc)) return 0;   /* (WP5: changes' balloons too) */
   return d->obj && _mwidth(d->obj) > 500 ? 170 : 130;
 }
 /* the width of a row of pages (with the comments' column) */
@@ -551,12 +554,6 @@ static i32 line_x(Layout *L, ParaLay *pl, Line *ln, u32 off)
   return x;
 }
 #include "wp_find_view.h"               /* WP12: block and similar selections, Extend Selection, Select Objects, Highlight All */
-/* each author's changes in a colour of their own */
-static u32 rev_colour(int rid)
-{
-  static const u32 c[] = { 0xC00000, 0x1F4FC8, 0x008040, 0x8A2BB0, 0xB85C00, 0x007A87 };
-  return c[rid % 6];
-}
 /* an underline or strike line of a kind (UL_) from x, w pixels wide, at y */
 static void deco_line(struct RastPort *rp, int kind, LONG x, LONG y, LONG w)
 {
@@ -584,10 +581,31 @@ static void draw_text(struct Data *d, Object *obj, struct RastPort *rp, const Bo
 {
   char buf[512];
   struct TextFont *tf = screen_font(d, &b->f), *tfs = NULL;
-  size_t n = utf8_to_latin1(t + b->off, b->len, buf, sizeof buf);
+  size_t n;
   ULONG soft = 0;
-  int small = (b->f.fx & FX_SMALLCAPS) && !(b->f.flags & CF_CAPS);
-  u8 low[512];
+  int small = (b->f.fx & FX_SMALLCAPS) && !(b->f.flags & CF_CAPS), pass, npass = 1, special = 0;
+  u8 low[512], skip[512];
+  LONG dx[3] = { 0, 0, 0 }, dy[3] = { 0, 0, 0 };
+  ULONG pens[3];
+  {
+    /* (WP10) an optional hyphen isn't drawn (with formatting marks: a not sign), a nonbreaking hyphen
+       is a hyphen, a nonbreaking space shows as a degree sign with the marks */
+    u32 o = b->off, end = b->off + b->len;
+    size_t i = 0;
+    while (o < end && i < sizeof buf - 1) {
+      int used;
+      u32 c = utf8_get(t + o, end - o, &used);
+      skip[i] = 0;
+      if (c == 0xAD) { skip[i] = (u8)!d->marks; c = 0xAC; special = 1; }
+      else if (c == 0x2011) c = '-';
+      else if (c == 0xA0 && d->marks) { c = 0xB0; special = 1; }
+      buf[i++] = (char)(c < 256 ? c : latin1_of(c) >= 0 ? latin1_of(c) : '?');
+      o += (u32)used;
+    }
+    n = i;
+  }
+  u8 rvm = 0;
+  ULONG tpen;
   {
     size_t i;
     for (i = 0; i < n; i++) {
@@ -606,38 +624,117 @@ static void draw_text(struct Data *d, Object *obj, struct RastPort *rp, const Bo
     SetFont(rp, ((struct GfxBase *)GfxBase)->DefaultFont);
     soft = (b->f.flags & CF_BOLD ? FSF_BOLD : 0) | (b->f.flags & CF_ITALIC ? FSF_ITALIC : 0);
   }
+  {
+    /* (WP5) a tracked change in its author's colour (or the Track Changes Options'), with its mark */
+    u32 rc;
+    rv_ink(d->doc, &b->f, &rc, &rvm);
+    if (rvm == RVO_BOLD) soft |= FSF_BOLD;
+    if (rvm == RVO_ITALIC) soft |= FSF_ITALIC;
+    tpen = rc != COLOR_AUTO ? pen_for(d, obj, rc) : pen_for(d, obj, b->f.color);
+  }
   SetSoftStyle(rp, soft, FSF_BOLD | FSF_ITALIC | FSF_UNDERLINED);
-  SetAPen(rp, b->f.rev ? pen_for(d, obj, rev_colour(b->f.rid)) : pen_for(d, obj, b->f.color));
+  pens[0] = tpen;
   if (b->f.flags & CF_SUPER) base -= tx(d, b->f.size * 10 / 3);
   else if (b->f.flags & CF_SUB) base += tx(d, b->f.size * 10 / 6);
   base -= tx(d, b->f.position * 10);
-  {
-    LONG want = tx(d, b->w), got = TextLength(rp, (STRPTR)buf, (ULONG)n), slack = want / 24 + 1;
-    int each = small || b->f.spacing || (b->f.scale && b->f.scale != 100);
-    if (b->kind != BX_TEXT || n != b->len || (!each && got - want <= slack && want - got <= slack)) {
-      Move(rp, x, base);
-      Text(rp, (STRPTR)buf, (ULONG)n);
+  /* (WP9) the effects, as passes drawn one over the other: shadow a grey copy down and right; emboss
+     (engrave) white letters with a grey copy down and right (up and left); outline the letters drawn
+     round about in the text's colour, then white inside */
+  if (b->f.fx2 & FX2_RELIEF) {
+    ULONG grey = pen_for(d, obj, 0x808080), white = pen_for(d, obj, 0xFFFFFF);
+    LONG o = 1 + d->zoom / 200;
+    npass = 0;
+    if (b->f.fx2 & (FX2_SHADOW | FX2_EMBOSS | FX2_ENGRAVE)) {
+      int up = (b->f.fx2 & FX2_ENGRAVE) && !(b->f.fx2 & FX2_SHADOW);
+      dx[npass] = up ? -o : o; dy[npass] = up ? -o : o; pens[npass] = grey; npass++;
+    }
+    if (b->f.fx2 & FX2_OUTLINE) {
+      /* the letters one pixel round about (as four passes folded into one: see below), then white inside */
+      dx[npass] = 0; dy[npass] = 0; pens[npass] = 0xFFFFFFFFUL; npass++;
+      dx[npass] = 0; dy[npass] = 0; pens[npass] = white; npass++;
     } else {
-      /* the screen font is wider or narrower than the layout measured (or the text is spaced, scaled
-         or in small capitals): each character at its laid-out place, so words never run into each other */
-      u32 o = b->off, end = b->off + b->len;
-      size_t k = 0;
-      while (o < end && k < n) {
-        u32 nx = (u32)utf8_next(t, end, o);
-        if (small) SetFont(rp, low[k] && tfs ? tfs : tf ? tf : ((struct GfxBase *)GfxBase)->DefaultFont);
-        Move(rp, x + tx(d, lay_text_x(d->lay, b, t, o) - b->x), base);
-        Text(rp, (STRPTR)buf + k, 1);
-        o = nx; k++;
+      dx[npass] = 0; dy[npass] = 0;
+      pens[npass] = (b->f.fx2 & (FX2_EMBOSS | FX2_ENGRAVE)) ? white : tpen;
+      npass++;
+    }
+  }
+  for (pass = 0; pass < npass; pass++) {
+    LONG want = tx(d, b->w), got, slack = want / 24 + 1;
+    int each = small || b->f.spacing || (b->f.scale && b->f.scale != 100) || special, k4, rounds = pens[pass] == 0xFFFFFFFFUL ? 4 : 1;
+    for (k4 = 0; k4 < rounds; k4++) {
+      /* (an outline's round: the letters in the text's colour a pixel to each side) */
+      LONG ox = x + dx[pass] + (rounds == 4 ? (k4 == 0 ? -1 : k4 == 1 ? 1 : 0) : 0), ob = base + dy[pass] + (rounds == 4 ? (k4 == 2 ? -1 : k4 == 3 ? 1 : 0) : 0);
+      SetAPen(rp, rounds == 4 ? tpen : pens[pass]);
+      got = TextLength(rp, (STRPTR)buf, (ULONG)n);
+      if (b->kind != BX_TEXT || (!each && (n != b->len || (got - want <= slack && want - got <= slack)))) {
+        Move(rp, ox, ob);
+        Text(rp, (STRPTR)buf, (ULONG)n);
+      } else {
+        /* the screen font is wider or narrower than the layout measured (or the text is spaced, scaled
+           or in small capitals): each character at its laid-out place, so words never run into each other */
+        u32 o = b->off, end = b->off + b->len;
+        size_t k = 0;
+        while (o < end && k < n) {
+          u32 nx = (u32)utf8_next(t, end, o);
+          if (!skip[k]) {
+            int mark = d->marks && ((u8)buf[k] == 0xAC || (u8)buf[k] == 0xB0) && special;
+            if (small) SetFont(rp, low[k] && tfs ? tfs : tf ? tf : ((struct GfxBase *)GfxBase)->DefaultFont);
+            if (mark) SetAPen(rp, d->pen_marks);
+            Move(rp, ox + tx(d, lay_text_x(d->lay, b, t, o) - b->x), ob);
+            Text(rp, (STRPTR)buf + k, 1);
+            if (mark) SetAPen(rp, rounds == 4 ? tpen : pens[pass]);
+          }
+          o = nx; k++;
+        }
       }
     }
   }
-  if ((b->f.flags & (CF_UNDERLINE | CF_STRIKE)) || b->f.rev || (b->f.fx & FX_DSTRIKE)) {
-    /* a tracked insertion is underlined, a deletion struck through, in its author's colour */
+  SetAPen(rp, tpen);
+  if ((b->f.flags & (CF_UNDERLINE | CF_STRIKE)) || rvm || (b->f.fx & FX_DSTRIKE)) {
+    /* a tracked change's mark (underlined, struck through ... as the Track Changes Options say), in its colour */
     LONG w = tx(d, b->w), sy = base - tx(d, b->f.size * 10 / 4);
-    if ((b->f.flags & CF_UNDERLINE) || b->f.rev == REV_INS) deco_line(rp, b->f.rev == REV_INS ? UL_SINGLE : b->f.ul, x, base + 1 + d->zoom / 150, w);
-    if ((b->f.flags & CF_STRIKE) || b->f.rev == REV_DEL) deco_line(rp, UL_SINGLE, x, sy, w);
-    if (b->f.fx & FX_DSTRIKE) deco_line(rp, UL_DOUBLE, x, sy, w);
+    if (b->f.ulcolor && (b->f.flags & CF_UNDERLINE)) SetAPen(rp, pen_for(d, obj, b->f.ulcolor & 0xFFFFFF));   /* (WP9) */
+    if (b->f.flags & CF_UNDERLINE) deco_line(rp, b->f.ul, x, base + 1 + d->zoom / 150, w);
+    SetAPen(rp, tpen);
+    if (rvm == RVO_UNDERLINE || rvm == RVO_DUNDERLINE) deco_line(rp, rvm == RVO_DUNDERLINE ? UL_DOUBLE : UL_SINGLE, x, base + 1 + d->zoom / 150 + (rvm == RVO_DUNDERLINE), w);
+    if ((b->f.flags & CF_STRIKE) || rvm == RVO_STRIKE) deco_line(rp, UL_SINGLE, x, sy, w);
+    if ((b->f.fx & FX_DSTRIKE) || rvm == RVO_DSTRIKE) deco_line(rp, UL_DOUBLE, x, sy, w);
   }
+  if ((b->f.fx2 & FX2_HIDDEN) && d->marks) {
+    /* (WP9) hidden text shown with the formatting marks: a dotted line under it */
+    SetAPen(rp, d->pen_marks);
+    deco_line(rp, UL_DOTTED, x, base + 2 + d->zoom / 100, tx(d, b->w));
+  }
+}
+/* (WP9) enclosed characters: the circle, square, triangle or diamond round the box, the text in
+   the middle (at seven tenths of its size unless the symbol is enlarged) */
+static void draw_enclosed(struct Data *d, Object *obj, struct RastPort *rp, const Box *b, const char *t, LONG x, LONG base)
+{
+  Box tb = *b;
+  struct TextFont *tf;
+  char buf[64];
+  size_t n = utf8_to_latin1(t + b->off, b->len, buf, sizeof buf);
+  LONG w = tx(d, b->w), sz = tx(d, b->f.size * 10), h = sz * (b->f.fx2 & FX2_ENLARGE ? 3 : 2) / 2 + sz / 10, r, cx = x + w / 2, cy = base - sz * 3 / 10, tw;
+  int shape = (int)ENCLOSURE(&b->f);
+  tb.f.fx2 &= (u16)~(FX2_ENCLOSE | FX2_ENLARGE);
+  if (!(b->f.fx2 & FX2_ENLARGE)) tb.f.size = (u16)((b->f.size * 7 + 5) / 10);
+  tf = screen_font(d, &tb.f);
+  SetFont(rp, tf ? tf : ((struct GfxBase *)GfxBase)->DefaultFont);
+  tw = TextLength(rp, (STRPTR)buf, (ULONG)n);
+  tb.kind = BX_TEXT; tb.w = tw * 2000 / (d->zoom ? d->zoom : 100);       /* (drawn as one piece, its own width) */
+  {
+    /* draw_text with the box's text, centred */
+    Box db = tb;
+    db.f.spacing = 0; db.f.scale = 0;
+    draw_text(d, obj, rp, &db, t, cx - tw / 2, base - (b->f.fx2 & FX2_ENLARGE ? 0 : sz / 12));
+  }
+  r = (w < h ? w : h) / 2;
+  if (r < 3) r = 3;
+  SetAPen(rp, pen_for(d, obj, b->f.color));
+  if (shape == EN_CIRCLE) DrawEllipse(rp, cx, cy, r, r);
+  else if (shape == EN_SQUARE) { Move(rp, cx - r, cy - r); Draw(rp, cx + r, cy - r); Draw(rp, cx + r, cy + r); Draw(rp, cx - r, cy + r); Draw(rp, cx - r, cy - r); }
+  else if (shape == EN_TRIANGLE) { Move(rp, cx - r * 6 / 5, cy + r * 4 / 5); Draw(rp, cx + r * 6 / 5, cy + r * 4 / 5); Draw(rp, cx, cy - r * 6 / 5); Draw(rp, cx - r * 6 / 5, cy + r * 4 / 5); }
+  else { Move(rp, cx - r * 6 / 5, cy); Draw(rp, cx, cy - r * 6 / 5); Draw(rp, cx + r * 6 / 5, cy); Draw(rp, cx, cy + r * 6 / 5); Draw(rp, cx - r * 6 / 5, cy); }
 }
 /* ---- pictures */
 static const UBYTE bayer[4][4] = { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 } };
@@ -1034,10 +1131,10 @@ static int comments_open(struct Data *d, u32 para)
   }
   while (d->cpara < para) {
     Para *q = doc->p[d->cpara];
-    const char *f = q->len >= 4 ? (const char *)memchr(q->t, 0xF3, q->len) : NULL;
+    const char *f = q->len >= 4 ? (const char *)memchr(q->t, (char)0xF3, q->len) : NULL;
     while (f && f + 4 <= q->t + q->len) {
       if (IS_CSTART(f)) d->copen++; else if (IS_CEND(f) && d->copen > 0) d->copen--;
-      f = (const char *)memchr(f + 1, 0xF3, (size_t)(q->t + q->len - (f + 1)));
+      f = (const char *)memchr(f + 1, (char)0xF3, (size_t)(q->t + q->len - (f + 1)));
     }
     d->cpara++;
   }
@@ -1099,17 +1196,18 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
   Line *ln = &pl->lines[pc->line];
   LONG lx = px + tx(d, d->pg->left + pc->x + ln->left), top = py + tx(d, pc->y), base = py + tx(d, pc->y + ln->ascent);
   u32 k;
-  /* a changed line has a bar in the left margin */
-  if (d->doc->nrevs) {
-    for (k = ln->box0; k < ln->box0 + ln->nbox; k++) if (pl->boxes[k].f.rev) break;
-    if (k < ln->box0 + ln->nbox) {
-      LONG bx = px + tx(d, d->pg->left) - 6;
-      SetAPen(rp, d->pen_text);
+  /* a changed line has a bar in the margin (WP5: where the Track Changes Options say; red in Simple Markup) */
+  if (d->doc->nrevs && rv_opts.lines != RVL_NONE) {
+    for (k = ln->box0; k < ln->box0 + ln->nbox; k++) if (pl->boxes[k].rvmark) break;
+    if (k < ln->box0 + ln->nbox || (pc->para != 0xFFFFFFFFUL && rv_show_para(doc, &pl->p->pf))) {
+      int right = rv_opts.lines == RVL_RIGHT || (rv_opts.lines == RVL_OUTSIDE && d->doc->evenodd && (pc->page & 1));
+      LONG bx = right ? px + tx(d, d->pg->width - d->pg->right) + 5 : px + tx(d, d->pg->left) - 6;
+      SetAPen(rp, pen_for(d, obj, rv_mode(doc) == RVM_SIMPLE ? 0xC00000 : rv_opts.linecolor));
       RectFill(rp, bx, top, bx, top + tx(d, ln->height) - 1);
     }
   }
   /* comments' ranges shaded */
-  if (d->doc->ncomments && pc->para < d->doc->np) {
+  if (d->doc->ncomments && pc->para < d->doc->np && rv_show_comments(d->doc)) {
     int open = comments_open(d, pc->para);
     for (k = pl->lines[0].box0; k < ln->box0 && k < pl->nboxes; k++)      /* the marks on lines before this one */
       if (pl->boxes[k].kind == BX_MARK) { if (IS_CSTART(pl->p->t + pl->boxes[k].off)) open++; else if (open > 0 && IS_CEND(pl->p->t + pl->boxes[k].off)) open--; }
@@ -1132,8 +1230,13 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
       RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1);
       continue;
     }
-    if (!b->f.hl || b->kind == BX_BREAK || b->kind == BX_PIC || (b->kind == BX_SPACE && k + 1 == ln->box0 + ln->nbox)) continue;
+    if (!(b->f.hl || b->f.shade) || b->kind == BX_BREAK || b->kind == BX_PIC || (b->kind == BX_SPACE && k + 1 == ln->box0 + ln->nbox)) continue;
     x0 = lx + tx(d, b->x); x1 = lx + tx(d, b->x + b->w); sz = tx(d, b->f.size * 10);
+    if (!b->f.hl) {        /* (WP9) character shading, the highlight over it */
+      SetAPen(rp, pen_bg(d, obj, (b->f.shade & 0xFFFFFF) ? (b->f.shade & 0xFFFFFF) : 0x010101));
+      if (x1 > x0) RectFill(rp, x0, base - sz + sz / 8, x1 - 1, base + sz / 4);
+      continue;
+    }
     SetAPen(rp, pen_bg(d, obj, (b->f.hl & 0xFFFFFF) ? (b->f.hl & 0xFFFFFF) : 0x010101));
     if (x1 > x0) RectFill(rp, x0, base - sz + sz / 8, x1 - 1, base + sz / 4);
   }
@@ -1171,6 +1274,8 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
   }
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *b = &pl->boxes[k];
+    if (LAY_HIDDEN(L, b)) continue;                       /* (WP9: hidden text, formatting marks off) */
+    if (b->kind == BX_TEXT && ENCLOSURE(&b->f)) { draw_enclosed(d, obj, rp, b, pl->p->t, lx + tx(d, b->x), base); continue; }   /* (WP9) */
     if (b->kind == BX_DROP) draw_text(d, obj, rp, b, pl->p->t, lx + tx(d, b->x), base + tx(d, lay_drop_dy(pl, b)));
     if (b->kind == BX_TEXT && b->nspace) {
       /* hyphenated at the line's end: the text, then the hyphen */
@@ -1294,87 +1399,121 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     for (xx = x0; xx < x0 + tx(d, pc->w); xx += 2) WritePixel(rp, xx, y);
   }
 }
-/* the comments started on page k, in balloons in the column right of the page, each joined to where
-   it starts by a dotted line */
+/* (WP5) up to max lines of Latin-1 text s wrapped to w pixels in rp's font: each line's start and length */
+static int wrap_text(struct RastPort *rp, const char *s, LONG w, int max, const char **st, ULONG *len)
+{
+  int n = 0;
+  while (*s && n < max) {
+    struct TextExtent te;
+    ULONG fit = TextFit(rp, (STRPTR)s, (ULONG)strlen(s), &te, NULL, 1, (ULONG)(w > 8 ? w : 8), 100);
+    if (!fit) break;
+    if (s[fit] && fit > 1) { ULONG f2 = fit; while (f2 > 1 && s[f2] != ' ') f2--; if (f2 > 1) fit = f2; }
+    st[n] = s; len[n] = fit; n++;
+    s += fit; while (*s == ' ') s++;
+  }
+  return n;
+}
+/* the balloons for page k in the column right of the page, each joined to where it is anchored by a
+   dotted line (WP5: core/review.h rv_page_items): a comment with its replies (a resolved thread dimmed,
+   to its first line), a deletion shown in a balloon, a formatting change */
 static void draw_balloons(struct Data *d, Object *obj, struct RastPort *rp, u32 k, LONG pl, LONG pt, LONG h)
 {
   Layout *L = d->lay;
   Doc *doc = d->doc;
-  u32 a, b, i, j;
+  RvItem it[32];
+  int n, i;
   LONG bx = pl + page_w(d) + 8, bw = col_w(d) - 16, next = pt + 4, fh = theme_font()->tf_YSize;
   int cur = doc_comment_at(doc, d->caret, NULL, NULL);
-  lay_page_lines(L, k, &a, &b);
-  for (i = a; i < b; i++) {
-    Placed *pc = &L->placed[i];
-    ParaLay *pp;
-    Line *ln;
-    if (pc->page != k || pc->para >= L->npl) continue;
-    pp = &L->pl[pc->para];
-    ln = &pp->lines[pc->line];
-    for (j = ln->box0; j < ln->box0 + ln->nbox; j++) {
-      Box *bxx = &pp->boxes[j];
-      int n;
-      Comment *c;
-      char *txt, lat[400], line[80];
-      LONG ay, ax, y, by, lines = 0, hgt;
-      const char *s;
-      if (bxx->kind != BX_MARK || !IS_CSTART(pp->p->t + bxx->off)) continue;
-      n = note_index(pp->p->t + bxx->off);
-      if (n >= doc->ncomments) continue;
-      c = &doc->comments[n];
-      ax = pl + tx(d, d->pg->left + pc->x + ln->left + bxx->x);
-      ay = pt + tx(d, pc->y + ln->height);
+  if (cur >= 0) cur = rv_thread_root(doc, cur);
+  n = rv_page_items(L, k, it, 32);
+  for (i = 0; i < n; i++) {
+    /* the balloon's rows: segments of text (an author in bold, then their words, wrapped) */
+    static char seg[6][260];
+    const char *rs[16];
+    ULONG rl[16];
+    u8 rbold[16], rind[16];
+    int nseg = 0, nr = 0, j, dim = 0, reps[8], nrep = 0;
+    static char u[600];
+    LONG ax = pl + tx(d, it[i].x), ay = pt + tx(d, it[i].y), y, hgt, by;
+    u32 accent;
+    SetFont(rp, theme_font());
+    if (it[i].kind == RVI_COMMENT) {
+      Comment *c = &doc->comments[it[i].k];
+      char *txt;
+      int done = c->done, maxl = done ? 1 : 4;
+      dim = done;
+      accent = rv_comment_color(doc, c->author);
+      /* the author (and Resolved), the words; then each reply's */
+      utf8_to_latin1(c->author[0] ? c->author : "Comment", (u32)strlen(c->author[0] ? c->author : "Comment"), seg[nseg], 200);
+      if (done) { strcat(seg[nseg], " - "); strcat(seg[nseg], tr("Resolved")); }
+      rs[nr] = seg[nseg]; rl[nr] = (ULONG)strlen(seg[nseg]); rbold[nr] = 1; rind[nr] = 0; nr++; nseg++;
       txt = story_text(&c->text);
-      utf8_to_latin1(txt ? txt : "", txt ? (u32)strlen(txt) : 0, lat, sizeof lat);
+      utf8_to_latin1(txt ? txt : "", txt ? (u32)strlen(txt) : 0, seg[nseg], sizeof seg[0]);
       free(txt);
-      /* how many lines its text takes (at most four) */
-      SetFont(rp, theme_font());
-      for (s = lat; *s && lines < 4; lines++) {
-        struct TextExtent te;
-        ULONG fit = TextFit(rp, (STRPTR)s, (ULONG)strlen(s), &te, NULL, 1, (ULONG)(bw - 10), 100);
-        if (!fit) break;
-        if (s[fit] && fit > 1) { ULONG f2 = fit; while (f2 > 1 && s[f2] != ' ') f2--; if (f2 > 1) fit = f2; }
-        s += fit; while (*s == ' ') s++;
+      j = wrap_text(rp, seg[nseg], bw - 10, maxl, rs + nr, rl + nr);
+      while (j-- > 0) { rbold[nr] = 0; rind[nr] = 0; nr++; }
+      nseg++;
+      nrep = done ? 0 : rv_replies(doc, it[i].k, reps, 8);
+      for (j = 0; j < nrep && j < 2 && nseg + 1 < 6 && nr + 3 < 16; j++) {
+        Comment *rc = &doc->comments[reps[j]];
+        int m;
+        utf8_to_latin1(rc->author, (u32)strlen(rc->author), seg[nseg], 200);
+        rs[nr] = seg[nseg]; rl[nr] = (ULONG)strlen(seg[nseg]); rbold[nr] = 1; rind[nr] = 1; nr++; nseg++;
+        txt = story_text(&rc->text);
+        utf8_to_latin1(txt ? txt : "", txt ? (u32)strlen(txt) : 0, seg[nseg], sizeof seg[0]);
+        free(txt);
+        m = wrap_text(rp, seg[nseg], bw - 18, 2, rs + nr, rl + nr);
+        while (m-- > 0) { rbold[nr] = 0; rind[nr] = 1; nr++; }
+        nseg++;
       }
-      if (!lines) lines = 1;
-      hgt = fh + 6 + lines * fh + 4;
-      y = ay - fh > next ? ay - fh : next;
-      if (y > h || y + hgt < 0) { next = y + hgt + 4; continue; }
-      /* the dotted line from the anchor to the balloon */
-      SetAPen(rp, d->pen_marks);
-      for (by = ax; by < bx; by += 3) WritePixel(rp, by, ay);
-      if (y + 8 != ay) for (by = (ay < y + 8 ? ay : y + 8); by <= (ay < y + 8 ? y + 8 : ay); by += 3) WritePixel(rp, bx - 1, by);
-      SetAPen(rp, n == cur ? d->pen_comment : d->pen_page);
-      RectFill(rp, bx, y, bx + bw - 1, y + hgt - 1);
-      SetAPen(rp, n == cur ? d->pen_sel : d->pen_shadow);
-      Move(rp, bx, y); Draw(rp, bx + bw - 1, y); Draw(rp, bx + bw - 1, y + hgt - 1); Draw(rp, bx, y + hgt - 1); Draw(rp, bx, y);
-      utf8_to_latin1(c->author, (u32)strlen(c->author), line, sizeof line);
-      if (!line[0]) strcpy(line, "Comment");
-      {
-        struct TextExtent te;
-        ULONG fit;
-        SetFont(rp, theme_bold());
-        SetSoftStyle(rp, 0, FSF_BOLD | FSF_ITALIC | FSF_UNDERLINED);
-        SetAPen(rp, d->pen_text); SetDrMd(rp, JAM1);
-        fit = TextFit(rp, (STRPTR)line, (ULONG)strlen(line), &te, NULL, 1, (ULONG)(bw - 10), 100);
-        Move(rp, bx + 5, y + 3 + theme_bold()->tf_Baseline); Text(rp, (STRPTR)line, fit);
-        SetFont(rp, theme_font());
-        for (s = lat, lines = 0; *s && lines < 4; lines++) {
-          fit = TextFit(rp, (STRPTR)s, (ULONG)strlen(s), &te, NULL, 1, (ULONG)(bw - 10), 100);
-          if (!fit) break;
-          if (s[fit] && fit > 1) { ULONG f2 = fit; while (f2 > 1 && s[f2] != ' ') f2--; if (f2 > 1) fit = f2; }
-          Move(rp, bx + 5, y + fh + 6 + lines * fh + theme_font()->tf_Baseline); Text(rp, (STRPTR)s, fit);
-          s += fit; while (*s == ' ') s++;
-        }
+      if (nrep > 2 && nseg < 6 && nr < 16) {
+        sprintf(seg[nseg], tr("%d more replies"), nrep - 2);
+        rs[nr] = seg[nseg]; rl[nr] = (ULONG)strlen(seg[nseg]); rbold[nr] = 0; rind[nr] = 1; nr++; nseg++;
       }
-      if (d->nballoon < 24) {
-        d->balloon[d->nballoon].x0 = (WORD)bx; d->balloon[d->nballoon].y0 = (WORD)y; d->balloon[d->nballoon].x1 = (WORD)(bx + bw - 1);
-        d->balloon[d->nballoon].y1 = (WORD)(y + hgt - 1); d->balloon[d->nballoon].k = n; d->nballoon++;
-      }
-      next = y + hgt + 4;
+    } else {
+      const char *au = it[i].k < doc->nrevs ? doc->revs[it[i].k].author : "";
+      accent = rv_author_color(doc, it[i].k);
+      utf8_to_latin1(au[0] ? au : "?", (u32)strlen(au[0] ? au : "?"), seg[0], 200);
+      rs[nr] = seg[0]; rl[nr] = (ULONG)strlen(seg[0]); rbold[nr] = 1; rind[nr] = 0; nr++;
+      rv_item_text(doc, &it[i], u, sizeof u, tr);
+      utf8_to_latin1(u, (u32)strlen(u), seg[1], sizeof seg[1]);
+      j = wrap_text(rp, seg[1], bw - 10, 3, rs + nr, rl + nr);
+      while (j-- > 0) { rbold[nr] = 0; rind[nr] = 0; nr++; }
     }
+    hgt = 6 + nr * fh + 4;
+    y = ay - fh > next ? ay - fh : next;
+    if (y > h || y + hgt < 0) { next = y + hgt + 4; continue; }
+    /* the dotted line from the anchor to the balloon */
+    SetAPen(rp, it[i].kind == RVI_COMMENT ? d->pen_marks : pen_for(d, obj, accent));
+    for (by = ax; by < bx; by += 3) WritePixel(rp, by, ay);
+    if (y + 8 != ay) for (by = (ay < y + 8 ? ay : y + 8); by <= (ay < y + 8 ? y + 8 : ay); by += 3) WritePixel(rp, bx - 1, by);
+    SetAPen(rp, it[i].kind == RVI_COMMENT && it[i].k == cur ? d->pen_comment : d->pen_page);
+    RectFill(rp, bx, y, bx + bw - 1, y + hgt - 1);
+    SetAPen(rp, it[i].kind == RVI_COMMENT && it[i].k == cur ? d->pen_sel : d->pen_shadow);
+    Move(rp, bx, y); Draw(rp, bx + bw - 1, y); Draw(rp, bx + bw - 1, y + hgt - 1); Draw(rp, bx, y + hgt - 1); Draw(rp, bx, y);
+    /* the author's colour down its left edge */
+    SetAPen(rp, pen_for(d, obj, accent));
+    RectFill(rp, bx + 1, y + 1, bx + 2, y + hgt - 2);
+    SetSoftStyle(rp, 0, FSF_BOLD | FSF_ITALIC | FSF_UNDERLINED);
+    SetDrMd(rp, JAM1);
+    for (j = 0; j < nr; j++) {
+      struct TextExtent te;
+      struct TextFont *f = rbold[j] ? theme_bold() : theme_font();
+      LONG tx0 = bx + 6 + (rind[j] ? 8 : 0);
+      ULONG fit;
+      SetFont(rp, f);
+      SetAPen(rp, dim ? d->pen_marks : d->pen_text);
+      fit = TextFit(rp, (STRPTR)rs[j], rl[j], &te, NULL, 1, (ULONG)(bx + bw - 4 - tx0 > 4 ? bx + bw - 4 - tx0 : 4), 100);
+      Move(rp, tx0, y + 3 + j * fh + f->tf_Baseline); Text(rp, (STRPTR)rs[j], fit);
+    }
+    if (d->nballoon < 24) {
+      d->balloon[d->nballoon].x0 = (WORD)bx; d->balloon[d->nballoon].y0 = (WORD)y; d->balloon[d->nballoon].x1 = (WORD)(bx + bw - 1);
+      d->balloon[d->nballoon].y1 = (WORD)(y + hgt - 1); d->balloon[d->nballoon].k = it[i].k;
+      d->balloon[d->nballoon].kind = it[i].kind; d->balloon[d->nballoon].a = it[i].a; d->balloon[d->nballoon].b = it[i].b;
+      d->nballoon++;
+    }
+    next = y + hgt + 4;
   }
-  (void)obj;
 }
 /* the watermark's mask: its words drawn with the biggest screen font, then scaled and turned (diagonal:
    rising 45 degrees) into a 1-bit mask the size they take on the page at this zoom */
@@ -2040,7 +2179,7 @@ static void update_toolbar(struct Data *d)
     if (f.flags & CF_SUB) rs.on |= RBIT(RB_SUB);
     if (f.flags & CF_SUPER) rs.on |= RBIT(RB_SUPER);
     if (p->pf.list) rs.on |= RBIT(doc->lists[p->pf.list - 1].lvl[p->pf.level].fmt == NF_BULLET ? RB_BULLETS : RB_NUMBERS);
-    rs.on |= RBIT(RB_ALIGN0 + (p->pf.align & 3));
+    if (p->pf.align <= AL_JUSTIFY) rs.on |= RBIT(RB_ALIGN0 + p->pf.align);     /* (Distributed: WP10's own state) */
     if (in_table(&p->pf)) {
       Table *ct = doc_table(doc, &p->pf);
       rs.on |= RBIT(RB_INTABLE) | RBIT(RB_VALIGN0 + (p->pf.cell.valign % 3));
@@ -2127,7 +2266,9 @@ static void relayout(struct Data *d, Object *obj)
      only what changed */
   {
     LONG t0 = qlog ? ticks50() : 0;
-    int ok_ = lay_update_part(d->lay, d->lay->complete ? 0 : FIRST_PARAS);
+    int ok_;
+    d->lay->showhidden = (u8)(d->marks != 0);                  /* (WP9: hidden text shown with the formatting marks) */
+    ok_ = lay_update_part(d->lay, d->lay->complete ? 0 : FIRST_PARAS);
     if (qlog) { fprintf(qlog, "[ok %d, free %lu] ", ok_, (unsigned long)AvailMem(MEMF_ANY)); fprintf(qlog, "layout: %lu laid, %lu pages%s, %ld ticks (mode %d, web %ld, zoom %ld)\n", (unsigned long)d->lay->laid, (unsigned long)d->lay->npages, d->lay->complete ? "" : " so far", (long)(ticks50() - t0), d->vmode, (long)d->lay->webw, (long)d->zoom); fflush(qlog); }
   }
   d->doch = doc_height(d);
@@ -2284,13 +2425,7 @@ static void char_format(struct Data *d, unsigned mask, const CharFmt *v, unsigne
     set_pending(d);
     if (toggle) d->pendfmt.flags ^= (u8)toggle;
     else {
-      d->pendfmt.flags = (u8)((d->pendfmt.flags & ~(mask & 0x7F)) | (v->flags & mask & 0x7F));
-      if (mask & CM_FONT) d->pendfmt.font = v->font;
-      if (mask & CM_SIZE) d->pendfmt.size = v->size;
-      if (mask & CM_COLOR) d->pendfmt.color = v->color;
-      if (mask & CM_HL) d->pendfmt.hl = v->hl;
-      if (mask & CM_UL) d->pendfmt.ul = v->ul;
-      if (mask & CM_CBORDER) d->pendfmt.fx = (u8)((d->pendfmt.fx & ~FX_BORDER) | (v->fx & FX_BORDER));
+      cf_apply(&d->pendfmt, mask & ~(CM_LINK | CM_BMARK | CM_REV), v);      /* (every field, WP9's too) */
     }
   }
 }
@@ -2380,6 +2515,7 @@ static void copy_sel(struct Data *d)
   /* and kept with its formatting, for pasting here */
   fragment_free(d->frag);
   d->frag = doc_fragment(d->doc, sel_lo(d), sel_hi(d));
+  wp10_copied(d->doc, sel_lo(d), sel_hi(d));          /* (WP10: the Clipboard pane keeps it) */
 }
 /* a range that can be deleted by joining paragraphs: not across table cells */
 static int flat_range(Doc *doc, Pos a, Pos b)
@@ -2479,7 +2615,8 @@ static void insert_text(struct Data *d, const char *s, u32 n)
   if (tracking(d) || near->rev || (d->pending && d->pendfmt.rev)) {
     /* the new text is the author's insertion when tracking, and never part of a neighbouring change otherwise */
     CharFmt f = d->pending ? d->pendfmt : *near;
-    if (tracking(d)) { f.rev = REV_INS; f.rid = (u16)rev_id(d); } else { f.rev = REV_NONE; f.rid = 0; }
+    if (tracking(d)) { f.rev = REV_INS; f.rid = (u16)rev_id(d); f.frev = 0; } else { f.rev = REV_NONE; f.rid = 0; }
+    f.move = 0;                                   /* (WP5: new text is no formatting change, nor a move) */
     doc_insert(d->doc, &d->caret, s, n, &f);
   } else doc_insert(d->doc, &d->caret, s, n, d->pending ? &d->pendfmt : NULL);
   if (grouped) doc_end(d->doc, d->caret);
@@ -2635,6 +2772,7 @@ static ULONG do_command(struct IClass *cl, Object *obj, struct MUIP_Quill_Comman
   if (fv_command(d, obj, m)) return 0;         /* WP12's commands, and commands while several ranges are selected */
   caret_hide(d, obj);
   memset(&v, 0, sizeof v);
+  doc->rvtrack = (u16)(tracking(d) ? rev_id(d) + 1 : 0);       /* (WP5: formatting changes tracked too) */
   if (qlog) {
     fprintf(qlog, "command %lu arg %ld: caret %lu.%lu anchor %lu.%lu, flags before %d\n", (unsigned long)m->cmd, (long)m->arg,
             (unsigned long)d->caret.para, (unsigned long)d->caret.off, (unsigned long)d->anchor.para, (unsigned long)d->anchor.off,
@@ -2771,7 +2909,7 @@ static ULONG do_command(struct IClass *cl, Object *obj, struct MUIP_Quill_Comman
     else if (m->cmd == CMD_CLEARFMT) doc_clear_format(doc, a, b);
     else doc_change_case(doc, a, b, (int)m->arg);
     break; }
-  case CMD_MARKS: d->marks = !d->marks; edited = 0; break;
+  case CMD_MARKS: d->marks = !d->marks; edited = 0; relayout(d, obj); d->back_ok = 0; break;   /* (hidden text takes room while marks show: WP9) */
   case CMD_BRUSH:
     /* the format painter: the formatting at the caret goes to the next text selected (again: off) */
     d->brush = !d->brush;
@@ -2874,7 +3012,7 @@ static ULONG do_command(struct IClass *cl, Object *obj, struct MUIP_Quill_Comman
       u32 r, rs = 0;
       a = b = d->caret;
       for (r = 0; r < q->nr; r++) {
-        if (q->r[r].f.rev && rs <= d->caret.off && q->r[r].end >= d->caret.off && q->r[r].end > rs) { a.off = rs; b.off = q->r[r].end; break; }
+        if (rv_is_change(&q->r[r].f) && rs <= d->caret.off && q->r[r].end >= d->caret.off && q->r[r].end > rs) { a.off = rs; b.off = q->r[r].end; break; }
         rs = q->r[r].end;
       }
       if (r == q->nr && !doc_next_change(doc, d->caret, 1, &a, &b)) { DisplayBeep(NULL); edited = 0; break; }
@@ -4244,6 +4382,13 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
         LONG x = im->MouseX - _mleft(obj), y = im->MouseY - _mtop(obj);
         Pos a, b;
         if (x < d->balloon[i].x0 || x > d->balloon[i].x1 || y < d->balloon[i].y0 || y > d->balloon[i].y1) continue;
+        if (d->balloon[i].kind != RVI_COMMENT) {
+          /* (WP5) a change's balloon: what it is about selected */
+          caret_hide(d, obj);
+          d->anchor = pos_clamp(d->doc, d->balloon[i].a); d->caret = pos_clamp(d->doc, d->balloon[i].b);
+          refresh(d, obj, 0);
+          return MUI_EventHandlerRC_Eat;
+        }
         if (DoubleClick(d->secs, d->micros, im->Seconds, im->Micros)) {
           /* double-clicked: its text edited */
           d->secs = 0;

@@ -670,7 +670,6 @@ static ULONG key(UWORD code, UWORD qual, const WpCtx *c)
 {
   int shift = (qual & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) != 0, alt = (qual & (IEQUALIFIER_LALT | IEQUALIFIER_RALT)) != 0;
   int ctrl = (qual & IEQUALIFIER_CONTROL) != 0;
-  (void)c;
   if (code == 0x58) {
     if (ctrl && shift) return ID_FLD_UNLINK;
     if (ctrl) return ID_FLD_INSERT;
