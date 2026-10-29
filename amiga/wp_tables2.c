@@ -102,7 +102,7 @@ static void open_delcells(void)
   if (!dcwin) {
     how[0] = tr("Shift cells left"); how[1] = tr("Shift cells up"); how[2] = tr("Delete entire row"); how[3] = tr("Delete entire column"); how[4] = NULL;
     dcwin = wp_dialog("Delete Cells", MAKE_ID('W','2','D','C'), VGroup,
-      Child, dcradio = RadioObject, MUIA_Radio_Entries, (ULONG)how, MUIA_CycleChain, 1, End,
+      Child, dcradio = CycleObject, MUIA_Cycle_Entries, (ULONG)how, MUIA_CycleChain, 1, End,
     End, "_OK", ID_TB_DELCELLS_OK);
     if (!dcwin) return;
   }
@@ -115,7 +115,7 @@ static void delcells_done(void)
   Pos c;
   set(dcwin, MUIA_Window_Open, FALSE);
   if (!d) return;
-  get(dcradio, MUIA_Radio_Active, &v);
+  get(dcradio, MUIA_Cycle_Active, &v);
   c = wp21_caret;
   if (tbl_delete_cells(d, wp21_anchor, wp21_caret, (int)v, &c)) wp21_changed(c); else DisplayBeep(NULL);
 }

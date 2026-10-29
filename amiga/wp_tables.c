@@ -431,9 +431,12 @@ static void open_quick(void)
     names[QT_N] = NULL;
     qtwin = wp_dialog("Quick Tables", MAKE_ID('W','2','Q','T'), VGroup,
       Child, QTitleObject(tr("Built-In")),
-      Child, qtradio = RadioObject, MUIA_Radio_Entries, (ULONG)names, MUIA_CycleChain, 1, End,
+      Child, qtradio = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_SourceArray, (ULONG)names, End, MUIA_CycleChain, 1, End,
     End, "_Insert", ID_TA_QUICKOK);
     if (!qtwin) return;
+    /* a double-click inserts it too */
+    DoMethod(qtradio, MUIM_Notify, MUIA_Listview_DoubleClick, TRUE, (ULONG)wp_app(), 2, MUIM_Application_ReturnID, ID_TA_QUICKOK);
+    set(qtradio, MUIA_List_Active, 0);
   }
   set(qtwin, MUIA_Window_Open, TRUE);
 }
@@ -464,7 +467,7 @@ int wp21a_command(ULONG id, LONG value)
   case ID_TA_TS_OK: if (tswin) editor_ok(); break;
   case ID_TA_PAINTER: wp21_set_tool(WP21_PAINT); break;
   case WP21_ID_QUICKTABLES: open_quick(); return WPR_KEEPFOCUS;
-  case ID_TA_QUICKOK: { ULONG v = 0; get(qtradio, MUIA_Radio_Active, &v); set(qtwin, MUIA_Window_Open, FALSE); quick_table((int)v); break; }
+  case ID_TA_QUICKOK: { ULONG v = 0; get(qtradio, MUIA_List_Active, &v); if ((LONG)v < 0) v = 0; set(qtwin, MUIA_Window_Open, FALSE); quick_table((int)v); break; }
   case WP21_ID_SPREADSHEET: spreadsheet(); break;
   }
   return WPR_DONE;
