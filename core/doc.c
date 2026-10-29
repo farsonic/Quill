@@ -7,13 +7,16 @@
 #include "doc.h"
 #include "keep.h"
 #include "image.h"
+#include "notes.h"   /* (WP22b) */
+#include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a */
 
 /* ------------------------------------------------------------------ */
 /* undo: a step replaces paragraphs [p0, p0 + nnew) with copies of what was there before the edit
    (nold paragraphs). A group is the steps of one user action, undone in reverse. */
 typedef struct { u32 p0, nnew, nold; Para **old; } Step;
-typedef struct { Step *s; int ns, cap; Pos before, after; int typing; int lastspace; Style *styles; int nstyles; } Group;   /* styles: the style table before, if the action changed it */
+typedef struct { Step *s; int ns, cap; Pos before, after; int typing; int lastspace; Style *styles; int nstyles;
+                 u32 serial; int kind; } Group;   /* styles: the style table before, if the action changed it; serial, kind: WP12 (doc_undo_step) */
 typedef struct Undo {
   Group *u; int nu, ucap;           /* undo stack, newest last */
   Group *r; int nr, rcap;           /* redo stack */
@@ -59,6 +62,8 @@ static Group *push_group(Group **st, int *n, int *cap)
   memset(&(*st)[*n], 0, sizeof(Group));
   return &(*st)[(*n)++];
 }
+static u32 undo_serials;              /* (WP12) each group's own number, from one counter */
+static int undo_classify(Doc *d, const Group *g);
 /* a new group for an edit, unless one is open; where: the caret before a single edit */
 static Group *cur_group(Doc *d, Pos where)
 {
@@ -71,7 +76,9 @@ static Group *cur_group(Doc *d, Pos where)
     memmove(u->u, u->u + 1, (u->nu - 1) * sizeof(Group));
     u->nu--;
   }
+  if (u->nu && !u->u[u->nu - 1].kind) u->u[u->nu - 1].kind = undo_classify(d, &u->u[u->nu - 1]);   /* (WP12: named while the document still shows its result) */
   if (!(g = push_group(&u->u, &u->nu, &u->ucap))) return NULL;
+  g->serial = ++undo_serials;
   g->before = g->after = u->depth ? u->caret : where;
   u->open = 1;
   return g;
@@ -210,6 +217,8 @@ static int undo_redo(Doc *d, Pos *caret, int redo)
   if (redo ? !u->nr : !u->nu) return 0;
   g = redo ? u->r[--u->nr] : u->u[--u->nu];
   memset(&inv, 0, sizeof inv);
+  if (!g.kind) g.kind = undo_classify(d, &g);
+  inv.kind = g.kind; inv.serial = g.serial;
   if (!replay(d, &g, &inv)) {
     /* out of memory part way: each step is whole, so the document is consistent; history is not */
     group_free(&g); group_free(&inv); doc_clear_undo(d);
@@ -224,6 +233,75 @@ static int undo_redo(Doc *d, Pos *caret, int redo)
 /* undo and redo one action; 0 if there was nothing to do */
 int doc_undo(Doc *d, Pos *caret) { return undo_redo(d, caret, 0); }
 int doc_redo(Doc *d, Pos *caret) { return undo_redo(d, caret, 1); }
+
+/* ---- WP12: the history read (Undo and Redo lists, Go Back, Repeat). What an action did, from its
+   steps: the paragraphs it saved against what is there now (the newest group only: the document
+   shows its result; older ones are named when the next group starts) */
+static int undo_classify(Doc *d, const Group *g)
+{
+  int i, text = 0, runs = 0, pf = 0;
+  long grow = 0;
+  if (g->typing) return UK_TYPING;
+  if (g->styles) return UK_STYLE;
+  for (i = 0; i < g->ns; i++) {
+    const Step *s = &g->s[i];
+    u32 k;
+    if (s->p0 + s->nnew > d->np) return UK_EDIT;
+    if (s->nold != s->nnew) text = 1;
+    for (k = 0; k < s->nold; k++) grow -= (long)s->old[k]->len;
+    for (k = 0; k < s->nnew; k++) grow += (long)d->p[s->p0 + k]->len;
+    for (k = 0; k < s->nold && k < s->nnew; k++) {
+      const Para *a = s->old[k], *b = d->p[s->p0 + k];
+      if (a->len != b->len || memcmp(a->t, b->t, a->len)) text = 1;
+      else if (a->nr != b->nr || memcmp(a->r, b->r, a->nr * sizeof(Run))) runs = 1;
+      if (memcmp(&a->pf, &b->pf, sizeof a->pf)) pf = 1;
+    }
+  }
+  if (text) return grow > 0 ? UK_INSERT : grow < 0 ? UK_DELETE : UK_REPLACE;
+  return runs ? UK_FORMAT : pf ? UK_PARA : UK_EDIT;
+}
+int doc_undo_count(Doc *d, int redo) { return redo ? d->undo->nr : d->undo->nu; }
+/* see doc.h */
+int doc_undo_step(Doc *d, int redo, int i, Pos *before, Pos *after, u32 *serial)
+{
+  Undo *u = d->undo;
+  Group *g;
+  int n = redo ? u->nr : u->nu;
+  if (i < 0 || i >= n) return -1;
+  g = redo ? &u->r[n - 1 - i] : &u->u[n - 1 - i];
+  if (before) *before = g->before;
+  if (after) *after = g->after;
+  if (serial) *serial = g->serial;
+  if (g->kind) return g->kind;
+  return redo || i ? UK_EDIT : undo_classify(d, g);
+}
+void doc_undo_kind(Doc *d, int kind) { if (d->undo->nu) d->undo->u[d->undo->nu - 1].kind = kind; }
+/* see doc.h: each typing group newer than since, oldest first; the text a group typed is what its
+   paragraph gained between its saved copy and the next copy of it (the next group's, or now) */
+char *doc_undo_typed(Doc *d, u32 since)
+{
+  Undo *u = d->undo;
+  int i0 = u->nu, i;
+  Buf b;
+  while (i0 > 0 && u->u[i0 - 1].typing && u->u[i0 - 1].serial > since && u->u[i0 - 1].ns == 1) i0--;
+  if (i0 == u->nu) return NULL;
+  buf_init(&b);
+  for (i = i0; i < u->nu; i++) {
+    const Para *a = u->u[i].s[0].old[0], *n;
+    u32 pre = 0, suf = 0;
+    if (u->u[i].s[0].nold != 1) continue;
+    if (i + 1 < u->nu) { if (u->u[i + 1].s[0].nold != 1 || u->u[i + 1].s[0].p0 != u->u[i].s[0].p0) continue; n = u->u[i + 1].s[0].old[0]; }
+    else { if (u->u[i].s[0].p0 >= d->np) continue; n = d->p[u->u[i].s[0].p0]; }
+    if (n->len <= a->len) continue;
+    while (pre < a->len && a->t[pre] == n->t[pre]) pre++;
+    while (suf < a->len - pre && a->t[a->len - 1 - suf] == n->t[n->len - 1 - suf]) suf++;
+    while (pre && (n->t[pre] & 0xC0) == 0x80) pre--;        /* (on a character boundary) */
+    buf_add(&b, n->t + pre, n->len - suf - pre);
+  }
+  if (b.oom || !b.len) { buf_free(&b); return NULL; }
+  buf_addc(&b, 0);
+  return b.data;
+}
 
 /* ------------------------------------------------------------------ */
 /* paragraphs */
@@ -2642,6 +2720,8 @@ void doc_free(Doc *d)
   for (i = 0; i < HF_N; i++) { story_free(&d->hdr[i]); story_free(&d->ftr[i]); }
   undo_free(d->undo);
   keep_free(d);
+  notes_free(d);                 /* (WP22b) */
+  info_free(d);                  /* (WP24) */
   math_doc_free(d);     /* WP14a: equations */
   free(d);
 }

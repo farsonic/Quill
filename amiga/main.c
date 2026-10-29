@@ -68,6 +68,8 @@ extern struct WBStartup *_WBenchMsg;
 #include "splash.h"
 #include "sysfonts.h"
 #include "wphooks.h"
+#include "wp_find.h"                  /* WP12: its ids, for Find's, Select's and Go To's entries */
+void wp12_note(ULONG id, LONG v);       /* WP12 (wp_find.c): each command as it starts, for Repeat */
 
 static struct NewMenu menus[] = {
   { NM_TITLE, (STRPTR)"File", 0, 0, 0, 0 },
@@ -498,6 +500,8 @@ static int file_request_pat(int save, const char *titletext, char *path, size_t 
 static int file_request(int save, const char *titletext, char *path, size_t cap, int docs) { return file_request_pat(save, titletext, path, cap, docs, NULL); }
 /* (wphooks.h) */
 int wp_file_request(int save, const char *title, char *path, size_t cap, const char *pattern) { return file_request_pat(save, title, path, cap, 0, pattern); }
+void wp24_saved(Doc *d, const char *path);   /* (WP24, wp_info.c) */
+int  wp24_alt_pane(void);
 /* the document written to path (.docx or text, by its name: doc_save_file decides). On success the
    document counts as saved and joins the recent list: 1; a failure is reported and returns 0 */
 /* (while saving: a cross-reference's page, from the layout, so Word shows the right one) */
@@ -517,6 +521,7 @@ static int save_to(const char *path)
   set(view, MUIA_Quill_Changed, FALSE);
   set_title();
   add_recent(path);
+  wp24_saved(doc, path);                 /* (WP24: a version kept, the recovery copy dropped) */
   return 1;
 }
 /* Save As (text: Save As Text). Asks for a name, adds .docx if none was typed, asks before replacing
@@ -1486,6 +1491,7 @@ Object *wp_dialog(const char *title, ULONG wid, Object *contents, const char *ok
 void wp_latin1_utf8(const char *latin1, char *utf8, size_t cap) { latin1_utf8(latin1, utf8, cap); }
 void wp_story_close(void) { if (doc->edit.kind) story_close(1); }
 void wp_refresh(void) { DoMethod(view, MUIM_Quill_Command, CMD_REFRESH, 0); }
+const char *wp_docpath(void) { return docpath; }     /* (WP29: the document's file, "" untitled) */
 static Object *splitwin, *splitcols, *splitrows;
 /* Split Cells, for the caret's cell (a merged cell offers the number of cells it covers) */
 static void open_split(void)
@@ -3120,6 +3126,7 @@ static void command(ULONG id)
     { ID_TGRID, CMD_TGRID }, { ID_SPLITTABLE, CMD_SPLITTABLE }, { ID_DISTROWS, CMD_DISTROWS }, { ID_DISTCOLS, CMD_DISTCOLS },
   };
   size_t i;
+  wp12_note(id, WPV_NONE);               /* WP12: Repeat (F4) */
   /* the work packages' blocks (ids.h): to the package's own wpN_command (wphooks.h) */
   if (id >= ID_WP_FIRST && id <= ID_WP_LAST) { wp_focus_kept = wp_run(id, WPV_NONE) == WPR_KEEPFOCUS; return; }
   for (i = 0; i < sizeof simple / sizeof simple[0]; i++) if (simple[i][0] == id) { DoMethod(view, MUIM_Quill_Command, simple[i][1], 0); return; }
@@ -3191,7 +3198,7 @@ static void command(ULONG id)
   case ID_MULTIPAGE: set(view, MUIA_Quill_ViewMode, VM_PRINT); chrome(); set(view, MUIA_Quill_Zoom, (ULONG)-2); break;
   case ID_GRID: pref_grid = !pref_grid; set(view, MUIA_Quill_Grid, pref_grid); save_prefs(); DoMethod(view, MUIM_Quill_Command, CMD_REFRESH, 0); break;
   case ID_DARKPAGE: pref_darkpage = !pref_darkpage; set(view, MUIA_Quill_DarkPage, pref_darkpage); save_prefs(); DoMethod(view, MUIM_Quill_Command, CMD_REFRESH, 0); break;
-  case ID_REPLACE: open_find(); break;
+  case ID_REPLACE: wp_focus_kept = wp_run(ID_FX_REPLACE, WPV_NONE) == WPR_KEEPFOCUS; break;   /* (WP12's Find and Replace window) */
   case ID_TABS: open_tabs(); break;
   case ID_TOC: case ID_TOCUPDATE: DoMethod(view, MUIM_Quill_Command, CMD_TOC, 0); break;
   case ID_NEXTNOTE: DoMethod(view, MUIM_Quill_Command, CMD_NEXTNOTE, 0); break;
@@ -3233,7 +3240,7 @@ static void command(ULONG id)
   case ID_TEXTBOX: DoMethod(view, MUIM_Quill_Command, CMD_SHAPE, (ULONG)-1); break;
   case ID_OBJLAYOUT: open_object(OP_POSITION); break;
   case ID_OBJCROP: case ID_OBJSIZE: open_object(OP_SIZE); break;
-  case ID_ALTTEXT: open_object(OP_ALT); break;
+  case ID_ALTTEXT: if (!wp24_alt_pane()) open_object(OP_ALT); break;     /* (WP24: the Alt Text pane) */
   case ID_GROUP: DoMethod(view, MUIM_Quill_Command, CMD_GROUP, 0); break;
   case ID_UNGROUP: DoMethod(view, MUIM_Quill_Command, CMD_UNGROUP, 0); break;
   case ID_EDITTEXT: { int k = sel_obj(); if (k >= 0 && doc->images[k].kind != OBJ_PICTURE) story_open(SK_TEXTBOX, k, 0, 0); break; }
@@ -3266,7 +3273,7 @@ static void command(ULONG id)
     break; }
   case ID_STYLEUPDATE: style_update(styles_sel() >= 0 ? styles_sel() : (caret_pf() ? caret_pf()->style : -1)); styles_fill(); break;
   case ID_NUMVALGO: numval_done(); break;
-  case ID_GOTO: open_goto(); break;
+  case ID_GOTO: wp_focus_kept = wp_run(ID_FX_GOTO, WPV_NONE) == WPR_KEEPFOCUS; break;          /* (WP12's Go To) */
   case ID_FORWARD: case ID_BACKWARD: DoMethod(view, MUIM_Quill_Command, CMD_RESTACK, (ULONG)(LONG)(id == ID_FORWARD ? 1 : -1)); selpane_fill(); break;
   case ID_SELPANE: open_selpane(); break;
   case ID_BOOKMARK: open_bookmarks(); break;
@@ -3700,7 +3707,7 @@ static void ribbon_pick(ULONG id, LONG v)
   case ID_ROWH: if (v >= 0 && v < 7) DoMethod(view, MUIM_Quill_Command, CMD_ROWH, (ULONG)ribbon_rowheights[v]); break;
   case ID_COLW: if (v >= 0 && v < 10) DoMethod(view, MUIM_Quill_Command, CMD_COLW, (ULONG)ribbon_colwidths[v]); break;
   case ID_PASTESPECDD: case ID_PASTEDD: if (v >= 0 && v < 3) DoMethod(view, MUIM_Quill_Command, CMD_PASTEAS, (ULONG)v); break;
-  case ID_FINDDD: if (v == 1) open_goto(); else open_find(); break;
+  case ID_FINDDD: if (v >= 1) wp_focus_kept = wp_run(v == 1 ? ID_FX_GOTO : ID_FX_ADVFIND, WPV_NONE) == WPR_KEEPFOCUS; else open_find(); break;   /* (WP12) */
   case ID_HEADERDD: case ID_FOOTERDD: if (v == 1) remove_headfoot(id == ID_FOOTERDD); else edit_headfoot(id == ID_FOOTERDD, -1); break;
   case ID_TOCDD: DoMethod(view, MUIM_Quill_Command, v == 1 ? CMD_TOCREMOVE : CMD_TOC, 0); break;
   case ID_ADDTEXTDD: add_text((int)v); break;
@@ -3736,7 +3743,8 @@ static void ribbon_pick(ULONG id, LONG v)
     break; }
   case ID_SPACINGDD: if (v >= 0 && v < 6) DoMethod(view, MUIM_Quill_Command, CMD_SPACING, (ULONG)spacings[v]); break;
   case ID_STYLEPICK: DoMethod(view, MUIM_Quill_Command, CMD_STYLE, (ULONG)v); break;
-  case ID_SELECTDD: if (v == 1 || v == 2) DoMethod(view, MUIM_Quill_Command, CMD_SELUNIT, (ULONG)(v - 1)); else command(ID_SELALL); break;
+  case ID_SELECTDD: if (v >= 3) { wp_run(v == 3 ? ID_FX_SELOBJ : ID_FX_SIMILAR, WPV_NONE); break; }   /* (WP12) */
+    if (v == 1 || v == 2) DoMethod(view, MUIM_Quill_Command, CMD_SELUNIT, (ULONG)(v - 1)); else command(ID_SELALL); break;
   case ID_MARGINSDD: if (v >= NMARGINS) open_pagesetup(); else page_setup(-1, -1, (int)v); break;
   case ID_ORIENTDD: page_setup(-1, (int)v, -1); break;
   case ID_PAPERDD: if (v >= NPAPERS) open_pagesetup(); else page_setup((int)v, -1, -1); break;
@@ -3798,8 +3806,16 @@ static void ribbon_choice(ULONG id)
 {
   LONG v = 0;
   get(ribbon, MUIA_Ribbon_Value, &v);
+  wp12_note(id, v);                      /* WP12: Repeat (F4) */
   if (id >= ID_WP_FIRST && id <= ID_WP_LAST) { wp_focus_kept = wp_run(id, v) == WPR_KEEPFOCUS; return; }   /* a work package's list */
   ribbon_pick(id, v);
+}
+/* WP12: Repeat (F4) runs the last command that changed the document again (a list's with its entry) */
+void wp12_replay(ULONG id, LONG v)
+{
+  if (v == WPV_NONE) command(id);
+  else if (id >= ID_WP_FIRST && id <= ID_WP_LAST) wp_focus_kept = wp_run(id, v) == WPR_KEEPFOCUS;
+  else ribbon_pick(id, v);
 }
 
 /* ---- Go To, Drop Cap, Line Numbers and More Colours: the WordCraft comparison's small dialogs */
@@ -4822,6 +4838,42 @@ static void free_home(void)
 /* Quill starts: libraries, arguments (a document, DEBUG=file, PUBSCREEN=, CMD=) or a Workbench icon,
    prefs, language and theme, fonts and the dictionary behind a splash window, then the MUI
    application with one document window, and the input loop until the last window closes */
+/* (WP24, wp_info.c) the document windows: slot i's document (NULL: no window there), its path and
+   whether it has unsaved changes; the current window's document saved where it is (0 if Save would
+   ask for a name: no path, or not a .docx); a document shown in a window of its own (or in the
+   untouched blank one), its path given (changed: counted as unsaved); the current window's document
+   replaced by d (its path kept); the user's name from the options */
+Doc *wp_window_doc(int i, const char **path, int *changed)
+{
+  ULONG c = 0;
+  if (i < 0 || i >= MAXWIN || !wins[i].used) return NULL;
+  if (i == curwin) { if (path) *path = docpath; if (changed && view) { get(view, MUIA_Quill_Changed, &c); *changed = c != 0; } return doc; }
+  if (path) *path = wins[i].docpath;
+  if (changed && wins[i].view) { get(wins[i].view, MUIA_Quill_Changed, &c); *changed = c != 0; }
+  return wins[i].doc;
+}
+int wp_save_current(void)
+{
+  const DocFormat *f = docpath[0] ? doc_format_for_name(docpath, 1) : NULL;
+  if (!f || !(f->flags & DF_NATIVE)) return 0;
+  return save_to(docpath);
+}
+int wp_open_doc(Doc *d, const char *path, int changed)
+{
+  if (!d) return 0;
+  if (doc_untouched()) { strncpy(docpath, path ? path : "", sizeof docpath - 1); docpath[sizeof docpath - 1] = 0; show_doc(d); }
+  else if (!win_new(d, path ? path : "")) return 0;
+  if (changed) { set(view, MUIA_Quill_Changed, TRUE); set_title(); }
+  return 1;
+}
+void wp_replace_doc(Doc *d, int changed)
+{
+  if (!d) return;
+  story_close(1);
+  show_doc(d);
+  if (changed) { set(view, MUIA_Quill_Changed, TRUE); set_title(); }
+}
+const char *wp_username(void) { return username; }
 int main(int argc, char **argv)
 {
   ULONG sigs = 0;
