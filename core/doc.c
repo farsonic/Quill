@@ -131,6 +131,7 @@ static void changed(Doc *d) { d->ver++; d->dirty = 1; }
 static u32 stamp;
 /* a paragraph has changed: it gets a fresh version from the shared counter above */
 static void touch(Para *p) { p->ver = ++stamp; }
+void para_touch(Para *p) { touch(p); }     /* (WP13) see doc.h */
 
 /* one user action starts: its edits until the matching doc_end make one undo step. Calls nest and
    only the outermost counts; caret is where undo puts the caret back. The group is only made by
@@ -369,7 +370,8 @@ static int cf_eq(const CharFmt *a, const CharFmt *b)
 {
   return a->flags == b->flags && a->font == b->font && a->size == b->size && a->color == b->color && a->hl == b->hl && a->rev == b->rev && a->rid == b->rid &&
          a->cstyle == b->cstyle && a->fx == b->fx && a->ul == b->ul && a->spacing == b->spacing && a->scale == b->scale && a->position == b->position &&
-         a->link == b->link && a->bmark == b->bmark;
+         a->link == b->link && a->bmark == b->bmark &&
+         a->thcolor == b->thcolor && a->thfont == b->thfont;     /* (WP13) */
 }
 /* the run covering byte off (past the end: the last run). Points into the paragraph, so it is good
    until the paragraph next changes */
@@ -625,6 +627,8 @@ void cf_apply(CharFmt *c, unsigned mask, const CharFmt *v)
   if (mask & CM_FONT) c->font = v->font;
   if (mask & CM_SIZE) c->size = v->size;
   if (mask & CM_COLOR) c->color = v->color;
+  if (mask & CM_COLOR) c->thcolor = v->thcolor;      /* (WP13: a theme colour's reference with it) */
+  if (mask & CM_FONT) c->thfont = v->thfont;         /* (WP13) */
   if (mask & CM_HL) c->hl = v->hl;
   if (mask & CM_REV) { c->rev = v->rev; c->rid = v->rid; }
   if (mask & CM_CSTYLE) c->cstyle = v->cstyle;
@@ -965,6 +969,8 @@ void pf_apply(ParaFmt *p, unsigned mask, const ParaFmt *v)
   if (mask & PM_DROP) { p->dropcap = v->dropcap; p->dropmargin = v->dropmargin; }
   if (mask & PM_BORDER) { memcpy(p->bstyle, v->bstyle, sizeof p->bstyle); memcpy(p->bwidth, v->bwidth, sizeof p->bwidth); memcpy(p->bspace, v->bspace, sizeof p->bspace); memcpy(p->bcolor, v->bcolor, sizeof p->bcolor); }
   if (mask & PM_SHADE) p->shade = v->shade;
+  if (mask & PM_SHADE) p->thshade = v->thshade;                                       /* (WP13) */
+  if (mask & PM_BORDER) memcpy(p->thbcolor, v->thbcolor, sizeof p->thbcolor);        /* (WP13) */
   if (mask & PM_PAGINATION) { p->keeplines = v->keeplines; p->nowidow = v->nowidow; }
   if (mask & PM_CONTEXT) p->contextual = v->contextual;
 }
@@ -2207,8 +2213,9 @@ static int pf_same(const ParaFmt *a, const ParaFmt *b, unsigned g)
   case PM_LIST: return a->list == b->list && a->level == b->level;
   case PM_BREAK: return a->pagebreak == b->pagebreak && a->colbreak == b->colbreak;
   case PM_BORDER: return !memcmp(a->bstyle, b->bstyle, sizeof a->bstyle) && !memcmp(a->bwidth, b->bwidth, sizeof a->bwidth) &&
-                         !memcmp(a->bspace, b->bspace, sizeof a->bspace) && !memcmp(a->bcolor, b->bcolor, sizeof a->bcolor);
-  case PM_SHADE: return a->shade == b->shade;
+                         !memcmp(a->bspace, b->bspace, sizeof a->bspace) && !memcmp(a->bcolor, b->bcolor, sizeof a->bcolor) &&
+                         !memcmp(a->thbcolor, b->thbcolor, sizeof a->thbcolor);   /* (WP13) */
+  case PM_SHADE: return a->shade == b->shade && a->thshade == b->thshade;
   case PM_PAGINATION: return a->keeplines == b->keeplines && a->nowidow == b->nowidow;
   case PM_CONTEXT: return a->contextual == b->contextual;
   }
@@ -2219,9 +2226,9 @@ static int cf_same(const CharFmt *a, const CharFmt *b, unsigned f)
 {
   if (f <= CM_CAPS) return (a->flags & f) == (b->flags & f);
   switch (f) {
-  case CM_FONT: return a->font == b->font;
+  case CM_FONT: return a->font == b->font && a->thfont == b->thfont;
   case CM_SIZE: return a->size == b->size;
-  case CM_COLOR: return a->color == b->color;
+  case CM_COLOR: return a->color == b->color && a->thcolor == b->thcolor;
   case CM_HL: return a->hl == b->hl;
   case CM_SMALLCAPS: return (a->fx & FX_SMALLCAPS) == (b->fx & FX_SMALLCAPS);
   case CM_DSTRIKE: return (a->fx & FX_DSTRIKE) == (b->fx & FX_DSTRIKE);
@@ -2467,12 +2474,32 @@ int doc_set_style(Doc *d, int k, const Style *ns)
   s->pmask = ns->type == ST_PARA ? ns->pmask & PM_STYLED : 0;
   s->cmask = ns->cmask & CM_LOOK;
   s->opf = ns->opf; s->ocf = ns->ocf;
+  s->x = ns->x;                                  /* (WP13) */
   doc_resolve_styles(d);
   ok = restyle_all(d, opf, ocf, oem, nold);
   changed(d);
   doc_end(d, here);
   free(opf); free(ocf); free(oem);
   return ok ? k : -1;
+}
+/* (WP13) see doc.h: as doc_set_style, but edit changes any styles (and the document's defaults) */
+int doc_restyle(Doc *d, void (*edit)(Doc *, void *), void *arg)
+{
+  ParaFmt *opf;
+  CharFmt *ocf;
+  unsigned *oem;
+  int ok, nold = d->nstyles;
+  Pos here = para_pos(0);
+  if (!save_effective(d, &opf, &ocf, &oem)) return 0;
+  doc_begin(d, here);
+  if (!rec_styles(d, here)) { doc_end(d, here); free(opf); free(ocf); free(oem); return 0; }
+  edit(d, arg);
+  doc_resolve_styles(d);
+  ok = restyle_all(d, opf, ocf, oem, nold);
+  changed(d);
+  doc_end(d, here);
+  free(opf); free(ocf); free(oem);
+  return ok;
 }
 /* see doc.h. The style keeps its slot as ST_GONE, as paragraphs and undo steps refer to styles by
    index; styles based on it take over what it set, so they look the same */
@@ -2690,6 +2717,8 @@ void doc_free(Doc *d)
   keep_free(d);
   notes_free(d);                 /* (WP22b) */
   info_free(d);                  /* (WP24) */
+  theme_free(d);                 /* (WP13) */
+  blocks_free(d);                /* (WP23) */
   free(d);
 }
 

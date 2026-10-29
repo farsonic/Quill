@@ -46,9 +46,9 @@ static void formats(void)
   ok("formats: rows without functions are left out", !doc_format_for_name("x.rtf", 0) && !doc_format_for_name("x.odt", 1));
   ok("formats: no ending, no format", !doc_format_for_name("README", 0) && !doc_format_for_name("dir.docx/file", 0));
   doc_format_pattern(0, pat, sizeof pat);
-  ok("formats: open pattern", !strcmp(pat, "#?.(docx|doc|txt|text|asc)"));
+  ok("formats: open pattern", !strcmp(pat, "#?.(docx|dotx|dotm|doc|txt|text|asc)"));
   doc_format_pattern(1, pat, sizeof pat);
-  ok("formats: save pattern", !strcmp(pat, "#?.(docx|txt|text|asc)"));
+  ok("formats: save pattern", !strcmp(pat, "#?.(docx|dotx|dotm|txt|text|asc)"));
   {
     static const u8 cfb[16] = { 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 };
     Doc *d;
