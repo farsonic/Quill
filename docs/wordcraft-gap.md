@@ -6,8 +6,8 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 ## Summary
 
-- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 500 of them applicable to Quill. Quill has **331** (✅), **10** partly (🟨) and lacks **159** (⬜); 31 are ➖. So Quill covers 66% of the applicable commands fully and 68% at least in part.
-- **Beyond the ribbon (section 2):** 152 features: ✅ 53, 🟨 44, ⬜ 38, ➖ 17.
+- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 500 of them applicable to Quill. Quill has **344** (✅), **9** partly (🟨) and lacks **147** (⬜); 31 are ➖. So Quill covers 69% of the applicable commands fully and 71% at least in part.
+- **Beyond the ribbon (section 2):** 152 features: ✅ 54, 🟨 43, ⬜ 38, ➖ 17.
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
 - **Missing whole:** Mailings (22), the Equation tab and equations (21), Outline view and Outlining (14), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
 - **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; content controls, charts, SmartArt, equations, OLE objects and VML pictures are dropped (formatting revisions are kept since WP5); no AutoSave or recovery (WP24 adds them). These are in priority 1 below.
@@ -19,7 +19,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Quick Access | 5 | 5 | 0 | 0 | 0 |
 | Title Bar | 1 | 0 | 0 | 1 | 0 |
 | Home | 105 | 96 | 2 | 6 | 1 |
-| Insert | 53 | 35 | 0 | 12 | 6 |
+| Insert | 53 | 38 | 0 | 9 | 6 |
 | Draw | 11 | 0 | 0 | 10 | 1 |
 | Design | 10 | 9 | 0 | 1 | 0 |
 | Layout | 22 | 19 | 0 | 3 | 0 |
@@ -42,13 +42,13 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Chart Design | 5 | 0 | 0 | 5 | 0 |
 | Editing | 41 | 37 | 2 | 2 | 0 |
 | Tools | 7 | 3 | 0 | 4 | 0 |
-| **All** | **531** | **331** | **10** | **159** | **31** |
+| **All** | **531** | **344** | **9** | **147** | **31** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
 | 2.1 File formats | 5 | 5 | 6 | 3 |
 | 2.2 DOCX features | 9 | 15 | 13 | 1 |
-| 2.3 Layout | 16 | 3 | 5 | 0 |
+| 2.3 Layout | 17 | 2 | 5 | 0 |
 | 2.4 Editing | 11 | 11 | 5 | 7 |
 | 2.5 Interface: panes, toolbars and the window | 10 | 2 | 5 | 2 |
 | 2.6 The Options dialog | 1 | 5 | 2 | 1 |
@@ -57,7 +57,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | 2.9 Zotero | 0 | 0 | 0 | 1 |
 | 2.10 Control protocol, MCP, command line, scripting | 0 | 0 | 0 | 1 |
 | 2.11 Network and cloud features (left out on purpose) | 0 | 0 | 0 | 1 |
-| **All** | **53** | **44** | **38** | **17** |
+| **All** | **54** | **43** | **38** | **17** |
 
 ## Work packages
 
@@ -295,7 +295,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Dictate (Voice) `tools.dictate` — WordCraft doesn't have it either (cloud speech service)
 - ✅ Editor (Editor) `review.editor` — WordCraft's Editor runs Spelling: Quill `ID_SPELL`
 
-### Insert (53: ✅ 35 · 🟨 0 · ⬜ 12 · ➖ 6)
+### Insert (53: ✅ 38 · 🟨 0 · ⬜ 9 · ➖ 6)
 
 - ✅ Cover Page (Pages) `insert.coverPage` — `ID_COVERDD` (3 designs, remove)
 - ✅ Blank Page (Pages) `insert.blankPage` — `ID_BLANKPAGE`
