@@ -407,6 +407,10 @@ typedef struct Doc {
   StoryEdit edit;           /* a story being edited in the body's place */
   struct KeptPart *kept; int nkept;   /* .docx parts kept verbatim, written back on saving (core/keep.h) */
   /* (work packages: new fields go below, at the end) */
+  /* WP14a: equations (core/math.h): the entries the text's references name (only ever added to), and
+     settings.xml's m:mathPr kept verbatim */
+  struct MathEq **maths; int nmaths, mathcap;
+  char *mathpr;
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */

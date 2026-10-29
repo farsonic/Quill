@@ -1217,6 +1217,12 @@
 /* ---- begin WP13 (tools/lang/wp13.py) */
 /* ---- end WP13 */
 /* ---- begin WP14a (tools/lang/wp14a.py) */
+  { { "Equation...", "Formel...", "\311quation...", "Ecuaci\363n...", "Equazione..." } },
+  { { "Equation:", "Formel:", "\311quation :", "Ecuaci\363n:", "Equazione:" } },
+  { { "Edit Equation...", "Formel bearbeiten...", "Modifier l'\351quation...", "Editar ecuaci\363n...", "Modifica equazione..." } },
+  { { "Insert an equation, typed in linear format", "Eine Formel im linearen Format eingeben und einf\374gen", "Ins\351rer une \351quation tap\351e au format lin\351aire", "Insertar una ecuaci\363n escrita en formato lineal", "Inserisci un'equazione digitata in formato lineare" } },
+  { { "Type the equation in linear format, for example:", "Geben Sie die Formel im linearen Format ein, zum Beispiel:", "Tapez l'\351quation au format lin\351aire, par exemple :", "Escriba la ecuaci\363n en formato lineal, por ejemplo:", "Digitare l'equazione in formato lineare, ad esempio:" } },
+  { { "x^2+(a+b)/c   \\sqrt(x)   \\sum_(i=1)^n i   \\matrix(a&b@c&d)", NULL, NULL, NULL, NULL } },
 /* ---- end WP14a */
 /* ---- begin WP14b (tools/lang/wp14b.py) */
 /* ---- end WP14b */

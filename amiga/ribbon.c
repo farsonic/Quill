@@ -389,10 +389,13 @@ static const Item i_hf[] = {
   { K_DROP, S_SMALL, IC_PAGENUM, L_PAGENUMS, "Page Number", ID_PAGENUMDD, 0, 0, 0, 0, "Page numbers at the top or foot of the page, their format, or none" } };
 static const Item i_text[] = { { K_BUTTON, S_LARGE, IC_DATE, 0, "Date", ID_DATE, 0, 0, 0, 0, "Today's date" },
   { K_DROP, S_LARGE, IC_DROPCAP, L_DROPCAP, "Drop Cap", ID_DROPCAPDD, 0, 0, 0, 0, "The paragraph's first letter large, over three lines" } };
-static const Item i_sym[] = { { K_DROP, S_LARGE, IC_SYMBOL, L_SYMBOLS, "Symbol", ID_SYMBOLDD, 0, 0, 0, 0, "A symbol" } };
+static const Item i_sym[] = {
+  { K_BUTTON, S_LARGE, 0, 0, "Equation", ID_WP14A_FIRST, 0, 0, 0, 0, "Insert an equation, typed in linear format", NULL,     /* WP14a (amiga/wp_math.c) */
+    "ci L 2 3 14 3 L 2 3 1 5 L 5 3 5 13 L 4 13 6 13 L 10 3 10 12 L 10 12 12 13 L 12 13 14 12 ca L 1 15 14 15" },
+  { K_DROP, S_LARGE, IC_SYMBOL, L_SYMBOLS, "Symbol", ID_SYMBOLDD, 0, 0, 0, 0, "A symbol" } };
 static const Group insert[] = { { "Pages", G_COLS, i_pages, N(i_pages) }, { "Tables", G_COLS, i_tables, N(i_tables) }, { "Illustrations", G_COLS, i_ill, N(i_ill) },
                                 { "Links", G_COLS, i_link, N(i_link) }, { "Comments", G_COLS, i_comm, 1 }, { "Header & Footer", G_COLS, i_hf, N(i_hf) }, { "Text", G_COLS, i_text, N(i_text) },
-                                { "Symbols", G_COLS, i_sym, 1 } };
+                                { "Symbols", G_COLS, i_sym, N(i_sym) } };
 
 /* the Layout tab: page setup, the paragraph's indents and spacing as fields, tab stops */
 static const Item l_setup[] = {
