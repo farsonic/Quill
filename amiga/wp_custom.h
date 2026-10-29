@@ -35,6 +35,7 @@ ULONG ribbon_ctx_command(void);            /* the command right-clicked on the r
 #define MUIM_Ribbon_OpenId   (QTAG + 0x313)   /* id: its tab shown and its list opened (or the command run) */
 #define MUIM_Ribbon_Deferred (QTAG + 0x314)   /* (inside ribbon.c) a list opened after another closed */
 #define MUIM_Ribbon_FitCheck (QTAG + 0x315)   /* file: each tab laid out in each language at the ribbon's width, reported */
+#define MUIM_Ribbon_Collapse (QTAG + 0x316)   /* the tools hidden (the tab strip alone) or shown again */
 #define KT_START (-1)
 #define KT_STOP  (-2)
 struct MUIP_Ribbon_KeyTip { ULONG MethodID; LONG key; };
@@ -47,5 +48,8 @@ Object *wp26_pane(int pane);               /* the pane's contents, made when the
 void wp26_pane_load(void);                 /* the panes show the current choices (the window opening) */
 void wp26_pane_save(void);                 /* OK: the panes' choices kept and saved */
 int  wp26_pane_command(ULONG id);          /* a gadget of the panes (one of WP26's ids): 1 if it was one */
+void wp_prefs_each(const char *prefix, void (*fn)(const char *key, const char *val));   /* Quill.prefs lines starting so */
+void wp_options_drop(void);
+int  wp_options_command(ULONG id);         /* the window's OK (1 if it was) */                /* the language changed: the Options window goes */
 
 #endif

@@ -147,7 +147,7 @@ int     wp_file_request(int save, const char *title, char *path, size_t cap, con
    Tools in the View menu). A package adds a table of rows, usually from its init hook; the table must
    stay (static const). Rows show in their pane in the order added, each a check box, a cycle of
    choices, a number, a text field, a button or a heading/line of text. The window's OK writes every
-   changed value (to *var or through set), then calls changed and saves Quill.prefs */
+   changed value (to *var or through setv), then calls changed and saves Quill.prefs */
 enum { OP_GENERAL, OP_DISPLAY, OP_PROOFING, OP_SAVE, OP_LANGUAGE, OP_ACCESSIBILITY, OP_ADVANCED, OP_NSETTINGS };
 enum { OT_HEAD, OT_TEXT, OT_CHECK, OT_CYCLE, OT_NUMBER, OT_STRING, OT_BUTTON };
 typedef struct {
@@ -158,8 +158,8 @@ typedef struct {
   const char *const *choices;       /* OT_CYCLE: the choices, NULL-terminated (tr()'d) */
   LONG min, max, def;               /* OT_NUMBER's range; the default (with key: when Quill.prefs hasn't it) */
   LONG *var;                        /* the value (CHECK 0/1, CYCLE the choice, NUMBER), or NULL ... */
-  LONG (*get)(void);                /* ... then these read and write it */
-  void (*set)(LONG v);
+  LONG (*getv)(void);               /* ... then these read and write it */
+  void (*setv)(LONG v);
   char *str; int cap;               /* OT_STRING: the text (Latin-1) and its buffer's size */
   void (*changed)(void);            /* after OK changed it (NULL: nothing more) */
   ULONG id;                         /* OT_BUTTON: the command it runs */

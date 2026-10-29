@@ -747,6 +747,8 @@ struct RData {
   int kt; char ktyped[4];
   char ktab[TAB_N + MAXQA + 2][3]; char kcode[MAXI][3];
   Object *ctxstrip, *ctxmenu;    /* the right-button menu: its strip (kept) and the menu made for this click */
+  int mini;                      /* collapsed: the tab strip alone (a tab's double-click, Ctrl-F1) */
+  ULONG lastsec, lastmic; int lasttab;   /* the last click on a tab (for its double-click) */
   RBox gal; int galfirst, galn, galw;          /* the styles gallery: its box, first style shown, how many fit */
   int galstyle[MAXGAL]; int ngal;             /* the styles it offers (Doc.styles indexes) */
   RBox galup, galdown, galmore;
@@ -988,18 +990,26 @@ static void layout_ribbon(struct RData *d, Object *obj)
   {
     LONG need = total;                       /* the gallery can shrink to a button */
     for (g = 0; g < tab->n && g < MAXG; g++) if (tab->groups[g].mode == G_GALLERY) need += 56 - gw[g];
-    if (need > _mwidth(obj) + 8) { squeeze = 1; total = group_widths(rp, tab, gw); }   /* + 8: the last group's padding can go */
+    if (need > _mwidth(obj) - 4) { squeeze = 1; total = group_widths(rp, tab, gw); }
     need = total;
     for (g = 0; g < tab->n && g < MAXG; g++) if (tab->groups[g].mode == G_GALLERY) need += 56 - gw[g];
     /* still too wide: groups from the right become one button each (the gallery's group too, once
        it has shrunk to its button) */
-    for (g = tab->n - 1; g >= 0 && need > _mwidth(obj) + 8; g--) {
+    for (g = tab->n - 1; g >= 0 && need > _mwidth(obj) - 4; g--) {
       LONG cw;
       if (g >= MAXG) continue;
       cw = group_button_w(rp, &tab->groups[g]) + 8;
       if (tab->groups[g].mode == G_GALLERY) { need += cw - 56; total += cw - gw[g]; gw[g] = cw; d->collapsed[g] = 1; continue; }
       if (cw >= gw[g]) continue;                         /* (no narrower as a button) */
       need += cw - gw[g]; total += cw - gw[g]; gw[g] = cw; d->collapsed[g] = 1;
+    }
+    if (need > _mwidth(obj) - 4) {
+      /* even so (many groups with long names): every group a button, all as wide, the names cut short */
+      int ng = tab->n < MAXG ? tab->n : MAXG;
+      LONG each = (_mwidth(obj) - 4) / (ng ? ng : 1);
+      if (each < 30) each = 30;
+      total = 0;
+      for (g = 0; g < ng; g++) { gw[g] = each; d->collapsed[g] = 1; total += each; }
     }
   }
   extra = _mwidth(obj) - total;
@@ -1015,7 +1025,7 @@ static void layout_ribbon(struct RData *d, Object *obj)
     }
     if (gr->mode == G_GALLERY) {
       LONG bw = 66;
-      w = gw[g] + extra - 4;
+      w = gw[g] + extra - 6;
       if (w > 7 * bw + 30) w = 7 * bw + 30;
       d->galcompact = w < 2 * bw + 30;
       if (d->galcompact) {
@@ -1154,6 +1164,7 @@ static void draw_item(struct RData *d, Object *obj, int k)
     if (ic) item_icon(rp, ic, b->x0 + (b->x1 - b->x0 + 1 - 24) / 2, b->y0 + 4, 24, 0);
     else theme_icon(rp, IC_STYLESPANE, b->x0 + (b->x1 - b->x0 + 1 - 24) / 2, b->y0 + 4, 24, 0);
     sp = squeeze ? split_at(rp, nm, &w2) : 0;
+    if (sp && w2 > b->x1 - b->x0 - 1) sp = 0;          /* (too narrow even on two lines: cut short) */
     SetFont(rp, theme_font()); SetAPen(rp, tpen(T_TEXT)); SetDrMd(rp, JAM1);
     if (sp) {
       LONG a = TextLength(rp, (STRPTR)nm, (ULONG)sp), c = TextLength(rp, (STRPTR)nm + sp + 1, (ULONG)strlen(nm + sp + 1));
@@ -1377,6 +1388,11 @@ static void draw_all(struct RData *d, Object *obj)
   const Tab *tab;
   layout_ribbon(d, obj);
   draw_tabs(d, obj);
+  if (d->mini) {                                 /* (WP26) collapsed: the strip alone, and its line */
+    SetAPen(rp, tpen(T_BORDER));
+    Move(rp, _mleft(obj), _mbottom(obj)); Draw(rp, _mright(obj), _mbottom(obj));
+    return;
+  }
   theme_fill(rp, _mleft(obj), y0, _mright(obj), _mbottom(obj), tpen(T_RIBBON));
   SetAPen(rp, tpen(T_BORDER));
   Move(rp, _mleft(obj), _mbottom(obj)); Draw(rp, _mright(obj), _mbottom(obj));
@@ -1822,6 +1838,7 @@ static int hit(struct RData *d, WORD mx, WORD my)
   if (d->tell.x0 >= 0 && mx >= d->tell.x0 && mx <= d->tell.x1 && my >= d->tell.y0 && my <= d->tell.y1) return QA_TELL;
   for (t = 0; t < NTABS; t++)
     if (d->tabbox[t].x0 >= 0 && mx >= d->tabbox[t].x0 && mx <= d->tabbox[t].x1 && my >= d->tabbox[t].y0 && my <= d->tabbox[t].y1) return 100 + t;
+  if (d->mini) return -1;
   for (k = 0; k < d->nitem; k++)
     if (mx >= d->item[k].x0 && mx <= d->item[k].x1 && my >= d->item[k].y0 && my <= d->item[k].y1) return k;
   return -1;
@@ -1874,6 +1891,14 @@ static ULONG events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent *m)
     if (h >= 100) {
       int t = h - 100;
       if (t == 0) { DoMethod(_app(obj), MUIM_Application_ReturnID, ID_FILETAB); return MUI_EventHandlerRC_Eat; }
+      /* (WP26) a tab double-clicked collapses the ribbon to its strip, or brings it back; a click on a
+         collapsed ribbon's tab brings it back too */
+      if (d->mini || (t == d->lasttab && DoubleClick(d->lastsec, d->lastmic, im->Seconds, im->Micros))) {
+        d->tab = t; d->lasttab = -1;
+        DoMethod(_app(obj), MUIM_Application_PushMethod, (ULONG)obj, 1, MUIM_Ribbon_Collapse);
+        return MUI_EventHandlerRC_Eat;
+      }
+      d->lasttab = t; d->lastsec = im->Seconds; d->lastmic = im->Micros;
       if (t != d->tab) { d->tab = t; d->hot = -1; MUI_Redraw(obj, MADF_DRAWOBJECT); }
       return MUI_EventHandlerRC_Eat;
     }
@@ -2186,7 +2211,7 @@ static void open_by_id(struct RData *d, Object *obj, ULONG id)
 
 /* ---- the right-button menu over the ribbon: the tool under the pointer to the Quick Access Toolbar
    (or off it), and the customizing panes */
-enum { RC_QAADD = 1, RC_QAREMOVE, RC_QACUST, RC_RIBCUST, RC_TELLME };
+enum { RC_QAADD = 1, RC_QAREMOVE, RC_QACUST, RC_RIBCUST, RC_TELLME, RC_COLLAPSE };
 static void rctx_item(Object *menu, const char *title, ULONG ud, int en)
 {
   Object *it = MenuitemObject, MUIA_Menuitem_Title, (ULONG)title, MUIA_UserData, ud, MUIA_Menuitem_Enabled, en, End;
@@ -2207,6 +2232,7 @@ static Object *ctx_build(struct RData *d, Object *obj, LONG mx, LONG my)
   rctx_item(d->ctxmenu, tr("Customize Quick Access Toolbar..."), RC_QACUST, 1);
   rctx_item(d->ctxmenu, tr("Customize the Ribbon..."), RC_RIBCUST, 1);
   rctx_item(d->ctxmenu, (const char *)NM_BARLABEL, 0, 1);
+  rctx_item(d->ctxmenu, tr(d->mini ? "Show the Ribbon" : "Collapse the Ribbon"), RC_COLLAPSE, 1);
   rctx_item(d->ctxmenu, tr("Tell Me..."), RC_TELLME, 1);
   DoMethod(d->ctxstrip, MUIM_Family_AddTail, (ULONG)d->ctxmenu);
   return d->ctxstrip;
@@ -2221,6 +2247,7 @@ static void ctx_choice(struct RData *d, Object *obj, Object *item)
   case RC_QAREMOVE: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_WP26_FIRST + 2); break;   /* ID_CU_QAREMOVE */
   case RC_QACUST: wp_options_open(OP_QAT); break;
   case RC_RIBCUST: wp_options_open(OP_RIBBON); break;
+  case RC_COLLAPSE: DoMethod(_app(obj), MUIM_Application_PushMethod, (ULONG)obj, 1, MUIM_Ribbon_Collapse); break;
   case RC_TELLME: { struct Window *w = _window(obj); if (w) wp26_tellme_open(w->LeftEdge + (d->tell.x0 >= 0 ? d->tell.x0 : _mright(obj) - 200), w->TopEdge + _mtop(obj) + tabh()); break; }
   }
 }
@@ -2271,7 +2298,7 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     d->tab = 1; d->hot = d->pressed = -1;
     d->penwidth = 1;                                             /* half a point */
     d->ehn.ehn_Object = obj; d->ehn.ehn_Class = cl; d->ehn.ehn_Events = IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE;
-    d->popgroup = -1;
+    d->popgroup = -1; d->lasttab = -1;
     {
       /* (WP26) known to ribbon_rebuild; the right-button menu's strip (made with a menu in it: MUI
          turns it into Intuition menus when the window opens, and an empty one isn't safe there) */
@@ -2311,7 +2338,7 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
   }
   case MUIM_AskMinMax: {
     struct MUIP_AskMinMax *m = (struct MUIP_AskMinMax *)msg;
-    LONG h = tabh() + 2 + bodyh() + caph() + 3;
+    LONG h = ((struct RData *)INST_DATA(cl, obj))->mini ? tabh() + 3 : tabh() + 2 + bodyh() + caph() + 3;
     DoSuperMethodA(cl, obj, msg);
     m->MinMaxInfo->MinWidth += 200; m->MinMaxInfo->DefWidth += 640; m->MinMaxInfo->MaxWidth += MUI_MAXMAX;
     m->MinMaxInfo->MinHeight += h; m->MinMaxInfo->DefHeight += h; m->MinMaxInfo->MaxHeight += h;
@@ -2351,6 +2378,18 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
   case MUIM_Ribbon_Deferred:
     d = INST_DATA(cl, obj);
     if (d->defer && _win(obj)) { const Item *it = d->defer; d->defer = NULL; d->popgroup = -1; open_list_box(d, obj, it, &d->deferbox, item_list(it)); }
+    return 0;
+  case MUIM_Ribbon_Collapse:
+    /* (WP26) the tools hidden or shown again: the window lays out afresh round the new height */
+    d = INST_DATA(cl, obj);
+    {
+      Object *par = NULL;
+      if (_win(obj)) get(obj, MUIA_Parent, &par);
+      if (!par) { d->mini = !d->mini; return 0; }
+      DoMethod(par, MUIM_Group_InitChange);
+      d->mini = !d->mini;
+      DoMethod(par, MUIM_Group_ExitChange);
+    }
     return 0;
   case MUIM_Ribbon_FitCheck:
     d = INST_DATA(cl, obj);
