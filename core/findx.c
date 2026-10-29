@@ -719,14 +719,22 @@ static int heading_para(Doc *d, const Para *q)
   n = d->styles[q->pf.style].name;
   return (n[0] == 'h' || n[0] == 'H') && !strncmp(n + 1, "eading ", 7) && n[8] >= '1' && n[8] <= '9';
 }
-static void put(Pos *a, Pos *b, u32 n, u32 max, Pos pa, Pos pb)
+/* the outermost table a paragraph is in (0: none) */
+static u16 outer_table(const Para *q) { return q->pf.outer.table ? q->pf.outer.table : q->pf.cell.table; }
+static void puts2(Pos *a, Pos *b, u32 n, u32 max, u32 p1, u32 o1, u32 p2, u32 o2)
 {
-  if (n < max) { if (a) a[n] = pa; if (b) b[n] = pb; }
+  if (n < max) { if (a) { a[n].para = p1; a[n].off = o1; } if (b) { b[n].para = p2; b[n].off = o2; } }
+}
+static void put(Pos *a, Pos *b, u32 n, u32 max, const Pos *pa, const Pos *pb)
+{
+  if (n < max) { if (a) a[n] = *pa; if (b) b[n] = *pb; }
 }
 u32 fx_targets(Doc *d, Layout *L, int kind, Pos *a, Pos *b, u32 max)
 {
   u32 n = 0, i;
-  Pos pa, pb;
+  Pos pab[2];                         /* (an array: vbcc -O2 kept a lone Pos in registers and took its address wrongly) */
+#define pa pab[0]
+#define pb pab[1]
   if (!a) max = 0;
   switch (kind) {
   case GT_PAGE:
@@ -738,7 +746,7 @@ u32 fx_targets(Doc *d, Layout *L, int kind, Pos *a, Pos *b, u32 max)
         const Placed *pc = &L->placed[j];
         if (pc->page != i || pc->para >= L->npl || pc->para >= d->np || !L->pl[pc->para].laid || pc->line >= L->pl[pc->para].nlines) continue;
         pa.para = pc->para; pa.off = L->pl[pc->para].lines[pc->line].start;
-        put(a, b, n, max, pa, pa); n++;
+        put(a, b, n, max, &pa, &pa); n++;
         break;
       }
     }
@@ -753,13 +761,12 @@ u32 fx_targets(Doc *d, Layout *L, int kind, Pos *a, Pos *b, u32 max)
       if (!pl->laid || pc->line >= pl->nlines) continue;
       pa.para = pb.para = pc->para; pa.off = pl->lines[pc->line].start;
       pb.off = pc->line + 1 < pl->nlines ? pl->lines[pc->line + 1].start : d->p[pc->para]->len;
-      put(a, b, n, max, pa, pb); n++;
+      put(a, b, n, max, &pa, &pb); n++;
     }
     return n;
   case GT_SECTION:
-    pa.para = pa.off = 0;
-    put(a, b, n, max, pa, pa); n++;
-    for (i = 0; i + 1 < d->np; i++) if (d->p[i]->pf.sect) { pa.para = i + 1; pa.off = 0; put(a, b, n, max, pa, pa); n++; }
+    puts2(a, b, n, max, 0, 0, 0, 0); n++;
+    for (i = 1; i < d->np; i++) if (d->p[i - 1]->pf.sect) { puts2(a, b, n, max, i, 0, i, 0); n++; }
     return n;
   case GT_BOOKMARK: {
     int k;
@@ -777,19 +784,18 @@ u32 fx_targets(Doc *d, Layout *L, int kind, Pos *a, Pos *b, u32 max)
   case GT_TABLE: {
     u16 cur = 0;
     for (i = 0; i < d->np; i++) {
-      u16 t = top_cell(&d->p[i]->pf)->table;
+      u16 t = outer_table(d->p[i]);
       if (t && t != cur) {
         u32 j = i;
-        while (j + 1 < d->np && top_cell(&d->p[j + 1]->pf)->table == t) j++;
-        pa.para = i; pa.off = 0; pb.para = j; pb.off = d->p[j]->len;
-        put(a, b, n, max, pa, pa); n++;
+        while (j + 1 < d->np && outer_table(d->p[j + 1]) == t) j++;
+        puts2(a, b, n, max, i, 0, i, 0); n++;
       }
       cur = t;
     }
     return n; }
   case GT_HEADING:
     for (i = 0; i < d->np; i++)
-      if (heading_para(d, d->p[i])) { pa.para = pb.para = i; pa.off = 0; pb.off = d->p[i]->len; put(a, b, n, max, pa, pa); n++; }
+      if (heading_para(d, d->p[i])) { puts2(a, b, n, max, i, 0, i, 0); n++; }
     return n;
   }
   /* the rest are characters in the text */
@@ -820,11 +826,13 @@ u32 fx_targets(Doc *d, Layout *L, int kind, Pos *a, Pos *b, u32 max)
         prevlink = lk;
         break; }
       }
-      if (hit) { put(a, b, n, max, pa, pb); n++; }
+      if (hit) { put(a, b, n, max, &pa, &pb); n++; }
       o += (u32)used;
     }
   }
   return n;
+#undef pa
+#undef pb
 }
 static int number(const char *s, long *v)
 {

@@ -77,14 +77,14 @@ static const ULONG hlvals[] = { 0xFF000000, 0xFFFF00, 0x00FF00, 0x00FFFF, 0xFF00
                                 0x008000, 0x800080, 0x800000, 0x808000, 0x808080, 0xC0C0C0, 0x000000 };
 static const char *const casenames[] = { "Sentence case.", "lowercase", "UPPERCASE", "Capitalise Each Word", "tOGGLE cASE" };
 static const char *const spacings[] = { "1.0", "1.15", "1.5", "2.0", "2.5", "3.0" };
-static const char *const selects[] = { "Select All", "Select Sentence", "Select Paragraph" };
+static const char *const selects[] = { "Select All", "Select Sentence", "Select Paragraph", "Select Objects", "Select Similar Formatting" };   /* (the last two: WP12) */
 static const char *const margins[] = { "Normal: 2.54 cm all round", "Narrow: 1.27 cm all round", "Moderate: 1.91 cm at the sides",
                                        "Wide: 5.08 cm at the sides", "Roomy: 3.17 cm at the sides", "Custom Margins..." };
 static const char *const headers[] = { "Edit Header", "Remove Header" };
 static const char *const footers[] = { "Edit Footer", "Remove Footer" };
 static const char *const tocs[] = { "Insert or Update Table of Contents", "Remove Table of Contents" };
 static const char *const addtexts[] = { "Do Not Show in Table of Contents", "Level 1", "Level 2", "Level 3" };
-static const char *const finds[] = { "Find...", "Go To..." };
+static const char *const finds[] = { "Find...", "Go To...", "Advanced Find..." };   /* (Go To and Advanced Find: WP12) */
 static const char *const forwards[] = { "Bring Forward", "Bring to Front" };
 static const char *const backwards[] = { "Send Backward", "Send to Back" };
 static const char *const alignobjs[] = { "Align Left", "Align Centre", "Align Right", "Align Top", "Align Middle", "Align Bottom",
