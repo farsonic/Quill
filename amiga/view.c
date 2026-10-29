@@ -38,6 +38,8 @@
 #include "../core/table.h"
 #include "../core/image.h"
 #include "../core/toc.h"
+#include "wp_math.h"     /* WP14a: equations */
+#include "../core/math.h"
 #include "../core/spell.h"
 #include "ids.h"
 #include <libraries/gadtools.h>        /* NM_BARLABEL: a line between menu items */
@@ -917,6 +919,9 @@ static int comments_open(struct Data *d, u32 para)
   }
   return d->copen;
 }
+/* WP14a: equations' colours as pens (for wp14a_draw) */
+static struct Data *mpen_d; static Object *mpen_obj;
+static LONG math_pen(ULONG rgb) { return pen_for(mpen_d, mpen_obj, rgb); }
 /* one laid-out line (pl: its paragraph's layout, pc: where it was placed) on the page whose top left
    is at (px, py). Back to front: change bar, comment shading, highlights, the selection (sel: slo to
    shi), then the text, note numbers, fields, inline pictures, leaders and formatting marks. Headers,
@@ -1040,6 +1045,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
       nb.kind = BX_TEXT; nb.off = 0; nb.len = (u16)strlen(num);
       draw_text(d, obj, rp, &nb, num, lx + tx(d, b->x), base);
     }
+    else if (b->kind == BX_MATH) { mpen_d = d; mpen_obj = obj; wp14a_draw(rp, L, b, pl->p->t, lx + tx(d, b->x), base, d->zoom, math_pen); }   /* WP14a */
     else if (b->kind == BX_PIC) {
       Pos at;
       int pk = pic_index(pl->p->t + b->off);
