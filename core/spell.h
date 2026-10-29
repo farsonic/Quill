@@ -11,10 +11,15 @@
 typedef struct {
   char *text; u32 *word; u32 n;          /* the list, its words sorted (offsets into text) */
   char **extra; u32 nextra, extracap;    /* the user's words and ignored ones (added at run time) */
+  struct Hun *hun;                       /* (WP31) a Hunspell dictionary instead of the list (hunspell.h), or NULL */
 } Spell;
 
 int  spell_load(Spell *s, const char *path);       /* 0 if the file can't be read (s stays empty) */
 int  spell_load_mem(Spell *s, const char *text, size_t n);  /* from a copy of text; 0 if out of memory */
+/* (WP31) a Hunspell dictionary: from the .aff and .dic files' contents, or from the two files; 0 if
+   it couldn't be read (s stays empty). Checking and suggestions then go by its rules */
+int  spell_load_hunspell(Spell *s, const char *aff, size_t an, const char *dic, size_t dn);
+int  spell_load_hunspell_files(Spell *s, const char *affpath, const char *dicpath);
 void spell_free(Spell *s);                         /* frees everything; s is left empty */
 void spell_add(Spell *s, const char *word, u32 n); /* known from now on */
 /* is this word (UTF-8, n bytes) spelt right? Words with digits, and capitals of a known word, are */

@@ -1014,13 +1014,12 @@ static void pdf_text(Buf *b, const char *s)
   }
   buf_addc(b, '>');
 }
-/* the outline level of a heading paragraph (a "heading N" style, as the table of contents takes
+/* the outline level of a heading paragraph (WP11: its outline level, as the table of contents takes
    them), 0 for any other */
 static int heading_level(const Doc *d, const Para *pp)
 {
-  const Style *st = &d->styles[pp->pf.style < d->nstyles ? pp->pf.style : 0];
-  if (!strncmp(st->name, "heading ", 8) || !strncmp(st->name, "Heading ", 8)) return st->name[8] >= '1' && st->name[8] <= '9' ? st->name[8] - '0' : 1;
-  return 0;
+  (void)d;
+  return pp->pf.outlvl <= 9 ? pp->pf.outlvl : 0;
 }
 /* a paragraph's words (n bytes of t) for an outline title or to match a table of contents entry:
    tabs and breaks as spaces, pictures, notes, marks and fields left out, no spaces at the ends */

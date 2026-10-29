@@ -4,6 +4,7 @@
 #include "spell.h"
 #include "util.h"
 #include "docx.h"     /* file_read */
+#include "hunspell.h" /* (WP31) */
 
 /* letters: ASCII and the Latin-1 ones (as UTF-8 C3 xx), compared without case */
 static int lower(int c) { return c >= 'A' && c <= 'Z' ? c + 32 : c; }
@@ -96,12 +97,32 @@ int spell_load(Spell *s, const char *path)
   free(data);
   return ok;
 }
+/* (WP31) a Hunspell dictionary; n counts its stems, so code asking "is there a dictionary?" works */
+int spell_load_hunspell(Spell *s, const char *aff, size_t an, const char *dic, size_t dn)
+{
+  memset(s, 0, sizeof *s);
+  if (!(s->hun = hun_load(aff, an, dic, dn))) return 0;
+  s->n = hun_count(s->hun);
+  return 1;
+}
+int spell_load_hunspell_files(Spell *s, const char *affpath, const char *dicpath)
+{
+  size_t an, dn;
+  u8 *a = file_read(affpath, &an), *d;
+  int ok = 0;
+  memset(s, 0, sizeof *s);
+  if (!a) return 0;
+  if ((d = file_read(dicpath, &dn))) { ok = spell_load_hunspell(s, (const char *)a, an, (const char *)d, dn); free(d); }
+  free(a);
+  return ok;
+}
 /* frees the list and the user's words; s is left empty (every word then counts as spelt right) */
 void spell_free(Spell *s)
 {
   u32 i;
   for (i = 0; i < s->nextra; i++) free(s->extra[i]);
   free(s->extra); free(s->text); free(s->word);
+  hun_free(s->hun);
   memset(s, 0, sizeof *s);
 }
 /* a copy of word goes on the extra list, which is searched linearly; out of memory, it is
@@ -120,7 +141,8 @@ void spell_add(Spell *s, const char *word, u32 n)
 /* in the list (exactly as it is there, but for case), or the user's */
 static int known(const Spell *s, const char *w, u32 n)
 {
-  u32 lo = 0, hi = s->n, i;
+  u32 lo = 0, hi = s->hun ? 0 : s->n, i;
+  if (s->hun && hun_ok(s->hun, w, n)) return 1;     /* (WP31: by the dictionary's rules) */
   while (lo < hi) {
     u32 mid = (lo + hi) / 2;
     const char *e = s->text + s->word[mid];
@@ -202,6 +224,7 @@ int spell_suggest(const Spell *s, const char *word, u32 n, char **out, int max)
   int got = 0, ncand = 0, c, k;
   u32 i;
   int cap = n && (word[0] >= 'A' && word[0] <= 'Z');
+  if (s->hun) return hun_suggest(s->hun, word, n, out, max);     /* (WP31) */
   if (!s->n || n + 2 >= sizeof buf || max <= 0) return 0;
   if (!(cand = (Sug *)malloc(SUG_MAX * sizeof *cand))) return 0;
   /* buf (len bytes) is a candidate; SCORE_ is the slip it would mean; AT_: where the edit was */
