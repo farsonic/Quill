@@ -1053,7 +1053,8 @@ static void state(ULONG *on, const WpCtx *c)
     for (i = 0; i < d->refs->nac; i++) if (d->refs->ac[i].on) want = 1;
     if (want) {
       if (d->ntables == ac_ntab + 1 && c->intable) ac_pending = 1;
-      else if (d->nimages == ac_nimg + 1 && d->images[d->nimages - 1].kind == OBJ_PICTURE) ac_pending = 2;
+      else if (d->nimages == ac_nimg + 1 && d->images[d->nimages - 1].kind == OBJ_PICTURE && c->caret.para < d->np && c->caret.off >= 4 &&
+               IS_PIC(d->p[c->caret.para]->t + c->caret.off - 4) && pic_index(d->p[c->caret.para]->t + c->caret.off - 4) == d->nimages - 1) ac_pending = 2;   /* (just put in at the caret, not a changed one) */
       if (ac_pending) DoMethod(wp_app(), MUIM_Application_PushMethod, (ULONG)wp_app(), 2, MUIM_Application_ReturnID, ID_RF_AUTOCAP_DO);
     }
   }
