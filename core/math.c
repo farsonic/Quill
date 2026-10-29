@@ -111,7 +111,7 @@ void mn_free(MNode *n)
   u16 i;
   if (!n) return;
   for (i = 0; i < n->nkid; i++) mn_free(n->kid[i]);
-  free(n->kid); free(n->mcs); free(n->text); free(n->rpr); free(n->ctrl); free(n->xpr);
+  free(n->kid); free(n->mcs); free(n->text); free(n->rpr); free(n->ctrl); free(n->xpr); free(n->cx);
   free(n);
 }
 static char *dup_or_null(const char *s, int *bad)
@@ -128,7 +128,7 @@ MNode *mn_clone(const MNode *n)
   u16 i;
   if (!n || !(c = (MNode *)malloc(sizeof(MNode)))) return NULL;
   *c = *n;
-  c->kid = NULL; c->nkid = c->kcap = 0; c->mcs = NULL;
+  c->kid = NULL; c->nkid = c->kcap = 0; c->mcs = NULL; c->cx = NULL; c->ncx = 0;
   c->text = dup_or_null(n->text, &bad); c->rpr = dup_or_null(n->rpr, &bad);
   c->ctrl = dup_or_null(n->ctrl, &bad); c->xpr = dup_or_null(n->xpr, &bad);
   if (n->nmcs && (c->mcs = (u8 (*)[2])malloc(n->nmcs * 2))) memcpy(c->mcs, n->mcs, n->nmcs * 2);
@@ -215,7 +215,7 @@ MathEq *math_clone(const MathEq *e)
   MathEq *c;
   u16 i;
   if (!e || !(c = (MathEq *)calloc(1, sizeof(MathEq)))) return NULL;
-  c->display = e->display; c->jc = e->jc; c->ver = e->ver;
+  c->display = e->display; c->jc = e->jc; c->ver = e->ver; c->room = e->room;
   if (e->ppr && !(c->ppr = str_dup(e->ppr))) goto oom;
   if (e->nline && !(c->line = (MNode **)calloc(e->nline, sizeof(MNode *)))) goto oom;
   for (i = 0; i < e->nline; i++) { if (!(c->line[i] = mn_clone(e->line[i]))) goto oom; c->nline++; }
@@ -942,7 +942,7 @@ static int is_operator(u32 c)
          (c >= 0x2215 && c <= 0x221D && c != 0x221A && c != 0x221B && c != 0x221C) || (c >= 0x2227 && c <= 0x222A) || (c >= 0x2234 && c <= 0x22FF && !is_nary(c)) ||
          c == 0x22C5 || c == 0x2217 || c == 0x2218 || c == 0x2219;
 }
-static const char *const funcs[] = { "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh", "coth", "sin", "cos", "tan", "cot", "sec", "csc",
+static const char *const funcs[] = { "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh", "coth", "csch", "sech", "sin", "cos", "tan", "cot", "sec", "csc",
                                      "log", "ln", "lg", "exp", "lim", "max", "min", "det", "arg", "deg", "dim", "gcd", "hom", "inf", "ker",
                                      "sup", "Pr", "mod", NULL };
 static MNode *lin_row(Lin *l, const u32 *stop);
@@ -965,7 +965,7 @@ static MNode *row_of(MNode *n)
 /* an argument from an operand: a row, its outer parentheses dropped (UnicodeMath's rule) */
 static MNode *arg_of(MNode *n)
 {
-  if (n && n->kind == MK_DELIM && n->nkid == 1 && n->ch[0] == MCH_UNSET && n->ch[2] == MCH_UNSET) {
+  if (n && n->kind == MK_DELIM && n->nkid == 1 && ((n->ch[0] == MCH_UNSET && n->ch[2] == MCH_UNSET) || (n->ch[0] == 0 && n->ch[2] == 0))) {   /* (WP14b: 〖〗 only group) */
     MNode *in = mn_remove(n, 0);
     mn_free(n);
     return in;
@@ -985,6 +985,7 @@ static MNode *lin_group(Lin *l, const u32 *stop)
     for (k = 0; stop[k]; k++) if ((u32)c == stop[k]) break;
     if (stop[k]) break;
     if (!(n = lin_operand(l))) break;
+    if (n->kind == MK_ROW) { while (n->nkid) mn_insert(r, -1, mn_remove(n, 0)); mn_free(n); continue; }   /* (WP14b: an empty argument) */
     if (!mn_insert(r, -1, n)) { l->oom = 1; break; }
   }
   /* one parenthesised operand: its contents */
@@ -1163,6 +1164,10 @@ static MNode *lin_operand(Lin *l)
     }
     l->i++;
     { u32 cc = (u32)c; n = run_cp(&cc, 1); }
+  } else if (c == 0x2B1A) {
+    /* WP14b: ⬚, an empty argument (the gallery's templates) */
+    l->i++;
+    n = mn_new(MK_ROW);
   } else if (c == '"') {
     int a = ++l->i;
     while (l->i < l->n && l->c[l->i] != '"') l->i++;
@@ -1174,7 +1179,20 @@ static MNode *lin_operand(Lin *l)
     u32 stop[4];
     MNode *d = mn_new(MK_DELIM), *e;
     int invisible = c == 0x3016, pick = c == 0x251C;
+    u32 popen = 0, pend = 0;
     l->i++;
+    if (pick) {
+      /* (WP14b) ├x … y┤: x and y are the brackets, whichever way they face (├ … ┤ alone: none) */
+      int t = lpeek(l), q;
+      if (t > 0 && (is_open((u32)t) || is_close((u32)t) || t == '|' || t == 0x2016) && t != 0x251C && t != 0x2524) { popen = (u32)t; l->i++; }
+      cl = 0x2524;
+      for (q = l->i; q < l->n && l->c[q] != 0x2524; q++) ;
+      if (q < l->n && q - 1 >= l->i && (is_open(l->c[q - 1]) || is_close(l->c[q - 1]) || l->c[q - 1] == '|' || l->c[q - 1] == 0x2016)) {
+        pend = l->c[q - 1];
+        memmove(l->c + q - 1, l->c + q, (size_t)(l->n - q) * sizeof(u32));
+        l->n--;
+      }
+    }
     stop[0] = cl; stop[1] = 0x2502; stop[2] = 0x2223; stop[3] = 0;
     if (!d) { l->oom = 1; l->depth--; return NULL; }
     for (;;) {
@@ -1183,10 +1201,18 @@ static MNode *lin_operand(Lin *l)
       if (lpeek(l) == 0x2502 || lpeek(l) == 0x2223) { l->i++; continue; }
       break;
     }
-    if (lpeek(l) == (int)cl) l->i++;
-    if (invisible) { d->ch[0] = 0; d->ch[2] = 0; }
-    else if (pick) { d->ch[0] = 0; d->ch[2] = 0; }
-    else if (c != '(') { d->ch[0] = (u32)c; d->ch[2] = cl; }
+    {
+      /* WP14b: closed by its own bracket, by ┤ (nothing) or by another closing one ([a) is allowed) */
+      int t = lpeek(l);
+      u32 endc = cl;
+      if (t == (int)cl) { l->i++; if (pick) endc = pend; }
+      else if (t == 0x2524) { l->i++; endc = 0; }
+      else if (t > 0 && is_close((u32)t)) { l->i++; endc = (u32)t; }
+      else if (pick) endc = 0;
+      if (invisible) { d->ch[0] = 0; d->ch[2] = 0; }
+      else if (pick) { d->ch[0] = popen; d->ch[2] = endc; }
+      else if (c != '(' || endc != ')') { d->ch[0] = (u32)c; d->ch[2] = endc; }
+    }
     if (d->nkid > 1) d->ch[1] = MCH_UNSET;
     n = d;
   } else if (c == 0x221A || c == 0x221B || c == 0x221C) {
@@ -1296,7 +1322,17 @@ static MNode *lin_operand(Lin *l)
     if (cc == '-') cc = 0x2212;
     else if (cc == '*') cc = 0x2217;
     n = run_cp(&cc, 1);
-    if (is_operator(cc) || c == '&' || c == '@') { l->depth--; return n; }   /* (an operator takes no scripts) */
+    if (is_operator(cc) && n && (lpeek(l) == 0x252C || lpeek(l) == 0x2534)) {
+      /* WP14b: an operator with text below or above (≔┴x, ⟶┬x) */
+      MNode *s = mn_new(lpeek(l) == 0x252C ? MK_LIMLOW : MK_LIMUPP);
+      l->i++;
+      if (!s) { mn_free(n); l->depth--; return NULL; }
+      mn_insert(s, -1, row_of(n));
+      mn_insert(s, -1, lin_script(l));
+      l->depth--;
+      return s;
+    }
+    if (is_operator(cc) || c == '&' || c == '@' || c == '#') { l->depth--; return n; }   /* (an operator takes no scripts) */
   }
   if (!n) { l->oom = 1; l->depth--; return NULL; }
   if (!l->noscr) n = lin_scripts(l, n);
@@ -1365,6 +1401,7 @@ static MNode *lin_row(Lin *l, const u32 *stop)
     }
     n = lin_operand(l);
     if (!n) { if (l->oom) break; continue; }
+    if (n->kind == MK_ROW) { while (n->nkid) mn_insert(r, -1, mn_remove(n, 0)); mn_free(n); continue; }   /* (WP14b: an empty argument) */
     if (!mn_insert(r, -1, n)) { l->oom = 1; break; }
     if (n->kind == MK_RUN && n->text && n->text[0]) {
       int used;
@@ -1406,6 +1443,16 @@ MathEq *math_from_linear(const char *s, int display)
   free(l.c);
   if (!row) return NULL;
   merge_all(row);
+  {
+    /* WP14b: expr#(n), a numbered equation: an equation array of one row, as Word makes it */
+    u16 k;
+    for (k = 0; k < row->nkid; k++) if (row->kid[k]->kind == MK_RUN && row->kid[k]->pv[P_R_NOR] != MB_ON && row->kid[k]->text && strchr(row->kid[k]->text, '#')) break;
+    if (k < row->nkid && !(row->nkid == 1 && row->kid[0]->kind == MK_EQARR)) {
+      MNode *arr = mn_new(MK_EQARR), *top = mn_new(MK_ROW);
+      if (arr && top && mn_insert(arr, -1, row) && mn_insert(top, -1, arr)) row = top;
+      else { mn_free(top); }
+    }
+  }
   if (!(e = (MathEq *)calloc(1, sizeof(MathEq))) || !(e->line = (MNode **)malloc(sizeof(MNode *)))) { free(e); mn_free(row); return NULL; }
   e->line[0] = row; e->nline = 1; e->display = (u8)display;
   return e;
@@ -1471,9 +1518,13 @@ static void lo_node(Buf *o, const MNode *n)
     break;
   case MK_DELIM: {
     u32 b = n->ch[0] == MCH_UNSET ? '(' : n->ch[0], e = n->ch[2] == MCH_UNSET ? ')' : n->ch[2];
-    put_cp(o, b ? b : 0x3016);
+    /* (WP14b) a missing or unmatched bracket: ├x … y┤ */
+    int pk = (b || e) && (!b || !e || !is_open(b) || close_of(b) != e) && !(b == e && (b == '|' || b == 0x2016));
+    if (pk) { put_cp(o, 0x251C); if (b) put_cp(o, b); }
+    else put_cp(o, b ? b : 0x3016);
     for (i = 0; i < n->nkid; i++) { if (i) put_cp(o, n->ch[1] == MCH_UNSET || !n->ch[1] ? 0x2502 : n->ch[1]); lo_row(o, n->kid[i]); }
-    put_cp(o, e ? e : 0x3017);
+    if (pk) { if (e) put_cp(o, e); put_cp(o, 0x2524); }
+    else put_cp(o, e ? e : 0x3017);
     break; }
   case MK_FUNC:
     lo_row(o, n->kid[0]); put_cp(o, 0x2061); lo_arg(o, n->kid[1]);
@@ -1491,6 +1542,12 @@ static void lo_node(Buf *o, const MNode *n)
     buf_addc(o, '('); lo_row(o, n->kid[0]); buf_addc(o, ')');
     break;
   case MK_MATRIX: case MK_EQARR:
+    if (n->kind == MK_EQARR && n->nkid == 1) {
+      /* WP14b: a numbered equation (a # in its one row) is written as that row: E=mc^2#(1) */
+      const MNode *r = n->kid[0];
+      for (i = 0; i < r->nkid; i++) if (r->kid[i]->kind == MK_RUN && r->kid[i]->pv[P_R_NOR] != MB_ON && r->kid[i]->text && strchr(r->kid[i]->text, '#')) break;
+      if (i < r->nkid) { lo_row(o, r); break; }
+    }
     put_cp(o, n->kind == MK_MATRIX ? 0x25A0 : 0x2588); buf_addc(o, '(');
     for (i = 0; i < n->nkid; i++) {
       if (i) buf_addc(o, n->kind == MK_MATRIX && n->cols && i % n->cols ? '&' : '@');

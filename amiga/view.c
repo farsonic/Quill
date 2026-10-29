@@ -151,6 +151,9 @@ struct Data {
      started and where the pointer is (window pixels); the caret lying across turned text, cw wide */
   int tdrag, tdrag_on; LONG tdrag_mx, tdrag_my, tdrag_x, tdrag_y;
   int cturn; LONG cw;
+  void *wp11;                           /* WP11's own state (wp_outline_view.h) */
+  void *wp25;                           /* WP25's own state (wp_windows_view.h) */
+  void *wp14b;                          /* WP14b's own state (wp_equation_view.h): the equation being edited */
 };
 
 static struct MUI_CustomClass *cls;
@@ -197,11 +200,17 @@ static int paged(struct Data *d) { return d->vmode == VM_PRINT || d->vmode == VM
 static LONG text_h(struct Data *d) { LONG h = tx(d, d->doc->page.height - d->doc->page.top - d->doc->page.bottom); return h > 8 ? h : 8; }
 static LONG col_w(struct Data *d);
 static int metric(struct Data *d);
+/* (WP25, wp_windows_view.h) Side to Side, Multiple Pages, reflowed Read Mode */
+static int ww_cols(struct Data *d);
+static void ww_fit(struct Data *d, LONG w);
+static LONG ww_left(struct Data *d, LONG w, LONG rw);
+static void ww_pens(struct Data *d, Object *obj);
 /* pages in a row */
 static int cols(struct Data *d)
 {
   LONG w, n;
   if (!paged(d) || !d->obj) return 1;
+  { int wc = ww_cols(d); if (wc > 0) return wc; }      /* WP25 */
   w = _mwidth(d->obj) - col_w(d);
   n = (w - GAP) / (page_w(d) + GAP);
   if (d->lay && n > (LONG)d->lay->npages) n = (LONG)d->lay->npages;
@@ -286,6 +295,7 @@ static LONG row_w(struct Data *d)
 static LONG page_left(struct Data *d, LONG w)
 {
   LONG pw = row_w(d), max = pw + 2 * GAP - w;
+  { LONG c = ww_left(d, w, pw); if (c >= 0) { d->scrollx = 0; return c; } }     /* WP25: reflowed Read Mode, in the middle */
   if (paged(d) && w > pw + 2 * GAP) return (w - pw) / 2;
   if (!paged(d) && w >= pw) max = 0;
   if (d->scrollx > max) d->scrollx = max;
@@ -326,6 +336,7 @@ static void fit_zoom(struct Data *d, LONG w)
   else if (w > 4 * GAP) d->zoom = (LONG)((w - 2 * GAP) * 2000L / (d->cellw ? d->cellw : 11906));
   if (d->zoom < 25) d->zoom = 25;
   if (d->zoom > 400) d->zoom = 400;
+  ww_fit(d, w);                                  /* WP25: Multiple Pages, Side to Side, Read Mode's text size */
 }
 
 /* ------------------------------------------------------------------ */
@@ -480,6 +491,7 @@ static void get_pens(struct Data *d, Object *obj)
   d->pen_sel = dk ? best(obj, 0x4A, 0x5A, 0x8E) : best(obj, 170, 200, 240);
   d->pen_grid = dk ? best(obj, 0x45, 0x4C, 0x5C) : best(obj, 0xD5, 0xDD, 0xEE);
   d->ncol = 0;
+  ww_pens(d, obj);                               /* WP25: Read Mode's sepia page */
 }
 /* drop the cached pictures: their pixels are pen numbers, wrong once the pens change */
 static void free_pics(struct Data *d)
@@ -546,12 +558,15 @@ static int has_sel(struct Data *d) { return pos_cmp(d->anchor, d->caret) != 0; }
 static int sel_object(struct Data *d, Pos *at);
 /* what the work packages' hooks are told (wphooks.h WpCtx): the document, caret, selection, table,
    view mode, the object selected, and where (WPC_) */
+static struct Data *ctx_view;          /* (WP11) the view the last WpCtx was made for */
+static int shown_mode(struct Data *d);  /* (WP11, WP25) the view mode as the outside sees it: VM_OUTLINE, VM_READ reflowed */
 static void wp_ctx(struct Data *d, WpCtx *c, int where)
 {
   memset(c, 0, sizeof *c);
   c->doc = d->doc; c->caret = d->caret; c->anchor = d->anchor; c->hassel = has_sel(d);
   c->intable = d->doc && d->caret.para < d->doc->np && in_table(&d->doc->p[d->caret.para]->pf);
-  c->vmode = d->vmode; c->obj = d->doc ? sel_object(d, NULL) : -1; c->where = where;
+  c->vmode = shown_mode(d); c->obj = d->doc ? sel_object(d, NULL) : -1; c->where = where;
+  ctx_view = d;
 }
 
 /* x (twips, from the line's start) of byte off on a line */
@@ -567,6 +582,11 @@ static i32 line_x(Layout *L, ParaLay *pl, Line *ln, u32 off)
   return x;
 }
 #include "wp_find_view.h"               /* WP12: block and similar selections, Extend Selection, Select Objects, Highlight All */
+#include "wp_outline_view.h"            /* WP11: Outline view and the outline commands */
+#include "wp_windows_view.h"            /* WP25: views shared by windows, Split, page movement, Read Mode's options */
+static int shown_mode(struct Data *d) { return ov_on(d) ? VM_OUTLINE : ww_reading(d) ? VM_READ : d->vmode; }
+#include "wp_proof.h"                  /* WP8, WP31: grammar marks, AutoCorrect while typing, languages */
+#include "../core/proflang.h"
 /* an underline or strike line of a kind (UL_) from x, w pixels wide, at y */
 static void deco_line(struct RastPort *rp, int kind, LONG x, LONG y, LONG w)
 {
@@ -836,6 +856,7 @@ static int sel_object(struct Data *d, Pos *at)
   if (at) *at = lo;
   return pic_index(d->doc->p[lo.para]->t + lo.off);
 }
+#include "wp_draw_view.h"               /* WP20: freeforms and ink drawn, drawing with the mouse, the eraser, the lasso, Ink Replay */
 /* a polygon (xy: n points, pixels x 16) filled, row by row */
 static void fill_poly(struct RastPort *rp, const LONG *xy, int n)
 {
@@ -1081,6 +1102,7 @@ static void draw_leaf(struct Data *d, Object *obj, struct RastPort *rp, const Ob
   t.cx = part->cx; t.cy = part->cy; t.rot = part->rot; t.flip = part->flip;
   bx = cx - OBJ_W(&t) / 2; by = cy - OBJ_H(&t) / 2;          /* its box's top left */
   if (src->pack) { draw_pack(d, obj, rp, src, pl + tx(d, cx - part->cx / 2), pt + tx(d, cy - part->cy / 2), part->cx, part->cy); return; }   /* (WP15a) */
+  if (dv_leaf(d, obj, rp, part, pl, pt, cx, cy)) return;      /* WP20: a freeform or ink */
   outline = src->lstyle != PB_NONE && src->lwidth;
   th = (int)tx(d, src->lwidth * 5 / 2);
   if (th < 1) th = 1;
@@ -1301,6 +1323,7 @@ static void field_shade(struct Data *d, Object *obj, struct RastPort *rp, ParaLa
 /* WP14a: equations' colours as pens (for wp14a_draw) */
 static struct Data *mpen_d; static Object *mpen_obj;
 static LONG math_pen(ULONG rgb) { return pen_for(mpen_d, mpen_obj, rgb); }
+#include "wp_equation_view.h"           /* WP14b: editing equations in place */
 /* one laid-out line (pl: its paragraph's layout, pc: where it was placed) on the page whose top left
    is at (px, py). Back to front: change bar, comment shading, highlights, the selection (sel: slo to
    shi), then the text, note numbers, fields, inline pictures, leaders and formatting marks. Headers,
@@ -1462,11 +1485,12 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     }
     else if (b->kind == BX_TEXT) {
       draw_text(d, obj, rp, b, pl->p->t, lx + tx(d, b->x), base);
-      if (d->tb && d->tb->spell && !b->f.rev && !(k > 0 && (pl->boxes[k - 1].kind == BX_DROP || (pl->boxes[k - 1].kind == BX_TEXT && pl->boxes[k - 1].nspace)))) {   /* not the rest of a hyphenated word, nor the word a drop cap opens */
+      Spell *lsp = d->tb && proof_live_spelling ? proof_spell((Spell *)d->tb->spell, &b->f) : NULL;   /* (WP31: the run's language's dictionary, none if not checked) */
+      if (lsp && !b->f.rev && !(k > 0 && (pl->boxes[k - 1].kind == BX_DROP || (pl->boxes[k - 1].kind == BX_TEXT && pl->boxes[k - 1].nspace)))) {   /* not the rest of a hyphenated word, nor the word a drop cap opens */
         /* words not in the dictionary: a red wavy line (not the word being typed) */
         u32 ws, we, o = b->off, end = b->off + b->len;
         while (o < end && spell_word_at(pl->p->t, end, o, &ws, &we)) {
-          if (!(pc->para == d->caret.para && we == d->caret.off) && !spell_ok((Spell *)d->tb->spell, pl->p->t + ws, we - ws)) {
+          if (!(pc->para == d->caret.para && we == d->caret.off) && !spell_ok(lsp, pl->p->t + ws, we - ws)) {
             LONG x0 = lx + tx(d, lay_text_x(L, b, pl->p->t, ws)), x1 = lx + tx(d, lay_text_x(L, b, pl->p->t, we)), xx, wy = base + 2;
             SetAPen(rp, d->pen_squiggle);
             for (xx = x0; xx < x1; xx++) WritePixel(rp, xx, wy + ((xx >> 1) & 1));
@@ -1490,7 +1514,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
       nb.kind = BX_TEXT; nb.off = 0; nb.len = (u16)strlen(num);
       draw_text(d, obj, rp, &nb, num, lx + tx(d, b->x), base);
     }
-    else if (b->kind == BX_MATH) { mpen_d = d; mpen_obj = obj; wp14a_draw(rp, L, b, pl->p->t, lx + tx(d, b->x), base, d->zoom, math_pen); }   /* WP14a */
+    else if (b->kind == BX_MATH) ev_draw_math(d, obj, rp, L, pl, pc, b, lx + tx(d, b->x), base);   /* WP14a (drawn), WP14b (edited) */
     else if (b->kind == BX_PIC) {
       Pos at;
       int pk = pic_index(pl->p->t + b->off);
@@ -1503,6 +1527,21 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
       LONG x = lx + tx(d, b->x), w = tx(d, b->w);        /* underlined spaces between words */
       SetAPen(rp, pen_for(d, obj, b->f.color));
       if ((b->f.flags & CF_UNDERLINE) && b->f.ul != UL_WORDS) deco_line(rp, b->f.ul, x, base - tx(d, b->f.position * 10) + 1 + d->zoom / 150, w);
+    }
+    if ((b->kind == BX_TEXT || b->kind == BX_SPACE) && !b->f.rev && d->tb) {
+      /* (WP8) grammar issues: a blue double line under them, style issues a dotted gold one (not the one being typed) */
+      const GramIssue *gi;
+      int ng = wp8_issues(pl->p, &gi), g;
+      for (g = 0; g < ng; g++) {
+        u32 ga = gi[g].a > b->off ? gi[g].a : b->off, gb = gi[g].b < (u32)(b->off + b->len) ? gi[g].b : (u32)(b->off + b->len);
+        LONG x0, x1, xx, wy = base + 2;
+        if (ga >= gb || (pc->para == d->caret.para && gi[g].b == d->caret.off)) continue;
+        x0 = lx + tx(d, b->kind == BX_SPACE ? b->x : lay_text_x(L, b, pl->p->t, ga));
+        x1 = lx + tx(d, b->kind == BX_SPACE ? b->x + b->w : lay_text_x(L, b, pl->p->t, gb));
+        SetAPen(rp, pen_for(d, obj, gi[g].kind >= GR_PASSIVE ? 0xC09000 : 0x2050E0));
+        if (gi[g].kind >= GR_PASSIVE) { for (xx = x0; xx < x1; xx += 2) WritePixel(rp, xx, wy); }
+        else if (x1 > x0) { Move(rp, x0, wy); Draw(rp, x1 - 1, wy); Move(rp, x0, wy + 2); Draw(rp, x1 - 1, wy + 2); }
+      }
     }
     if ((b->f.fx & FX_BORDER) && b->w > 0 && (b->kind == BX_TEXT || b->kind == BX_SPACE || b->kind == BX_TAB || b->kind == BX_FIELD)) {
       /* a character border: one box round a stretch of bordered text, so its sides only where the stretch starts and ends */
@@ -2048,6 +2087,7 @@ static void draw_all(struct Data *d, Object *obj, struct RastPort *rp, LONG w, L
         for (x = 0; x < w; x += 4) WritePixel(rp, x, py - 1);
       }
       draw_page(d, obj, rp, k, page_x(d, k, w), pt, h, sel, slo, shi);
+      ov_draw(d, obj, rp, k, page_x(d, k, w), pt, h);       /* WP11: the outline symbols */
     }
     (void)pw; (void)ph; (void)pl;
     return;
@@ -2108,6 +2148,7 @@ static void caret_place(struct Data *d, Object *obj)
 {
   u32 page;
   i32 x, y, h;
+  if (ev_caret(d, obj)) return;          /* WP14b: inside an equation */
   lay_caret(d->lay, d->caret, &page, &x, &y, &h);
   d->cx = _mleft(obj) + page_x(d, page, _mwidth(obj)) + tx(d, x);
   d->cy = _mtop(obj) + page_top(d, page) - d->scrolly + tx(d, y);
@@ -2125,7 +2166,7 @@ static void caret_hide(struct Data *d, Object *obj)
 }
 static void caret_show(struct Data *d, Object *obj)
 {
-  if (!d->caret_shown && !has_sel(d)) { caret_place(d, obj); caret_xor(d, obj); d->caret_shown = 1; }
+  if (!d->caret_shown && !has_sel(d) && !ww_passive(d) && !ev_hidecaret(d)) { caret_place(d, obj); caret_xor(d, obj); d->caret_shown = 1; }   /* (WP25: not in a split window's other pane; WP14b: not with a selection in an equation) */
 }
 
 /* ------------------------------------------------------------------ */
@@ -2146,6 +2187,7 @@ static void update_prop(struct Data *d)
       DoMethod(_app(d->obj), MUIM_Application_PushMethod, (ULONG)d->tb->hprop, 3, MUIM_Set, MUIA_ShowMe, (ULONG)need);
     }
   }
+  ww_prop(d);                                    /* WP25: a split window's other pane's scroll bar */
 }
 /* Scrolling with the blitter. Most of what a scroll shows was on screen already, so instead of
    drawing the whole view again, the off-screen buffer's picture is moved by dy with ScrollRaster
@@ -2276,7 +2318,7 @@ static void update_toolbar(struct Data *d)
   CharFmt f;
   int i;
   char st[160];
-  if (!tb || !doc) return;
+  if (!tb || !doc || ww_passive(d)) return;     /* (WP25: a split window's other pane works the tools) */
   if (has_sel(d)) { Pos a = sel_lo(d); p = doc->p[a.para]; f = *para_fmt_at(p, a.off); }
   else { p = doc->p[d->caret.para]; f = d->pending ? d->pendfmt : *para_fmt_before(p, d->caret.off); }
   if (tb->bold) SetAttrs(tb->bold, MUIA_NoNotify, TRUE, MUIA_Selected, (f.flags & CF_BOLD) != 0, TAG_DONE);
@@ -2333,7 +2375,7 @@ static void update_toolbar(struct Data *d)
       ss.MethodID = MUIM_Status_Set;
       ss.page = page; ss.pages = d->lay->npages; ss.complete = d->lay->complete;
       ss.words = d->words_stale && !d->words ? ~0UL : d->words;
-      ss.zoom = d->zoom; ss.vmode = d->vmode;
+      ss.zoom = d->zoom; ss.vmode = shown_mode(d);
       DoMethodA(tb->statusbar, (Msg)&ss);
     }
     if (tb->nav) {
@@ -2444,7 +2486,7 @@ static void update_toolbar(struct Data *d)
     rs.style = p->pf.style;
     rs.left = p->pf.left; rs.right = p->pf.right; rs.before = p->pf.before; rs.after = p->pf.after;
     rs.metric = metric(d);
-    rs.doc = doc; rs.fs = d->fs; rs.vmode = d->vmode;
+    rs.doc = doc; rs.fs = d->fs; rs.vmode = shown_mode(d);
     {
       int i;
       u32 sig = (u32)doc->nstyles;
@@ -2485,6 +2527,8 @@ static void relayout(struct Data *d, Object *obj)
   /* web layout: the text as wide as the window */
   d->lay->webw = d->vmode == VM_WEB ? tw(d, (w > 0 ? w : 640) - 2 * WEB_PAD - 4) : 0;
   if (d->vmode == VM_WEB && d->lay->webw < 1440) d->lay->webw = 1440;
+  ov_prepare(d);                                 /* WP11: Outline view */
+  ww_prepare(d);                                 /* WP25: reflowed Read Mode */
   /* a document still being laid out continues from where it got to; after that, edits re-lay out
      only what changed */
   {
@@ -2492,6 +2536,7 @@ static void relayout(struct Data *d, Object *obj)
     int ok_;
     d->lay->showhidden = (u8)(d->marks != 0);                  /* (WP9: hidden text shown with the formatting marks) */
     ok_ = lay_update_part(d->lay, d->lay->complete ? 0 : FIRST_PARAS);
+    ww_laid(d);                                  /* WP25: the version laid out */
     if (qlog) { fprintf(qlog, "[ok %d, free %lu] ", ok_, (unsigned long)AvailMem(MEMF_ANY)); fprintf(qlog, "layout: %lu laid, %lu pages%s, %ld ticks (mode %d, web %ld, zoom %ld)\n", (unsigned long)d->lay->laid, (unsigned long)d->lay->npages, d->lay->complete ? "" : " so far", (long)(ticks50() - t0), d->vmode, (long)d->lay->webw, (long)d->zoom); fflush(qlog); }
   }
   d->doch = doc_height(d);
@@ -2541,6 +2586,7 @@ static void refresh(struct Data *d, Object *obj, int edited)
   }
   d->caret = pos_clamp(d->doc, d->caret);
   d->anchor = pos_clamp(d->doc, d->anchor);
+  ov_caret(d);                                 /* WP11: not in a paragraph a collapsed outline hides */
   ensure_laid(d, obj, d->caret.para);
   make_visible(d, obj);
   update_toolbar(d);
@@ -2992,6 +3038,10 @@ static ULONG do_command(struct IClass *cl, Object *obj, struct MUIP_Quill_Comman
   CharFmt v;
   int edited = 1;
   if (!doc) return 0;
+  ww_sync(d, obj, 1);                          /* WP25: changed in another view */
+  if (ww_command(d, obj, m)) return 0;         /* WP25's commands */
+  if (ov_command(d, obj, m)) return 0;         /* WP11's commands */
+  if (ev_command(d, obj, m)) return 0;         /* WP14b's commands, and editing commands inside an equation */
   if (fv_command(d, obj, m)) return 0;         /* WP12's commands, and commands while several ranges are selected */
   caret_hide(d, obj);
   memset(&v, 0, sizeof v);
@@ -4016,8 +4066,9 @@ static Object *ctx_build(struct Data *d, Object *obj, LONG mx, LONG my)
   Para *q;
   u32 ws, we;
   int i;
-  if (!d->lay || !d->doc || !d->ctxstrip || d->vmode == VM_READ) return NULL;
+  if (!d->lay || !d->doc || !d->ctxstrip) return NULL;
   if (d->ctxmenu) { DoMethod(d->ctxstrip, MUIM_Family_Remove, (ULONG)d->ctxmenu); MUI_DisposeObject(d->ctxmenu); d->ctxmenu = NULL; }
+  if (shown_mode(d) == VM_READ) return ww_readmenu(d);     /* (WP25: Read Mode's own menu) */
   {
     /* a picture or shape under the pointer has its own menu */
     Pos at;
@@ -4026,6 +4077,7 @@ static Object *ctx_build(struct Data *d, Object *obj, LONG mx, LONG my)
     if (k >= 0 && k < d->doc->nimages) return ctx_object(d, obj, k, at);
   }
   p = point_pos(d, obj, mx, my);
+  if (ev_rclick(d, obj, mx, my)) p = d->caret;   /* WP14b: in an equation, the caret there */
   if (p.para >= d->doc->np) return NULL;
   /* a click outside the selection puts the caret there first, as a left click would */
   if (!has_sel(d) || pos_cmp(p, sel_lo(d)) < 0 || pos_cmp(p, sel_hi(d)) > 0) {
@@ -4043,6 +4095,7 @@ static Object *ctx_build(struct Data *d, Object *obj, LONG mx, LONG my)
     ws = we = 0;
     while (spell_word_at(q->t, q->len, k, &ws, &we) && we < p.off) k = we;
   }
+  if (sp && we > ws) sp = proof_live_spelling ? proof_spell_at(sp, q, ws) : NULL;     /* (WP31: the word's language) */
   if (sp && sp->n && we > ws && ws <= p.off && we >= p.off &&
       we - ws < sizeof d->ctx_word && !spell_ok(sp, q->t + ws, we - ws)) {
     char *sug[8];
@@ -4136,7 +4189,8 @@ static void ctx_choice(struct Data *d, Object *obj, Object *item)
   switch (id) {
   case CTX_IGNORE: case CTX_ADD:
     if (d->ctx_word[0] && d->tb && d->tb->spell) {
-      spell_add((Spell *)d->tb->spell, d->ctx_word, (u32)strlen(d->ctx_word));
+      Spell *ws = d->ctx_a.para < d->doc->np ? proof_spell_at((Spell *)d->tb->spell, d->doc->p[d->ctx_a.para], d->ctx_a.off) : NULL;   /* (WP31) */
+      spell_add(ws ? ws : (Spell *)d->tb->spell, d->ctx_word, (u32)strlen(d->ctx_word));
       if (id == CTX_ADD) {
         /* kept for next time, as the Spelling window's Add does (main.c reads it at startup) */
         FILE *f = fopen("PROGDIR:Quill.words", "a");
@@ -4424,6 +4478,7 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
     return 0;
   }
   if (q & (IEQUALIFIER_LCOMMAND | IEQUALIFIER_RCOMMAND)) return 0;      /* menu shortcuts */
+  if (ww_key(d, obj, im)) return 1;             /* WP25: reflowed Read Mode, Side to Side's wheel */
   if (d->vmode == VM_READ) {
     /* read mode: no editing; the keys turn the pages, Esc goes back to print layout */
     LONG vh = _mheight(obj);
@@ -4436,6 +4491,7 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
     }
     return 1;
   }
+  if (ev_key(d, obj, im)) return 1;             /* WP14b: keys inside an equation, and into one */
   {
     /* a work package's key (wphooks.h): its command, run by main.c's loop */
     WpCtx wc;
@@ -4518,7 +4574,7 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
     else if (p->pf.list && !p->len) {                     /* Return in an empty list item ends the list */
       ParaFmt pf = p->pf; pf.list = 0; pf.level = 0; pf.left = doc->styles[pf.style].pf.left; pf.first = doc->styles[pf.style].pf.first;
       doc_para_format(doc, d->caret.para, d->caret.para, PM_LIST | PM_INDENT, &pf);
-    } else insert_text(d, "\n", 1);
+    } else { insert_text(d, "\n", 1); wp8_typed(d->doc, &d->caret, "\n", 1, tracking(d) ? rev_id(d) : -1); d->anchor = d->caret; }   /* (WP8) */
     edited = 1; break; }
   case 0x42:                                              /* Tab: in a list item's start, a level deeper */
     if (doc->p[d->caret.para]->pf.list && d->caret.off == 0 && !has_sel(d)) indent(d, shift ? -1 : 1);
@@ -4550,6 +4606,7 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
     for (i = 0; i < n; i++) if ((u8)buf[i] >= 32 && (u8)buf[i] != 127 && !((u8)buf[i] >= 0x80 && (u8)buf[i] < 0xA0)) o += utf8_put(u + o, (u8)buf[i]);
     if (!o) { if (!d->caret_shown) caret_show(d, obj); return 0; }
     insert_text(d, u, (u32)o);
+    wp8_typed(d->doc, &d->caret, u, (u32)o, tracking(d) ? rev_id(d) : -1); d->anchor = d->caret;   /* (WP8: AutoCorrect, AutoFormat) */
     edited = 1;
   }
   }
@@ -4620,8 +4677,13 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
   struct Data *d = INST_DATA(cl, obj);
   struct IntuiMessage *im = m->imsg;
   if (!im || !d->doc || !d->lay || !d->shown) return 0;
-  if (im->Class == IDCMP_RAWKEY) return key_grab || !key(d, obj, im) ? 0 : MUI_EventHandlerRC_Eat;
+  ww_sync(d, obj, 1);                            /* WP25: changed in another view */
+  ww_click(d, obj, im);                          /* WP25: the working pane of a split window */
+  if (im->Class == IDCMP_RAWKEY) return key_grab || ww_passive(d) || !key(d, obj, im) ? 0 : MUI_EventHandlerRC_Eat;
+  { ULONG r = ev_mouse(d, obj, im); if (r) return r; }    /* WP14b: dragging in an equation */
   { ULONG r = fv_mouse(d, obj, im); if (r) return r; }    /* WP12: Select Objects */
+  { ULONG r = dv_mouse(d, obj, im); if (r) return r; }    /* WP20: drawing, the eraser, the lasso, Ink Replay */
+  { ULONG r = ov_mouse(d, obj, im); if (r) return r; }    /* WP11: the outline symbols */
   if (im->Class == IDCMP_MOUSEBUTTONS) {
     if (im->Code == SELECTDOWN && im->MouseX >= _mleft(obj) && im->MouseX <= _mright(obj) && im->MouseY >= _mtop(obj) && im->MouseY <= _mbottom(obj)) {
       Pos p;
@@ -4747,6 +4809,7 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
           return MUI_EventHandlerRC_Eat;
         }
       }
+      if (ev_click(d, obj, im)) return MUI_EventHandlerRC_Eat;      /* WP14b: a click into an equation */
       p = point_pos(d, obj, im->MouseX, im->MouseY);
       int shift = (im->Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) != 0;
       fv_click(d, im, &shift);                 /* WP12 */
@@ -4979,8 +5042,10 @@ static ULONG mSet(struct IClass *cl, Object *obj, struct opSet *msg, int init)
     case MUIA_Quill_Toolbar: d->tb = (struct Toolbar *)t->ti_Data; break;
     case MUIA_Quill_Doc: set_doc(d, obj, (Doc *)t->ti_Data, !init && _win(obj) && d->bw); break;
     case MUIA_Quill_ViewMode:
-      if ((int)t->ti_Data != d->vmode && t->ti_Data <= VM_READ) {
-        d->vmode = (int)t->ti_Data;
+      if (t->ti_Data <= VM_OUTLINE && (int)t->ti_Data != shown_mode(d)) {
+        ov_switch(d, t->ti_Data == VM_OUTLINE);          /* WP11: Outline view is web layout with the outline on */
+        d->vmode = t->ti_Data == VM_OUTLINE ? VM_WEB : (int)t->ti_Data;
+        ww_mode(d, obj, init);                           /* WP25: Read Mode reflowed (web layout inside), its page colour */
         d->scrollx = 0;
         drop_plain(d);
         if (!init && d->doc && d->bw) { caret_hide(d, obj); relayout(d, obj); close_fonts(d); make_visible(d, obj); update_prop(d); update_toolbar(d); MUI_Redraw(obj, MADF_DRAWOBJECT); }
@@ -4999,6 +5064,7 @@ static ULONG mSet(struct IClass *cl, Object *obj, struct opSet *msg, int init)
       break;
     case MUIA_Quill_Zoom:
       d->zoomset = (LONG)t->ti_Data;
+      ww_zoomed(d);                                      /* WP25: a zoom of its own ends Multiple Pages */
       if (!init && d->doc && d->bw) { caret_hide(d, obj); if (d->lay) { relayout(d, obj); close_fonts(d); make_visible(d, obj); update_toolbar(d); MUI_Redraw(obj, MADF_DRAWOBJECT); } }
       break;
     case MUIA_Quill_Scroll: if (!init && d->bw) { caret_hide(d, obj); scroll_to(d, obj, (LONG)t->ti_Data); } break;
@@ -5053,6 +5119,9 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     free(d->rowt);
     drop_plain(d);
     fv_free(d);                         /* WP12 */
+    ov_free(d);                         /* WP11 */
+    ww_free(d);                         /* WP25 */
+    ev_free(d);                         /* WP14b */
     break;
   case OM_SET:
     mSet(cl, obj, (struct opSet *)msg, 0);
@@ -5071,9 +5140,9 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     if (g->opg_AttrID == MUIA_Quill_Outline) { *g->opg_Storage = 0; return TRUE; }
     if (g->opg_AttrID == MUIA_Quill_EditStory) { *g->opg_Storage = (ULONG)&d->sreq; return TRUE; }
     if (g->opg_AttrID == MUIA_Quill_Scroll) { *g->opg_Storage = (ULONG)d->scrolly; return TRUE; }
-    if (g->opg_AttrID == MUIA_Quill_LayoutNow) { *g->opg_Storage = (ULONG)d->lay; return TRUE; }
-    if (g->opg_AttrID == MUIA_Quill_Layout) { *g->opg_Storage = (ULONG)paged_layout(d); return TRUE; }
-    if (g->opg_AttrID == MUIA_Quill_ViewMode) { *g->opg_Storage = (ULONG)d->vmode; return TRUE; }
+    if (g->opg_AttrID == MUIA_Quill_LayoutNow) { ww_sync(d, obj, 2); *g->opg_Storage = (ULONG)d->lay; return TRUE; }   /* (WP25: up to date) */
+    if (g->opg_AttrID == MUIA_Quill_Layout) { ww_sync(d, obj, 2); *g->opg_Storage = (ULONG)paged_layout(d); return TRUE; }
+    if (g->opg_AttrID == MUIA_Quill_ViewMode) { *g->opg_Storage = (ULONG)shown_mode(d); return TRUE; }   /* (WP11: VM_OUTLINE too) */
     break;
   }
   case MUIM_AskMinMax: {
@@ -5121,6 +5190,7 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     if (!(m->flags & (MADF_DRAWOBJECT | MADF_DRAWUPDATE))) return 0;
     d = INST_DATA(cl, obj);
     w = _mwidth(obj); h = _mheight(obj);
+    ww_sync(d, obj, 0);                          /* WP25: changed in another view */
     if (d->doc && (!d->lay || ((d->zoomset <= 0 || d->vmode == VM_WEB) && d->bw != w))) {
       LONG oz = d->zoom;
       relayout(d, obj);
@@ -5163,6 +5233,7 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     return handle_event(cl, obj, (struct MUIP_HandleEvent *)msg);
   case MUIM_Quill_Blink:
     d = INST_DATA(cl, obj);
+    ww_sync(d, obj, 1);                          /* WP25: changed in another view */
     if (d->idle < 100) d->idle++;
     if (d->stale && d->bw) { caret_hide(d, obj); refresh(d, obj, 1); d->stale = 0; }   /* a backstop for deferred typing */
     if (d->words_stale && d->idle == 2 && d->bw) update_toolbar(d);

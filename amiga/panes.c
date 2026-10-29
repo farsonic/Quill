@@ -26,6 +26,8 @@
 #include "theme.h"
 #include "lang.h"
 #include "ids.h"
+#include "wp_proof.h"   /* (WP31: the language on the bar) */
+#include "wp_outline.h"               /* (WP11) CMD_OV_MOVEPART: dragging headings */
 
 /* the interface font's height in pixels: rows and boxes are sized from it */
 static int fh(void) { return theme_font()->tf_YSize; }
@@ -65,18 +67,19 @@ struct NData {
   int hot;                       /* row under the pointer, or -1 */
   NBox close, box, tabs[3], body;
   struct MUI_EventHandlerNode ehn;
+  int drag, dragrow, dropat;     /* (WP11) a heading being dragged (its row in heads), and where it would go (-1 nowhere) */
 };
 static struct MUI_CustomClass *ncls, *scls;
 /* (quill.h) an object typing goes to instead of the page, or NULL: the search box here, or a
    field on the File page */
 Object *key_grab;
 
-/* a paragraph style's outline level: 1-9 for "heading N" (Word's built-in names, either case),
-   0 for Title, -1 for anything else (not shown in the pane) */
-static int heading_level(const Style *st)
+/* a paragraph's level in the pane (WP11: its outline level, 1-9: the Heading styles' and any
+   paragraph given one), 0 for Title, -1 for anything else (not shown in the pane) */
+static int heading_level(const Doc *doc, const Para *p)
 {
-  if (!strncmp(st->name, "heading ", 8) || !strncmp(st->name, "Heading ", 8)) return st->name[8] >= '1' && st->name[8] <= '9' ? st->name[8] - '0' : 1;
-  if (str_ieq(st->name, "Title")) return 0;
+  if (p->pf.outlvl >= 1 && p->pf.outlvl <= 9) return p->pf.outlvl;
+  if (str_ieq(doc->styles[p->pf.style < doc->nstyles ? p->pf.style : 0].name, "Title")) return 0;
   return -1;
 }
 /* the bytes from..to of p's UTF-8 text as Latin-1 in out (cap bytes, 0-terminated), the range
@@ -96,7 +99,7 @@ static int nav_headings(struct NData *d, Doc *doc)
   int n = 0;
   for (i = 0; i < doc->np; i++) {
     Para *p = doc->p[i];
-    int lv = heading_level(&doc->styles[p->pf.style < doc->nstyles ? p->pf.style : 0]);
+    int lv = heading_level(doc, p);
     u32 k;
     if (lv < 0) continue;
     sum = sum * 31 + i;
@@ -109,7 +112,7 @@ static int nav_headings(struct NData *d, Doc *doc)
   d->nheads = 0;
   for (i = 0; i < doc->np && d->nheads < MAXHEAD; i++) {
     Para *p = doc->p[i];
-    int lv = heading_level(&doc->styles[p->pf.style < doc->nstyles ? p->pf.style : 0]);
+    int lv = heading_level(doc, p);
     Head *h;
     if (lv < 0) continue;
     h = &d->heads[d->nheads++];
@@ -256,6 +259,10 @@ static void nav_draw(struct NData *d, Object *obj)
         theme_fill(rp, l + 1, y, l + 2, y + nrowh() - 2, tpen(T_ACCENT));
       } else if (d->hot == i) theme_fill(rp, l + 1, y, r - 8, y + nrowh() - 2, tpen(T_NAVHOVER));
       clipped_text(rp, h->level <= 1 ? theme_bold() : theme_font(), l + ind, y + 3, h->text, r - 10 - l - ind, tpen(T_TEXT));
+    }
+    if (d->drag && d->dropat >= d->first[0] && d->dropat <= d->first[0] + n) {     /* (WP11) where a dragged heading would go */
+      LONG y = d->body.y0 + 1 + (d->dropat - d->first[0]) * nrowh();
+      theme_fill(rp, l + 4, y - 1, r - 10, y, tpen(T_ACCENT));
     }
     draw_scrollbar(d, rp, d->first[0], n, d->nheads);
   } else if (d->tab == NT_PAGES) {
@@ -425,6 +432,29 @@ static ULONG nav_events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent 
   int inside;
   if (!im || !d->shown) return 0;
   inside = im->MouseX >= _mleft(obj) && im->MouseX <= _mright(obj) && im->MouseY >= _mtop(obj) && im->MouseY <= _mbottom(obj);
+  if (d->drag && im->Class == IDCMP_MOUSEMOVE) {
+    /* (WP11) dragging a heading: the gap between rows it would go into */
+    int at = d->first[0] + (int)((im->MouseY - d->body.y0 - 2 + nrowh() / 2) / nrowh());
+    if (at < d->first[0]) at = d->first[0];
+    if (at > d->nheads) at = d->nheads;
+    if (!inside || at == d->dragrow || at == d->dragrow + 1) at = -1;
+    if (at != d->dropat) { d->dropat = at; MUI_Redraw(obj, MADF_DRAWOBJECT); }
+    return MUI_EventHandlerRC_Eat;
+  }
+  if (d->drag && im->Class == IDCMP_MOUSEBUTTONS && im->Code == SELECTUP) {
+    int at = d->dropat, row = d->dragrow;
+    Doc *doc = view_doc(d);
+    d->drag = 0; d->dropat = -1;
+    if (at >= 0 && doc && d->view && row < d->nheads) {
+      u32 ft[2];
+      ft[0] = d->heads[row].para;
+      ft[1] = at < d->nheads ? d->heads[at].para : doc->np;
+      DoMethod(d->view, MUIM_Quill_Command, CMD_OV_MOVEPART, (ULONG)ft);
+      DoMethod(_app(obj), MUIM_Application_ReturnID, ID_OUTLINECHG);
+    } else nav_go(d, obj, row - d->first[0]);
+    MUI_Redraw(obj, MADF_DRAWOBJECT);
+    return MUI_EventHandlerRC_Eat;
+  }
   if (im->Class == IDCMP_MOUSEMOVE) {
     int h = !inside ? -1 : in_nbox(&d->close, im->MouseX, im->MouseY) ? -2 : nav_row(d, obj, im->MouseX, im->MouseY);
     if (h != d->hot) { d->hot = h; MUI_Redraw(obj, MADF_DRAWOBJECT); }
@@ -440,6 +470,11 @@ static ULONG nav_events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent 
     if (in_nbox(&d->body, im->MouseX, im->MouseY) && im->MouseX > d->body.x1 - 8) {
       /* the scroll bar: a page up or down */
       nav_scroll(d, obj, im->MouseY < (d->body.y0 + d->body.y1) / 2 ? -rows_fit(d) : rows_fit(d));
+      return MUI_EventHandlerRC_Eat;
+    }
+    if (d->tab == NT_HEADINGS && nav_row(d, obj, im->MouseX, im->MouseY) >= 0) {
+      /* (WP11) a heading: gone to when let go where it was, else dragged with its part to where it is let go */
+      d->drag = 1; d->dragrow = d->first[0] + nav_row(d, obj, im->MouseX, im->MouseY); d->dropat = -1;
       return MUI_EventHandlerRC_Eat;
     }
     nav_go(d, obj, nav_row(d, obj, im->MouseX, im->MouseY));
@@ -474,7 +509,7 @@ static const char *nav_help(struct NData *d, WORD x, WORD y)
 {
   if (in_nbox(&d->close, x, y)) return theme_bubble(tr("Close"), tr("Hides the navigation pane. View > Navigation Pane brings it back."));
   if (in_nbox(&d->box, x, y)) return theme_bubble(tr("Search document"), tr("Type a word and press Return: every place it appears is listed under Results. Click one to go there."));
-  if (in_nbox(&d->tabs[NT_HEADINGS], x, y)) return theme_bubble(tr("Headings"), tr("The document's headings as an outline. Click one to jump to it. Text in the Heading styles shows here."));
+  if (in_nbox(&d->tabs[NT_HEADINGS], x, y)) return theme_bubble(tr("Headings"), tr("The document's headings as an outline. Click one to jump to it, or drag it to move it with what is under it. Paragraphs with an outline level (the Heading styles) show here."));
   if (in_nbox(&d->tabs[NT_PAGES], x, y)) return theme_bubble(tr("Pages"), tr("A small picture of every page. Click one to go to it."));
   if (in_nbox(&d->tabs[NT_RESULTS], x, y)) return theme_bubble(tr("Results"), tr("The places the search found, each with the words round it."));
   return NULL;
@@ -580,6 +615,7 @@ struct SData {
   LONG zoomset;                  /* the zoom chosen on the bar (MUIA_Status_Zoom) */
   char hint[200];                /* MUIM_Status_Hint's line (the address of a link under the pointer), "" none */
   struct MUI_EventHandlerNode ehn;
+  NBox langb; char lang[64];     /* (WP31) the language shown, and where */
 };
 /* the slider: 10% at the left, 100% in the middle, 500% at the right */
 /* the slider: 10% at the left, 100% in the middle, 500% at the right (two linear halves).
@@ -677,8 +713,18 @@ static void status_draw(struct SData *d, Object *obj)
       while (n > 0 && x + theme_textlen(rp, theme_font(), h) >= d->focus.x0 - 10) h[--n] = 0;
       if (n) theme_text(rp, theme_font(), x, y, h, tpen(T_ACCENT));
     }
-    /* the language, if there is room */
-    else if (x + theme_textlen(rp, theme_font(), "English (UK)") < d->focus.x0 - 10) theme_text(rp, theme_font(), x, y, "English (UK)", tpen(T_DIM));
+    /* the language, if there is room (WP31: the caret's; a click opens the Language window) */
+    else {
+      const char *lg = wp31_status_lang();
+      LONG lw = theme_textlen(rp, theme_font(), lg);
+      d->langb.x0 = d->langb.x1 = 0;
+      if (x + lw < d->focus.x0 - 10) {
+        d->langb.x0 = (WORD)(x - 4); d->langb.x1 = (WORD)(x + lw + 3); d->langb.y0 = (WORD)(t + 1); d->langb.y1 = (WORD)b;
+        if (d->hot == 11) theme_fill(rp, d->langb.x0, d->langb.y0, d->langb.x1, d->langb.y1, tpen(T_HOVER));
+        theme_text(rp, theme_font(), x, y, lg, tpen(T_DIM));
+      }
+      strncpy(d->lang, lg, sizeof d->lang - 1); d->lang[sizeof d->lang - 1] = 0;
+    }
   }
 }
 /* the part of the bar at x, y: 1 page, 2 words, 3 percent, 4 slider, 5 Focus, 6 minus, 7 plus,
@@ -695,6 +741,7 @@ static int status_hit(struct SData *d, WORD x, WORD y)
   if (in_nbox(&d->viewb[0], x, y)) return 8;
   if (in_nbox(&d->viewb[1], x, y)) return 9;
   if (in_nbox(&d->viewb[2], x, y)) return 10;
+  if (d->langb.x1 > d->langb.x0 && in_nbox(&d->langb, x, y)) return 11;     /* (WP31) */
   return 0;
 }
 /* a zoom chosen on the bar: kept for MUIA_Status_Zoom and main.c told (ID_ZOOMSET), which sets
@@ -733,6 +780,7 @@ static ULONG status_events(struct IClass *cl, Object *obj, struct MUIP_HandleEve
   case 8: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_VREAD); break;
   case 9: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_VPRINT); break;
   case 10: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_VWEB); break;
+  case 11: DoMethod(_app(obj), MUIM_Application_ReturnID, WP31_LANGWIN_ID); break;     /* (WP31) */
   default: return 0;
   }
   return MUI_EventHandlerRC_Eat;
@@ -751,6 +799,7 @@ static const char *status_help(struct SData *d, WORD x, WORD y)
   case 8: return theme_bubble(tr("Read Mode"), tr("Two pages to read, without the tools (Esc returns)"));
   case 9: return theme_bubble(tr("Print Layout"), tr("The pages as they print"));
   case 10: return theme_bubble(tr("Web Layout"), tr("The text the window's width, without pages"));
+  case 11: return theme_bubble(tr("Language"), tr("The language the text at the caret is checked in. Click to set it."));   /* (WP31) */
   }
   return NULL;
 }
@@ -813,7 +862,7 @@ static ULONG sdispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, _
   case MUIM_Status_Set: {
     struct MUIP_Status_Set *m = (struct MUIP_Status_Set *)msg;
     d = INST_DATA(cl, obj);
-    if (d->drag || !memcmp(&d->s, m, sizeof *m)) return 0;
+    if (d->drag || (!memcmp(&d->s, m, sizeof *m) && !strcmp(d->lang, wp31_status_lang()))) return 0;   /* (WP31: or the language changed) */
     d->s = *m;
     if (_win(obj)) MUI_Redraw(obj, MADF_DRAWOBJECT);
     return 0;
