@@ -239,6 +239,18 @@ enum { SB_NEXT, SB_CONT, SB_EVEN, SB_ODD };
 enum { VA_TOP, VA_CENTER, VA_BOTTOM };
 enum { LN_NONE, LN_PAGE, LN_SECTION, LN_CONT };     /* line numbers, starting again each page, each section, or never */
 #define MAX_SECT_COLS 6
+/* footnote and endnote options (WP22b, core/notes.h): where the notes go, how they are numbered.
+   set: which of the others are given (NPS_); what isn't comes from the document's (Doc.fnpr, Doc.enpr),
+   else Word's defaults (footnotes 1, 2, 3 at the page's foot; endnotes i, ii, iii at the end) */
+enum { NPS_POS = 1, NPS_FMT = 2, NPS_START = 4, NPS_RESTART = 8 };
+typedef struct {
+  u8 set;                   /* NPS_ bits */
+  u8 pos;                   /* NPOS_ (core/notes.h) */
+  u8 fmt;                   /* NNF_ */
+  u8 restart;               /* NRS_ */
+  u16 start;                /* the first number (1...) */
+  char other[22];           /* a w:numFmt Quill doesn't draw (NNF_OTHER, shown as digits), kept */
+} NotePr;
 typedef struct {
   u8 start;                 /* SB_ */
   u8 cols;                  /* 1 to MAX_SECT_COLS, of equal width */
@@ -255,6 +267,7 @@ typedef struct {
   PageSetup page;           /* (haspage) */
   struct Story *hf;         /* its own headers and footers: HF_N headers then HF_N footers (malloc'd,
                                the section format owns them); NULL: the document's */
+  NotePr fnpr, enpr;        /* (WP22b) its own footnote and endnote options (w:footnotePr, w:endnotePr) */
 } SectFmt;
 /* s set to a section with no settings of its own: one column from a new page, 720 twips between
    columns, no line numbers */
@@ -347,6 +360,7 @@ typedef struct DocImage {
   i32 *poly; u16 npoly;
   i32 z;                    /* floating objects: the order they stack in, higher in front (equal ones in the
                                order their anchors come); Word's relativeHeight */
+  u8 decorative;            /* (WP24) marked decorative: a screen reader passes over it (Word's adec:decorative) */
 } Image;
 /* an object copied (dst a new entry): its text, objects and outline copied; its picture shared (it
    stays with the entry that brought it), or with own, copied too. 0 if out of memory (dst then holds
@@ -430,6 +444,13 @@ typedef struct Doc {
   StoryEdit edit;           /* a story being edited in the body's place */
   struct KeptPart *kept; int nkept;   /* .docx parts kept verbatim, written back on saving (core/keep.h) */
   /* (work packages: new fields go below, at the end) */
+  NotePr fnpr, enpr;        /* (WP22b) the document's footnote and endnote options (settings.xml) */
+  struct NoteSeps *nseps;   /* (WP22b) the document's own note separators (core/notes.h), NULL: Word's */
+  struct DocInfo *info;     /* (WP24) the document's properties (core/info.h), NULL: none read or set */
+  /* WP14a: equations (core/math.h): the entries the text's references name (only ever added to), and
+     settings.xml's m:mathPr kept verbatim */
+  struct MathEq **maths; int nmaths, mathcap;
+  char *mathpr;
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */

@@ -22,6 +22,7 @@
 #include "theme.h"
 #include "lang.h"
 #include "ids.h"
+#include "wp_info.h"   /* (WP24) */
 #include "../core/tstyle.h"
 #include "ribbondef.h"
 #include "wphooks.h"
@@ -216,8 +217,10 @@ static const Item g_clip[] = {
 };
 /* Save, Undo and Redo: not a group on a tab but the quick access buttons at the right end of the
    tab strip, always in reach and taking no room from the tabs' tools (see qa below) */
-#define NQA 3
+#define NQA 4
 static const Item g_undo[NQA] = {
+  { K_BUTTON, S_SMALL, 0, 0, "AutoSave", ID_INFO_AUTOSAVE, RB_WP(WPI_24, WP24S_AUTOSAVE), 0, 0, 0,          /* (WP24, wp_info.h) */
+    "AutoSave: a saved document is saved again by itself after a pause in typing", NULL, WP24_AUTOSAVE_ICON },
   { K_BUTTON, S_SMALL, IC_SAVE, 0, "Save", ID_SAVE, 0, 0, 0, 0, "Save (Amiga-S)" },
   { K_BUTTON, S_SMALL, IC_UNDO, 0, "Undo", ID_UNDO, 0, RB_CANUNDO, 0, 0, "Undo (Amiga-Z)" },
   { K_BUTTON, S_SMALL, IC_REDO, 0, "Redo", ID_REDO, 0, RB_CANREDO, 0, 0, "Redo (Amiga-Y)" },
@@ -394,10 +397,13 @@ static const Item i_hf[] = {
   { K_DROP, S_SMALL, IC_PAGENUM, L_PAGENUMS, "Page Number", ID_PAGENUMDD, 0, 0, 0, 0, "Page numbers at the top or foot of the page, their format, or none" } };
 static const Item i_text[] = { { K_BUTTON, S_LARGE, IC_DATE, 0, "Date", ID_DATE, 0, 0, 0, 0, "Today's date" },
   { K_DROP, S_LARGE, IC_DROPCAP, L_DROPCAP, "Drop Cap", ID_DROPCAPDD, 0, 0, 0, 0, "The paragraph's first letter large, over three lines" } };
-static const Item i_sym[] = { { K_DROP, S_LARGE, IC_SYMBOL, L_SYMBOLS, "Symbol", ID_SYMBOLDD, 0, 0, 0, 0, "A symbol" } };
+static const Item i_sym[] = {
+  { K_BUTTON, S_SMALL, 0, 0, NULL, ID_WP14A_FIRST, 0, 0, 0, 0, "Insert an equation, typed in linear format", NULL,     /* WP14a (amiga/wp_math.c): Equation */
+    "ci L 2 3 14 3 L 2 3 1 5 L 5 3 5 13 L 4 13 6 13 L 10 3 10 12 L 10 12 12 13 L 12 13 14 12 ca L 1 15 14 15" },
+  { K_DROP, S_LARGE, IC_SYMBOL, L_SYMBOLS, "Symbol", ID_SYMBOLDD, 0, 0, 0, 0, "A symbol" } };
 static const Group insert[] = { { "Pages", G_COLS, i_pages, N(i_pages) }, { "Tables", G_COLS, i_tables, N(i_tables) }, { "Illustrations", G_COLS, i_ill, N(i_ill) },
                                 { "Links", G_COLS, i_link, N(i_link) }, { "Comments", G_COLS, i_comm, 1 }, { "Header & Footer", G_COLS, i_hf, N(i_hf) }, { "Text", G_COLS, i_text, N(i_text) },
-                                { "Symbols", G_COLS, i_sym, 1 } };
+                                { "Symbols", G_COLS, i_sym, N(i_sym) } };
 
 /* the Layout tab: page setup, the paragraph's indents and spacing as fields, tab stops */
 static const Item l_setup[] = {
@@ -1193,8 +1199,9 @@ static void draw_tabs(struct RData *d, Object *obj)
     RBox *b = &d->qa[t];
     int en = item_enabled(d, &g_undo[t]);
     if (b->x0 < 0) continue;
+    if (item_on(d, &g_undo[t])) theme_fill(rp, b->x0, b->y0 + 1, b->x1, b->y1 - 1, tpen(T_CHECKED));     /* (WP24: AutoSave on) */
     if (d->hot == 200 + t && en) theme_fill(rp, b->x0, b->y0 + 1, b->x1, b->y1 - 1, tpen(T_HOVER));
-    theme_icon(rp, g_undo[t].icon, b->x0 + 3, b->y0 + (b->y1 - b->y0 + 1 - 16) / 2, 16, !en);
+    item_icon(rp, &g_undo[t], b->x0 + 3, b->y0 + (b->y1 - b->y0 + 1 - 16) / 2, 16, !en);
   }
 }
 /* the whole ribbon, laid out afresh: tabs, items, then each group's caption and the line after it */

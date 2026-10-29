@@ -500,6 +500,8 @@ static int file_request_pat(int save, const char *titletext, char *path, size_t 
 static int file_request(int save, const char *titletext, char *path, size_t cap, int docs) { return file_request_pat(save, titletext, path, cap, docs, NULL); }
 /* (wphooks.h) */
 int wp_file_request(int save, const char *title, char *path, size_t cap, const char *pattern) { return file_request_pat(save, title, path, cap, 0, pattern); }
+void wp24_saved(Doc *d, const char *path);   /* (WP24, wp_info.c) */
+int  wp24_alt_pane(void);
 /* the document written to path (.docx or text, by its name: doc_save_file decides). On success the
    document counts as saved and joins the recent list: 1; a failure is reported and returns 0 */
 /* (while saving: a cross-reference's page, from the layout, so Word shows the right one) */
@@ -519,6 +521,7 @@ static int save_to(const char *path)
   set(view, MUIA_Quill_Changed, FALSE);
   set_title();
   add_recent(path);
+  wp24_saved(doc, path);                 /* (WP24: a version kept, the recovery copy dropped) */
   return 1;
 }
 /* Save As (text: Save As Text). Asks for a name, adds .docx if none was typed, asks before replacing
@@ -3238,7 +3241,7 @@ static void command(ULONG id)
   case ID_TEXTBOX: DoMethod(view, MUIM_Quill_Command, CMD_SHAPE, (ULONG)-1); break;
   case ID_OBJLAYOUT: open_object(OP_POSITION); break;
   case ID_OBJCROP: case ID_OBJSIZE: open_object(OP_SIZE); break;
-  case ID_ALTTEXT: open_object(OP_ALT); break;
+  case ID_ALTTEXT: if (!wp24_alt_pane()) open_object(OP_ALT); break;     /* (WP24: the Alt Text pane) */
   case ID_GROUP: DoMethod(view, MUIM_Quill_Command, CMD_GROUP, 0); break;
   case ID_UNGROUP: DoMethod(view, MUIM_Quill_Command, CMD_UNGROUP, 0); break;
   case ID_EDITTEXT: { int k = sel_obj(); if (k >= 0 && doc->images[k].kind != OBJ_PICTURE) story_open(SK_TEXTBOX, k, 0, 0); break; }
@@ -4836,6 +4839,42 @@ static void free_home(void)
 /* Quill starts: libraries, arguments (a document, DEBUG=file, PUBSCREEN=, CMD=) or a Workbench icon,
    prefs, language and theme, fonts and the dictionary behind a splash window, then the MUI
    application with one document window, and the input loop until the last window closes */
+/* (WP24, wp_info.c) the document windows: slot i's document (NULL: no window there), its path and
+   whether it has unsaved changes; the current window's document saved where it is (0 if Save would
+   ask for a name: no path, or not a .docx); a document shown in a window of its own (or in the
+   untouched blank one), its path given (changed: counted as unsaved); the current window's document
+   replaced by d (its path kept); the user's name from the options */
+Doc *wp_window_doc(int i, const char **path, int *changed)
+{
+  ULONG c = 0;
+  if (i < 0 || i >= MAXWIN || !wins[i].used) return NULL;
+  if (i == curwin) { if (path) *path = docpath; if (changed && view) { get(view, MUIA_Quill_Changed, &c); *changed = c != 0; } return doc; }
+  if (path) *path = wins[i].docpath;
+  if (changed && wins[i].view) { get(wins[i].view, MUIA_Quill_Changed, &c); *changed = c != 0; }
+  return wins[i].doc;
+}
+int wp_save_current(void)
+{
+  const DocFormat *f = docpath[0] ? doc_format_for_name(docpath, 1) : NULL;
+  if (!f || !(f->flags & DF_NATIVE)) return 0;
+  return save_to(docpath);
+}
+int wp_open_doc(Doc *d, const char *path, int changed)
+{
+  if (!d) return 0;
+  if (doc_untouched()) { strncpy(docpath, path ? path : "", sizeof docpath - 1); docpath[sizeof docpath - 1] = 0; show_doc(d); }
+  else if (!win_new(d, path ? path : "")) return 0;
+  if (changed) { set(view, MUIA_Quill_Changed, TRUE); set_title(); }
+  return 1;
+}
+void wp_replace_doc(Doc *d, int changed)
+{
+  if (!d) return;
+  story_close(1);
+  show_doc(d);
+  if (changed) { set(view, MUIA_Quill_Changed, TRUE); set_title(); }
+}
+const char *wp_username(void) { return username; }
 int main(int argc, char **argv)
 {
   ULONG sigs = 0;
