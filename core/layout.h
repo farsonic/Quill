@@ -50,6 +50,9 @@ typedef struct {
   u32 enotebase;              /* the same for endnotes */
   u8 hyph;                    /* laid out with hyphenation */
   u8 shaped;                  /* its lines made room for floating objects (laid out afresh next time) */
+  u16 okey;                   /* (WP11) Outline view: what it was laid out for (OL_ flags, OK_HIDDEN, the indent
+                                 level << 4), 0 not in Outline view */
+  u8 ocut;                    /* (WP11) only its first line shown (OL_FIRST): it has more */
 } ParaLay;
 /* an object's size on the page (turned: the box round it) */
 #define OBJ_W(im) obj_w(im)
@@ -108,7 +111,20 @@ typedef struct Layout {
   u32 laid;                   /* paragraphs laid out afresh by the last update (for tests and timing) */
   struct { u32 key; FaceSize *z; } fcache[64];      /* format -> metrics (font substitution is slow) */
   int nfcache;
+  /* (WP11) Outline view: OL_ flags (0: not Outline view; then also set webw for the window's width).
+     Paragraphs are indented by their outline level (body text under its heading), their own indents,
+     spacing, borders, page breaks and floating objects left out; ohid[i] (nohid of them; NULL: none,
+     the caller's) hides paragraph i: one empty line of no height. oplain: the look all text takes with
+     OL_PLAIN (Show Text Formatting off) */
+  u8 outline;
+  u8 *ohid; u32 nohid;
+  CharFmt oplain;
+  u16 ocur;                   /* (the paragraph being laid out's okey) */
 } Layout;
+enum { OL_ON = 1, OL_PLAIN = 2, OL_FIRST = 4 };      /* (WP11) Layout.outline: on, without text formatting, body text's first line only */
+#define OK_HIDDEN 8                                 /* (WP11) ParaLay.okey: hidden */
+#define OL_GUTTER 400                               /* (WP11) Outline view: room left of the text for the outline symbols, twips */
+#define OL_STEP 360                                 /*        and the indent of each outline level */
 
 /* a header or footer laid out for one page (its page fields filled in) */
 typedef struct { Para *p; ParaLay pl; i32 y; } FPara;     /* y: the top of its first line from the page top */

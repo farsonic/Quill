@@ -297,6 +297,7 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
     else if (!strcmp(n, "keepLines")) { p->set |= PM_PAGINATION; p->pf.keeplines = (u8)onoff(x); }
     else if (!strcmp(n, "widowControl")) { p->set |= PM_PAGINATION; p->pf.nowidow = (u8)!onoff(x); }
     else if (!strcmp(n, "contextualSpacing")) { p->set |= PM_CONTEXT; p->pf.contextual = (u8)onoff(x); }
+    else if (!strcmp(n, "outlineLvl") && v) { p->set |= PM_OUTLINE; p->pf.outlvl = (u8)(atoi(v) >= 0 && atoi(v) < 9 ? atoi(v) + 1 : 0); }   /* (WP11) */
     else if (!strcmp(n, "shd")) {
       const char *fill = xml_attr(x, "fill");
       u32 col = fill ? hexcolor(fill) : COLOR_AUTO;
@@ -375,7 +376,7 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
 /* apply onto dst the paragraph fields p sets (lists are applied separately, by apply_list) */
 static void pf_set(ParaFmt *dst, const PPr *p)
 {
-  pf_apply(dst, p->set & (PM_ALIGN | PM_INDENT | PM_SPACING | PM_LINE | PM_TABS | PM_KEEP | PM_BORDER | PM_SHADE | PM_PAGINATION | PM_CONTEXT), &p->pf);
+  pf_apply(dst, p->set & (PM_ALIGN | PM_INDENT | PM_SPACING | PM_LINE | PM_TABS | PM_KEEP | PM_BORDER | PM_SHADE | PM_PAGINATION | PM_CONTEXT | PM_OUTLINE), &p->pf);
   if (p->set & PM_BREAK) dst->pagebreak = p->pf.pagebreak;
 }
 /* apply onto dst the character look fields r sets */
@@ -2653,6 +2654,7 @@ static void w_ppr_body(Buf *b, Doc *d, const ParaFmt *p, const ParaFmt *base, in
   }
   if (full ? p->contextual : p->contextual != base->contextual) buf_adds(b, p->contextual ? "<w:contextualSpacing/>" : "<w:contextualSpacing w:val=\"0\"/>");
   if (full ? p->align != AL_LEFT : p->align != base->align) buf_printf(b, "<w:jc w:val=\"%s\"/>", jc[p->align & 3]);
+  if (full ? p->outlvl != 0 : p->outlvl != base->outlvl) buf_printf(b, "<w:outlineLvl w:val=\"%d\"/>", p->outlvl >= 1 && p->outlvl <= 9 ? p->outlvl - 1 : 9);   /* (WP11) */
 }
 static int w_deleted;                   /* writing a deletion's runs: w:delText */
 /* append text as w:t elements (w:delText inside a deletion), with tabs as w:tab and Quill's line
