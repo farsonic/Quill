@@ -6,7 +6,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 ## Summary
 
-- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **366** (✅), **5** partly (🟨) and lacks **130** (⬜); 30 are ➖. So Quill covers 73% of the applicable commands fully and 74% at least in part.
+- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **380** (✅), **5** partly (🟨) and lacks **116** (⬜); 30 are ➖. So Quill covers 76% of the applicable commands fully and 77% at least in part.
 - **Beyond the ribbon (section 2):** 152 features: ✅ 48, 🟨 43, ⬜ 44, ➖ 17.
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
 - **Missing whole:** Mailings (22), the Equation tab and equations (21), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
@@ -19,7 +19,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Quick Access | 5 | 5 | 0 | 0 | 0 |
 | Title Bar | 1 | 0 | 0 | 1 | 0 |
 | Home | 105 | 97 | 2 | 5 | 1 |
-| Insert | 53 | 38 | 0 | 9 | 6 |
+| Insert | 53 | 40 | 0 | 7 | 6 |
 | Draw | 11 | 0 | 0 | 10 | 1 |
 | Design | 10 | 9 | 0 | 1 | 0 |
 | Layout | 22 | 19 | 0 | 3 | 0 |
@@ -38,11 +38,11 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Header & Footer | 5 | 5 | 0 | 0 | 0 |
 | Equation | 22 | 1 | 0 | 20 | 1 |
 | Outlining | 13 | 13 | 0 | 0 | 0 |
-| SmartArt Design | 7 | 0 | 0 | 7 | 0 |
-| Chart Design | 5 | 0 | 0 | 5 | 0 |
+| SmartArt Design | 7 | 7 | 0 | 0 | 0 |
+| Chart Design | 5 | 5 | 0 | 0 | 0 |
 | Editing | 41 | 41 | 0 | 0 | 0 |
 | Tools | 7 | 1 | 0 | 6 | 0 |
-| **All** | **531** | **366** | **5** | **130** | **30** |
+| **All** | **531** | **380** | **5** | **116** | **30** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
@@ -295,7 +295,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Dictate (Voice) `tools.dictate` — WordCraft doesn't have it either (cloud speech service)
 - ✅ Editor (Editor) `review.editor` — WordCraft's Editor runs Spelling: Quill `ID_SPELL`
 
-### Insert (53: ✅ 38 · 🟨 0 · ⬜ 9 · ➖ 6)
+### Insert (53: ✅ 40 · 🟨 0 · ⬜ 7 · ➖ 6)
 
 - ✅ Cover Page (Pages) `insert.coverPage` — `ID_COVERDD` (3 designs, remove)
 - ✅ Blank Page (Pages) `insert.blankPage` — `ID_BLANKPAGE`
@@ -310,8 +310,8 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Shapes (Illustrations) `insert.shape` — `ID_SHAPESDD` (24 presets, `SH_` in doc.h)
 - ✅ Icons (Illustrations) `insert.icon` — `ID_SH_ICONS` (amiga/wp_shapes.c): a window of 52 icons in six categories, drawn in Quill's own icon language (core/shapex.c), inserted as a shape in its own colour; saved as `a:custGeom` named "Icon: …" in `wp:docPr`, which LibreOffice and Word draw and Quill reads back as the icon [WP18]
 - ➖ 3D Models (Illustrations) `insert.model3d` — WordCraft doesn't have it either
-- ⬜ SmartArt (Illustrations) `insert.smartArt` [WP15c]
-- ⬜ Chart (Illustrations) `insert.chart` [WP15b]
+- ✅ SmartArt (Illustrations) `insert.smartArt` [WP15c] — Insert > Illustrations > SmartArt and Insert > SmartArt... (amiga/wp_smartart.c): Choose a SmartArt Graphic by category (list, process, cycle, hierarchy, relationship, matrix, pyramid; 21 layouts) with a preview and description; written as the five diagram parts with a `dsp:drawing` Quill lays out itself (core/smartedit.c). tests/test_wp15c.c; LibreOffice draws every layout
+- ✅ Chart (Illustrations) `insert.chart` [WP15b] — Insert > Illustrations > Chart and Insert > Chart... (amiga/wp_chart.c): every kind core/chart.c draws (25) with a preview of Word's sample data; written as `c:chartSpace` (Excel 2016's kinds as `cx:chartSpace`) with the values cached and an embedded workbook the formulas point into, so Word's Edit Data works (core/chartedit.c). tests/test_wp15b.c; LibreOffice draws every `c:` kind
 - ➖ Screenshot (Illustrations) `insert.screenshot` — WordCraft doesn't have it either
 - ⬜ Drawing Canvas (Illustrations) `insert.canvas` — README roadmap [WP20]
 - ➖ Get Add-ins (Add-ins) `addins.get` — WordCraft doesn't have it either (online store)
@@ -689,23 +689,23 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Show First Line Only (Outline Tools) `outline.firstLineOnly` — `ID_OL_FIRSTLINE` (`OL_FIRST`, "..." after a cut paragraph) [WP11]
 - ✅ Close Outline View (Close) `outline.close` — `ID_OL_CLOSE` (back to Print Layout) [WP11]
 
-### SmartArt Design (7: ✅ 0 · 🟨 0 · ⬜ 7 · ➖ 0)
+### SmartArt Design (7: ✅ 7 · 🟨 0 · ⬜ 0 · ➖ 0)
 
-- ⬜ Add Shape (Create Graphic) `smartArt.addShape` — SmartArt is read, drawn from its saved drawing and kept through a save (WP15a), but not edited [WP15c]
-- ⬜ Promote (Create Graphic) `smartArt.promote` [WP15c]
-- ⬜ Demote (Create Graphic) `smartArt.demote` [WP15c]
-- ⬜ Text Pane (Create Graphic) `smartArt.textPane` [WP15c]
-- ⬜ Layouts (Layouts) `smartArt.layout` [WP15c]
-- ⬜ Change Colors (SmartArt Styles) `smartArt.colors` [WP15c]
-- ⬜ Reset Graphic (Reset) `smartArt.reset` [WP15c]
+- ✅ Add Shape (Create Graphic) `smartArt.addShape` [WP15c] — split button: after (the button), before, above, below the item chosen in the Text Pane (`sa_add`); also Format > SmartArt. A SmartArt from Word is read back as an outline (`sa_from_pack`: its data part's points and parent connections) and becomes editable; a change writes all its parts afresh from the model (Word's own per-shape changes are then lost)
+- ✅ Promote (Create Graphic) `smartArt.promote` [WP15c] — with the items under it; also Move Up, Move Down (past the neighbour with its items) and Right to Left (`dgm:dir rev`, the drawing mirrored)
+- ✅ Demote (Create Graphic) `smartArt.demote` [WP15c] — not past the item before it, as Word
+- ✅ Text Pane (Create Graphic) `smartArt.textPane` [WP15c] — a window with the outline (indented), the chosen item's text (Return puts it in) and Add/Before/Above/Below/Delete/Promote/Demote/Move Up/Move Down; follows the selected graphic
+- ✅ Layouts (Layouts) `smartArt.layout` [WP15c] — split: the button opens the layout chooser with previews, the arrow lists the 21 layouts: Basic Block List, Vertical and Horizontal Bullet List, Basic/Vertical/Basic Chevron Process, Basic and Text Cycle, Basic Radial, Organization Chart, Hierarchy, Horizontal Hierarchy, Basic/Linear Venn, Basic Target, Basic/Titled/Grid Matrix, Basic/Inverted Pyramid, Pyramid List (layout definitions of Quill's own under Office's layout ids; ported in part from WordCraft's smart_art.rs)
+- ✅ Change Colors (SmartArt Styles) `smartArt.colors` [WP15c] — Accent 1-6 (Office's accentN_2) and Colorful; with them the SmartArt Styles list: Simple Fill, White Outline, Subtle/Moderate/Intense Effect (outlines, and shadows Word and LibreOffice show; Quill draws no shadows)
+- ✅ Reset Graphic (Reset) `smartArt.reset` [WP15c] — laid out afresh from its text in Simple Fill, left to right (a graphic from Word loses its own shape changes)
 
-### Chart Design (5: ✅ 0 · 🟨 0 · ⬜ 5 · ➖ 0)
+### Chart Design (5: ✅ 5 · 🟨 0 · ⬜ 0 · ➖ 0)
 
-- ⬜ Change Chart Type (Type) `chart.type` — charts are read, drawn from their cached values and kept through a save (WP15a), but not edited [WP15b]
-- ⬜ Edit Data (Data) `chart.editData` [WP15b]
-- ⬜ Chart Title (Chart Layouts) `chart.title` [WP15b]
-- ⬜ Legend (Chart Layouts) `chart.legend` [WP15b]
-- ⬜ Data Labels (Chart Layouts) `chart.dataLabels` [WP15b]
+- ✅ Change Chart Type (Type) `chart.type` [WP15b] — the Insert Chart dialog with the chart's own data previewed in each kind (data reshaped: pie takes the first series, scatter X values from the categories, bubble sizes). The Chart Design tab (amiga/wp_chart.c) also has Switch Row/Column, Select Data (series names, order, remove), Quick Layout (10), Change Colors (colourful, monochrome, accents), Chart Styles (8) and Format (each part's fill and outline, titles, value axis minimum/maximum/unit and number format, legend, labels, gridlines); also Format > Chart. A chart from Word is edited through WP15a's model and its parts written afresh (its chart style and colour parts, theme and font kept; its own text formatting lost)
+- ✅ Edit Data (Data) `chart.editData` [WP15b] — a sheet of the chart's data (series names in row 1, categories in column A; 9 x 6 cells shown, scrolled, rows and columns set by sliders), written back to the chart and its embedded workbook
+- ✅ Chart Title (Chart Layouts) `chart.title` [WP15b] — Add Chart Element: chart title none/above, axis titles; the text in Format
+- ✅ Legend (Chart Layouts) `chart.legend` [WP15b] — Add Chart Element: none, right, top, left, bottom; gridlines across and up
+- ✅ Data Labels (Chart Layouts) `chart.dataLabels` [WP15b] — Add Chart Element: none, show (the values)
 
 ### Editing (41: ✅ 41 · 🟨 0 · ⬜ 0 · ➖ 0)
 

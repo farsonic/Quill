@@ -396,7 +396,11 @@ static const Item i_ill[] = {
   { K_BUTTON, S_LARGE, IC_PICTURE, 0, "Pictures", ID_PICTURE, 0, 0, 0, 0, "A PNG or JPEG picture from a file" },
   { K_DROP, S_LARGE, IC_SHAPES, L_SHAPES, "Shapes", ID_SHAPESDD, 0, 0, 0, 0, "A rectangle, oval, arrow or other shape, in front of the text" },
   { K_BUTTON, S_SMALL, IC_TEXTBOX, 0, "Text Box", ID_TEXTBOX, 0, 0, F_NEWCOL, 0, "A box of text the page's text runs round" },
-  { K_BUTTON, S_SMALL, IC_PICSIZE, 0, "Size", ID_PICSIZE, 0, RB_PICTURE, 0, 0, "The size of the picture by the caret" } };
+  { K_BUTTON, S_SMALL, IC_PICSIZE, 0, "Size", ID_PICSIZE, 0, RB_PICTURE, 0, 0, "The size of the picture by the caret" },
+  { K_BUTTON, S_SMALL, 0, 0, "SmartArt", ID_WP15C_FIRST, 0, 0, 0, 0, "A diagram of lists, steps, cycles or hierarchies from an outline of text", NULL,   /* WP15c (amiga/wp_smartart.c) */
+    "ca F 1 1 6 5 F 9 1 14 5 F 5 10 10 14 ci L 3 5 7 10 L 12 5 8 10" },
+  { K_BUTTON, S_SMALL, 0, 0, "Chart", ID_WP15B_FIRST, 0, 0, F_NEWCOL, 0, "A chart of numbers you type in a small sheet", NULL,                               /* WP15b (amiga/wp_chart.c) */
+    "ca F 3 8 5 14 co F 7 4 9 14 cg F 11 6 13 14 ci L 1 15 15 15 L 1 1 1 15" } };
 static const Item i_link[] = { { K_BUTTON, S_LARGE, IC_LINK, 0, "Link", ID_LINK, 0, 0, 0, 0, "A link to a web page or e-mail address" },
   { K_BUTTON, S_SMALL, IC_BOOKMARK, 0, "Bookmark", ID_BOOKMARK, 0, 0, F_NEWCOL, 0, "A name for the selected text, to go back to or link to" },
   { K_BUTTON, S_SMALL, IC_XREF, 0, "Cross-reference", ID_XREF, 0, 0, 0, 0, "The text of a bookmark or heading, or the page it is on" } };
