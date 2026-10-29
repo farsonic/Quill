@@ -299,6 +299,14 @@ void field_time_w3c(const FieldTime *t, char *out)
 {
   sprintf(out, "%04d-%02d-%02dT%02d:%02d:%02dZ", t->year % 10000, t->month % 100, t->day % 100, t->hour % 100, t->min % 100, t->sec % 100);
 }
+/* the first n bytes of s into out (cap bytes), NUL-ended (not "%.*s": vbcc prints all of s for 0) */
+static void copy_n(char *out, size_t cap, const char *s, size_t n)
+{
+  if (!cap) return;
+  if (n > cap - 1) n = cap - 1;
+  memcpy(out, s, n);
+  out[n] = 0;
+}
 /* append s to out (n bytes used of cap) */
 static void put(char *out, size_t cap, size_t *n, const char *s)
 {
@@ -432,7 +440,7 @@ void field_number_picture(const char *pic, long v, char *out, size_t cap)
     which = neg && nsec >= 2 ? 1 : (v == 0 && nsec >= 3) ? 2 : 0;
     s = secs[which];
     for (e = s, q = 0; *e && (q || *e != ';'); e++) if (*e == '\'') q = !q;
-    snprintf(sec, sizeof sec, "%.*s", (int)(e - s), s);
+    copy_n(sec, sizeof sec, s, (size_t)(e - s));
   }
   if (which) neg = 0;                                  /* (the section says how a negative number looks) */
   len = (int)strlen(sec);
@@ -1453,8 +1461,10 @@ void field_code_display(const Doc *d, int k, char *out, size_t cap)
     /* cut short on a character boundary */
     size_t m = cap - 8;
     while (m > 0 && ((u8)s[m] & 0xC0) == 0x80) m--;
-    snprintf(out, cap, "{ %.*s... }", (int)m, s);
-  } else snprintf(out, cap, "{ %.*s }", (int)n, s);
+    snprintf(out, cap, "{ ");
+    copy_n(out + 2, cap - 2, s, m);
+    strcat(out, "... }");
+  } else { snprintf(out, cap, "{ "); copy_n(out + 2, cap - 2, s, n); strcat(out, " }"); }
 }
 u32 field_end_in_para(const Para *p, u32 off)
 {
@@ -1645,7 +1655,7 @@ static void read_props(Doc *d, const char *xml, size_t n, int which)
         }
       }
     } else if (x.type == XT_TEXT && (dst || num)) {
-      if (dst) { snprintf(dst, cap, "%.*s", (int)x.text.len, x.text.data); dst = NULL; }
+      if (dst) { copy_n(dst, cap, x.text.data, x.text.len); dst = NULL; }
       else { *num = atol(x.text.data); num = NULL; }
     } else if (x.type == XT_END) { dst = NULL; num = NULL; }
   }
