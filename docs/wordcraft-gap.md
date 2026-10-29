@@ -165,7 +165,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - 🟨 Options (Backstage) `file.options` — `BP_OPTIONS` page: units (cm/in), theme, text size, language, user name, Window and screen; most of WordCraft's Options panes missing (see "Options") [WP26]
 - ⬜ Numerals (Options) `view.numeral` — no Arabic/Hindi numeral choice [WP27]
 - ✅ Share (Backstage) `file.share` — WordCraft's Share only opens Save As with a hint; Quill's Save As / Export cover it
-- ⬜ Protect Document (Backstage) `file.protect` — no password encryption [WP7]
+- ✅ Protect Document (Backstage) `file.protect` — WP7: File page › Info › Protect Document (`ID_PROT_DOC`, amiga/wp_protect.c): its window with Encrypt with Password and Restrict Editing, and what is in force; File menu › Protect Document [WP7]
 - ✅ Inspect Document (Backstage) `file.inspect` — `ID_INFO_INSPECT`: Document Inspector (comments, tracked changes, properties and personal information, headers/footers/watermarks, custom XML; Remove Checked), core/inspect.c; hidden text once WP9 models it [WP24]
 - ✅ Check Accessibility (Backstage) `file.accessibility` — `ID_INFO_ACC`: Accessibility pane (missing alt text, heading order, table header row, contrast by WCAG ratio, floating objects, merged cells, empty paragraphs, link text, title), Go To / Alt Text / Mark as Decorative [WP24]
 - ✅ Check Compatibility (Backstage) `file.compatibility` — `ID_INFO_COMPAT` (core/inspect.c `compat_check`: shapes, decorative marks, wide tables, notes beneath text, own separators, custom properties, kept parts) [WP24]
@@ -485,10 +485,10 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Reject All (Changes) `review.rejectAll` — `ID_REJECTDD` "Reject All Changes"
 - ✅ Previous Change (Changes) `review.previousChange` — `ID_PREVCHANGE`
 - ✅ Next Change (Changes) `review.nextChange` — `ID_NEXTCHANGE`
-- ⬜ Compare (Compare) `review.compare` [WP6]
-- ⬜ Combine (Compare) `review.combine` [WP6]
+- ✅ Compare (Compare) `review.compare` — WP6: Review › Compare › Compare... (`ID_CMP_MENU`/`ID_CMP_COMPARE`, amiga/wp_compare.c): Word's Compare Documents window (original, revised, label changes with, comparison settings: comments, formatting, case changes, white space, tables, headers and footers, footnotes and endnotes; character or word level), the result in a new window. core/compare.c `doc_compare`: paragraphs lined up by hash and then by likeness, words (or characters) by patience diff with an exact LCS for short stretches, tidied (small equal stretches folded into the changes, deletions before insertions); deletions copy the original's text, pictures, notes and equations over. Moves aren't found (deleted and inserted); a paragraph mark only the original has becomes a deleted line break (Quill has no tracked paragraph marks), so accepting every change gives the revised document exactly. Formatting differences are shown as old look deleted + new look inserted until WP5's tracked formatting changes are merged (`compare_fmt_hook`). Results open in LibreOffice with their changes (tests/test_wp6.c) [WP6]
+- ✅ Combine (Compare) `review.combine` — WP6: Review › Compare › Combine... (`ID_CMP_COMBINE`): `doc_combine` lines up the two documents' texts as they were before their tracked changes, keeps both reviewers' insertions and deletions with their authors, and marks what differs untracked with "label unmarked changes with" (tests/test_wp6.c `combine`) [WP6]
 - ➖ Block Authors (Protect) `review.blockAuthors` — WordCraft doesn't have it either (co-authoring service)
-- ⬜ Restrict Editing (Protect) `review.restrict` [WP7]
+- 🟨 Restrict Editing (Protect) `review.restrict` — WP7: Review › Protect › Restrict Editing (`ID_PROT_PANE`): the Restrict Editing pane (a window: formatting restriction, editing restriction read only / tracked changes / comments / filling in forms, exceptions for everyone or named people on the selection, Yes, Start Enforcing Protection with a password; when enforced: what the caret's region allows, Find Next Region I Can Edit, Show All, Highlight the regions I can edit, Stop Protection). core/protect.c enforces it in doc.c's edit paths (exact ranges in doc_insert/doc_delete/doc_format/per-run edits/doc_paste/doc_resolve, every other edit stopped where it saves paragraphs for undo; style changes refused; tracking forced, Accept/Reject refused under tracked changes); `w:documentProtection` (Word's SHA-512 legacy-key form written, the ISO form and SHA-1 read and checked) and `w:permStart`/`w:permEnd` (`w:ed`, `w:edGrp`, columns kept) read and written; LibreOffice opens Quill's files read-only with the permission ranges. Missing: "Filling in forms" is read only (no legacy form fields or content controls yet: WP16), sections' `w:formProt` not read, "Limit formatting" is stored but its style list isn't, groups other than Everyone/Current aren't anyone's (tests/test_wp7.c `restrict_editing`) [WP7]
 - ⬜ Hide Ink (Ink) `review.hideInk` — (no ink) [WP20]
 
 ### View (29: ✅ 17 · 🟨 3 · ⬜ 4 · ➖ 5)
@@ -757,7 +757,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Set Proofing Language (Proofing) `review.language` [WP31]
 - ⬜ Customize Ribbon (Customize) `tools.customizeRibbon` [WP26]
 - ⬜ Customize Keyboard (Customize) `tools.customizeKeyboard` [WP26]
-- ⬜ Encrypt with Password (Protection) `file.encrypt` [WP7]
+- ✅ Encrypt with Password (Protection) `file.encrypt` — WP7: File › Protect Document › Encrypt with Password (`ID_PROT_ENCRYPT`): ECMA-376 agile encryption (AES-256-CBC, SHA-512, 100000 spins, HMAC data integrity, the data spaces) in an OLE compound file (core/encrypt.c, core/cfb.c, core/crypt.c), written on every .docx save; encrypted files ask for their password when opened (agile with SHA-1/SHA-512 and AES-128/192/256, and Office 2007 standard encryption). Checked both ways with LibreOffice 24.2 and msoffcrypto-tool (tests/test_wp7.c `encryption`, tests/data/enc-*.docx) [WP7]
 - ⬜ Templates and Add-ins (Templates) `tools.templates` — no attached templates [WP23]
 - ✅ Full Screen View (Views) `view.fullScreenView` — `ID_FOCUS` hides the ribbon, rulers, pane and status bar (`chrome()`)
 
@@ -782,7 +782,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **PDF export** — Quill core/pdf.c: pages as laid out, embedded TrueType/OpenType fonts, URI link annotations. WP29 added: font subsetting (core/pdffont.c: TrueType glyf/loca rebuilt, CFF CharStrings cut in place; the short test documents' PDFs shrink 10-16 times, e.g. tables.docx 415 KB → 30 KB, word.docx 769 KB → 49 KB, wordcraft-long.docx 1.9 MB → 0.88 MB), any character the font has through Type 0 fonts with Identity-H and ToUnicode CMaps (pdffonts: "CID TrueType / CID Type 0C (OT), emb sub uni"; pdftotext extracts Greek and Cyrillic), internal links (`#bookmark` links, PAGEREF cross-references, Quill's own TOC entries to their headings, footnote/endnote references and their numbers back), the outline from the headings (nested, /PageMode /UseOutlines), bookmarks as named destinations, Title/Author/Subject/Keywords (UTF-16 when needed), a page range (Export Options); qpdf --check clean [WP29]. Still missing: tagged PDF (structure tree; not part of WP29).
 - ➖ **PDF import** — WordCraft doesn't have it either.
 - ✅ **Export page as image (.png)** — WP29: Export Image writes PNG or IFF ILBM pages (core/pngwrite.c, core/raster.c), with Export Options for the pages and resolution [WP29]
-- ⬜ **Encrypted .docx (open and save with a password)** — WordCraft crates/docx/src/crypt (ECMA-376 agile AES-256, standard encryption). Quill none.
+- ✅ **Encrypted .docx (open and save with a password)** — WP7: core/encrypt.c (agile read and written, standard read), core/cfb.c (compound files read and written, ready for WP28d's .doc reader), core/crypt.c (SHA-1, SHA-512, HMAC, AES in 32-bit C); doc_load_file asks for the password, doc_save_file encrypts again; the password's slow key derivation is kept so saving again is quick.
 - ⬜ **Spreadsheets (.xlsx, .xls, .ods, .csv) as mail-merge recipient lists** — WordCraft crates/formats/src/sheet. Quill has no mail merge.
 - 🟨 **Picture formats for Insert › Picture** — Quill: PNG and JPEG (baseline, progressive, CMYK; core/image.c). WordCraft also GIF, WebP, BMP, WMF and EMF (crates/metafile). An Amiga user would also expect IFF ILBM.
 - ➖ **.json document model** — WordCraft's format for agents (control protocol, left out on purpose).
@@ -800,7 +800,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Move tracking (`w:moveFrom`/`w:moveTo`)** — read as a plain deletion and insertion (docx.c line 1462) and written so; ranges and the move link are lost.
 - 🟨 **Fields** — understood: PAGE, NUMPAGES/SECTIONPAGES, REF, PAGEREF, HYPERLINK, the TOC (core/docx.c `field_kind()`, `ref_field()`, `hyperlink_field()`). Every other field keeps only its result as plain text: the code is dropped, so DATE, SEQ, MERGEFIELD, ADDIN (Zotero/Mendeley citations), IF, DOCPROPERTY, INDEX, XE, TC… don't survive a save as fields. WordCraft keeps every code and its cached result and evaluates most of them.
 - ⬜ **Content controls (`w:sdt`)** — Quill reads their content and drops the controls (docx.c treats `sdt`/`sdtContent` as transparent); WordCraft keeps and edits every kind (rich/plain text, checkbox, combo, drop-down, date, picture, building block, repeating section, data binding kept verbatim).
-- ⬜ **Restrict Editing (`w:documentProtection`, `w:permStart`/`w:permEnd`, locked styles)** — not read or kept.
+- 🟨 **Restrict Editing (`w:documentProtection`, `w:permStart`/`w:permEnd`, locked styles)** — WP7: protection and exceptions read, enforced and written (core/protect.c); locked styles (`w:locked`, the formatting restriction's style list) not kept; permission ranges at table-row level and in headers and footers are not kept.
 - ⬜ **Legacy form fields (`w:ffData`: FORMTEXT, FORMCHECKBOX, FORMDROPDOWN)** — WordCraft keeps and draws them; Quill keeps only the result text.
 - 🟨 **DrawingML pictures, inline and anchored, wrapping** — ✅ for square, tight (with `wp:wrapPolygon`), top and bottom, behind, in front; `wrapThrough` is read as tight (docx.c line 1264); `wrapText` sides (left/right/largest) not kept.
 - ⬜ **WordArt text effects (`w14:textFill`, `w14:textOutline`, `w14:shadow`, `w14:glow`, `w14:reflection`)** — not read.
@@ -876,8 +876,8 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Immersive Reader** — WordCraft's is Read Mode; Quill's Read Mode ✅, but no column width, page colour, text size or line spacing choices in it (WordCraft `reading_toolbar`).
 - 🟨 **Zoom** — list, slider 10-500%, one page, page width, multiple pages ✅; no Zoom dialog with "many pages" choices.
 - ⬜ **Track changes options** — WordCraft: markup display modes, balloons, colours by author, moves, formatting tracking. Quill: one colour scheme, inline only.
-- ⬜ **Compare and Combine documents** — WordCraft cmd/review (word-level diff into tracked changes).
-- ⬜ **Protect document / Restrict Editing** — WordCraft cmd/protect (read-only, comments only, tracked changes only, forms, exceptions, password hash).
+- ✅ **Compare and Combine documents** — WP6: core/compare.c, amiga/wp_compare.c (see Review › Compare); moves aren't detected.
+- 🟨 **Protect document / Restrict Editing** — WP7: read-only, comments only, tracked changes only, forms (as read only), exceptions, password hash; see Review › Protect.
 - ➖ **Macros and scripts** — left out on purpose (WordCraft records and plays back commands, `tools.macros`, `tools.recordMacro`; it keeps but never runs VBA).
 - ➖ **Add-ins** — WordCraft has none either (Get Add-ins is an online store).
 - ✅ **Accessibility checker** — core/inspect.c `acc_check`, the Accessibility pane (WP24).

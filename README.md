@@ -535,6 +535,7 @@ The MUI headers come from Aminet's `dev/mui/mui38dev.lha`. That archive may only
 ## Licences
 
 - **Quill:** the code is new, written for this project. It borrows WordCraft's ideas but none of its code.
+- **WordCraft** (MIT OR Apache-2.0, © its authors; see its LICENSE-MIT, NOTICE and ATTRIBUTION.md): core/protect.c hashes a Restrict Editing password the way WordCraft's crates/docx/src/crypt.rs does (Word's legacy key as reversed hex, the iteration number after the hash), written again in C.
 - **Its licence:** not chosen yet; the author will choose one before the code is published.
 - **TrueType fonts:** Liberation (Red Hat, Google), Carlito and Caladea, under the SIL Open Font License 1.1. See `TrueType/LICENSE-fonts.txt`.
 - **Word list:** `Dict/british-english` is SCOWL's British English list (Copyright 2000-2011 Kevin Atkinson and others), used under its permissive licence: see `Dict/LICENSE-dict.txt`.
