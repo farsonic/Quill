@@ -5331,7 +5331,10 @@ Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap)
   int i;
   if (lost) *lost = 0;
   if (!data) { snprintf(err, errcap, "Can't read %s.", path); return NULL; }
-  if (!(data = prot_load_decrypt(data, &n, err, errcap))) return NULL;   /* (WP7: an encrypted document) */
+  doc_load_path = path;
+  data = prot_load_decrypt(data, &n, err, errcap);   /* (WP7: an encrypted document) */
+  doc_load_path = NULL;
+  if (!data) return NULL;
   for (i = 0; i < doc_nformats && !f; i++) if (doc_formats[i]->load && doc_formats[i]->sniff && doc_formats[i]->sniff(data, n)) f = doc_formats[i];
   for (i = 0; i < doc_nformats && !f; i++) if (doc_formats[i]->load && !doc_formats[i]->sniff && ext_in(path, doc_formats[i]->exts)) f = doc_formats[i];
   if (!f) f = &fmt_txt;

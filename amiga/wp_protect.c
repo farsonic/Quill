@@ -23,6 +23,7 @@
 #include "wp_protect.h"
 #include "lang.h"
 #include "theme.h"
+#include "splash.h"
 #include "../core/crypt.h"
 
 #undef Label1
@@ -104,8 +105,10 @@ static int pw_modal(const char *title, const char *text, int confirm, char *out,
     set(pwtext, MUIA_Text_Contents, (ULONG)text);
     set(pw1, MUIA_String_Contents, (ULONG)""); set(pw2, MUIA_String_Contents, (ULONG)"");
     set(pw2grp, MUIA_ShowMe, confirm != 0);
+    splash_close();                        /* (a document opened as Quill starts: the splash window would cover it) */
     if (wp_win()) set(wp_win(), MUIA_Window_Sleep, TRUE);
     set(pwwin, MUIA_Window_Open, TRUE);
+    DoMethod(pwwin, MUIM_Window_ToFront);
     set(pwwin, MUIA_Window_ActiveObject, (ULONG)pw1);
     r = -1;
     while (r < 0) {
