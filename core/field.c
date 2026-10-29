@@ -623,13 +623,9 @@ static Paras body(Doc *d) { Paras s; s.p = d->p; s.np = d->np; return s; }
 /* the next mark in q at or after off: its offset, or q->len */
 static u32 next_mark(const Para *q, u32 off)
 {
-  while (off + 4 <= q->len) {
-    const char *f = (const char *)memchr(q->t + off, 0xF4, q->len - off);
-    if (!f) break;
-    off = (u32)(f - q->t);
-    if (off + 4 <= q->len && IS_FMARK(f)) return off;
-    off++;
-  }
+  /* (a loop of its own: vbcc's memchr doesn't find bytes above 127) */
+  const u8 *t = (const u8 *)q->t;
+  for (; off + 4 <= q->len; off++) if (t[off] == 0xF4 && IS_FMARK(q->t + off)) return off;
   return q->len;
 }
 static int has_marks(const Para *q) { return next_mark(q, 0) < q->len; }
