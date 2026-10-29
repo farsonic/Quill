@@ -91,7 +91,8 @@ SdtSet *sdt_set(Doc *d);                         /* made if not there yet (NULL:
 void sdt_free_all(Doc *d);                       /* (doc_free) */
 int  sdt_add(Doc *d);                            /* a blank record (for reading); -1 if full */
 int  sdt_new(Doc *d, int type, int level);       /* a new record with Word's defaults for type; -1 if full */
-int  sdt_clone(Doc *d, int k);                   /* a copy of record k as a new one; -1 */
+int  sdt_clone(Doc *d, int k);
+void sdt_copy(Sdt *dst, const Sdt *src);        /* a deep copy (free it with sdt_rec_free) */                   /* a copy of record k as a new one; -1 */
 Sdt *sdt_get(const Doc *d, int k);               /* NULL if k isn't a record */
 int  sdt_count(const Doc *d);
 void sdt_rec_free(Sdt *s);
@@ -178,5 +179,21 @@ int  ff_set_data(Doc *d, Pos s, const char *ffdata);
 int  ff_insert(Doc *d, Pos *at, int kind);
 /* ffData text helpers: an element's w:val (e.g. "default" inside "checkBox"), "" none */
 int  ff_val(const char *ffdata, const char *elem, char *out, size_t cap);
+/* ffData made from old (its other settings kept: enabled, help text...) with this name and kind element
+   (<w:textInput>..., <w:checkBox>..., <w:ddList>...); malloc'd */
+char *ff_build(const char *old, const char *name, const char *kindxml);
+/* Restrict Editing (WP7) tells whether "filling in forms" is enforced (NULL: never); then Tab goes from
+   form field to form field and only they can be edited */
+extern int (*sdt_forms_protected)(const Doc *d);
+/* the Form Field Options window's settings made into ffData (old: the field's, its other settings kept;
+   entries: a drop-down's, UTF-8); malloc'd */
+char *ff_options(const char *old, int kind, const char *name, const char *deftext, int maxlen, int defchecked, int checked,
+                 const char *const *entries, int n, int result);
+int  ff_maxlen(const Doc *d, int k);             /* a text form field's maximum length, 0 none */
+int  ff_name(const Doc *d, int k, char *out, size_t cap);   /* its bookmark name */
+int  ff_default_text(const Doc *d, int k, char *out, size_t cap);
+int  ff_default_checked(const Doc *d, int k);
+/* the date picker's calendars and how it stores its date (w:calendar, w:storeMappedDataAs), NULL ended */
+extern const char *const sdt_calendars[], *const sdt_store_as[];
 
 #endif

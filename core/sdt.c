@@ -82,6 +82,7 @@ static void copy_rec(Sdt *t, const Sdt *s)
   t->datefmt = dup0(s->datefmt); t->lid = dup0(s->lid); t->storeas = dup0(s->storeas); t->calendar = dup0(s->calendar);
   t->fulldate = dup0(s->fulldate); t->gallery = dup0(s->gallery); t->category = dup0(s->category); t->sectitle = dup0(s->sectitle);
 }
+void sdt_copy(Sdt *dst, const Sdt *src) { copy_rec(dst, src); }
 int sdt_clone(Doc *d, int k)
 {
   int n;
@@ -852,7 +853,7 @@ static int rows_add(Doc *d, Pos item, Pos e, int before, Pos *out)
 {
   u32 fp, lp, i, n0, ns, nnew, src0;
   int nrows = 1;
-  Pos c, e4 = e, z;
+  Pos c, e4 = e;
   e4.off += 4;
   row_span(d, item.para, e.para, &fp, &lp);
   for (i = fp + 1; i <= lp; i++) if (d->p[i]->pf.cell.row != d->p[i - 1]->pf.cell.row) nrows++;
@@ -863,7 +864,6 @@ static int rows_add(Doc *d, Pos item, Pos e, int before, Pos *out)
   ns = before ? fp : lp + 1;
   src0 = before ? fp + nnew : fp;
   if (before) { item.para += nnew; e.para += nnew; e4.para += nnew; lp += nnew; }
-  z.para = 0; z.off = 0;
   {
     /* each source cell's text into its new cell, from the last one back (the indexes stay right) */
     u32 cells[512], ncell = 0, k;
@@ -919,7 +919,7 @@ static int rows_add(Doc *d, Pos item, Pos e, int before, Pos *out)
     if (!(is_smark(d->p[ns], 0) && IS_SSTART(d->p[ns]->t))) sdt_next(d, p, 1, out, NULL);
     else { u32 o = 0; while (is_smark(d->p[ns], o) && smark_index(d->p[ns]->t + o) != smark_index(d->p[item.para]->t + item.off)) o += 4; out->off = o; }
   }
-  (void)z;
+
   return 1;
 }
 int sdt_item_add(Doc *d, Pos item, int before, Pos *out)
@@ -1384,4 +1384,93 @@ int ff_insert(Doc *d, Pos *at, int kind)
   d->fields[k].nosep = (u8)(kind != FF_TEXT);
   d->fields[k].dirty = 0;
   return k;
+}
+int (*sdt_forms_protected)(const Doc *d);
+char *ff_build(const char *old, const char *name, const char *kindxml)
+{
+  Buf a, b, c;
+  const char *src = old ? old : "<w:ffData></w:ffData>";
+  char *r, *t;
+  buf_init(&a); buf_init(&b); buf_init(&c);
+  cut_el(&a, src, "name");
+  cut_el(&b, a.data ? a.data : "", "textInput");
+  buf_free(&a); buf_init(&a);
+  cut_el(&a, b.data ? b.data : "", "checkBox");
+  buf_free(&b); buf_init(&b);
+  cut_el(&b, a.data ? a.data : "", "ddList");
+  buf_free(&a);
+  if (!strstr(b.data ? b.data : "", "ffData")) { buf_free(&b); buf_init(&b); buf_adds(&b, "<w:ffData><w:enabled/><w:calcOnExit w:val=\"0\"/></w:ffData>"); }
+  buf_adds(&c, "<w:name w:val=\"");
+  xml_escape(&c, name ? name : "", name ? strlen(name) : 0);
+  buf_adds(&c, "\"/>");
+  t = put_after(b.data, "ffData", c.data ? c.data : "");
+  buf_free(&b); buf_free(&c);
+  if (!t) return NULL;
+  {
+    /* the kind's element last, before the closing tag */
+    char *close = strstr(t, "</w:ffData>");
+    Buf o;
+    buf_init(&o);
+    if (close) { buf_add(&o, t, (size_t)(close - t)); buf_adds(&o, kindxml ? kindxml : ""); buf_adds(&o, close); }
+    else buf_adds(&o, t);
+    free(t);
+    r = o.data ? buf_take(&o) : NULL;
+  }
+  return r;
+}
+const char *const sdt_calendars[] = { "gregorian", "gregorianUs", "hijri", "hebrew", "japan", "korea", "saka", "taiwan", "thai", NULL };
+const char *const sdt_store_as[] = { "text", "date", "dateTime", NULL };
+char *ff_options(const char *old, int kind, const char *name, const char *deftext, int maxlen, int defchecked, int checked,
+                 const char *const *entries, int n, int result)
+{
+  Buf k;
+  char ty[32], fm[128];
+  char *r;
+  int i;
+  buf_init(&k);
+  if (kind == FF_TEXT) {
+    buf_adds(&k, "<w:textInput>");
+    if (ff_val(old, "type", ty, sizeof ty) && ty[0]) { buf_adds(&k, "<w:type w:val=\""); xml_escape(&k, ty, strlen(ty)); buf_adds(&k, "\"/>"); }
+    if (deftext && deftext[0]) { buf_adds(&k, "<w:default w:val=\""); xml_escape(&k, deftext, strlen(deftext)); buf_adds(&k, "\"/>"); }
+    if (maxlen > 0) buf_printf(&k, "<w:maxLength w:val=\"%d\"/>", maxlen);
+    if (ff_val(old, "format", fm, sizeof fm) && fm[0]) { buf_adds(&k, "<w:format w:val=\""); xml_escape(&k, fm, strlen(fm)); buf_adds(&k, "\"/>"); }
+    buf_adds(&k, "</w:textInput>");
+  } else if (kind == FF_CHECK) {
+    buf_adds(&k, "<w:checkBox>");
+    if (ff_val(old, "size", ty, sizeof ty) && ty[0]) { buf_adds(&k, "<w:size w:val=\""); xml_escape(&k, ty, strlen(ty)); buf_adds(&k, "\"/>"); }
+    else buf_adds(&k, "<w:sizeAuto/>");
+    buf_printf(&k, "<w:default w:val=\"%d\"/>", defchecked ? 1 : 0);
+    buf_adds(&k, checked ? "<w:checked/>" : "<w:checked w:val=\"0\"/>");
+    buf_adds(&k, "</w:checkBox>");
+  } else {
+    buf_printf(&k, "<w:ddList><w:result w:val=\"%d\"/>", result >= 0 && result < n ? result : 0);
+    for (i = 0; i < n; i++) { buf_adds(&k, "<w:listEntry w:val=\""); xml_escape(&k, entries[i], strlen(entries[i])); buf_adds(&k, "\"/>"); }
+    buf_adds(&k, "</w:ddList>");
+  }
+  r = ff_build(old, name, k.data ? k.data : "");
+  buf_free(&k);
+  return r;
+}
+int ff_maxlen(const Doc *d, int k)
+{
+  const Field *f = field_get(d, k);
+  char v[16];
+  return f && f->ffdata && ff_val(f->ffdata, "maxLength", v, sizeof v) ? atoi(v) : 0;
+}
+int ff_name(const Doc *d, int k, char *out, size_t cap)
+{
+  const Field *f = field_get(d, k);
+  return ff_val(f ? f->ffdata : NULL, "name", out, cap);
+}
+int ff_default_text(const Doc *d, int k, char *out, size_t cap)
+{
+  const Field *f = field_get(d, k);
+  if (cap) out[0] = 0;
+  return f && ff_kind(d, k) == FF_TEXT && ff_val(f->ffdata, "default", out, cap);
+}
+int ff_default_checked(const Doc *d, int k)
+{
+  const Field *f = field_get(d, k);
+  char v[8];
+  return f && ff_kind(d, k) == FF_CHECK && ff_val(f->ffdata, "default", v, sizeof v) && v[0] == '1';
 }
