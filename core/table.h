@@ -95,10 +95,12 @@ int tbl_delete_cells(Doc *d, Pos a, Pos b, int how, Pos *caret);
 typedef struct { u16 row; u8 col, edge; } TEdge;
 int tbl_set_edges(Doc *d, Pos in, const TEdge *e, int n, u8 style, u8 width, u32 color);
 /* a line drawn down through rows r0..r1 at x (twips from the table's left edge): the cells it
-   crosses split there (the grid gains a column where x isn't on an edge of it) */
-int tbl_vsplit(Doc *d, Pos in, i32 x, int r0, int r1);
+   crosses split there (the grid gains a column where x isn't on an edge of it); the edge, and an
+   existing one drawn along, gets the pen's line (NULL or pen->set 0: lines as they were) */
+int tbl_vsplit(Doc *d, Pos in, i32 x, int r0, int r1, const TBorder *pen);
 /* a line drawn across row: its cells starting in grid columns cols[0..n) split into an upper and a
-   lower cell (a new row below, the row's other cells merged down over it) */
-int tbl_hsplit(Doc *d, Pos in, int row, const u8 *cols, int n);
+   lower cell (a new row below, the row's other cells merged down over it), the line between them in
+   the pen (as tbl_vsplit) */
+int tbl_hsplit(Doc *d, Pos in, int row, const u8 *cols, int n, const TBorder *pen);
 
 #endif

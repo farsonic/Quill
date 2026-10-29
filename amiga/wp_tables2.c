@@ -37,7 +37,7 @@ void wp21_set_tool(int t) { tool = tool == t ? WP21_NONE : t; wp_refresh(); }
 int wp21_stroke(Doc *d, Layout *L, u32 page, i32 x0, i32 y0, i32 x1, i32 y1, Pos *caret)
 {
   switch (tool) {
-  case WP21_DRAW: return tbl_draw_stroke(d, L, page, x0, y0, x1, y1, caret);
+  case WP21_DRAW: { const struct QBorders *p = wp_pen(); return tbl_draw_stroke(d, L, page, x0, y0, x1, y1, p->style, p->width, p->color, caret); }
   case WP21_ERASE: return tbl_erase_stroke(d, L, page, x0, y0, x1, y1, caret);
   case WP21_PAINT: {
     const struct QBorders *p = wp_pen();

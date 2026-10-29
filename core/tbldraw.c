@@ -47,11 +47,13 @@ static i32 table_left(Doc *d, const CellBox *c)
   return x;
 }
 
-int tbl_draw_stroke(Doc *d, Layout *L, u32 page, i32 x0, i32 y0, i32 x1, i32 y1, Pos *caret)
+int tbl_draw_stroke(Doc *d, Layout *L, u32 page, i32 x0, i32 y0, i32 x1, i32 y1, u8 style, u8 width, u32 color, Pos *caret)
 {
+  TBorder pen;
   i32 lx = x0 < x1 ? x0 : x1, rx = x0 < x1 ? x1 : x0, ty = y0 < y1 ? y0 : y1, by = y0 < y1 ? y1 : y0;
   i32 dx = rx - lx, dy = by - ty;
   u32 i;
+  pen.set = 1; pen.style = style ? style : PB_SINGLE; pen.width = width ? width : 4; pen.color = color;
   if (dx < 120 && dy < 120) return 0;
   if (dy * 3 <= dx) {
     /* a line across: the cells it runs through (at least a third of their width), in the top row
@@ -75,7 +77,7 @@ int tbl_draw_stroke(Doc *d, Layout *L, u32 page, i32 x0, i32 y0, i32 x1, i32 y1,
       if (!n && !box_pos(d, c, &in)) return 0;
       cols[n++] = c->col;
     }
-    if (!n || !tbl_hsplit(d, in, row, cols, n)) return 0;
+    if (!n || !tbl_hsplit(d, in, row, cols, n, &pen)) return 0;
     *caret = in;
     return 1;
   }
@@ -96,7 +98,7 @@ int tbl_draw_stroke(Doc *d, Layout *L, u32 page, i32 x0, i32 y0, i32 x1, i32 y1,
         if (e > r1) r1 = e;
       }
     }
-    if (!tab || !tbl_vsplit(d, in, x - tl, r0, r1)) return 0;
+    if (!tab || !tbl_vsplit(d, in, x - tl, r0, r1, &pen)) return 0;
     *caret = in;
     return 1;
   }

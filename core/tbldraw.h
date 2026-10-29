@@ -12,8 +12,9 @@
 #include "layout.h"
 
 /* Draw Table: a box drawn outside tables makes a one-cell table of its size there; a line across or
-   down cells splits them (table.h's tbl_hsplit, tbl_vsplit) */
-int tbl_draw_stroke(Doc *d, Layout *L, u32 page, i32 x0, i32 y0, i32 x1, i32 y1, Pos *caret);
+   down cells splits them (table.h's tbl_hsplit, tbl_vsplit), drawn in the pen (style PB_, width in
+   eighths of a point, colour; 0, 0: a half-point single line) as Word draws it */
+int tbl_draw_stroke(Doc *d, Layout *L, u32 page, i32 x0, i32 y0, i32 x1, i32 y1, u8 style, u8 width, u32 color, Pos *caret);
 /* the Eraser: the edge between two cells nearest the stroke goes (the cells merged); an outside edge
    loses its line */
 int tbl_erase_stroke(Doc *d, Layout *L, u32 page, i32 x0, i32 y0, i32 x1, i32 y1, Pos *caret);

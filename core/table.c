@@ -1606,11 +1606,18 @@ int tbl_set_edges(Doc *d, Pos in, const TEdge *e, int n, u8 style, u8 width, u32
   return commit_keep(d, a, b, &l, &keep);
 }
 
+/* a drawn line's pen on edge e of a cell (none: nothing) */
+static void pen_edge(Cell *c, int e, const TBorder *pen)
+{
+  if (!pen || !pen->set) return;
+  if (pen->style == PB_NONE) { c->borders &= (u8)~(1 << e); return; }
+  c->borders |= (u8)(1 << e); c->bstyle[e] = pen->style; c->bwidth[e] = pen->width; c->bcolor[e] = pen->color;
+}
 /* drawing a line down through cells: rows r0..r1 get a cell edge at x (twips from the table's left
    edge). Where x isn't near a grid edge, the grid column there is split in two (a new Table; the cells
    covering it elsewhere span both parts); then each cell of those rows that x crosses becomes two,
    its text staying in the left one */
-int tbl_vsplit(Doc *d, Pos in, i32 x, int r0, int r1)
+int tbl_vsplit(Doc *d, Pos in, i32 x, int r0, int r1, const TBorder *pen)
 {
   CList cl;
   Table *t, nt;
@@ -1647,10 +1654,13 @@ int tbl_vsplit(Doc *d, Pos in, i32 x, int r0, int r1)
       if (c.col > newcol) c.col++;
       else if (c.col + c.span > newcol) c.span++;
     }
+    if (c.row >= r0 && c.row <= r1 && c.col + c.span == edge) pen_edge(&c, E_RIGHT, pen);     /* (a line drawn along an edge: its line) */
+    if (c.row >= r0 && c.row <= r1 && c.col == edge) pen_edge(&c, E_LEFT, pen);
     if (c.row >= r0 && c.row <= r1 && c.col < edge && c.col + c.span > edge) {
       Cell rc = c;
       rc.col = (u8)edge; rc.span = (u8)(c.col + c.span - edge);
       c.span = (u8)(edge - c.col);
+      pen_edge(&c, E_RIGHT, pen); pen_edge(&rc, E_LEFT, pen);
       if (in.para >= ci->p0 && in.para < ci->p1) at = l.n;
       for (i = ci->p0; i < ci->p1; i++) pl_add(&l, copy_cell(d, i, &c));
       pl_add(&l, empty_cell(d, ci->p1 - 1, &rc));
@@ -1674,7 +1684,7 @@ static int crossed_col(const u8 *cols, int n, int col)
   for (j = 0; j < n; j++) if (cols[j] == col) return 1;
   return 0;
 }
-int tbl_hsplit(Doc *d, Pos in, int row, const u8 *cols, int n)
+int tbl_hsplit(Doc *d, Pos in, int row, const u8 *cols, int n, const TBorder *pen)
 {
   CList cl;
   int k, pass;
@@ -1691,7 +1701,7 @@ int tbl_hsplit(Doc *d, Pos in, int row, const u8 *cols, int n)
       Cell c = ci->c;
       if (pass == 0 && c.row <= row) {
         if (c.row == row) {
-          if (crossed_col(cols, n, c.col)) { if (c.vmerge == VM_START) c.vmerge = VM_NONE; }
+          if (crossed_col(cols, n, c.col)) { if (c.vmerge == VM_START) c.vmerge = VM_NONE; pen_edge(&c, E_BOTTOM, pen); }
           else if (!c.vmerge) c.vmerge = VM_START;
         }
         if (in.para >= ci->p0 && in.para < ci->p1) at = l.n;
@@ -1704,6 +1714,7 @@ int tbl_hsplit(Doc *d, Pos in, int row, const u8 *cols, int n)
           int m;
           nc.vmerge = VM_NONE;
           for (m = 0; m < cl.n; m++) if (cl.v[m].c.row == row + 1 && cl.v[m].c.col == c.col && cl.v[m].c.span == c.span && cl.v[m].c.vmerge == VM_CONT) nc.vmerge = VM_START;
+          pen_edge(&nc, E_TOP, pen);
         } else nc.vmerge = VM_CONT;
         pl_add(&l, empty_cell(d, ci->p1 - 1, &nc));
       } else if (pass == 2 && c.row > row) {

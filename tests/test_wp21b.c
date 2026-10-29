@@ -222,11 +222,12 @@ static void drawing(void)
   int ncols;
   lay_update(L);
   b = box_of(L, 0, 0);
-  ok("draw table: a line down a cell splits it", b && tbl_draw_stroke(d, L, b->page, b->x + b->w / 3, b->y - 40, b->x + b->w / 3 + 10, b->y + b->h + 40, &c) &&
-     (ncols = doc_table(d, &d->p[1]->pf)->ncols) == 3 && row_cells(d, 0) == 3 && row_cells(d, 1) == 2 && !strcmp(cell_at(d, 0, 0), "A"));
+  ok("draw table: a line down a cell splits it", b && tbl_draw_stroke(d, L, b->page, b->x + b->w / 3, b->y - 40, b->x + b->w / 3 + 10, b->y + b->h + 40, PB_DOUBLE, 8, 0xFF0000, &c) &&
+     (ncols = doc_table(d, &d->p[1]->pf)->ncols) == 3 && row_cells(d, 0) == 3 && row_cells(d, 1) == 2 && !strcmp(cell_at(d, 0, 0), "A") &&
+     d->p[1]->pf.cell.bstyle[E_RIGHT] == PB_DOUBLE && d->p[1]->pf.cell.bcolor[E_RIGHT] == 0xFF0000 && d->p[tbl_cell_para(d, P(1, 0), 0, 1)]->pf.cell.bstyle[E_LEFT] == PB_DOUBLE);
   lay_update(L);
   b = box_of(L, 1, 0);
-  ok("draw table: a line across a row splits it in two", b && tbl_draw_stroke(d, L, b->page, b->x + 50, b->y + b->h / 2, b->x + b->w - 50, b->y + b->h / 2, &c) &&
+  ok("draw table: a line across a row splits it in two", b && tbl_draw_stroke(d, L, b->page, b->x + 50, b->y + b->h / 2, b->x + b->w - 50, b->y + b->h / 2, 0, 0, COLOR_AUTO, &c) &&
      !strcmp(cell_at(d, 1, 0), "C") && !strcmp(cell_at(d, 2, 0), "") && d->p[tbl_cell_para(d, P(1, 0), 1, 2)]->pf.cell.vmerge == VM_START &&
      d->p[tbl_cell_para(d, P(1, 0), 2, 2)]->pf.cell.vmerge == VM_CONT);
   lay_update(L);
@@ -249,7 +250,7 @@ static void drawing(void)
     i32 x, y, h;
     u16 nt = (u16)d->ntables;
     lay_caret(L, P(last, 0), &page, &x, &y, &h);
-    ok("draw table: a box makes a table that size", tbl_draw_stroke(d, L, page, x + 1440, y + 2, x + 1440 + 2880, y + 1000, &c) && in_table(&d->p[c.para]->pf) &&
+    ok("draw table: a box makes a table that size", tbl_draw_stroke(d, L, page, x + 1440, y + 2, x + 1440 + 2880, y + 1000, 0, 0, COLOR_AUTO, &c) && in_table(&d->p[c.para]->pf) &&
        d->p[c.para]->pf.cell.table > nt && doc_table(d, &d->p[c.para]->pf)->grid[0] == 2880 && doc_table(d, &d->p[c.para]->pf)->indent == 1440 &&
        d->p[c.para]->pf.cell.rowh == 998);
     ok("draw table: the box is one undo step", doc_undo(d, &c) && d->ntables >= nt && !in_table(&d->p[d->np - 1]->pf) && runs_sane(d));
