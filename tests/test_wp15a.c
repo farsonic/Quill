@@ -265,6 +265,34 @@ static void pasting(Doc *d, const u8 *orig, size_t on)
   }
 }
 
+/* a chart in a header: its relationship in the header's own .rels too */
+static void header(const u8 *orig, size_t on)
+{
+  char err[200], t[16];
+  unsigned lost;
+  Doc *d = docx_load(orig, on, &lost, err, sizeof err), *e = NULL;
+  int k = d ? nth_kind(d, OBJ_CHART, 0, NULL) : -1, found = 0;
+  size_t n = 0;
+  u8 *out;
+  char *hr = NULL, *hx = NULL;
+  u32 i, j;
+  if (k < 0) { ok("charts in headers: the document", 0); doc_free(d); return; }
+  strcpy(t, "Logo "); pic_utf8(t + 5, k);
+  story_set_text(d, &d->hdr[HF_DEFAULT], t, 0, 0);
+  out = docx_save(d, &n);
+  hr = out ? (char *)zpart(out, n, "word/_rels/header1.xml.rels", NULL) : NULL;
+  hx = out ? (char *)zpart(out, n, "word/header1.xml", NULL) : NULL;
+  ok("charts in headers: the header's .rels names the chart part", hr && strstr(hr, "Id=\"rId11\"") && strstr(hr, "Target=\"charts/chart1.xml\""));
+  ok("charts in headers: the header refers to it", hx && strstr(hx, "r:id=\"rId11\""));
+  e = out ? docx_load(out, n, &lost, err, sizeof err) : NULL;
+  for (i = 0; e && i < e->hdr[HF_DEFAULT].np; i++)
+    for (j = 0; j + 4 <= e->hdr[HF_DEFAULT].p[i]->len; j++)
+      if (IS_PIC(e->hdr[HF_DEFAULT].p[i]->t + j)) { int m = pic_index(e->hdr[HF_DEFAULT].p[i]->t + j); if (m < e->nimages && e->images[m].kind == OBJ_CHART && e->images[m].pack) found = 1; }
+  ok("charts in headers: read back", e && lost == 0 && found);
+  free(hr); free(hx); free(out);
+  doc_free(d); doc_free(e);
+}
+
 void test_wp15a(void)
 {
   char err[200];
@@ -280,6 +308,7 @@ void test_wp15a(void)
     drawing(d);
     keeping(d, orig, on);
     pasting(d, orig, on);
+    header(orig, on);
   }
   doc_free(d);
   free(orig);
