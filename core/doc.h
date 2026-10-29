@@ -257,9 +257,32 @@ typedef struct {
   i32 width, height;        /* A4: 11906 x 16838; Letter: 12240 x 15840 */
   i32 top, bottom, left, right;
   i32 header, footer;       /* distance of the header from the page's top edge, the footer from its bottom (708) */
+  /* WP22a: */
+  i32 gutter;               /* binding room added to the left (inside) margin, or the top (Doc.gutterattop) */
 } PageSetup;
 struct Story;
 
+/* page borders: one kind of line all round (PB_); with WP22a's fields, each side its own (core/pages.h) */
+typedef struct {                /* WP22a: one side of a page border */
+  u8 style;                 /* PB_ nearest to it (PB_NONE: no line on this side) */
+  u8 width;                 /* eighths of a point (art borders: points) */
+  u8 shadow, frame;         /* w:shadow, w:frame */
+  u32 color;                /* 0xRRGGBB or COLOR_AUTO */
+  i32 space;                /* twips between it and the text (or the page's edge) */
+  char val[24];             /* Word's name for its kind ("single", "thinThickSmallGap", "apples"...) */
+} PBSide;
+typedef struct PageBorder {
+  u8 style;                 /* PB_ */
+  u8 width;                 /* eighths of a point (4 = half a point) */
+  u8 frompage;              /* space measured from the page's edge (else from the text) */
+  u32 color;                /* 0xRRGGBB or COLOR_AUTO */
+  i32 space;                /* twips between the border and the text (or the page's edge) */
+  /* WP22a: */
+  u8 own;                   /* the sides are side[] (else all four are style, width, color, space) */
+  PBSide side[4];           /* top, left, bottom, right (PBS_) */
+  u8 display;               /* PBD_: on every page, the section's first only, all but its first */
+  u8 back;                  /* behind the text (w:zOrder="back") */
+} PageBorder;
 /* sections: the paragraph that ends one holds its format (ParaFmt.sect), the document's last
    paragraph the last section's (none: one column, from a new page). A section may have its own page
    setup, and its own headers and footers; else it has the document's (Doc.page, Doc.hdr...), which are
@@ -296,26 +319,32 @@ typedef struct {
   PageSetup page;           /* (haspage) */
   struct Story *hf;         /* its own headers and footers: HF_N headers then HF_N footers (malloc'd,
                                the section format owns them); NULL: the document's */
+  /* WP22a: (core/pages.h) */
+  u8 colunequal;            /* columns of their own widths (colw, colsp) rather than equal ones */
+  i32 colw[MAX_SECT_COLS];  /* (colunequal) each column's width, twips */
+  i32 colsp[MAX_SECT_COLS]; /* and the space after it */
+  u8 pbown;                 /* the page border is pb (else the document's, Doc.border) */
+  PageBorder pb;            /* (pbown) its own page border (style PB_NONE and no sides: none) */
+  u8 rtlgutter;             /* w:rtlGutter: the gutter on the right */
   NotePr fnpr, enpr;        /* (WP22b) its own footnote and endnote options (w:footnotePr, w:endnotePr) */
 } SectFmt;
 /* s set to a section with no settings of its own: one column from a new page, 720 twips between
    columns, no line numbers */
 void sect_default(SectFmt *s);
 
-/* page borders: one kind of line all round (PB_) */
-typedef struct {
-  u8 style;                 /* PB_ */
-  u8 width;                 /* eighths of a point (4 = half a point) */
-  u8 frompage;              /* space measured from the page's edge (else from the text) */
-  u32 color;                /* 0xRRGGBB or COLOR_AUTO */
-  i32 space;                /* twips between the border and the text (or the page's edge) */
-} PageBorder;
 /* a watermark: words across each page behind the text (Word's text watermark) */
 typedef struct {
   char text[64];            /* UTF-8; "" none */
   u32 color;                /* 0xRRGGBB (Word's: silver C0C0C0) */
   u8 horizontal;            /* across (else diagonal, rising to the right) */
   char font[32];            /* "" : Calibri */
+  /* WP22a: a picture watermark (Word's WordPictureWatermark) instead of words */
+  u8 *pic; u32 piclen;      /* the picture file (PNG or JPEG), malloc'd, owned; NULL none */
+  u8 pictype;               /* IMG_ */
+  u32 pw, ph;               /* its size in pixels */
+  u16 scale;                /* per cent of its natural size (at 96 dpi); 0: fitted to the text area */
+  u8 washout;               /* drawn pale (Word's washout: gain 0.3, black level 0.35) */
+  u8 opaque;                /* words drawn solid (else half transparent) */
 } Watermark;
 
 
@@ -343,6 +372,8 @@ typedef struct {
   PageSetup page;           /* the document's page setup (Doc.page is the story's text area meanwhile) */
   u8 wm, border;            /* the watermark and page border (Doc.wm.text[0], Doc.border.style), put aside */
   struct Story hdr[HF_N], ftr[HF_N];   /* the document's headers and footers, put aside */
+  /* WP22a: */
+  u8 *wmpic;                /* the picture watermark, put aside */
 } StoryEdit;
 
 /* pictures and other objects (shapes, text boxes): the text holds U+F0000 + n for Doc.images[n]
@@ -521,6 +552,16 @@ typedef struct Doc {
   StoryEdit edit;           /* a story being edited in the body's place */
   struct KeptPart *kept; int nkept;   /* .docx parts kept verbatim, written back on saving (core/keep.h) */
   /* (work packages: new fields go below, at the end) */
+  /* WP22a: (core/pages.h) settings.xml's page and hyphenation settings */
+  u8 mirror;                /* w:mirrorMargins: left and right are inside and outside */
+  u8 twoonone;              /* w:printTwoOnOne: two pages to a sheet */
+  u8 bookfold;              /* w:bookFoldPrinting: a booklet (w:bookFoldRevPrinting: bookfold 2) */
+  u8 gutterattop;           /* w:gutterAtTop */
+  u16 bfsheets;             /* w:bookFoldPrintingSheets: sheets to a booklet (0: all) */
+  u8 hynocaps;              /* w:doNotHyphenateCaps */
+  u8 hylimit;               /* w:consecutiveHyphenLimit (0: no limit) */
+  i32 hyzone;               /* w:hyphenationZone, twips (0: Word's 360) */
+  u8 pbnohdr, pbnoftr;      /* w:bordersDoNotSurroundHeader, w:bordersDoNotSurroundFooter */
   NotePr fnpr, enpr;        /* (WP22b) the document's footnote and endnote options (settings.xml) */
   struct NoteSeps *nseps;   /* (WP22b) the document's own note separators (core/notes.h), NULL: Word's */
   struct DocInfo *info;     /* (WP24) the document's properties (core/info.h), NULL: none read or set */
@@ -537,6 +578,11 @@ typedef struct Doc {
   struct KeptChange *kchg; int nkchg;   /* w:tblPrChange, w:trPrChange, w:tcPrChange, w:sectPrChange ... */
   u16 rvtrack;              /* formatting changes are being tracked: Doc.revs index + 1 of their author, 0 not */
   u8 rvsettings;            /* settings.xml's w:revisionView read (bit 0) */
+  /* WP1 fields (core/field.h): the records the field marks in the text name (only added to), every
+     field showing its code (Alt+F9; not saved), and what the file says for the fields (docProps...) */
+  struct Field *fields; int nfields;
+  u8 fieldcodes;
+  struct FieldInfo *finfo;
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */

@@ -42,6 +42,8 @@
 #include "wp_math.h"     /* WP14a: equations */
 #include "../core/math.h"
 #include "../core/spell.h"
+#include "../core/field.h"
+#include "../core/pages.h"
 #include "../core/review.h"
 #include "ids.h"
 #include <libraries/gadtools.h>        /* NM_BARLABEL: a line between menu items */
@@ -141,6 +143,8 @@ struct Data {
   LONG cube[216]; int cubelv, ncube;
   struct { const u8 *data; LONG w, h; u16 rot; u8 flip; long crop; UBYTE *px; LONG *span; } pic[8];   /* span: each row's first and last pixel shown */
   int npic;
+  /* WP22a: the picture watermark as pens at its shown size */
+  UBYTE *wmp_px; LONG wmp_w, wmp_h; const u8 *wmp_data; int wmp_wash;
   void *wp12;                           /* WP12's own state (wp_find_view.h) */
   /* WP21a/WP21b: a table tool's stroke being dragged (Draw Table, Eraser, Border Painter): where it
      started and where the pointer is (window pixels); the caret lying across turned text, cw wide */
@@ -482,6 +486,7 @@ static void free_pics(struct Data *d)
   int i;
   for (i = 0; i < d->npic; i++) { FreeVec(d->pic[i].px); FreeVec(d->pic[i].span); }
   d->npic = 0;
+  if (d->wmp_px) { FreeVec(d->wmp_px); d->wmp_px = NULL; }      /* (WP22a) */
 }
 /* give back every pen obtained (get_pens, pen_for, pen_bg, the cube) and the pictures made with them.
    Needs the screen, so only between Setup and Cleanup */
@@ -1250,6 +1255,48 @@ static int comments_open(struct Data *d, u32 para)
   }
   return d->copen;
 }
+/* fields' results on grey, as Word shades them (WP1, core/field.h field_shading): every field, or the
+   one the caret is in (found once per change of caret or document) */
+static void field_shade(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Placed *pc, Line *ln, LONG lx, LONG top)
+{
+  static const Doc *sdoc;
+  static ULONG sver;
+  static Pos scaret, ss, se;
+  static int sk = -1;
+  Doc *doc = d->doc;
+  int body = pc->para < doc->np && pl->p == doc->p[pc->para], depth = 0;
+  u32 k;
+  if (field_shading == FS_SELECTED) {
+    if (!body) return;
+    if (sdoc != doc || sver != doc->ver || pos_cmp(scaret, d->caret)) {
+      sdoc = doc; sver = doc->ver; scaret = d->caret;
+      sk = field_at(doc, d->caret, &ss, &se);
+    }
+    if (sk < 0 || pc->para < ss.para || pc->para > se.para) return;
+  } else {
+    if (body) depth = field_depth_before(doc, pc->para);
+    for (k = pl->lines[0].box0; k < ln->box0 && k < pl->nboxes; k++) {
+      Box *b = &pl->boxes[k];
+      if ((b->kind == BX_MARK || b->kind == BX_FIELD) && b->off + 4 <= pl->p->len && IS_FMARK(pl->p->t + b->off)) { if (IS_FSTART(pl->p->t + b->off)) depth++; else if (depth > 0) depth--; }
+    }
+  }
+  SetAPen(rp, pen_bg(d, obj, 0xD9D9D9));
+  for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
+    Box *b = &pl->boxes[k];
+    int in;
+    if ((b->kind == BX_MARK || b->kind == BX_FIELD) && b->off + 4 <= pl->p->len && IS_FMARK(pl->p->t + b->off)) {
+      if (IS_FSTART(pl->p->t + b->off)) depth++; else if (depth > 0) depth--;
+      continue;
+    }
+    if (b->w <= 0 || b->kind == BX_FIELD) continue;
+    if (field_shading == FS_SELECTED) {
+      Pos at;
+      at.para = pc->para; at.off = b->off;
+      in = pos_cmp(ss, at) < 0 && pos_cmp(at, se) < 0;
+    } else in = depth > 0;
+    if (in) RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1);
+  }
+}
 /* WP14a: equations' colours as pens (for wp14a_draw) */
 static struct Data *mpen_d; static Object *mpen_obj;
 static LONG math_pen(ULONG rgb) { return pen_for(mpen_d, mpen_obj, rgb); }
@@ -1326,16 +1373,17 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
   if (d->doc->ncomments && pc->para < d->doc->np && rv_show_comments(d->doc)) {
     int open = comments_open(d, pc->para);
     for (k = pl->lines[0].box0; k < ln->box0 && k < pl->nboxes; k++)      /* the marks on lines before this one */
-      if (pl->boxes[k].kind == BX_MARK) { if (IS_CSTART(pl->p->t + pl->boxes[k].off)) open++; else if (open > 0) open--; }
+      if (pl->boxes[k].kind == BX_MARK) { if (IS_CSTART(pl->p->t + pl->boxes[k].off)) open++; else if (open > 0 && IS_CEND(pl->p->t + pl->boxes[k].off)) open--; }
     for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
       Box *b = &pl->boxes[k];
-      if (b->kind == BX_MARK) { if (IS_CSTART(pl->p->t + b->off)) open++; else if (open > 0) open--; continue; }
+      if (b->kind == BX_MARK) { if (IS_CSTART(pl->p->t + b->off)) open++; else if (open > 0 && IS_CEND(pl->p->t + b->off)) open--; continue; }
       if (open > 0 && b->w > 0 && !(b->kind == BX_SPACE && k + 1 == ln->box0 + ln->nbox)) {
         SetAPen(rp, d->pen_comment);
         RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1);
       }
     }
   }
+  if (doc->nfields && field_shading != FS_NEVER) field_shade(d, obj, rp, pl, pc, ln, lx, top);     /* fields on grey (WP1) */
   /* highlighting behind the text (not trailing spaces); page fields on grey, as Word shades fields */
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *b = &pl->boxes[k];
@@ -1427,7 +1475,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     else if (b->kind == BX_FIELD) {
       /* a page field: its number, on grey (as Word shades fields) */
       Box nb = *b;
-      char num[16];
+      char num[LAY_FIELD_TEXT];
       lay_field_text(L, pl->p, b, pc->page, num);
       nb.kind = BX_TEXT; nb.off = 0; nb.len = (u16)strlen(num);
       draw_text(d, obj, rp, &nb, num, lx + tx(d, b->x), base);
@@ -1695,7 +1743,7 @@ static void draw_watermark(struct Data *d, Object *obj, struct RastPort *rp, LON
   cx = pl + tx(d, d->pg->left + (d->pg->width - d->pg->left - d->pg->right) / 2);
   cy = pt + tx(d, d->pg->top + (d->pg->height - d->pg->top - d->pg->bottom) / 2);
   x0 = cx - d->wm_w / 2; y0 = cy - d->wm_h / 2; mbpr = (d->wm_w + 7) / 8;
-  SetAPen(rp, pen_bg(d, obj, wm_colour(doc->wm.color)));
+  SetAPen(rp, pen_bg(d, obj, doc->wm.opaque ? doc->wm.color : wm_colour(doc->wm.color)));
   for (Y = 0; Y < d->wm_h; Y++) {
     UBYTE *row = d->wm_mask + Y * mbpr;
     LONG X = 0, yy = y0 + Y;
@@ -1709,25 +1757,60 @@ static void draw_watermark(struct Data *d, Object *obj, struct RastPort *rp, LON
     }
   }
 }
-/* the page border: one kind of line round the text (or in from the page's edge) */
-static void draw_border(struct Data *d, Object *obj, struct RastPort *rp, LONG pl, LONG pt)
+/* (WP22a) the picture watermark, centred on the text area of the page at (pl, pt) (h: rp's height):
+   decoded at its shown size (washed out if it is), dithered to the cube's pens and kept */
+static void draw_wm_picture(struct Data *d, Object *obj, struct RastPort *rp, LONG pl, LONG pt, LONG h)
 {
   Doc *doc = d->doc;
-  PageBorder *pb = &doc->border;
-  i32 x0, y0, x1, y1;
-  LONG lw = tx(d, pb->width * 5 / 2 * (pb->style == PB_THICK ? 3 : 1)), i, j, n = pb->style == PB_DOUBLE ? 2 : 1;
-  if (pb->style == PB_NONE) return;
-  if (lw < 1) lw = 1;
-  if (pb->frompage) { x0 = pb->space; y0 = pb->space; x1 = d->pg->width - pb->space; y1 = d->pg->height - pb->space; }
-  else { x0 = d->pg->left - pb->space; y0 = d->pg->top - pb->space; x1 = d->pg->width - d->pg->right + pb->space; y1 = d->pg->height - d->pg->bottom + pb->space; }
-  SetAPen(rp, pen_for(d, obj, pb->color));
-  SetDrPt(rp, pb->style == PB_DOTTED ? 0xAAAA : pb->style == PB_DASHED ? 0xF0F0 : 0xFFFF);
-  for (j = 0; j < n; j++)
-    for (i = 0; i < lw; i++) {
-      LONG o = j * (lw * 3 > 3 ? lw * 3 : 3) + i, a = pl + tx(d, x0) + o, b = pt + tx(d, y0) + o, c = pl + tx(d, x1) - o, e = pt + tx(d, y1) - o;
-      Move(rp, a, b); Draw(rp, c, b); Draw(rp, c, e); Draw(rp, a, e); Draw(rp, a, b);
+  i32 bx, by, bw, bh;
+  LONG w, ht, x, y, row, rw;
+  get_cube(d, obj);
+  pages_wm_box(doc, d->pg, &bx, &by, &bw, &bh);
+  w = tx(d, bw); ht = tx(d, bh);
+  if (w < 2 || ht < 2 || w * ht > 3000000) return;
+  if (!d->wmp_px || d->wmp_w != w || d->wmp_h != ht || d->wmp_data != doc->wm.pic || d->wmp_wash != doc->wm.washout) {
+    u8 *rgb;
+    int lv = d->cubelv;
+    if (d->wmp_px) { FreeVec(d->wmp_px); d->wmp_px = NULL; }
+    if (!(rgb = img_decode(doc->wm.pic, doc->wm.piclen, (u32)w, (u32)ht))) return;
+    if (doc->wm.washout) pages_washout(rgb, (u32)(w * ht));
+    if ((d->wmp_px = (UBYTE *)AllocVec((ULONG)(w * ht), MEMF_ANY))) {
+      for (y = 0; y < ht; y++)
+        for (x = 0; x < w; x++) {
+          const u8 *c = rgb + (y * w + x) * 3;
+          int tt = bayer[y & 3][x & 3] * 255 / 16, q[3], j;
+          for (j = 0; j < 3; j++) { q[j] = (c[j] * (lv - 1) + tt) / 255; if (q[j] > lv - 1) q[j] = lv - 1; }
+          d->wmp_px[y * w + x] = (UBYTE)d->cube[(q[0] * lv + q[1]) * lv + q[2]];
+        }
+      d->wmp_w = w; d->wmp_h = ht; d->wmp_data = doc->wm.pic; d->wmp_wash = doc->wm.washout;
     }
-  SetDrPt(rp, 0xFFFF);
+    free(rgb);
+    if (!d->wmp_px) return;
+  }
+  x = pl + tx(d, bx); y = pt + tx(d, by);
+  rw = GetBitMapAttr(rp->BitMap, BMA_WIDTH);
+  for (row = 0; row < ht; row++) {
+    LONG yy = y + row, a = x, b = x + w - 1;
+    if (yy < 0 || yy > h || yy >= GetBitMapAttr(rp->BitMap, BMA_HEIGHT)) continue;
+    if (yy < d->band0 || (d->band1 && yy > d->band1)) continue;
+    if (a < 0) a = 0;
+    if (b >= rw) b = rw - 1;
+    if (b >= a) WriteChunkyPixels(rp, (ULONG)a, (ULONG)yy, (ULONG)b, (ULONG)yy, d->wmp_px + row * w + (a - x), w);
+  }
+}
+/* the page border (WP22a: the page's section's, each side its own kind, as core/pages.c's rectangles) */
+static void draw_border(struct Data *d, Object *obj, struct RastPort *rp, LONG pl, LONG pt, u32 page)
+{
+  PBRect *r = NULL;
+  int n = d->lay ? pages_border_rects(d->lay, page, &r) : 0, i;
+  for (i = 0; i < n; i++) {
+    LONG x0 = pl + tx(d, r[i].x0), y0 = pt + tx(d, r[i].y0), x1 = pl + tx(d, r[i].x1) - 1, y1 = pt + tx(d, r[i].y1) - 1;
+    if (x1 < x0) x1 = x0;
+    if (y1 < y0) y1 = y0;
+    SetAPen(rp, pen_for(d, obj, r[i].color));
+    RectFill(rp, x0, y0, x1, y1);
+  }
+  free(r);
 }
 /* one edge (E_) of a table cell, from (x0, y0) to (x1, y1): its line, or a table gridline if it has none */
 static void cell_edge(struct Data *d, Object *obj, struct RastPort *rp, const CellBox *c, int e, LONG x0, LONG y0, LONG x1, LONG y1)
@@ -1824,7 +1907,8 @@ static void draw_page(struct Data *d, Object *obj, struct RastPort *rp, u32 k, L
   u32 a, b, i;
   d->pg = lay_page(L, k);
   if (d->doc->wm.text[0] && d->vmode != VM_WEB && d->vmode != VM_DRAFT) draw_watermark(d, obj, rp, pl, pt, h);
-  if (d->vmode != VM_WEB && d->vmode != VM_DRAFT) draw_border(d, obj, rp, pl, pt);
+  else if (d->doc->wm.pic && d->vmode != VM_WEB && d->vmode != VM_DRAFT) draw_wm_picture(d, obj, rp, pl, pt, h);      /* (WP22a) */
+  if (d->vmode != VM_WEB && d->vmode != VM_DRAFT) draw_border(d, obj, rp, pl, pt, k);
   /* lines between columns */
   SetAPen(rp, d->pen_text);
   for (i = 0; i < L->nseps; i++)
