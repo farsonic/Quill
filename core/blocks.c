@@ -180,7 +180,7 @@ int blocks_store(Doc *d)
     kp->len = b.len;
     kp->data = (u8 *)buf_take(&b);
   } else {
-    k = keep_add(d, "word/glossary/document.xml", GLOSS_CT, "word/document.xml", GLOSS_TYPE, "rIdQGloss", b.data, b.len);
+    k = keep_add(d, "word/glossary/document.xml", GLOSS_CT, "word/document.xml", GLOSS_TYPE, "rIdStGloss", b.data, b.len);
     buf_free(&b);
     if (k < 0) return 0;
   }
@@ -228,7 +228,7 @@ void blocks_read_parts(Doc *d, const char *ct, size_t ctn, const char *setrels, 
 }
 void blocks_write_settings(Doc *d, Buf *b)
 {
-  if (d->attached && d->attached[0]) buf_adds(b, "<w:attachedTemplate xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rIdQTpl\"/>");
+  if (d->attached && d->attached[0]) buf_adds(b, "<w:attachedTemplate xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rIdStTpl\"/>");
   if (d->linkstyles) buf_adds(b, "<w:linkStyles/>");
   if (d->spfilter) buf_printf(b, "<w:stylePaneFormatFilter w:val=\"%04X\"/>", (unsigned)d->spfilter);
   if (d->spsort > SPS_NONE && d->spsort < SPS_N) buf_printf(b, "<w:stylePaneSortMethod w:val=\"%04X\"/>", (unsigned)(d->spsort - SPS_NAME));
@@ -239,7 +239,7 @@ char *blocks_settings_rels(const Doc *d, size_t *len)
   if (!d->attached || !d->attached[0]) return NULL;
   buf_init(&b);
   buf_adds(&b, HDR);
-  buf_adds(&b, "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rIdQTpl\" "
+  buf_adds(&b, "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rIdStTpl\" "
                "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate\" Target=\"");
   xml_escape(&b, d->attached, strlen(d->attached));
   buf_adds(&b, "\" TargetMode=\"External\"/></Relationships>");

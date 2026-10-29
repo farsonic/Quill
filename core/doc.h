@@ -99,7 +99,14 @@ typedef struct {
   u32 shade;                /* fill 0xRRGGBB, or COLOR_AUTO */
   u32 bcolor[4];            /* 0xRRGGBB or COLOR_AUTO; 0 (black) is also what a zeroed cell has */
   u32 thshade;              /* (WP13) shade is a theme colour (THR_ reference, core/doctheme.h), 0 not */
+  /* WP21b: */
+  u8  tdir;                 /* which way its text runs: TD_ (w:textDirection) */
+  u8  marset;               /* which of its own margins it has (1 << E_ edge; else the table's) */
+  i16 mar[4];               /* its own margins (E_ order), twips (w:tcMar) */
 } Cell;
+/* a cell's text direction: across (lrTb), turned 90 degrees clockwise so lines read downwards (tbRl),
+   or turned 270 degrees so they read upwards (btLr) */
+enum { TD_HORZ, TD_DOWN, TD_UP };
 #define MAX_COLS 64
 /* tblLook: which parts of a table its style formats specially (Word's bits) */
 enum { LK_FIRSTROW = 0x20, LK_LASTROW = 0x40, LK_FIRSTCOL = 0x80, LK_LASTCOL = 0x100, LK_NOHBAND = 0x200, LK_NOVBAND = 0x400 };
@@ -114,7 +121,19 @@ typedef struct {
   i32 indent;               /* left edge from the left margin */
   i32 marl, marr;           /* cell margins (Word's default 108 = 0.19 cm) */
   i32 mart, marb;           /* and above and below the text (0) */
+  /* WP21b: a floating table (w:tblpPr): placed from its anchor's column (TA_TEXT), the margin or the
+     page across (hanchor) and down (vanchor), at tx, ty or aligned (xspec, yspec: PA_ of doc.h's
+     objects, PA_NONE for tx/ty), the text dl, dr, dt, db away round it; and its alternative text */
+  u8  floating;
+  u8  hanchor, vanchor;     /* TA_ */
+  u8  xspec, yspec;         /* PA_NONE (use tx, ty), PA_START, PA_CENTER, PA_END */
+  u8  nooverlap;            /* w:tblOverlap never */
+  i32 tx, ty;
+  i32 dl, dr, dt, db;
+  char caption[128];        /* w:tblCaption (UTF-8) */
+  char descr[256];          /* w:tblDescription (UTF-8) */
 } Table;
+enum { TA_TEXT, TA_MARGIN, TA_PAGE };
 
 /* table styles: lines and fill for the whole table, and for parts of it (Word's conditional
    formatting: the heading row, banded rows...), each part over the ones before it */
@@ -129,12 +148,16 @@ typedef struct {
   TBorder cb[4];            /* every cell's own edges (tcBorders) */
   unsigned cmask; CharFmt cf;   /* character formatting it sets (CM_ flags) */
   u8 align_set, align;      /* paragraph alignment it sets */
+  u8 valign_set, valign;    /* WP21b: the cells' vertical alignment it sets (0 top, 1 centre, 2 bottom) */
 } TCond;
 typedef struct {
   char id[40], name[48];
   char based[40];
   TCond c[TC_N];
   u8 mar_set; i32 marl, marr;
+  /* WP21a: */
+  u8 custom;                /* made by the user (w:customStyle): offered in the gallery even when unused */
+  u8 gone;                  /* deleted (its place kept: tables and undo refer to styles by number) */
 } TableStyle;
 #define MAX_TSTYLES 250
 typedef struct {
@@ -595,6 +618,11 @@ typedef struct Doc {
   struct KeptChange *kchg; int nkchg;   /* w:tblPrChange, w:trPrChange, w:tcPrChange, w:sectPrChange ... */
   u16 rvtrack;              /* formatting changes are being tracked: Doc.revs index + 1 of their author, 0 not */
   u8 rvsettings;            /* settings.xml's w:revisionView read (bit 0) */
+  /* WP1 fields (core/field.h): the records the field marks in the text name (only added to), every
+     field showing its code (Alt+F9; not saved), and what the file says for the fields (docProps...) */
+  struct Field *fields; int nfields;
+  u8 fieldcodes;
+  struct FieldInfo *finfo;
 } Doc;
 /* (WP13) styles (and the document's defaults, Doc.defpf and defcf) changed by edit(d, arg) as one undo
    step: every style's effective formatting worked out again and the text that had a style's look

@@ -9,7 +9,7 @@
    and rIdK.., which keep_add hands out */
 int keep_id_reserved(const char *id)
 {
-  static const char *const pre[] = { "rIdH", "rIdF", "rIdEn", "rIdCm", "rIdLk", "rIdImg", "rIdK", "rIdQ" /* (WP13, WP23) */ };
+  static const char *const pre[] = { "rIdH", "rIdF", "rIdEn", "rIdCm", "rIdLk", "rIdImg", "rIdK", "rIdSt" /* (WP13, WP23) */ };
   size_t i;
   if (!id || !id[0]) return 1;
   if (!strcmp(id, "rId1") || !strcmp(id, "rId2") || !strcmp(id, "rId3")) return 1;

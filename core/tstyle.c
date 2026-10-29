@@ -108,8 +108,8 @@ int tstyle_use_builtin(Doc *d, int i)
   const TableStyle *s = tstyle_builtin(i);
   int k;
   if (!s) return 0;
-  if ((k = doc_tstyle(d, s->id))) return k;
-  return doc_add_tstyle(d, s);
+  if ((k = doc_tstyle(d, s->id)) && !d->tstyles[k - 1].gone) return k;
+  return doc_add_tstyle(d, s);          /* (a deleted copy is brought back) */
 }
 
 /* ------------------------------------------------------------------ */
@@ -136,6 +136,7 @@ static void put_cond(CellLook *o, const TCond *c, int row, int col, int span, in
   if (c->shade_set) o->shade = c->shade;
   if (c->cmask) { cf_apply(&o->cf, c->cmask, &c->cf); o->cmask |= c->cmask; }
   if (c->align_set) { o->align_set = 1; o->align = c->align; }
+  if (c->valign_set) { o->valign_set = 1; o->valign = c->valign; }
 }
 /* the chain of styles from ts back through what it is based on, the base first */
 static int chain(Doc *d, int ts, const TableStyle **out)
@@ -214,4 +215,129 @@ unsigned tstyle_cmask(Doc *d, int ts)
   unsigned m = 0;
   for (i = 0; i < n; i++) for (k = 0; k < TC_N; k++) if (ch[i]->c[k].used) m |= ch[i]->c[k].cmask;
   return m;
+}
+
+/* ------------------------------------------------------------------ */
+/* WP21a: the table style editor */
+#include "table.h"
+/* an id from a name: its letters and digits, and a number after it while d or the gallery has it */
+static void make_id(const Doc *d, const char *name, char *id, int self)
+{
+  char base[32];
+  int n = 0, k, i, clash = 1;
+  for (i = 0; name[i] && n < 30; i++) {
+    unsigned char ch = (unsigned char)name[i];
+    if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) base[n++] = (char)ch;
+  }
+  base[n] = 0;
+  if (!n) strcpy(base, "TableStyle");
+  strcpy(id, base);
+  for (k = 2; clash && k < 1000; ) {
+    clash = 0;
+    for (i = 0; i < d->ntstyles; i++) if (i + 1 != self && !strcmp(d->tstyles[i].id, id) && !d->tstyles[i].gone) clash = 1;
+    for (i = 0; i < tstyle_builtin_count() && !clash; i++) if (!strcmp(tstyle_builtin(i)->id, id)) clash = 1;
+    if (clash) { char t[48]; sprintf(t, "%.30s%d", base, k++ % 1000); strcpy(id, t); }
+  }
+}
+void tstyle_preview_in(Doc *d, const TableStyle *s, u16 look, int row, int col, int nrows, int ncols, CellLook *out)
+{
+  const TableStyle *ch[9];
+  int n = s->based[0] ? chain(d, doc_tstyle(d, s->based), ch) : 0;
+  ch[n++] = s;
+  cell_of(ch, n, look, row, col, 1, nrows, ncols, NULL, out);
+}
+void tstyle_blank(TableStyle *s, const Doc *d, int based, const char *name)
+{
+  memset(s, 0, sizeof *s);
+  s->c[TC_WHOLE].used = 1;
+  s->custom = 1;
+  strncpy(s->name, name ? name : "", sizeof s->name - 1);
+  if (based > 0 && based <= d->ntstyles) strcpy(s->based, d->tstyles[based - 1].id);
+}
+int tstyle_uses(Doc *d, int k)
+{
+  int i, n = 0;
+  u32 p;
+  for (i = 0; i < d->ntables; i++) {
+    if (d->tables[i].tstyle != k) continue;
+    for (p = 0; p < d->np; p++) if (d->p[p]->pf.cell.table == i + 1 || d->p[p]->pf.outer.table == i + 1) { n++; break; }
+  }
+  return n;
+}
+/* the first paragraph of each table in style k (one per table, at most max), for formatting them again */
+static int tables_in(Doc *d, int k, u32 *first, int max)
+{
+  u32 p;
+  int n = 0, j;
+  for (p = 0; p < d->np && n < max; p++) {
+    u16 t = d->p[p]->pf.cell.table;
+    if (!t || t > d->ntables || d->tables[t - 1].tstyle != k) continue;
+    for (j = 0; j < n && d->p[first[j]]->pf.cell.table != t; j++) ;
+    if (j == n) first[n++] = p;
+  }
+  return n;
+}
+int tstyle_define(Doc *d, int k, const TableStyle *sp, Pos caret)
+{
+  TableStyle s = *sp;
+  u32 first[256];
+  int n, i;
+  if (k < 0 || k > d->ntstyles) return 0;
+  s.gone = 0;
+  s.c[TC_WHOLE].used = 1;
+  if (!s.name[0]) strcpy(s.name, "Table Style");
+  if (!k) {
+    make_id(d, s.name, s.id, 0);
+    s.custom = 1;
+    return doc_add_tstyle(d, &s);
+  }
+  strcpy(s.id, d->tstyles[k - 1].id);
+  if (!strcmp(s.based, s.id)) s.based[0] = 0;          /* (not based on itself) */
+  {
+    /* nor on a style based on it */
+    int b = s.based[0] ? doc_tstyle(d, s.based) : 0, guard = 0;
+    while (b && guard++ < 16) { if (b == k) { s.based[0] = 0; break; } b = d->tstyles[b - 1].based[0] ? doc_tstyle(d, d->tstyles[b - 1].based) : 0; }
+  }
+  d->tstyles[k - 1] = s;
+  /* the tables in it (or in styles based on it) formatted afresh */
+  doc_begin(d, caret);
+  for (i = 1; i <= d->ntstyles; i++) {
+    int b = i, guard = 0, hit = 0, j;
+    while (b && guard++ < 16) { if (b == k) { hit = 1; break; } b = d->tstyles[b - 1].based[0] ? doc_tstyle(d, d->tstyles[b - 1].based) : 0; }
+    if (!hit) continue;
+    n = tables_in(d, i, first, 256);
+    for (j = 0; j < n; j++) {
+      Pos at;
+      Table *t = doc_table(d, &d->p[first[j]]->pf);
+      at.para = first[j]; at.off = 0;
+      if (t) tbl_apply_style(d, &at, i, t->look);
+    }
+  }
+  d->dirty = 1;
+  doc_end(d, caret);
+  return k;
+}
+int tstyle_delete(Doc *d, int k, Pos caret)
+{
+  u32 first[256];
+  int n, i;
+  char base[40];
+  if (k < 1 || k > d->ntstyles || d->tstyles[k - 1].gone) return 0;
+  if (!strcmp(d->tstyles[k - 1].id, "TableGrid") || !strcmp(d->tstyles[k - 1].id, "TableNormal")) return 0;
+  strcpy(base, d->tstyles[k - 1].based);
+  doc_begin(d, caret);
+  n = tables_in(d, k, first, 256);
+  for (i = 0; i < n; i++) {
+    Pos at;
+    Table *t = doc_table(d, &d->p[first[i]]->pf), nt;
+    if (!t) continue;
+    nt = *t; nt.tstyle = 0;
+    at.para = first[i]; at.off = 0;
+    tbl_set_table(d, &at, &nt);
+  }
+  for (i = 0; i < d->ntstyles; i++) if (!strcmp(d->tstyles[i].based, d->tstyles[k - 1].id)) strcpy(d->tstyles[i].based, base);
+  d->tstyles[k - 1].gone = 1;
+  d->dirty = 1;
+  doc_end(d, caret);
+  return 1;
 }

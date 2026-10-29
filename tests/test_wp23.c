@@ -196,7 +196,7 @@ static void word_glossary(void)
     size_t n;
     u8 *zz = docx_save(d, &n);
     x = zz ? part23(zz, n, "word/settings.xml") : NULL;
-    ok("templates: the attached template written", x && strstr(x, "<w:attachedTemplate xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rIdQTpl\"/>"));
+    ok("templates: the attached template written", x && strstr(x, "<w:attachedTemplate xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rIdStTpl\"/>"));
     free(x);
     x = zz ? part23(zz, n, "word/_rels/settings.xml.rels") : NULL;
     ok("templates: and its relationship", x && strstr(x, "relationships/attachedTemplate\" Target=\"Work:Templates/Legal.dotx\" TargetMode=\"External\""));

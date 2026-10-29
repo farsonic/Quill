@@ -460,6 +460,7 @@ static int tbl_apply_style_(Doc *d, Pos *caret, int ts, u16 look)
     u32 r;
     tstyle_cell(d, ts, look, c.row, c.col, c.span, nrows, nt.ncols, NULL, &lk);
     c.table = (u16)id; c.borders = lk.borders; c.shade = lk.shade;
+    if (lk.valign_set) c.valign = lk.valign;             /* (WP21b) */
     for (k = 0; k < 4; k++) { c.bstyle[k] = lk.bstyle[k]; c.bwidth[k] = lk.bwidth[k]; c.bcolor[k] = lk.bcolor[k]; }
     if (!(p = copy_cell(d, i, &c))) { l.oom = 1; continue; }
     if (anyalign) p->pf.align = lk.align_set ? lk.align : d->styles[p->pf.style].pf.align;
@@ -1316,3 +1317,416 @@ static int tbl_block_cells_(Doc *d, Pos a, Pos b, u32 *first, u32 *end, int max)
 /* the block entry points, likewise on the innermost table at a */
 int tbl_block(Doc *d, Pos a, Pos b, u16 *table, int *r0, int *r1, int *c0, int *c1) { use_table(d, a.para); return tbl_block_(d, a, b, table, r0, r1, c0, c1); }
 int tbl_block_cells(Doc *d, Pos a, Pos b, u32 *first, u32 *end, int max) { use_table(d, a.para); return tbl_block_cells_(d, a, b, first, end, max); }
+
+/* ------------------------------------------------------------------ */
+/* WP21b: cell options and drawing tables (see table.h). Each one is a rebuild of the table's
+   paragraphs, so one doc_replace and one undo step, like the operations above */
+
+/* merged-down chains made whole again after cells moved or went: a VM_CONT with no merged cell of
+   the same columns above it starts a chain (or stands alone), a VM_START with nothing merged into it
+   below is a plain cell */
+static void fix_vmerge(PList *l)
+{
+  u32 i, j;
+  for (i = 0; i < l->n; i++) {
+    Cell *c = pcell(l->p[i]);
+    int above = 0, below = 0;
+    if (!c->vmerge) continue;
+    for (j = 0; j < l->n; j++) {
+      const Cell *o = pcell(l->p[j]);
+      if (o->table != c->table || o->col != c->col || o->span != c->span) continue;
+      if (o->row + 1 == c->row && o->vmerge) above = 1;
+      if (o->row == c->row + 1 && o->vmerge == VM_CONT) below = 1;
+    }
+    if (c->vmerge == VM_CONT && !above) c->vmerge = (u8)(below ? VM_START : VM_NONE);
+    else if (c->vmerge == VM_START && !below) c->vmerge = VM_NONE;
+  }
+}
+/* the paragraph of table cur's cell at row, col (the one covering grid column col), or the table's
+   end if there is none */
+static u32 find_cell(Doc *d, u32 a, u32 b, int row, int col)
+{
+  u32 i;
+  for (i = a; i < b; i++) { const Cell *c = &CELL(i); if (c->row == row && col >= c->col && col < c->col + c->span) return i; }
+  return b;
+}
+u32 tbl_cell_para(Doc *d, Pos in, int row, int col)
+{
+  u32 a, b;
+  if (in.para >= d->np || !in_table(&d->p[in.para]->pf)) return (u32)-1;
+  use_table(d, in.para);
+  a = tbl_first(d, in.para); b = tbl_end(d, in.para);
+  a = find_cell(d, a, b, row, col);
+  return a < b ? a : (u32)-1;
+}
+
+/* every cell of the block a..b (the caret's cell when a == b) changed by fn; the caret kept */
+typedef void (*CellFn)(Cell *c, Para *p, const void *arg);
+static int block_change(Doc *d, Pos pa, Pos pb, CellFn fn, const void *arg)
+{
+  CList cl;
+  int r0, r1, c0, c1, k;
+  u32 i;
+  PList l;
+  Pos keep = pa;
+  if (!sel_block(d, pa, pb, &cl, &r0, &r1, &c0, &c1)) return 0;
+  memset(&l, 0, sizeof l);
+  for (k = 0; k < cl.n; k++) {
+    CInfo *ci = &cl.v[k];
+    Cell c = ci->c;
+    int in = in_block(&c, r0, r1, c0, c1);
+    for (i = ci->p0; i < ci->p1; i++) {
+      Para *p;
+      Cell nc = c;
+      if (in) fn(&nc, NULL, arg);
+      p = copy_cell(d, i, &nc);
+      if (p && in && !(cur && p->pf.outer.table == cur)) fn(pcell(p), p, arg);   /* (a nested table's paragraphs keep their own alignment) */
+      pl_add(&l, p);
+    }
+  }
+  {
+    u32 a = cl.a, b = cl.b;
+    free(cl.v);
+    return commit_keep(d, a, b, &l, &keep);
+  }
+}
+/* the 9-way alignment: arg points at two ints, the vertical alignment and the paragraphs' (-1: kept) */
+static void fn_align(Cell *c, Para *p, const void *arg)
+{
+  const int *v = (const int *)arg;
+  c->valign = (u8)v[0];
+  if (p && v[1] >= 0) p->pf.align = (u8)v[1];
+}
+int tbl_cell_align(Doc *d, Pos a, Pos b, int valign, int align)
+{
+  int v[2];
+  v[0] = valign < 0 ? 0 : valign > 2 ? 2 : valign; v[1] = align;
+  use_table(d, pos_cmp(a, b) <= 0 ? a.para : b.para);
+  return block_change(d, a, b, fn_align, v);
+}
+static void fn_dir(Cell *c, Para *p, const void *arg) { c->tdir = (u8)*(const int *)arg; }
+int tbl_cell_dir(Doc *d, Pos a, Pos b, int dir)
+{
+  if (dir < TD_HORZ || dir > TD_UP) return 0;
+  use_table(d, pos_cmp(a, b) <= 0 ? a.para : b.para);
+  return block_change(d, a, b, fn_dir, &dir);
+}
+typedef struct { u8 set; i16 mar[4]; } MarArg;
+static void fn_mar(Cell *c, Para *p, const void *arg)
+{
+  const MarArg *m = (const MarArg *)arg;
+  int k;
+  c->marset = m->set;
+  for (k = 0; k < 4; k++) c->mar[k] = (i16)(m->set & (1 << k) ? m->mar[k] : 0);
+}
+int tbl_cell_mar(Doc *d, Pos a, Pos b, u8 set, const i16 *mar)
+{
+  MarArg m;
+  int k;
+  m.set = (u8)(set & 15);
+  for (k = 0; k < 4; k++) m.mar[k] = mar ? (i16)(mar[k] < 0 ? 0 : mar[k] > 4000 ? 4000 : mar[k]) : 0;
+  use_table(d, pos_cmp(a, b) <= 0 ? a.para : b.para);
+  return block_change(d, a, b, fn_mar, &m);
+}
+
+/* Delete Cells: the block's rows, its grid columns, or its cells with the rest of their rows moving
+   left (the rows end short, as in Word) or the rest of their columns moving up (empty cells coming in
+   at the bottom) */
+static int del_rows(Doc *d, Pos pa, Pos pb, Pos *caret)
+{
+  CList cl;
+  int r0, r1, c0, c1, k, any = 0, n;
+  u32 i, at = 0;
+  PList l;
+  if (!sel_block(d, pa, pb, &cl, &r0, &r1, &c0, &c1)) return 0;
+  n = r1 - r0 + 1;
+  for (k = 0; k < cl.n; k++) if (cl.v[k].c.row < r0 || cl.v[k].c.row > r1) any = 1;
+  if (!any) { Pos c = pa; free(cl.v); *caret = c; return tbl_delete(d, caret); }
+  memset(&l, 0, sizeof l);
+  for (k = 0; k < cl.n; k++) {
+    CInfo *ci = &cl.v[k];
+    Cell c = ci->c;
+    if (c.row >= r0 && c.row <= r1) continue;
+    if (c.row > r1) c.row = (u16)(c.row - n);
+    if (c.row == r0 && c.col <= c0 && c.col + c.span > c0) at = l.n;
+    for (i = ci->p0; i < ci->p1; i++) pl_add(&l, copy_cell(d, i, &c));
+  }
+  if (!at && l.n && pcell(l.p[l.n - 1])->row < r0) {          /* the last rows went: the caret into the row above */
+    for (i = l.n; i > 0; i--) if (pcell(l.p[i - 1])->col <= c0) { at = i - 1; break; }
+    while (at > 0 && pcell(l.p[at - 1])->row == pcell(l.p[at])->row && pcell(l.p[at - 1])->col == pcell(l.p[at])->col) at--;
+  }
+  fix_vmerge(&l);
+  {
+    u32 a = cl.a, b = cl.b;
+    free(cl.v);
+    return commit(d, a, b, &l, caret, at);
+  }
+}
+static int del_cols(Doc *d, Pos pa, Pos pb, Pos *caret)
+{
+  CList cl;
+  int r0, r1, c0, c1, k, ok = 1, n;
+  if (!sel_block(d, pa, pb, &cl, &r0, &r1, &c0, &c1)) return 0;
+  free(cl.v);
+  doc_begin(d, *caret);
+  for (n = c1 - c0 + 1; n > 0 && ok; n--) {
+    /* a paragraph of a cell starting in grid column c0 (the table's number changes each time) */
+    u32 a = tbl_first(d, pa.para), b = tbl_end(d, pa.para), i;
+    Pos c;
+    for (i = a; i < b && !(CELL(i).col == c0); i++) ;
+    if (i >= b) break;
+    c.para = i; c.off = 0;
+    k = d->p[a]->pf.cell.table;
+    ok = tbl_col_delete(d, &c);
+    use_table(d, c.para < d->np ? c.para : 0);
+    *caret = c;
+    if (!ok || c.para >= d->np || !in_table(&d->p[c.para]->pf) || d->p[c.para]->pf.cell.table == k) break;   /* the table went */
+    pa = c;
+  }
+  doc_end(d, *caret);
+  return 1;
+}
+static int del_left(Doc *d, Pos pa, Pos pb, Pos *caret)
+{
+  CList cl;
+  int r0, r1, c0, c1, k, w;
+  u32 i, at = 0;
+  PList l;
+  if (!sel_block(d, pa, pb, &cl, &r0, &r1, &c0, &c1)) return 0;
+  w = c1 - c0 + 1;
+  memset(&l, 0, sizeof l);
+  for (k = 0; k < cl.n; k++) {
+    CInfo *ci = &cl.v[k];
+    Cell c = ci->c;
+    if (c.row >= r0 && c.row <= r1) {
+      if (in_block(&c, r0, r1, c0, c1)) continue;          /* the cell goes */
+      if (c.col > c1) { c.col = (u8)(c.col - w); c.vmerge = VM_NONE; if (c.row == r0 && !at) at = l.n; }
+    }
+    for (i = ci->p0; i < ci->p1; i++) pl_add(&l, copy_cell(d, i, &c));
+  }
+  /* rows left with no cell at all keep one empty cell, so the table stays whole */
+  for (k = r0; k <= r1; k++) {
+    u32 j, last = (u32)-1;
+    for (j = 0; j < l.n; j++) if (pcell(l.p[j])->row == k) break;
+    if (j < l.n) continue;
+    for (j = 0; j < l.n; j++) if (pcell(l.p[j])->row < k) last = j;
+    {
+      CInfo *src = NULL;
+      int m;
+      for (m = 0; m < cl.n && !src; m++) if (cl.v[m].c.row == k) src = &cl.v[m];
+      if (src) {
+        Cell c = src->c;
+        Para *p;
+        c.col = 0; c.span = 1; c.vmerge = VM_NONE;
+        p = empty_cell(d, src->p0, &c);
+        pl_add(&l, p);
+        if (!l.oom && l.n > 1) {                            /* put it after the rows before it */
+          u32 to = last == (u32)-1 ? 0 : last + 1, q;
+          Para *mv = l.p[l.n - 1];
+          for (q = l.n - 1; q > to; q--) l.p[q] = l.p[q - 1];
+          l.p[to] = mv;
+        }
+      }
+    }
+  }
+  fix_vmerge(&l);
+  if (at >= l.n) at = 0;
+  {
+    u32 a = cl.a, b = cl.b;
+    free(cl.v);
+    return commit(d, a, b, &l, caret, at);
+  }
+}
+static int del_up(Doc *d, Pos pa, Pos pb, Pos *caret)
+{
+  CList cl;
+  int r0, r1, c0, c1, k, n;
+  u32 i, at = 0;
+  PList l;
+  if (!sel_block(d, pa, pb, &cl, &r0, &r1, &c0, &c1)) return 0;
+  n = r1 - r0 + 1;
+  memset(&l, 0, sizeof l);
+  for (k = 0; k < cl.n; k++) {
+    CInfo *ci = &cl.v[k];
+    Cell c = ci->c;
+    if (c.row >= r0 && c.col >= c0 && c.col + c.span - 1 <= c1) {
+      /* this cell takes the text of the one n rows below it (of the same columns), or none */
+      int m, src = -1;
+      for (m = 0; m < cl.n; m++) if (cl.v[m].c.row == c.row + n && cl.v[m].c.col == c.col && cl.v[m].c.span == c.span) { src = m; break; }
+      if (c.row == r0 && c.col == c0) at = l.n;
+      if (src >= 0) for (i = cl.v[src].p0; i < cl.v[src].p1; i++) pl_add(&l, copy_cell(d, i, &c));
+      else pl_add(&l, empty_cell(d, ci->p0, &c));
+      continue;
+    }
+    for (i = ci->p0; i < ci->p1; i++) pl_add(&l, copy_cell(d, i, &c));
+  }
+  {
+    u32 a = cl.a, b = cl.b;
+    free(cl.v);
+    return commit(d, a, b, &l, caret, at);
+  }
+}
+int tbl_delete_cells(Doc *d, Pos a, Pos b, int how, Pos *caret)
+{
+  if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
+  if (a.para >= d->np || !in_table(&d->p[a.para]->pf)) return 0;
+  use_table(d, a.para);
+  switch (how) {
+  case DC_LEFT: return del_left(d, a, b, caret);
+  case DC_UP: return del_up(d, a, b, caret);
+  case DC_ROW: return del_rows(d, a, b, caret);
+  case DC_COL: return del_cols(d, a, b, caret);
+  }
+  return 0;
+}
+
+/* lines on given edges of given cells (the Border Painter and the Eraser) */
+int tbl_set_edges(Doc *d, Pos in, const TEdge *e, int n, u8 style, u8 width, u32 color)
+{
+  u32 a, b, i;
+  PList l;
+  Pos keep = in;
+  int k, any = 0;
+  if (in.para >= d->np || !in_table(&d->p[in.para]->pf) || n <= 0) return 0;
+  use_table(d, in.para);
+  a = tbl_first(d, in.para); b = tbl_end(d, in.para);
+  memset(&l, 0, sizeof l);
+  for (i = a; i < b; i++) {
+    Cell c = CELL(i);
+    for (k = 0; k < n; k++)
+      if (e[k].row == c.row && e[k].col == c.col && e[k].edge < 4) {
+        int x = e[k].edge;
+        any = 1;
+        if (style == PB_NONE) c.borders &= (u8)~(1 << x);
+        else { c.borders |= (u8)(1 << x); c.bstyle[x] = style; c.bwidth[x] = width; c.bcolor[x] = color; }
+      }
+    pl_add(&l, copy_cell(d, i, &c));
+  }
+  if (!any) { pl_drop(&l); return 0; }
+  return commit_keep(d, a, b, &l, &keep);
+}
+
+/* a drawn line's pen on edge e of a cell (none: nothing) */
+static void pen_edge(Cell *c, int e, const TBorder *pen)
+{
+  if (!pen || !pen->set) return;
+  if (pen->style == PB_NONE) { c->borders &= (u8)~(1 << e); return; }
+  c->borders |= (u8)(1 << e); c->bstyle[e] = pen->style; c->bwidth[e] = pen->width; c->bcolor[e] = pen->color;
+}
+/* drawing a line down through cells: rows r0..r1 get a cell edge at x (twips from the table's left
+   edge). Where x isn't near a grid edge, the grid column there is split in two (a new Table; the cells
+   covering it elsewhere span both parts); then each cell of those rows that x crosses becomes two,
+   its text staying in the left one */
+int tbl_vsplit(Doc *d, Pos in, i32 x, int r0, int r1, const TBorder *pen)
+{
+  CList cl;
+  Table *t, nt;
+  i32 left = 0;
+  int k, j, edge = -1, id, newcol = -1;
+  u32 i, at = 0;
+  PList l;
+  if (in.para >= d->np || !(t = doc_table(d, &d->p[in.para]->pf))) return 0;
+  use_table(d, in.para);
+  if (r0 > r1) { k = r0; r0 = r1; r1 = k; }
+  /* the grid edge at x, or the grid column x falls in */
+  for (k = 0; k <= t->ncols; k++) {
+    if (k > 0 && x - left > -90 && x - left < 90) { edge = k; break; }
+    if (k < t->ncols && x > left + 90 && x < left + t->grid[k] - 90) { newcol = k; break; }
+    if (k < t->ncols) left += t->grid[k];
+  }
+  if (edge < 0 && newcol < 0) return 0;
+  if (edge >= t->ncols) return 0;                     /* the table's right edge: nothing to split */
+  nt = *t;
+  if (newcol >= 0) {
+    if (t->ncols >= MAX_COLS) return 0;
+    for (j = t->ncols - 1; j > newcol; j--) nt.grid[j + 1] = t->grid[j];
+    nt.grid[newcol] = x - left; nt.grid[newcol + 1] = t->grid[newcol] - (x - left);
+    nt.ncols = (u8)(t->ncols + 1);
+    edge = newcol + 1;
+  }
+  if (!(id = doc_add_table(d, &nt)) || !cells_of(d, in.para, &cl)) return 0;
+  memset(&l, 0, sizeof l);
+  for (k = 0; k < cl.n; k++) {
+    CInfo *ci = &cl.v[k];
+    Cell c = ci->c;
+    c.table = (u16)id;
+    if (newcol >= 0) {
+      if (c.col > newcol) c.col++;
+      else if (c.col + c.span > newcol) c.span++;
+    }
+    if (c.row >= r0 && c.row <= r1 && c.col + c.span == edge) pen_edge(&c, E_RIGHT, pen);     /* (a line drawn along an edge: its line) */
+    if (c.row >= r0 && c.row <= r1 && c.col == edge) pen_edge(&c, E_LEFT, pen);
+    if (c.row >= r0 && c.row <= r1 && c.col < edge && c.col + c.span > edge) {
+      Cell rc = c;
+      rc.col = (u8)edge; rc.span = (u8)(c.col + c.span - edge);
+      c.span = (u8)(edge - c.col);
+      pen_edge(&c, E_RIGHT, pen); pen_edge(&rc, E_LEFT, pen);
+      if (in.para >= ci->p0 && in.para < ci->p1) at = l.n;
+      for (i = ci->p0; i < ci->p1; i++) pl_add(&l, copy_cell(d, i, &c));
+      pl_add(&l, empty_cell(d, ci->p1 - 1, &rc));
+      continue;
+    }
+    if (in.para >= ci->p0 && in.para < ci->p1) at = l.n;
+    for (i = ci->p0; i < ci->p1; i++) pl_add(&l, copy_cell(d, i, &c));
+  }
+  {
+    u32 a = cl.a, b = cl.b;
+    free(cl.v);
+    return commit(d, a, b, &l, &in, at);
+  }
+}
+/* drawing a line across a row: the cells of row starting in the grid columns cols[0..n) become two,
+   one above the other (a new row goes in below, with an empty cell under each of those); the row's
+   other cells reach down over the new row (merged into it) */
+static int crossed_col(const u8 *cols, int n, int col)
+{
+  int j;
+  for (j = 0; j < n; j++) if (cols[j] == col) return 1;
+  return 0;
+}
+int tbl_hsplit(Doc *d, Pos in, int row, const u8 *cols, int n, const TBorder *pen)
+{
+  CList cl;
+  int k, pass;
+  u32 i, at = 0;
+  PList l;
+  if (in.para >= d->np || !in_table(&d->p[in.para]->pf) || n <= 0) return 0;
+  use_table(d, in.para);
+  if (!cells_of(d, in.para, &cl)) return 0;
+  memset(&l, 0, sizeof l);
+  /* the rows down to row; the new row; the rows after it, one further down */
+  for (pass = 0; pass < 3; pass++)
+    for (k = 0; k < cl.n; k++) {
+      CInfo *ci = &cl.v[k];
+      Cell c = ci->c;
+      if (pass == 0 && c.row <= row) {
+        if (c.row == row) {
+          if (crossed_col(cols, n, c.col)) { if (c.vmerge == VM_START) c.vmerge = VM_NONE; pen_edge(&c, E_BOTTOM, pen); }
+          else if (!c.vmerge) c.vmerge = VM_START;
+        }
+        if (in.para >= ci->p0 && in.para < ci->p1) at = l.n;
+        for (i = ci->p0; i < ci->p1; i++) pl_add(&l, copy_cell(d, i, &c));
+      } else if (pass == 1 && c.row == row) {
+        Cell nc = c;
+        nc.row = (u16)(row + 1); nc.rowh = 0;
+        if (crossed_col(cols, n, c.col)) {
+          /* the lower half: a new empty cell, carrying on a chain the cell started */
+          int m;
+          nc.vmerge = VM_NONE;
+          for (m = 0; m < cl.n; m++) if (cl.v[m].c.row == row + 1 && cl.v[m].c.col == c.col && cl.v[m].c.span == c.span && cl.v[m].c.vmerge == VM_CONT) nc.vmerge = VM_START;
+          pen_edge(&nc, E_TOP, pen);
+        } else nc.vmerge = VM_CONT;
+        pl_add(&l, empty_cell(d, ci->p1 - 1, &nc));
+      } else if (pass == 2 && c.row > row) {
+        c.row++;
+        if (in.para >= ci->p0 && in.para < ci->p1) at = l.n;
+        for (i = ci->p0; i < ci->p1; i++) pl_add(&l, copy_cell(d, i, &c));
+      }
+    }
+  fix_vmerge(&l);
+  {
+    u32 a = cl.a, b = cl.b;
+    free(cl.v);
+    return commit(d, a, b, &l, &in, at);
+  }
+}

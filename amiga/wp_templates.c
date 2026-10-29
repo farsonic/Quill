@@ -12,7 +12,7 @@
  * and the attached template. The Quick Parts and AutoText lists insert them; the Building Blocks
  * Organizer lists, inserts, edits and deletes them; Save Selection makes one. F3 puts in the AutoText
  * entry named by the word before the caret. Document Property puts in one of the document's
- * properties (as text: fields come with WP1). Text from File and Object put in another file's text
+ * properties (a DOCPROPERTY field, core/field.h). Text from File and Object put in another file's text
  * and formatting (any format Quill reads), or a picture.
  */
 #include <stdio.h>
@@ -34,6 +34,7 @@
 #include "../core/blocks.h"
 #include "../core/info.h"
 #include "../core/image.h"
+#include "../core/field.h"
 
 #undef Label1
 #undef Label2
@@ -554,15 +555,21 @@ static void open_props(void)
 }
 static void props_ok(void)
 {
+  /* a DOCPROPERTY field (WP1, core/field.h) showing the property, as Word's Document Property quick parts do */
+  static const char *const codes[] = { "TITLE", "AUTHOR", "SUBJECT", "KEYWORDS", "COMMENTS", "DOCPROPERTY Category", "DOCPROPERTY Status",
+    "DOCPROPERTY Company", "DOCPROPERTY Manager", "SAVEDATE \\@ \"yyyy-MM-dd\"" };
   Doc *d = wp_doc();
   LONG a = active(pr_list);
-  const char *v;
+  FieldEnv e;
+  Pos c;
   set(prw, MUIA_Window_Open, FALSE);
-  if (!d || a < 0 || a >= (LONG)(sizeof prop_names / sizeof prop_names[0]) - 1) return;
-  v = prop_value(d, (int)a);
-  if (a == 9 && strlen(v) >= 10) { static char date[12]; memcpy(date, v, 10); date[10] = 0; v = date; }
-  if (!v[0]) { wp_ask("OK", "%s", "The document has no value for this property yet (File > Info > Properties)."); return; }
-  DoMethod(wp_view(), MUIM_Quill_Command, CMD_TEXT, (ULONG)v);
+  if (!d || a < 0 || a >= (LONG)(sizeof codes / sizeof codes[0])) return;
+  wp_story_close();
+  if (pos_cmp(get_pos(MUIA_Quill_Caret), get_pos(MUIA_Quill_Anchor))) DoMethod(wp_view(), MUIM_Quill_Command, CMD_DELETE, 0);
+  c = get_pos(MUIA_Quill_Caret);
+  field_env(&e);
+  if (!field_insert(d, &c, codes[a], &e, NULL)) { beep(); return; }
+  changed_at(c);
 }
 
 /* ------------------------------------------------------------------ */

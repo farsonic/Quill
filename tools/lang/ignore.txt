@@ -31,3 +31,8 @@ PROGDIR:Templates/Building Blocks.dotx
 ¾ pt
 1½ pt
 2½ pt
+DOCPROPERTY Category
+DOCPROPERTY Status
+DOCPROPERTY Company
+DOCPROPERTY Manager
+SAVEDATE \@ "yyyy-MM-dd"

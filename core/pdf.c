@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "pdf.h"
+#include "field.h"
 #include "pages.h"
 #include "zip.h"
 #include "docx.h"
@@ -513,7 +514,7 @@ static void pdf_line(Pdf *p, Buf *b, ParaLay *pl, u32 line, i32 lx, i32 base)
       }
     }
     else if (bx->kind == BX_FIELD) {
-      char num[16];
+      char num[LAY_FIELD_TEXT];
       lay_field_text(p->L, pl->p, bx, p->page, num);
       text(p, b, &bx->f, num, (u32)strlen(num), lx + bx->x, base, bx->w);
     }
@@ -937,6 +938,14 @@ static void page_content(Pdf *p, u32 page, Buf *b)
     Line *ln = &pl->lines[pc->line];
     i32 lx = pg->left + pc->x + ln->left, base = H - (pc->y + ln->ascent);
     if (pc->page != page) continue;
+    if (pc->turn) {
+      /* WP21b: turned text in a table cell, drawn through a turned frame (the line laid out across) */
+      if (pc->turn == TD_DOWN) buf_printf(b, "q 0 -1 1 0 %ld %ld cm\n", (long)(pg->left + pc->x + ln->height), (long)(H - pc->y - pc->tshift));
+      else buf_printf(b, "q 0 1 -1 0 %ld %ld cm\n", (long)(pg->left + pc->x), (long)(H - pc->y - pc->tlen + pc->tshift));
+      pdf_line(p, b, pl, pc->line, ln->left, -ln->ascent);
+      buf_adds(b, "Q\n");
+      continue;
+    }
     pdf_line(p, b, pl, pc->line, lx, base);
     if (p->tocto && pc->para < d->np && p->tocto[pc->para] >= 0 && ln->width > 0)      /* a table of contents entry: to its heading */
       link_area(p, LK_PARA, (u32)p->tocto[pc->para], lx, H - pc->y - ln->height, lx + ln->width, H - pc->y);
@@ -1314,9 +1323,12 @@ static u8 *pdf_export_laid(Layout *L, const PdfOpts *o, size_t *len);
 u8 *pdf_export_opts(Layout *L, const PdfOpts *o, size_t *len)
 {
   u8 shown = L->showhidden, *r;
+  int codes = field_codes_any(L->d);       /* (WP1) fields show their results in a PDF, not their codes */
   L->showhidden = 0;
+  if (codes) field_show_codes(L->d, 0);
   r = pdf_export_laid(L, o, len);
-  if (shown) { L->showhidden = shown; lay_update(L); }
+  if (codes) field_show_codes(L->d, codes > 1);
+  if (shown || codes) { L->showhidden = shown; lay_update(L); }
   return r;
 }
 static u8 *pdf_export_laid(Layout *L, const PdfOpts *o, size_t *len)
