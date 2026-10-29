@@ -43,7 +43,7 @@ enum { SB_PANE = 1, SB_TEXT, SB_CANLINK, SB_LINKED, SB_LINKING };
 /* ------------------------------------------------------------------ drawing on the screen */
 /* the last few objects drawn, as pens (and whether each pixel shows), for the zoom they were drawn at */
 typedef struct { u32 key; LONG zoom; i32 w, h, ox, oy; UBYTE *pen, *on; } RasterCache;
-#define NCACHE 6
+#define NCACHE 10
 static RasterCache cache[NCACHE];
 static const UBYTE bayer[4][4] = { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 } };
 /* what changes how an object looks, hashed */
