@@ -1486,6 +1486,7 @@ Object *wp_dialog(const char *title, ULONG wid, Object *contents, const char *ok
 void wp_latin1_utf8(const char *latin1, char *utf8, size_t cap) { latin1_utf8(latin1, utf8, cap); }
 void wp_story_close(void) { if (doc->edit.kind) story_close(1); }
 void wp_refresh(void) { DoMethod(view, MUIM_Quill_Command, CMD_REFRESH, 0); }
+const char *wp_docpath(void) { return docpath; }     /* (WP29: the document's file, "" untitled) */
 static Object *splitwin, *splitcols, *splitrows;
 /* Split Cells, for the caret's cell (a merged cell offers the number of cells it covers) */
 static void open_split(void)

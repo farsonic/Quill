@@ -1263,6 +1263,22 @@
 /* ---- begin WP28d (tools/lang/wp28d.py) */
 /* ---- end WP28d */
 /* ---- begin WP29 (tools/lang/wp29.py) */
+  { { "Export Image...", "Bild exportieren...", "Exporter une image...", "Exportar imagen...", "Esporta immagine..." } },
+  { { "Export Options...", "Exportoptionen...", "Options d'exportation...", "Opciones de exportaci\363n...", "Opzioni di esportazione..." } },
+  { { "Export Image", "Bild exportieren", "Exporter une image", "Exportar imagen", "Esporta immagine" } },
+  { { "Export Options", "Exportoptionen", "Options d'exportation", "Opciones de exportaci\363n", "Opzioni di esportazione" } },
+  { { "Each page as a PNG or IFF ILBM picture", "Jede Seite als PNG- oder IFF-ILBM-Bild", "Chaque page en image PNG ou IFF ILBM", "Cada p\341gina como imagen PNG o IFF ILBM", "Ogni pagina come immagine PNG o IFF ILBM" } },
+  { { "Pages, picture resolution, bookmarks, subject", "Seiten, Bildaufl\366sung, Textmarken, Thema", "Pages, r\351solution, signets, objet", "P\341ginas, resoluci\363n, marcadores, asunto", "Pagine, risoluzione, segnalibri, oggetto" } },
+  { { "Export as Picture", "Als Bild exportieren", "Exporter en image", "Exportar como imagen", "Esporta come immagine" } },
+  { { "All pages", "Alle Seiten", "Toutes les pages", "Todas las p\341ginas", "Tutte le pagine" } },
+  { { "Page range", "Seitenbereich", "\311tendue de pages", "Intervalo de p\341ginas", "Intervallo pagine" } },
+  { { "to", "bis", "\340", "a", "a" } },
+  { { "Picture resolution", "Bildaufl\366sung", "R\351solution de l'image", "Resoluci\363n de imagen", "Risoluzione immagine" } },
+  { { "Picture format", "Bildformat", "Format de l'image", "Formato de imagen", "Formato immagine" } },
+  { { "Bookmarks from headings", "Textmarken aus \334berschriften", "Signets \340 partir des titres", "Marcadores con los t\355tulos", "Segnalibri dai titoli" } },
+  { { "Subject", "Thema", "Objet", "Asunto", "Oggetto" } },
+  { { "Keywords", "Stichw\366rter", "Mots cl\351s", "Palabras clave", "Parole chiave" } },
+  { { "IFF ILBM", NULL, NULL, NULL, NULL } },
 /* ---- end WP29 */
 /* ---- begin WP30 (tools/lang/wp30.py) */
 /* ---- end WP30 */

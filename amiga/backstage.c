@@ -40,6 +40,7 @@ static const Side side[] = {
 #define MAXHOT 40
 typedef struct { WORD x0, y0, x1, y1; } BBox;
 enum { H_NONE, H_BACK, H_SIDE, H_TEMPLATE, H_RECENT, H_BROWSE, H_PDF, H_TEXT, H_CM, H_IN, H_NAME, H_THEME, H_LANG, H_SIZE, H_WINDOW };
+enum { H_WP29_IMAGE = 200, H_WP29_OPTIONS };      /* (WP29: Export Image, Export Options: its first two ids) */
 typedef struct { BBox b; int kind, n; } Hot;
 /* the File page's instance data. hot: the clickable areas found while drawing, which the events
    look the pointer up in; editing: the name field has the keyboard; metric, dark, lang, large: the
@@ -295,7 +296,9 @@ static void back_draw(struct BData *d, Object *obj)
   case BP_EXPORT: {
     LONG w = r - x - 16 < 320 ? r - x - 16 : 320;
     y = big_button(d, rp, x, y, w, IC_PDF, "Export to PDF", "The pages as they look here, fonts and pictures in it", H_PDF);
-    big_button(d, rp, x, y, w, IC_EXPORT, "Save as plain text", "The words alone, as a .txt file", H_TEXT);
+    y = big_button(d, rp, x, y, w, IC_EXPORT, "Save as plain text", "The words alone, as a .txt file", H_TEXT);
+    y = big_button(d, rp, x, y, w, IC_PICTURE, "Export Image", "Each page as a PNG or IFF ILBM picture", H_WP29_IMAGE);
+    big_button(d, rp, x, y, w, IC_OPTIONS, "Export Options", "Pages, picture resolution, bookmarks, subject", H_WP29_OPTIONS);
     break; }
   case BP_OPTIONS: {
     static const char *const units[] = { "Centimetres", "Inches" }, *const themes[] = { "Light", "Dark" }, *const sizes[] = { "Normal", "Large" };
@@ -377,6 +380,7 @@ static ULONG back_events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent
     case H_BROWSE: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_OPEN); break;
     case H_PDF: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_PDF); break;
     case H_TEXT: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_SAVETXT); break;
+    case H_WP29_IMAGE: case H_WP29_OPTIONS: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_WP29_FIRST + (ht->kind - H_WP29_IMAGE)); break;
     case H_WINDOW: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_WINPREFS); break;
     case H_CM: case H_THEME: case H_LANG: case H_SIZE:
       if (ht->kind == H_CM) d->metric = ht->n == 0;
