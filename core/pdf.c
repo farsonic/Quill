@@ -1113,7 +1113,7 @@ u8 *pdf_export_opts(Layout *L, const PdfOpts *o, size_t *len)
     int dec = 0, nc = im->type == IMG_JPEG ? img_jpeg_components(im->data, im->len, &dec) : 3;
     if (im->type == IMG_JPEG && (nc == 1 || nc == 3)) {
       obj_start(&p, on);
-      const char *dec = !pages_wash_is(im->data) ? "" : nc == 1 ? "/Decode [0.7 1] " : "/Decode [0.7 1 0.7 1 0.7 1] ";   /* (WP22a: washed out) */
+      const char *dec = !pages_wash_is(im->data) ? "" : nc == 1 ? "/Decode [0.85 1] " : "/Decode [0.85 1 0.85 1 0.85 1] ";   /* (WP22a: washed out) */
       buf_printf(&p.o, "<</Type /XObject /Subtype /Image /Width %lu /Height %lu /ColorSpace /%s /BitsPerComponent 8 %s/Filter /DCTDecode /Length %lu>>\nstream\n",
                  (unsigned long)im->pw, (unsigned long)im->ph, nc == 1 ? "DeviceGray" : "DeviceRGB", dec, (unsigned long)im->len);
       buf_add(&p.o, im->data, im->len);

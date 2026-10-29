@@ -273,7 +273,7 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
 - **Pictures:** PNG and JPEG pictures, in the text or floating with the text wrapping round them, cropped, turned, flipped and outlined, with alt text. Quill decodes them itself, at the size they are shown, and dithers them to the screen's colours: every kind of PNG, and baseline, progressive and CMYK JPEG.
 - **Shapes and text boxes:** rectangles, rounded rectangles, ovals, lines, arrows, triangles, diamonds, right arrows and stars with their fill and outline, and text boxes with their text.
 - **Headers and footers:** including a different first page and even pages, page numbers ("Page 2 of 3"), pictures (logos) and text watermarks.
-- **Pages and sections:** section breaks of each kind, columns (with a line between), column breaks, line numbers, vertical alignment, page borders, drop caps and automatic hyphenation.
+- **Pages and sections:** section breaks of each kind, columns (of their own widths, with a line between; balanced before a continuous break as Word does), column breaks, line numbers and page borders for each section, page borders in each of Word's line kinds with each side its own (its art borders drawn as a pattern), the gutter, mirror margins, two pages per sheet and book folds, vertical alignment (Justified too), drop caps, picture and text watermarks (washed out, solid or half transparent), and hyphenation with its zone, capitals and consecutive-hyphens settings.
 - **Notes:** footnotes at the bottom of the page that refers to them, and endnotes (i, ii, iii) after the text, each under a short line.
 - **Comments:** in balloons beside the page, joined to the text they are about.
 - **Tracked changes:** insertions and deletions, with who made them and when.
@@ -312,7 +312,7 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
   - **Tracked changes:** with Track Changes on, what you type is marked as yours and what you delete stays, struck through. Accept or reject changes one at a time, moving on to the next, or all at once.
   - **Spelling:** words not in the dictionary get a red wavy line, and **Review > Spelling** goes from one to the next with suggestions (Change, Change All, Ignore, Ignore All, Add to Dictionary).
   - **Word count:** pages, words, characters with and without spaces, paragraphs and lines.
-- **Page setup:** A4, Letter, A5 or Legal paper, portrait or landscape, and four sets of margins; columns, section and column breaks, line numbers, vertical alignment and hyphenation; watermarks and page borders.
+- **Page setup:** A4, Letter, A5 or Legal paper, portrait or landscape, and four sets of margins; **Page Setup** with the gutter (left or top), mirror margins, two pages per sheet and book fold, the section's start, headers and footers and vertical alignment (top, centre, bottom, justified), for the whole document, the section or from the caret on; **Columns** (presets One, Two, Three, Left and Right, up to six columns of their own widths and spacing, a line between, for the whole document, the section, from the caret on or the selected text); section and column breaks; **Line Numbers** for each section; **Hyphenation** automatic or manual (each word that could break at a line's end, with the place to break), with its zone, capitals and limit of consecutive hyphens; **Printed Watermark** (a picture at a scale, washed out, or words in a font and colour) and **Page Borders** (each side, every line kind and a few art borders, colour, width, distance from the text or the page's edge, the section's first page only or the others, round the header and footer or not).
 - **Templates:** start from Blank, Welcome (a tour of Quill), Letter, Résumé or Report.
 - **Also:** page and line breaks, the date, symbols, and zoom.
 
@@ -506,7 +506,6 @@ The MUI headers come from Aminet's `dev/mui/mui38dev.lha`. That archive may only
   - cropping by dragging, and the order objects overlap in
 - **Page furniture:**
   - tables in headers and footers (read now as their text)
-  - line numbers and page borders for each section on its own
   - comment balloons showing their formatting (it is kept and saved)
 - **Styles:** linked paragraph and character styles; tab stops and borders in the Modify Style window; selecting text with the same formatting.
 - **Fonts:** choosing a variable font's other designs (weights, widths); antialiased text on RTG screens without AAText.

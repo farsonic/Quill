@@ -6,8 +6,8 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 ## Summary
 
-- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 500 of them applicable to Quill. Quill has **236** (✅), **32** partly (🟨) and lacks **232** (⬜); 31 are ➖. So Quill covers 47% of the applicable commands fully and 54% at least in part.
-- **Beyond the ribbon (section 2):** 152 features: ✅ 27, 🟨 51, ⬜ 57, ➖ 17.
+- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 500 of them applicable to Quill. Quill has **241** (✅), **27** partly (🟨) and lacks **232** (⬜); 31 are ➖. So Quill covers 48% of the applicable commands fully and 54% at least in part.
+- **Beyond the ribbon (section 2):** 152 features: ✅ 33, 🟨 45, ⬜ 57, ➖ 17.
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
 - **Missing whole:** Mailings (22), the Equation tab and equations (21), Outline view and Outlining (14), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
 - **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; content controls, charts, SmartArt, equations, OLE objects, VML pictures and formatting revisions are dropped; no AutoSave or recovery. These are in priority 1 below.
@@ -21,8 +21,8 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Home | 105 | 72 | 11 | 21 | 1 |
 | Insert | 53 | 26 | 3 | 18 | 6 |
 | Draw | 11 | 0 | 0 | 10 | 1 |
-| Design | 10 | 7 | 2 | 1 | 0 |
-| Layout | 22 | 16 | 3 | 3 | 0 |
+| Design | 10 | 9 | 0 | 1 | 0 |
+| Layout | 22 | 19 | 0 | 3 | 0 |
 | References | 25 | 6 | 2 | 16 | 1 |
 | Mailings | 23 | 0 | 0 | 22 | 1 |
 | Review | 31 | 13 | 2 | 14 | 2 |
@@ -42,13 +42,13 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Chart Design | 5 | 0 | 0 | 5 | 0 |
 | Editing | 41 | 23 | 2 | 16 | 0 |
 | Tools | 7 | 1 | 0 | 6 | 0 |
-| **All** | **531** | **236** | **32** | **232** | **31** |
+| **All** | **531** | **241** | **27** | **232** | **31** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
 | 2.1 File formats | 1 | 5 | 10 | 3 |
-| 2.2 DOCX features | 2 | 18 | 17 | 1 |
-| 2.3 Layout | 9 | 9 | 6 | 0 |
+| 2.2 DOCX features | 4 | 16 | 17 | 1 |
+| 2.3 Layout | 13 | 5 | 6 | 0 |
 | 2.4 Editing | 4 | 11 | 12 | 7 |
 | 2.5 Interface: panes, toolbars and the window | 9 | 2 | 6 | 2 |
 | 2.6 The Options dialog | 1 | 3 | 4 | 1 |
@@ -57,7 +57,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | 2.9 Zotero | 0 | 0 | 0 | 1 |
 | 2.10 Control protocol, MCP, command line, scripting | 0 | 0 | 0 | 1 |
 | 2.11 Network and cloud features (left out on purpose) | 0 | 0 | 0 | 1 |
-| **All** | **27** | **51** | **57** | **17** |
+| **All** | **33** | **45** | **57** | **17** |
 
 ## Work packages
 
@@ -105,7 +105,7 @@ Sizes are for one engineer-agent; "ribbon" counts the ⬜ and 🟨 commands of s
 - **WP18 Shapes and text boxes** (ribbon 7; 4-5 h). Gradient and picture fills, shadow/glow/soft edge effects, a Format Shape pane (fill, line, effects, size, text box), text direction and vertical anchoring in text boxes (`bodyPr vert`, `anchor`), linked text boxes (`wps:linkedTxbx`, Create/Break Link), turned text in shapes (README roadmap), more preset shapes (callouts, flowchart, block arrows), Icons (a library drawn in code). Files: core/doc.h (Image), core/docx.c, core/layout.c (text box flow), amiga/view.c, core/pdf.c, new amiga/wp_shapes.c.
 - **WP21a Table styles and quick tables** (ribbon 6; 3-4 h). New/Modify/Delete Table Style (README roadmap "a table style editor"), custom table styles written to .docx, Border Painter, Quick Tables (calendar, tabular list, matrix), Insert Spreadsheet (a table from CSV text). Files: core/tstyle.c, core/tstyle.h, core/docx.c, core/template.c, new amiga/wp_tables.c.
 - **WP21b Table drawing and cell options** (ribbon 7; 4-5 h). Draw Table and Eraser with the mouse, Delete Cells (shift left/up), 9-way cell alignment, text direction in cells (README roadmap), per-cell margins, table alt text (`w:tblCaption`/`w:tblDescription`), floating tables with text round them (`w:tblpPr`). Files: core/table.c, core/doc.h (Cell, Table), core/docx.c, core/layout.c, amiga/view.c, new amiga/wp_tables2.c.
-- **WP22a Pages, sections and columns** (ribbon 5; 4-5 h). Columns window (unequal widths, Left/Right presets, apply from here), balanced columns before a continuous break, per-section line numbers and page borders (README roadmap), page border sides and art-free styles, picture watermarks, Page Setup with gutter, mirror margins, 2 pages per sheet, vertical alignment Justified, hyphenation options (zone, caps, consecutive limit, manual hyphenation). Files: core/doc.h (SectFmt, PageBorder, Watermark), core/layout.c, core/docx.c, core/hyph.c, amiga/main.c (`open_pagesetup()`, `open_watermark()`), new amiga/wp_pages.c.
+- **WP22a Pages, sections and columns** (ribbon 5; 4-5 h). Columns window (unequal widths, Left/Right presets, apply from here), balanced columns before a continuous break, per-section line numbers and page borders (README roadmap), page border sides and art-free styles, picture watermarks, Page Setup with gutter, mirror margins, 2 pages per sheet, vertical alignment Justified, hyphenation options (zone, caps, consecutive limit, manual hyphenation). Files: core/doc.h (SectFmt, PageBorder, Watermark), core/layout.c, core/docx.c, core/hyph.c, amiga/main.c (`open_pagesetup()`, `open_watermark()`), new amiga/wp_pages.c. **Done** (branch pages): new core/pages.c/.h, amiga/wp_pages.c/.h, tests/test_wp22a.c; the [WP22a] lines below say what each does. Left as they are: Word's art borders are drawn as a repeated pattern, not their pictures; balancing is for equal columns holding only lines; settings.xml's `w:mirrorMargins` and the like go after other packages' slot-1 elements (WP0's hook order), which Word may put up with but the schema orders the other way.
 - **WP23 Templates, building blocks, inserting files** (ribbon 7; 3-4 h). .dotx/.dotm opened as templates (an untitled document), Save as Template, a personal templates folder on the File page's New list, Templates and Add-ins (attached template), Quick Parts and AutoText (the glossary document, `w:docPart`), Insert › Text from File / Object (another .docx or .txt at the caret). Files: core/template.c, core/docx.c, amiga/backstage.c, new amiga/wp_templates.c.
 - **WP25 Views and windows** (ribbon 7; 3-4 h). New Window on the same document (a shared Doc with a reference count), Split, a Window menu listing open documents (README roadmap), Side to Side page movement, Multiple Pages with a choice of how many, a Zoom window, Read Mode options (column width, page colour sepia/inverse, text size, line spacing). Files: amiga/main.c (`win_new()`, DocWin), amiga/view.c, amiga/panes.c, new amiga/wp_windows.c.
 - **WP28a RTF** (beyond-ribbon 1; 4-5 h). Read and write .rtf: text, character and paragraph formatting, styles, lists, tables, pictures, fields, code pages. Files: new core/rtf.c, a row in WP0's format table.
@@ -365,7 +365,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Drawing Canvas (Insert) `insert.canvas` [WP20]
 - ⬜ Ink Replay (Replay) `draw.replay` [WP20]
 
-### Design (10: ✅ 7 · 🟨 2 · ⬜ 1 · ➖ 0)
+### Design (10: ✅ 9 · 🟨 0 · ⬜ 1 · ➖ 0)
 
 - ✅ Themes (Document Formatting) `design.theme` — `ID_THEMEDD` (8 Quill themes setting style set, fonts and colours; not Office theme parts)
 - ✅ Style Set (Document Formatting) `design.styleSet` — `ID_STYLESETDD` (6)
@@ -374,21 +374,21 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Paragraph Spacing (Document Formatting) `design.paragraphSpacing` — `ID_PSPACINGDD` (6)
 - ⬜ Effects (Document Formatting) `design.effects` [WP13]
 - ✅ Set as Default (Document Formatting) `design.setDefault` — `ID_SETDEFAULT` (kept in Quill.prefs)
-- 🟨 Watermark (Page Background) `design.watermark` — `ID_WATERMARKDD`/`open_watermark()`: text only; no picture watermark [WP22a]
+- ✅ Watermark (Page Background) `design.watermark` — `ID_WATERMARKDD`, WP22a's Printed Watermark (`ID_PG_WATERMARK`, amiga/wp_pages.c): a picture (PNG/JPEG, scale, washout: Word's `WordPictureWatermark` VML in the header, read and written) or words (font, colour, semitransparent, diagonal/horizontal); drawn on screen and in PDF (core/pages.c `pages_wm_box`, `pages_washout`) [WP22a]
 - ✅ Page Color (Page Background) `design.pageColor` — `ID_PAGECOLORDD`
-- 🟨 Page Borders (Page Background) `design.pageBorders` — `ID_BORDERDD`: one kind of line on all four sides; no per-side, art, or per-section borders [WP22a]
+- ✅ Page Borders (Page Background) `design.pageBorders` — `ID_BORDERDD` and WP22a's Page Borders window (`ID_PG_BORDERS`): each side on or off with its own space, Word's 25 art-free line kinds and art borders (drawn as a pattern, kept by name), colour, width, measured from the text or the page's edge, whole document / this section / its first page only / all but its first, surround header and footer, in front or behind (core/pages.c `pages_border_rects`, `w:pgBorders` with `w:display`, `w:zOrder`) [WP22a]
 
-### Layout (22: ✅ 16 · 🟨 3 · ⬜ 3 · ➖ 0)
+### Layout (22: ✅ 19 · 🟨 0 · ⬜ 3 · ➖ 0)
 
 - ✅ Margins (Page Setup) `layout.margins` — `ID_MARGINSDD` (5 presets + custom)
 - ✅ Orientation (Page Setup) `layout.orientation` — `ID_ORIENTDD`
 - ✅ Size (Page Setup) `layout.size` — `ID_PAPERDD` (9 sizes + more)
-- 🟨 Columns (Page Setup) `layout.columns` — `ID_COLUMNSDD`: one to three equal columns, line between; no Left/Right presets, unequal widths, or Columns dialog; no balancing [WP22a]
+- ✅ Columns (Page Setup) `layout.columns` — `ID_COLUMNSDD` (One, Two, Three, Line Between, Left, Right, More Columns...) and WP22a's Columns window (`ID_PG_COLUMNS`): presets, 1-6 columns of their own widths and spacing (`w:cols w:equalWidth="0"` with `w:col`), line between, Apply to whole document / this section / this point forward / selected text; each line laid out as wide as its column; balanced before a continuous break (layout.c `balance_cols`) [WP22a]
 - ✅ Breaks (Page Setup) `layout.break` — `ID_BREAKSDD` (page, column, text wrapping, 4 section kinds)
-- ✅ Line Numbers (Page Setup) `layout.lineNumbers` — `ID_LINENUMDD`, `ID_LINENUMDLG`
-- 🟨 Hyphenation (Page Setup) `layout.hyphenation` — `ID_HYPHENDD` automatic on/off only (British English patterns); no manual hyphenation, zone, limit, caps options [WP22a]
-- 🟨 Page Setup Dialog (Page Setup) `layout.pageSetup` — `ID_PAGESETUPDLG` (`open_pagesetup()`): size, margins, header/footer distance; no gutter, mirror margins, 2 pages per sheet, layout tab, apply to "this point forward" [WP22a]
-- ✅ Vertical Alignment (Page Setup) `layout.verticalAlign` — `ID_PAGEALIGNDD` (top, centre, bottom; no justified)
+- ✅ Line Numbers (Page Setup) `layout.lineNumbers` — `ID_LINENUMDD`, `ID_LINENUMDLG` (WP22a: with Apply to whole document / this section / this point forward / selected text)
+- ✅ Hyphenation (Page Setup) `layout.hyphenation` — `ID_HYPHENDD` (None, Automatic, Manual..., Hyphenation Options...): WP22a's options window (zone, hyphenate words in CAPS, limit consecutive hyphens; `w:hyphenationZone`, `w:doNotHyphenateCaps`, `w:consecutiveHyphenLimit`) and Manual Hyphenation (each word that could break at a line's end, the place chosen, an optional hyphen U+00AD inserted; laid out by WP10's optional hyphens) [WP22a]
+- ✅ Page Setup Dialog (Page Setup) `layout.pageSetup` — `ID_PAGESETUPDLG` → WP22a's Page Setup (`ID_PG_SETUP`): Margins (gutter left/top, inside/outside, orientation, multiple pages: normal, mirror margins, 2 pages per sheet, book fold with sheets per booklet), Paper, Layout (section start, different odd/even and first page, header/footer distance, vertical alignment), Apply to whole document / this section / this point forward; laid out mirrored and halved (core/pages.c `pages_effective`) [WP22a]
+- ✅ Vertical Alignment (Page Setup) `layout.verticalAlign` — `ID_PAGEALIGNDD` (top, centre, bottom, justified: WP22a, layout.c `justify_page`, `w:vAlign w:val="both"`)
 - ⬜ Document Grid (Page Setup) `layout.documentGrid` [WP27]
 - ⬜ Section Direction (Page Setup) `layout.sectionRtl` [WP27]
 - ⬜ Text Direction (Page Setup) `layout.textDirection` [WP27]
@@ -792,8 +792,8 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Run and paragraph properties, styles, numbering, sections** — Quill reads and writes the common set (core/docx.c). Missing: complex-script properties (`w:rtl`, `w:cs`, `w:szCs`, `w:bCs`) and East Asian font slots (`w:eastAsia`), languages (`w:lang`, none read), every `ST_NumberFormat` beyond decimal/letters/roman (`NF_` in doc.h), indents in characters, more than 8 tab stops a paragraph (`ParaFmt.tabs[8]`), hidden, emboss, imprint, outline, shadow, underline colour, `w:outlineLvl`.
 - 🟨 **Positional tabs (`w:ptab`)** — read as an ordinary tab (docx.c line 1355), not placed by alignment/margin.
 - 🟨 **Tables** — widths, merges, borders, shading, styles with conditional formatting, nested tables (one level), cantSplit, heading rows: ✅. Floating tables (`w:tblpPr`) are placed in the text (README roadmap); row exceptions (`w:tblPrEx`) and right-to-left tables (`w:bidiVisual`) not read; tables in headers and footers come in as their text (README roadmap).
-- 🟨 **Headers/footers, page borders, line numbers, gutter, mirror margins** — first/even/odd, per section, link to previous: ✅. Gutter is written as 0 and not read; `w:mirrorMargins` not read; page borders one kind on all sides, document-wide only.
-- 🟨 **Hyphenation settings** — `w:autoHyphenation` ✅; `w:hyphenationZone`, `w:doNotHyphenateCaps`, `w:consecutiveHyphenLimit` not read (zone fixed at 360 twips, layout.c `HYPH_ZONE`).
+- ✅ **Headers/footers, page borders, line numbers, gutter, mirror margins** — first/even/odd, per section, link to previous: ✅. WP22a: `w:pgMar w:gutter`, `w:rtlGutter`, `w:gutterAtTop`, `w:mirrorMargins`, `w:printTwoOnOne`, `w:bookFoldPrinting`/`w:bookFoldRevPrinting`/`w:bookFoldPrintingSheets`, `w:bordersDoNotSurroundHeader/Footer`; page borders per section and per side (`w:pgBorders` every attribute), read and written (tests/test_wp22a.c).
+- ✅ **Hyphenation settings** — `w:autoHyphenation`, `w:hyphenationZone`, `w:doNotHyphenateCaps`, `w:consecutiveHyphenLimit` read, written and laid out (WP22a: core/pages.c `pages_hyph_zone`, `pages_hyph_allowed`).
 - 🟨 **Footnotes, endnotes, comments** — read and written. Missing: note options (`w:footnotePr`/`w:endnotePr` position, format, start, restart) are not read (only the separators are written), the document's own separators, comments' replies, resolved state and durable ids (`commentsExtended`, `commentsIds`, `commentsExtensible`, `people.xml`).
 - ✅ **Tracked insertions and deletions** — `w:ins`/`w:del` with author and date (docx.c, `REV_INS`/`REV_DEL`).
 - ⬜ **Formatting revisions (`w:rPrChange`, `w:pPrChange`, `w:sectPrChange`, table ones, `w:numberingChange`)** — not read or kept (README roadmap "tracked formatting changes").
@@ -837,20 +837,20 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ✅ **Widow/orphan control, keep with next, keep lines together, page break before** — layout.c.
 - ⬜ **Bidirectional text (UAX #9), Arabic shaping, right-to-left paragraphs, sections and tables** — none.
 - ⬜ **East Asian: vertical text, kinsoku line breaking, document grid, ruby, two lines in one** — none (WordCraft has vertical text, kinsoku, grid and ruby).
-- 🟨 **Columns** — 1-6 read, 1-3 offered, equal width only, line between; no unequal widths, no balancing before a continuous break (README 0.3 "Not yet").
+- ✅ **Columns** — 1-6 read and offered, equal or of their own widths, line between, balanced before a continuous break (WP22a; balancing is done for equal columns holding only lines: none with tables, paragraph borders or floating objects anchored in them).
 - ✅ **Section breaks of each kind, each section with its own page setup and headers/footers**.
 - ✅ **Text boxes and shapes with text** — edited in place.
 - 🟨 **Wrap types** — square, tight round the outline, top and bottom, behind, in front ✅; through ⬜; wrap on one side only ⬜.
 - 🟨 **Turned text** — objects turn by any angle, but text in shapes and text boxes stays upright (README 0.11).
-- 🟨 **Line numbering** — ✅ for the document (start, count by, distance, restart); per-section line numbers ⬜ (README roadmap).
+- ✅ **Line numbering** — start, count by, distance, restart, for each section on its own (WP22a: Apply to in the Line Numbers window).
 - ✅ **Drop caps** — dropped or in the margin, 1-10 lines.
 - 🟨 **Tables across pages** — rows break, heading rows repeat ✅; floating tables ⬜.
 - 🟨 **Footnotes** — at the foot of the page that refers to them; a long note doesn't continue onto the next page under a continuation separator (layout.c reserves the whole note), no notes beneath text or at section end, endnotes only at the document's end.
 - ✅ **Tab stops** — left, centre, right, decimal, leaders (at most 8 a paragraph).
 - ✅ **Contextual spacing, line spacing rules (auto/at least/exactly)**.
-- ✅ **Vertical alignment of the page** — top, centre, bottom.
-- 🟨 **Page borders** — one kind on all four sides; no art borders, no per-section borders.
-- 🟨 **Watermarks** — text ✅; picture watermarks ⬜.
+- ✅ **Vertical alignment of the page** — top, centre, bottom, justified (WP22a: the room shared out between the paragraphs; a page in several columns stays at the top).
+- ✅ **Page borders** — per section, per side, Word's line kinds, art borders drawn as a repeated square pattern (Word's pictures are not drawn), first page only / all but the first, round the header and footer or not (WP22a).
+- ✅ **Watermarks** — text (solid or half transparent) and pictures (scaled, washed out) on screen and in PDF (WP22a).
 - ⬜ **Character effects in layout and drawing** — hidden text (and showing it with marks), outline/shadow/emboss/engrave, enclosed characters, WordArt transforms.
 - ⬜ **Equations, charts, SmartArt drawn on the page** — see 2.2.
 - ✅ **Metric-compatible fonts** — Liberation, Carlito, Caladea measured from their TrueType metrics, as WordCraft does (WordCraft also ships its own substitutes for more families).

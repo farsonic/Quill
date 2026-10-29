@@ -409,11 +409,12 @@ void pages_wm_box(const Doc *d, const PageSetup *pg, i32 *x, i32 *y, i32 *w, i32
   if (*h < 20) *h = 20;
   *x = pg->left + (bw - *w) / 2; *y = pg->top + (bh - *h) / 2;
 }
-/* VML's gain 0.3 about the middle, black level +0.35: c * 0.3 + 0.35 * 255 + (1 - 0.3) * 127.5 */
+/* Word's washout (VML gain 0.3, black level 0.35) as LibreOffice shows it: black becomes 85% white,
+   white stays white (the same straight line as core/pdf.c's /Decode [0.85 1]) */
 void pages_washout(u8 *rgb, u32 npix)
 {
   u32 i;
-  for (i = 0; i < npix * 3; i++) { u32 v = (u32)rgb[i] * 3 / 10 + 179; rgb[i] = (u8)(v > 255 ? 255 : v); }
+  for (i = 0; i < npix * 3; i++) rgb[i] = (u8)(217 + (u32)rgb[i] * 38 / 255);
 }
 
 static const u8 *washed;
