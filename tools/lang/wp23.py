@@ -1,7 +1,80 @@
-# tools/lang/wp23.py - the interface words of WP23 Templates, building blocks, inserting files (amiga/wp_templates.c and its other
-# files), in the same form as tools/mklang.py's W: (English as the C source writes it, German, French,
-# Spanish, Italian), Word's own localized terms, Latin-1 only. This file belongs to WP23. After
-# changing it run python3 tools/mklang.py, which writes these rows into WP23's section of
-# amiga/lang_table.h.
+# tools/lang/wp23.py - the interface words of WP23 Templates, building blocks, inserting files
+# (amiga/wp_templates.c and its other files), in the same form as tools/mklang.py's W: (English as the
+# C source writes it, German, French, Spanish, Italian), Word's own localized terms, Latin-1 only. This
+# file belongs to WP23. After changing it run python3 tools/mklang.py, which writes these rows into
+# WP23's section of amiga/lang_table.h.
 W = [
+# templates
+("Save as Template", "Als Vorlage speichern", "Enregistrer comme modèle", "Guardar como plantilla", "Salva come modello"),
+("Save as Template...", "Als Vorlage speichern...", "Enregistrer comme modèle...", "Guardar como plantilla...", "Salva come modello..."),
+("A Word template (.dotx) new documents can start from", "Eine Word-Vorlage (.dotx), auf der neue Dokumente basieren können", "Un modèle Word (.dotx) dont peuvent partir de nouveaux documents", "Una plantilla de Word (.dotx) desde la que empezar documentos nuevos", "Un modello di Word (.dotx) da cui iniziare nuovi documenti"),
+("Personal", "Persönlich", "Personnel", "Personal", "Personale"),
+("Templates you save (File > Save as Template) appear here.", "Vorlagen, die Sie speichern (Datei > Als Vorlage speichern), erscheinen hier.", "Les modèles que vous enregistrez (Fichier > Enregistrer comme modèle) apparaissent ici.", "Las plantillas que guarde (Archivo > Guardar como plantilla) aparecen aquí.", "I modelli salvati (File > Salva come modello) appaiono qui."),
+("Templates and Add-ins", "Dokumentvorlagen und Add-Ins", "Modèles et compléments", "Plantillas y complementos", "Modelli e componenti aggiuntivi"),
+("Templates and Add-ins...", "Dokumentvorlagen und Add-Ins...", "Modèles et compléments...", "Plantillas y complementos...", "Modelli e componenti aggiuntivi..."),
+("Templates and Add-ins: the template the document is attached to, and its styles", "Dokumentvorlagen und Add-Ins: die Vorlage, mit der das Dokument verbunden ist, und ihre Formatvorlagen", "Modèles et compléments : le modèle attaché au document, et ses styles", "Plantillas y complementos: la plantilla asociada al documento y sus estilos", "Modelli e componenti aggiuntivi: il modello associato al documento e i suoi stili"),
+("Templates", "Vorlagen", "Modèles", "Plantillas", "Modelli"),
+("Document Template", "Dokumentvorlage", "Modèle de document", "Plantilla de documento", "Modello documento"),
+("Document template", "Dokumentvorlage", "Modèle de document", "Plantilla de documento", "Modello documento"),
+("_Attach...", "_Anfügen...", "_Attacher...", "_Asociar...", "_Associa..."),
+("Attach Template", "Vorlage anfügen", "Attacher un modèle", "Asociar plantilla", "Associa modello"),
+("Automatically update document styles", "Formatvorlagen automatisch aktualisieren", "Mise à jour automatique des styles", "Actualizar automáticamente los estilos", "Aggiorna automaticamente stili documento"),
+("Personal templates", "Persönliche Vorlagen", "Modèles personnels", "Plantillas personales", "Modelli personali"),
+("Their building blocks, and the attached template's, are offered in Quick Parts.", "Ihre Bausteine und die der angefügten Vorlage stehen unter Schnellbausteine bereit.", "Leurs blocs de construction et ceux du modèle attaché sont proposés dans QuickPart.", "Sus bloques de creación y los de la plantilla asociada se ofrecen en Elementos rápidos.", "I loro blocchi predefiniti e quelli del modello associato sono offerti in Parti rapide."),
+("_Organizer...", "_Organisieren...", "_Organiser...", "_Organizador...", "_Organizzatore..."),
+# building blocks
+("Quick Parts", "Schnellbausteine", "QuickPart", "Elementos rápidos", "Parti rapide"),
+("AutoText", "AutoText", "Insertion automatique", "Autotexto", "Glossario"),
+("AutoText (F3)", "AutoText (F3)", "Insertion automatique (F3)", "Autotexto (F3)", "Glossario (F3)"),
+("Document Property", "Dokumenteigenschaft", "Propriété du document", "Propiedad del documento", "Proprietà documento"),
+("Document Property...", "Dokumenteigenschaft...", "Propriété du document...", "Propiedad del documento...", "Proprietà documento..."),
+("Building Blocks Organizer", "Organizer für Bausteine", "Organiseur de blocs de construction", "Organizador de bloques de creación", "Organizzatore blocchi predefiniti"),
+("Building Blocks Organizer...", "Organizer für Bausteine...", "Organiseur de blocs de construction...", "Organizador de bloques de creación...", "Organizzatore blocchi predefiniti..."),
+("Save Selection to Quick Part Gallery...", "Auswahl im Schnellbausteinkatalog speichern...", "Enregistrer la sélection dans la galerie de composants QuickPart...", "Guardar selección en una galería de elementos rápidos...", "Salva selezione nella raccolta Parti rapide..."),
+("Save Selection to AutoText Gallery...", "Auswahl im AutoText-Katalog speichern...", "Enregistrer la sélection dans la galerie d'insertion automatique...", "Guardar selección en una galería de Autotexto...", "Salva selezione nella raccolta Glossario..."),
+("Building blocks of text kept for reuse; AutoText, document properties and the Building Blocks Organizer", "Bausteine aus Text zum Wiederverwenden; AutoText, Dokumenteigenschaften und der Organizer für Bausteine", "Blocs de texte gardés pour être réutilisés ; insertion automatique, propriétés du document et organiseur de blocs de construction", "Bloques de texto guardados para reutilizarlos; Autotexto, propiedades del documento y el organizador de bloques de creación", "Blocchi di testo conservati per il riutilizzo; Glossario, proprietà del documento e organizzatore blocchi predefiniti"),
+("Text kept for reuse: pick one, or type its name and press F3", "Text zum Wiederverwenden: einen wählen, oder seinen Namen eingeben und F3 drücken", "Texte gardé pour être réutilisé : choisissez-en un, ou tapez son nom et appuyez sur F3", "Texto guardado para reutilizarlo: elija uno, o escriba su nombre y pulse F3", "Testo conservato per il riutilizzo: sceglierne uno, o digitarne il nome e premere F3"),
+("Gallery", "Katalog", "Galerie", "Galería", "Raccolta"),
+("Template", "Vorlage", "Modèle", "Plantilla", "Modello"),
+("_Edit Properties...", "_Eigenschaften bearbeiten...", "_Modifier les propriétés...", "_Editar propiedades...", "_Modifica proprietà..."),
+("Create New Building Block", "Neuen Baustein erstellen", "Créer un nouveau bloc de construction", "Crear nuevo bloque de creación", "Crea nuovo blocco predefinito"),
+("Modify Building Block", "Baustein ändern", "Modifier le bloc de construction", "Modificar bloque de creación", "Modifica blocco predefinito"),
+("Description", "Beschreibung", "Description", "Descripción", "Descrizione"),
+("Save in", "Speichern in", "Enregistrer dans", "Guardar en", "Salva in"),
+("Insert content only", "Nur Inhalt einfügen", "Insérer uniquement le contenu", "Insertar solo contenido", "Inserisci solo contenuto"),
+("Insert content in its own paragraph", "Inhalt in eigenem Absatz einfügen", "Insérer le contenu dans son propre paragraphe", "Insertar contenido en su propio párrafo", "Inserisci contenuto in un paragrafo distinto"),
+("Insert content in its own page", "Inhalt auf eigener Seite einfügen", "Insérer le contenu dans sa propre page", "Insertar contenido en su propia página", "Inserisci contenuto in una pagina distinta"),
+("This document", "Dieses Dokument", "Ce document", "Este documento", "Questo documento"),
+("Select the text to keep as a building block first.", "Markieren Sie zuerst den Text, der als Baustein gespeichert werden soll.", "Sélectionnez d'abord le texte à garder comme bloc de construction.", "Seleccione primero el texto que desea guardar como bloque de creación.", "Selezionare prima il testo da conservare come blocco predefinito."),
+("Do you want to redefine the building block \"%s\"?", "Möchten Sie den Baustein \"%s\" neu definieren?", "Voulez-vous redéfinir le bloc de construction \"%s\" ?", "¿Desea volver a definir el bloque de creación \"%s\"?", "Ridefinire il blocco predefinito \"%s\"?"),
+("Delete the building block \"%s\"?", "Den Baustein \"%s\" löschen?", "Supprimer le bloc de construction \"%s\" ?", "¿Eliminar el bloque de creación \"%s\"?", "Eliminare il blocco predefinito \"%s\"?"),
+("_Yes|_No", "_Ja|_Nein", "_Oui|_Non", "_Sí|_No", "_Sì|_No"),
+# galleries
+("Cover Pages", "Deckblätter", "Pages de garde", "Portadas", "Frontespizi"),
+("Page Numbers", "Seitenzahlen", "Numéros de page", "Números de página", "Numeri di pagina"),
+("Text Boxes", "Textfelder", "Zones de texte", "Cuadros de texto", "Caselle di testo"),
+("Watermarks", "Wasserzeichen", "Filigranes", "Marcas de agua", "Filigrane"),
+("Equations", "Formeln", "Équations", "Ecuaciones", "Equazioni"),
+("Other", "Andere", "Autre", "Otro", "Altro"),
+("Headers", "Kopfzeilen", "En-têtes", "Encabezados", "Intestazioni"),
+("Footers", "Fußzeilen", "Pieds de page", "Pies de página", "Piè di pagina"),
+("Status", "Status", "État", "Estado", "Stato"),
+# document properties
+("Publish Date", "Veröffentlichungsdatum", "Date de publication", "Fecha de publicación", "Data pubblicazione"),
+("(empty)", "(leer)", "(vide)", "(vacío)", "(vuoto)"),
+("The document has no value for this property yet (File > Info > Properties).", "Das Dokument hat für diese Eigenschaft noch keinen Wert (Datei > Informationen > Eigenschaften).", "Le document n'a pas encore de valeur pour cette propriété (Fichier > Informations > Propriétés).", "El documento aún no tiene valor para esta propiedad (Archivo > Información > Propiedades).", "Il documento non ha ancora un valore per questa proprietà (File > Informazioni > Proprietà)."),
+# text from file, object
+("Text from File", "Text aus Datei", "Texte d'un fichier", "Texto de archivo", "Testo da file"),
+("Text from File...", "Text aus Datei...", "Texte d'un fichier...", "Texto de archivo...", "Testo da file..."),
+("Object...", "Objekt...", "Objet...", "Objeto...", "Oggetto..."),
+("Insert File", "Datei einfügen", "Insérer un fichier", "Insertar archivo", "Inserisci file"),
+("File name", "Dateiname", "Nom de fichier", "Nombre de archivo", "Nome file"),
+("Range", "Bereich", "Plage", "Intervalo", "Intervallo"),
+("_Browse...", "_Durchsuchen...", "_Parcourir...", "_Examinar...", "_Sfoglia..."),
+("Create from File", "Aus Datei erstellen", "Créer à partir du fichier", "Crear desde un archivo", "Crea da file"),
+("Link to file", "Verknüpfen", "Lier au fichier", "Vincular al archivo", "Collega al file"),
+("Display as icon", "Als Symbol anzeigen", "Afficher sous forme d'icône", "Mostrar como icono", "Visualizza come icona"),
+("A document's text and formatting, or a picture, goes in at the caret.", "Text und Formatierung eines Dokuments oder ein Bild werden an der Einfügemarke eingefügt.", "Le texte et la mise en forme d'un document, ou une image, sont insérés au point d'insertion.", "El texto y el formato de un documento, o una imagen, se insertan en el punto de inserción.", "Il testo e la formattazione di un documento, o un'immagine, vengono inseriti nel punto di inserimento."),
+("Another file's text and formatting, or a picture, at the caret", "Text und Formatierung einer anderen Datei oder ein Bild an der Einfügemarke", "Le texte et la mise en forme d'un autre fichier, ou une image, au point d'insertion", "El texto y el formato de otro archivo, o una imagen, en el punto de inserción", "Testo e formattazione di un altro file, o un'immagine, nel punto di inserimento"),
+("A document's text and formatting at the caret (.docx, .txt and the other formats Quill reads)", "Text und Formatierung eines Dokuments an der Einfügemarke (.docx, .txt und die anderen Formate, die Quill liest)", "Le texte et la mise en forme d'un document au point d'insertion (.docx, .txt et les autres formats que Quill lit)", "El texto y el formato de un documento en el punto de inserción (.docx, .txt y los demás formatos que lee Quill)", "Testo e formattazione di un documento nel punto di inserimento (.docx, .txt e gli altri formati letti da Quill)"),
 ]

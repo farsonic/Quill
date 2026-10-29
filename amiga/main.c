@@ -582,6 +582,8 @@ static LONG ticks(void)
   return ds.ds_Minute * 3000 + ds.ds_Tick;
 }
 static int win_find(const char *path);
+const char *wp23_opened(Doc *d, const char *path);    /* (WP23, wp_templates.c) */
+int wp13_style_dialog(int k, int newtype);             /* (WP13, wp_styles.c) */
 /* a document opened from a file: brought to the front if it is open already, else loaded into the
    untouched blank window or a new window of its own. Load errors are shown to the user */
 static void open_path(const char *path)
@@ -596,12 +598,17 @@ static void open_path(const char *path)
   t1 = ticks();
   set(app, MUIA_Application_Sleep, FALSE);
   if (!d) { char e2[400]; utf8_to_latin1(err, strlen(err), e2, sizeof e2); ask("OK", "%s", e2); return; }
-  if (doc_untouched()) {
-    /* the blank document Quill started with (or New made) and nobody typed in: the file takes its
-       window, as in Word */
-    strncpy(docpath, path, sizeof docpath - 1);
-    show_doc(d);
-  } else if (!win_new(d, path)) return;
+  {
+    /* (WP23) a template opens as a new, untitled document based on it; a document attached to one
+       whose styles it follows gets them */
+    const char *own = wp23_opened(d, path);
+    if (doc_untouched()) {
+      /* the blank document Quill started with (or New made) and nobody typed in: the file takes its
+         window, as in Word */
+      strncpy(docpath, own, sizeof docpath - 1);
+      show_doc(d);
+    } else if (!win_new(d, own)) return;
+  }
   add_recent(path);
   if (qlog) { fprintf(qlog, "opened %s: %lu paragraphs; read in %ld ticks, laid out and drawn in %ld (1/50 s)\n", path,
                       (unsigned long)d->np, (long)(t1 - t0), (long)(ticks() - t1)); fflush(qlog); }
@@ -1492,6 +1499,8 @@ void wp_latin1_utf8(const char *latin1, char *utf8, size_t cap) { latin1_utf8(la
 void wp_story_close(void) { if (doc->edit.kind) story_close(1); }
 void wp_refresh(void) { DoMethod(view, MUIM_Quill_Command, CMD_REFRESH, 0); }
 const char *wp_docpath(void) { return docpath; }     /* (WP29: the document's file, "" untitled) */
+Object *wp_workarea(void) { return workarea; }       /* (WP13: the docked Styles pane goes in here) */
+FontSet *wp_fonts(void) { return &fonts; }          /* (WP13: the Styles pane's previews) */
 static Object *splitwin, *splitcols, *splitrows;
 /* Split Cells, for the caret's cell (a merged cell offers the number of cells it covers) */
 static void open_split(void)
@@ -3253,11 +3262,12 @@ static void command(ULONG id)
   case ID_BORDERSDLG: open_borders(); break;
   case ID_BORDERSGO: borders_done(); break;
   case ID_STYLESPANE: open_styles(); break;
-  case ID_NEWSTYLE: open_style(-1, ST_PARA); break;
-  case ID_STYLELIST: open_style(-1, ST_CHAR); break;
+  /* (WP13: Word's Modify Style window, wp_styles.c; this file's own if it can't be made) */
+  case ID_NEWSTYLE: if (!wp13_style_dialog(-1, ST_PARA)) open_style(-1, ST_PARA); else wp_focus_kept = 1; break;
+  case ID_STYLELIST: if (!wp13_style_dialog(-1, ST_CHAR)) open_style(-1, ST_CHAR); else wp_focus_kept = 1; break;
   case ID_MODSTYLE: {
     int k = styleswin && styles_sel() >= 0 && (LONG)xget_open(styleswin) ? styles_sel() : (caret_pf() ? caret_pf()->style : 0);
-    open_style(k, 0);
+    if (!wp13_style_dialog(k, 0)) open_style(k, 0); else wp_focus_kept = 1;
     break; }
   case ID_STYLEGO: style_done(); break;
   case ID_STYLEAPPLY: { int k = styles_sel(); if (k >= 0) DoMethod(view, MUIM_Quill_Command, CMD_STYLE, (ULONG)k); break; }
@@ -4874,6 +4884,8 @@ void wp_replace_doc(Doc *d, int changed)
   if (changed) { set(view, MUIA_Quill_Changed, TRUE); set_title(); }
 }
 const char *wp_username(void) { return username; }
+Object *wp_window_obj(int i) { return i < 0 || i >= MAXWIN || !wins[i].used ? NULL : i == curwin ? win : wins[i].win; }   /* (WP13) */
+void wp_backstage_hide(void) { if (back_shown) backstage_show(0, 0); }       /* (WP23: the File page put away) */
 int main(int argc, char **argv)
 {
   ULONG sigs = 0;
