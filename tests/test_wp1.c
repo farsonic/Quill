@@ -480,6 +480,20 @@ static void saving(void)
     ok("fields: a header's STYLEREF kept, PAGE a bare placeholder", q && IS_FSTART(q->t) && strstr(q->t, "Chapter") && strstr(q->t, " " FIELD_PAGE));
     h = g ? docx_again(g, NULL) : NULL;
     ok("fields: and through a save", h && h->hdr[HF_DEFAULT].np && q && h->hdr[HF_DEFAULT].p[0]->len == q->len);
+    if (g) {
+      /* Update Fields reaches the header too */
+      FieldEnv e;
+      Pos p0;
+      field_env(&e);
+      e.now.year = 2030; e.now.month = 1; e.now.day = 2;
+      doc_story_begin(g, SK_HEADER, HF_DEFAULT, 0, 0, 1);
+      p0 = doc_end_pos(g);
+      field_insert_result(g, &p0, " DATE \\@ \"yyyy\" ", "1999", &e, NULL);
+      doc_story_end(g, 1);
+      q = g->hdr[HF_DEFAULT].np ? g->hdr[HF_DEFAULT].p[0] : NULL;
+      ok("fields: Update Fields updates a header's DATE", field_update_all(g, &e) >= 1 && q != g->hdr[HF_DEFAULT].p[0] && strstr(g->hdr[HF_DEFAULT].p[0]->t, "2030") &&
+         strstr(g->hdr[HF_DEFAULT].p[0]->t, "Chapter"));
+    }
     doc_free(g); doc_free(h);
   }
   doc_free(d);
