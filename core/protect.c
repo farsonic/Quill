@@ -38,6 +38,8 @@ int prot_enforced(const Doc *d)
   return p && p->enforced && !p->bypass ? p->kind : PR_NONE;
 }
 int prot_forces_tracking(const Doc *d) { return prot_enforced(d) == PR_TRACKED; }
+int prot_forms_only(const Doc *d) { return prot_enforced(d) == PR_FORMS; }
+int (*prot_form_at)(const Doc *d, Pos p);
 static int ieq(const char *a, const char *b)
 {
   for (; *a && *b; a++, b++) {
@@ -62,7 +64,15 @@ int prot_perm_mine(const Doc *d, int k)
   return 0;
 }
 /* the run covering off (the last at the end) is free */
-static int free_run(const Doc *d, Para *p, u32 off) { return prot_perm_mine(d, para_fmt_at(p, off)->perm); }
+static int free_run(const Doc *d, Para *p, u32 off)
+{
+  if (prot_perm_mine(d, para_fmt_at(p, off)->perm)) return 1;
+  if (prot_form_at && prot_forms_only(d)) {
+    u32 pi;
+    for (pi = 0; pi < d->np; pi++) if (d->p[pi] == p) { Pos q; q.para = pi; q.off = off; return prot_form_at(d, q); }
+  }
+  return 0;
+}
 int prot_free_at(const Doc *d, Pos p)
 {
   if (p.para >= d->np) return 0;
@@ -71,7 +81,7 @@ int prot_free_at(const Doc *d, Pos p)
 static int any_free(const Doc *d, const Para *p)
 {
   u32 i;
-  for (i = 0; i < p->nr; i++) if (prot_perm_mine(d, p->r[i].f.perm)) return 1;
+  for (i = 0; i < p->nr; i++) if (prot_perm_mine(d, p->r[i].f.perm) || free_run(d, (Para *)p, i ? p->r[i - 1].end : 0)) return 1;
   return 0;
 }
 static int deny(Doc *d)
@@ -127,7 +137,7 @@ int prot_range_ok(Doc *d, Pos a, Pos b, int format)
     u32 s = pi == a.para ? a.off : 0, e = pi == b.para ? b.off : p->len, i, start = 0;
     if (!p->len || s == e) { if (!free_run(d, p, s)) return deny(d); continue; }
     for (i = 0; i < p->nr; start = p->r[i].end, i++)
-      if (p->r[i].end > s && start < e && !prot_perm_mine(d, p->r[i].f.perm)) return deny(d);
+      if (p->r[i].end > s && start < e && !prot_perm_mine(d, p->r[i].f.perm) && !free_run(d, p, start > s ? start : s)) return deny(d);
   }
   return allow(d);
 }

@@ -190,6 +190,7 @@ static void encryption(void)
 }
 
 /* Restrict Editing: enforced in the edit paths, its exceptions, its password, and .docx */
+static int form7(const Doc *d, Pos p) { (void)d; return p.para == 1; }
 static Doc *three(void)
 {
   Doc *d = doc_new();
@@ -263,6 +264,18 @@ static void restrict_editing(void)
   p = P(0, 0);
   ok("restrict: tracked changes: typing allowed, tracking forced", doc_insert(d, &p, "x", 1, NULL) && prot_forces_tracking(d));
   ok("restrict: tracked changes: accept and reject refused", !doc_resolve(d, P(0, 0), P(2, 3), 1));
+  doc_free(d);
+
+  /* filling in forms: only what a forms package says is a form field (WP16's hook) */
+  d = three();
+  prot_set_kind(d, PR_FORMS, 0);
+  prot_start(d, NULL);
+  prot_form_at = form7;
+  p = P(1, 2);
+  ok("restrict: forms only, a form field filled in", prot_forms_only(d) && doc_insert(d, &p, "x", 1, NULL));
+  p = P(0, 2);
+  ok("restrict: forms only, other text locked", !doc_insert(d, &p, "x", 1, NULL));
+  prot_form_at = NULL;
   doc_free(d);
 
   /* exceptions for a named person */
