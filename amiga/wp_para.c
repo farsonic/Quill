@@ -539,29 +539,26 @@ static int paste_as_format(const char *ext)
 static void open_pastespecial(void)
 {
   if (!pswin) {
-    static const char *radios[3];
-    Object *c;
-    radios[0] = tr("Paste"); radios[1] = tr("Paste link"); radios[2] = NULL;
-    c = VGroup,
-      Child, HGroup,
-        Child, ps_link = RadioObject, MUIA_Radio_Entries, (ULONG)radios, MUIA_Disabled, FALSE, End,
-        Child, ps_list = ListviewObject, MUIA_CycleChain, 1, MUIA_Listview_List, ListObject, InputListFrame,
-          MUIA_List_SourceArray, (ULONG)trl(ps_formats, t_ps_formats), MUIA_List_Active, 0, End, End,
-      End,
+    Object *c = VGroup,
+      Child, ps_list = ListviewObject, MUIA_CycleChain, 1, MUIA_Listview_List, ListObject, InputListFrame,
+        MUIA_List_SourceArray, (ULONG)trl(ps_formats, t_ps_formats), End, End,
+      Child, HGroup, Child, ps_link = CheckMark(FALSE), Child, LLabel1(tr("Paste link")), Child, HSpace(0), End,
       Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Formatted text keeps its fonts and formatting;\nunformatted text takes the formatting where it goes.\nPaste link needs linked objects, which Quill\ndoesn't have."),
         MUIA_Font, MUIV_Font_Tiny, End,
     End;
+    if (!c) return;
     if (!(pswin = wp_dialog("Paste Special", MAKE_ID('P','S','P','C'), c, "_OK", ID_P_PSGO))) return;
     DoMethod(ps_list, MUIM_Notify, MUIA_Listview_DoubleClick, TRUE, (ULONG)wp_app(), 2, MUIM_Application_ReturnID, ID_P_PSGO);
   }
-  set(ps_link, MUIA_Radio_Active, 0);
+  set(ps_link, MUIA_Selected, FALSE);
+  set(ps_list, MUIA_List_Active, 0);
   set(pswin, MUIA_Window_Open, TRUE);
 }
 static void pastespecial_done(void)
 {
   static const int mode[3] = { PASTE_KEEP, PASTE_MERGE, PASTE_TEXT };
   LONG a = 0, l = 0;
-  get(ps_list, MUIA_List_Active, &a); get(ps_link, MUIA_Radio_Active, &l);
+  get(ps_list, MUIA_List_Active, &a); get(ps_link, MUIA_Selected, &l);
   if (l) { wp_ask("OK", "%s", tr("Quill can't paste a link: paste the text instead.")); return; }
   set(pswin, MUIA_Window_Open, FALSE);
   set(wp_win(), MUIA_Window_Activate, TRUE);
