@@ -28,6 +28,7 @@
 #include "wp_charpara.h"                /* (WP9, WP10: their items in the Font and Paragraph groups) */
 #include "wphooks.h"
 #include "wp_tables.h"                 /* WP21a/WP21b: Insert > Tables' Draw Table, Quick Tables, Spreadsheet */
+#include "wp_outline.h"                /* WP11: View > Outline (ID_OL_VIEW) */
 
 /* ------------------------------------------------------------------ */
 /* the lists */
@@ -501,6 +502,8 @@ static const Item w_views[] = {
   { K_BUTTON, S_LARGE, IC_READ, 0, "Read Mode", ID_VREAD, VM(VM_READ), 0, 0, 0, "Two pages to read, without the tools (Esc returns)" },
   { K_BUTTON, S_LARGE, IC_ONEPAGE, 0, "Print Layout", ID_VPRINT, VM(VM_PRINT), 0, 0, 0, "The pages as they print" },
   { K_BUTTON, S_SMALL, IC_WEB, 0, "Web Layout", ID_VWEB, VM(VM_WEB), 0, F_NEWCOL, 0, "The text the window's width, without pages" },
+  { K_BUTTON, S_SMALL, 0, 0, "Outline", ID_OL_VIEW, VM(VM_OUTLINE), 0, 0, 0, "The document as an outline: headings by level, to rearrange", NULL,
+    "ca E 3 3 1 E 6 8 1 E 9 13 1 ci L 5 3 14 3 L 8 8 14 8 L 11 13 14 13" },
   { K_BUTTON, S_SMALL, IC_DRAFT, 0, "Draft", ID_VDRAFT, VM(VM_DRAFT), 0, 0, 0, "Just the text, without headers, footers or margins" } };
 static const Item w_show[] = {
   { K_BUTTON, S_SMALL, IC_RULER, 0, "Ruler", ID_RULER, RB_RULER, 0, 0, 0, "Show the rulers" },

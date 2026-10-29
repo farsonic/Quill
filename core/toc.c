@@ -4,12 +4,9 @@
 #include <stdio.h>
 #include "toc.h"
 
-/* the outline level of a "heading N" style (either capitalisation), or -1 for any other style */
-static int heading_level(const Style *st)
-{
-  if (!strncmp(st->name, "heading ", 8) || !strncmp(st->name, "Heading ", 8)) return st->name[8] >= '1' && st->name[8] <= '9' ? st->name[8] - '0' : 1;
-  return -1;
-}
+/* (WP11) a paragraph's outline level (1-9, 0 body text), as Word's \o "1-3" \u table takes them: the
+   Heading styles' and those of paragraphs given an outline level of their own */
+static int heading_level(const Para *p) { return p->pf.outlvl <= 9 ? p->pf.outlvl : 0; }
 /* 1 if p's style is named "toc N" or "TOC N" (N a digit); an out-of-range style index counts
    as style 0, as elsewhere in the core */
 int toc_para(Doc *d, const Para *p)
@@ -50,6 +47,7 @@ static int toc_heading_style(Doc *d)
   s = d->styles[k];
   strcpy(s.id, "TOCHeading"); strcpy(s.name, "TOC Heading");
   s.builtin = 0; s.pf.style = (u8)d->nstyles; s.next = 0; s.quick = 0;
+  s.pf.outlvl = 0;                       /* (WP11) body text, as Word's: not a heading itself */
   return doc_add_style_from(d, &s, k);
 }
 /* a heading's text for the table: tabs and breaks as spaces, pictures, notes and fields left out */
@@ -88,7 +86,7 @@ int doc_toc(Doc *d, Layout *L, Pos *at, int *again)
     while (a > 0 && a < d->np && d->p[a]->pf.cell.table && d->p[a - 1]->pf.cell.table == d->p[a]->pf.cell.table) a--;   /* not inside a table */
   }
   for (i = 0; i < d->np; i++) {
-    int lv = heading_level(&d->styles[d->p[i]->pf.style < d->nstyles ? d->p[i]->pf.style : 0]);
+    int lv = heading_level(d->p[i]);
     if (lv >= 1 && lv <= 3 && (i < a || i >= a + n)) nh++;
   }
   if (!nh) return 0;
@@ -100,7 +98,7 @@ int doc_toc(Doc *d, Layout *L, Pos *at, int *again)
   k = 1;
   for (i = 0; i < d->np && k <= nh; i++) {
     Para *p = d->p[i];
-    int lv = heading_level(&d->styles[p->pf.style < d->nstyles ? p->pf.style : 0]), st;
+    int lv = heading_level(p), st;
     Buf b;
     char num[16];
     u32 page = 0;

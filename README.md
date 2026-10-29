@@ -378,6 +378,11 @@ Quill draws its own window, as WordCraft does, in WordCraft's light colours, wit
   - **Web Layout:** the text as wide as the window, without pages, headers or footers.
   - **Draft:** just the text, without margins, headers or footers; dotted lines mark where pages break.
   - **Read Mode:** two pages a row with the ribbon, pane and rulers out of the way. The keys turn the pages (cursor keys, Page Up and Down, space) and nothing can be changed by accident; Esc goes back.
+  - **Outline:** the document as an outline: each paragraph indented by its outline level, body text under its heading, a plus beside a heading with something under it. The **Outlining** tab promotes and demotes headings (by the Heading styles, as Word does), makes a paragraph a Heading 1 or body text, moves paragraphs up and down (a collapsed heading with everything under it), expands and collapses headings (or double-click a plus), shows the headings down to a level, with or without the text's formatting, and body text's first lines only. A click on a symbol selects the heading and what is under it.
+  - **Outline levels:** any paragraph can have one (the Paragraph and Modify Style windows; the Heading styles have theirs), kept in Word files; the navigation pane, the table of contents and the PDF outline take them. Drag a heading in the navigation pane to move it with what is under it.
+  - **Page movement and pages:** **Side to Side** puts the pages in one row, a page high (the wheel turns them); **Many Pages** fits 2, 3 or 4 pages, or 2 rows of 2 to 4, in the window; the **Zoom** window offers 200%, 100%, 75%, page width, a whole page, many pages or any percentage.
+  - **Read Mode options:** the text in a narrow or wide column instead of the pages, a sepia or inverse page, a smaller or larger text size and wider line spacing (View tab, View > Read Mode Options, or the right mouse button in Read Mode).
+- **Windows:** **New Window** opens another window on the same document (Doc:1, Doc:2 in the titles; what you change in one shows in the other, and closing one keeps the document open in the other). **Split** divides a window into two panes, each with its own scroll bar; the one you click into is the one you work in. **Arrange All** puts the windows one above another. **View > Window** and **Switch Windows** list the open windows.
 - **Dark Mode** and **Gridlines:** see "New in 0.2". Both are remembered.
 - **The ribbon in less room:** when a tab's tools don't fit (a narrow window, or longer words in another language), small buttons show just their icons and the labels of large ones go onto two lines.
 
@@ -422,6 +427,9 @@ Quill draws its own window, as WordCraft does, in WordCraft's light colours, wit
 | Shift-Return | A line break |
 | Esc | In Read Mode: back to Print Layout. Otherwise: drop the selection. |
 | Tab, Shift-Tab | A tab. At the start of a list item: one level deeper or higher. In a table: the next or previous cell (Tab in the last cell adds a row; Alt-Tab types a tab). |
+| Ctrl-Alt-Shift-Up, -Down | Move the paragraph (or the selected ones) up or down. In Outline view also Alt-Shift-Up and -Down. |
+| Ctrl-Alt-Shift-Left, -Right | Promote or demote a heading (body text promoted becomes a heading). In Outline view also Alt-Shift-Left and -Right, Tab and Shift-Tab. |
+| Alt-Shift-+, Alt-Shift-- | In Outline view: expand or collapse the heading. Alt-Shift-1 to 9 shows the headings down to that level, Alt-Shift-A everything. |
 | Mouse | Click, drag, double-click (a word), triple-click (a paragraph), Shift-click (extend) |
 | Right mouse button | The menu for what's under the pointer: a misspelled word, a link, a picture or shape, a table, text |
 | Ctrl-click | On a link: open it |
@@ -540,7 +548,7 @@ The MUI headers come from Aminet's `dev/mui/mui38dev.lha`. That archive may only
 - **Fonts:** choosing a variable font's other designs (weights, widths); antialiased text on RTG screens without AAText.
 - **Review:** replies to comments; tracked formatting changes.
 - **PDF:** font subsetting, so files are smaller (whole fonts are embedded now).
-- **Windows and speed:** a Window menu listing the open documents; blitter scrolling sideways too, and for pages whose headers have pictures in them without laying the headers out again.
+- **Speed:** blitter scrolling sideways too, and for pages whose headers have pictures in them without laying the headers out again.
 
 ## Licences
 
