@@ -152,6 +152,7 @@ struct Data {
   int cturn; LONG cw;
   void *wp11;                           /* WP11's own state (wp_outline_view.h) */
   void *wp25;                           /* WP25's own state (wp_windows_view.h) */
+  void *wp14b;                          /* WP14b's own state (wp_equation_view.h): the equation being edited */
 };
 
 static struct MUI_CustomClass *cls;
@@ -1319,6 +1320,7 @@ static void field_shade(struct Data *d, Object *obj, struct RastPort *rp, ParaLa
 /* WP14a: equations' colours as pens (for wp14a_draw) */
 static struct Data *mpen_d; static Object *mpen_obj;
 static LONG math_pen(ULONG rgb) { return pen_for(mpen_d, mpen_obj, rgb); }
+#include "wp_equation_view.h"           /* WP14b: editing equations in place */
 /* one laid-out line (pl: its paragraph's layout, pc: where it was placed) on the page whose top left
    is at (px, py). Back to front: change bar, comment shading, highlights, the selection (sel: slo to
    shi), then the text, note numbers, fields, inline pictures, leaders and formatting marks. Headers,
@@ -1500,7 +1502,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
       nb.kind = BX_TEXT; nb.off = 0; nb.len = (u16)strlen(num);
       draw_text(d, obj, rp, &nb, num, lx + tx(d, b->x), base);
     }
-    else if (b->kind == BX_MATH) { mpen_d = d; mpen_obj = obj; wp14a_draw(rp, L, b, pl->p->t, lx + tx(d, b->x), base, d->zoom, math_pen); }   /* WP14a */
+    else if (b->kind == BX_MATH) ev_draw_math(d, obj, rp, L, pl, pc, b, lx + tx(d, b->x), base);   /* WP14a (drawn), WP14b (edited) */
     else if (b->kind == BX_PIC) {
       Pos at;
       int pk = pic_index(pl->p->t + b->off);
@@ -2134,6 +2136,7 @@ static void caret_place(struct Data *d, Object *obj)
 {
   u32 page;
   i32 x, y, h;
+  if (ev_caret(d, obj)) return;          /* WP14b: inside an equation */
   lay_caret(d->lay, d->caret, &page, &x, &y, &h);
   d->cx = _mleft(obj) + page_x(d, page, _mwidth(obj)) + tx(d, x);
   d->cy = _mtop(obj) + page_top(d, page) - d->scrolly + tx(d, y);
@@ -2151,7 +2154,7 @@ static void caret_hide(struct Data *d, Object *obj)
 }
 static void caret_show(struct Data *d, Object *obj)
 {
-  if (!d->caret_shown && !has_sel(d) && !ww_passive(d)) { caret_place(d, obj); caret_xor(d, obj); d->caret_shown = 1; }   /* (WP25: not in a split window's other pane) */
+  if (!d->caret_shown && !has_sel(d) && !ww_passive(d) && !ev_hidecaret(d)) { caret_place(d, obj); caret_xor(d, obj); d->caret_shown = 1; }   /* (WP25: not in a split window's other pane; WP14b: not with a selection in an equation) */
 }
 
 /* ------------------------------------------------------------------ */
@@ -3026,6 +3029,7 @@ static ULONG do_command(struct IClass *cl, Object *obj, struct MUIP_Quill_Comman
   ww_sync(d, obj, 1);                          /* WP25: changed in another view */
   if (ww_command(d, obj, m)) return 0;         /* WP25's commands */
   if (ov_command(d, obj, m)) return 0;         /* WP11's commands */
+  if (ev_command(d, obj, m)) return 0;         /* WP14b's commands, and editing commands inside an equation */
   if (fv_command(d, obj, m)) return 0;         /* WP12's commands, and commands while several ranges are selected */
   caret_hide(d, obj);
   memset(&v, 0, sizeof v);
@@ -4061,6 +4065,7 @@ static Object *ctx_build(struct Data *d, Object *obj, LONG mx, LONG my)
     if (k >= 0 && k < d->doc->nimages) return ctx_object(d, obj, k, at);
   }
   p = point_pos(d, obj, mx, my);
+  if (ev_rclick(d, obj, mx, my)) p = d->caret;   /* WP14b: in an equation, the caret there */
   if (p.para >= d->doc->np) return NULL;
   /* a click outside the selection puts the caret there first, as a left click would */
   if (!has_sel(d) || pos_cmp(p, sel_lo(d)) < 0 || pos_cmp(p, sel_hi(d)) > 0) {
@@ -4474,6 +4479,7 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
     }
     return 1;
   }
+  if (ev_key(d, obj, im)) return 1;             /* WP14b: keys inside an equation, and into one */
   {
     /* a work package's key (wphooks.h): its command, run by main.c's loop */
     WpCtx wc;
@@ -4662,6 +4668,7 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
   ww_sync(d, obj, 1);                            /* WP25: changed in another view */
   ww_click(d, obj, im);                          /* WP25: the working pane of a split window */
   if (im->Class == IDCMP_RAWKEY) return key_grab || ww_passive(d) || !key(d, obj, im) ? 0 : MUI_EventHandlerRC_Eat;
+  { ULONG r = ev_mouse(d, obj, im); if (r) return r; }    /* WP14b: dragging in an equation */
   { ULONG r = fv_mouse(d, obj, im); if (r) return r; }    /* WP12: Select Objects */
   { ULONG r = ov_mouse(d, obj, im); if (r) return r; }    /* WP11: the outline symbols */
   if (im->Class == IDCMP_MOUSEBUTTONS) {
@@ -4789,6 +4796,7 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
           return MUI_EventHandlerRC_Eat;
         }
       }
+      if (ev_click(d, obj, im)) return MUI_EventHandlerRC_Eat;      /* WP14b: a click into an equation */
       p = point_pos(d, obj, im->MouseX, im->MouseY);
       int shift = (im->Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) != 0;
       fv_click(d, im, &shift);                 /* WP12 */
@@ -5100,6 +5108,7 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     fv_free(d);                         /* WP12 */
     ov_free(d);                         /* WP11 */
     ww_free(d);                         /* WP25 */
+    ev_free(d);                         /* WP14b */
     break;
   case OM_SET:
     mSet(cl, obj, (struct opSet *)msg, 0);
