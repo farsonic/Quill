@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include "layout.h"
 #include "hyph.h"
+#include "charfx.h"
 #include "notes.h"   /* (WP22b) */
 #include "math.h"     /* WP14a: equations */
 
@@ -80,6 +81,13 @@ static u32 measure(Layout *L, FaceSize *z, const char *s, u32 n, const CharFmt *
   u32 i = 0, chars = 0;
   long w = 0;
   if (!z) return n * 120 * QFINE;          /* no fonts at all: something visible */
+  if (n < 1024 && wp10_special(s, n)) {
+    /* (WP10) an optional hyphen takes no room (until a line breaks at it); a nonbreaking hyphen is a hyphen.
+       (One buffer will do: the text without them doesn't come back here) */
+    static char t[1024];
+    u32 m = wp10_plain(s, n, t);
+    return measure(L, z, t, m, f);
+  }
   if (caps || small) {
     FaceSize *zs = small ? small_face(L, f) : NULL;
     while (i < n) {
@@ -188,6 +196,8 @@ static int make_boxes(Layout *L, Para *p, Work *w, u32 note, u32 enote)
         lay_field_text(L, p, &b, 0, num);
         b.w = (i32)measure(L, z, num, (u32)strlen(num), f);
       } else b.w = b.kind == BX_TAB || b.kind == BX_BREAK || b.kind == BX_MARK ? 0 : (i32)measure(L, z, p->t + i, j - i, f);
+      if (ENCLOSURE(f) && b.kind == BX_TEXT) b.w = wp9_enclosed_w(b.w, f);   /* (WP9: room for the enclosure) */
+      if (LAY_HIDDEN(L, &b)) b.w = 0;                                       /* (WP9: hidden text takes no room) */
       if (!add_box(w, &b)) return 0;
       i = j;
     }
@@ -294,6 +304,29 @@ static int hyphenate(Layout *L, Para *p, Work *w, u32 bi, u32 x, u32 room)
   }
   return 0;
 }
+/* (WP10) a word that doesn't fit in what is left of the line (x of room, fine) broken at its last
+   optional hyphen (U+00AD, which then shows as a hyphen) or ordinary hyphen that leaves a first part
+   that fits; never at a nonbreaking hyphen (U+2011). 1 if it was split */
+static int hyphen_break(Layout *L, Para *p, Work *w, u32 bi, u32 x, u32 room)
+{
+  Box *b = &w->b[bi];
+  FaceSize *z = lay_face(L, &b->f);
+  const char *t = p->t + b->off;
+  u32 k, hw;
+  if (!z || b->kind != BX_TEXT || b->len < 2) return 0;
+  hw = measure(L, z, "-", 1, NULL);
+  for (k = b->len - 1; k > 0; k--) {
+    int soft = k + 1 < b->len && (u8)t[k] == 0xC2 && (u8)t[k + 1] == 0xAD, hard = t[k] == '-' && k + 1 < b->len;
+    if (!soft && !hard) continue;
+    if (soft ? x + measure(L, z, t, k, &b->f) + hw <= room : x + measure(L, z, t, k + 1, &b->f) <= room) {
+      if (!split_at(L, p, w, bi, b->off + k + (soft ? 2 : 1))) return 0;
+      b = &w->b[bi];
+      if (soft) { b->nspace = 1; b->w += (i32)hw; }      /* shown as a hyphen, as automatic hyphenation's */
+      return 1;
+    }
+  }
+  return 0;
+}
 /* a line's height and ascent: the tallest text on it (raised and lowered text making room), inline
    pictures standing on the baseline, then the paragraph's line spacing (exactly, at least, or a
    multiple in 240ths, as Word stores it) */
@@ -311,7 +344,7 @@ static void line_metrics(Layout *L, Para *p, Work *w, Line *ln)
       if (n < L->d->nimages && OBJ_H(&L->d->images[n]) > picasc) picasc = OBJ_H(&L->d->images[n]);
       continue;
     }
-    if (w->b[k].kind == BX_FLOAT) continue;
+    if (w->b[k].kind == BX_FLOAT || LAY_HIDDEN(L, &w->b[k])) continue;    /* (hidden text: WP9) */
     if (w->b[k].kind == BX_MATH) {                  /* WP14a: an equation's height and depth */
       const MLay *ml = math_layout(L->fs, L->d, math_index(p->t + w->b[k].off), &w->b[k].f);
       if (ml && ml->asc > masc) masc = ml->asc;
@@ -449,6 +482,40 @@ static void shape_line(i32 y, i32 est, i32 left, i32 right, i32 *start, i32 *roo
    numbers. Replaces whatever pl held. Box x and w are worked out in fine units (QFINE per twip) and
    rounded to twips line by line, so rounding doesn't add up along a line. With sh_on set, the lines
    go round floating objects. 0 if out of memory (pl then has no lines) */
+/* (WP10) Distributed alignment: the room left on a line (extra, twips) spread over its characters
+   (boxes ls..lend, trailing spaces left out; i: the line's end), the last line's too, as Word does:
+   each character gets the same extra spacing after it, what is left over goes to the spaces */
+static void wp10_distribute(Para *p, Work *w, u32 ls, u32 lend, u32 i, i32 extra, Line *ln)
+{
+  u32 k, chars = 0, nsp = 0, done = 0, lastt = i;
+  i32 per, rem, add = 0;
+  for (k = ls; k < lend; k++) {
+    Box *b = &w->b[k];
+    if (b->kind == BX_TEXT) { u32 o; for (o = b->off; o < b->off + b->len; o = (u32)utf8_next(p->t, b->off + b->len, o)) chars++; lastt = k; }
+    else if (b->kind == BX_SPACE) { chars += b->nspace; nsp += b->nspace; }
+  }
+  if (chars < 2) return;
+  per = extra / (i32)(chars - 1);                   /* (the last character's spacing falls past the line's end) */
+  if (per > 2000) per = 2000;
+  rem = extra - per * (i32)(chars - 1);
+  for (k = ls; k < i; k++) {
+    Box *b = &w->b[k];
+    w->b[k].x += add;
+    if (k >= lend) continue;
+    if (b->kind == BX_TEXT) {
+      u32 o, n = 0;
+      for (o = b->off; o < b->off + b->len; o = (u32)utf8_next(p->t, b->off + b->len, o)) n++;
+      b->f.spacing = (i16)(b->f.spacing + per);
+      if (k == lastt) n--;                          /* (the last character's spacing is past the line's end) */
+      b->w += per * (i32)n; add += per * (i32)n;
+    } else if (b->kind == BX_SPACE) {
+      i32 grow = per * b->nspace;
+      if (nsp) { i32 before = rem * (i32)done / (i32)nsp; done += b->nspace; grow += rem * (i32)done / (i32)nsp - before; }
+      b->w += grow; add += grow;
+    }
+  }
+  ln->width += add;
+}
 static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *label, u32 notebase, u32 enotebase)
 {
   Work w;
@@ -460,6 +527,7 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
   pl_free(pl);
   pl->p = p; pl->ver = p->ver; pl->avail = avail; pl->notebase = notebase; pl->enotebase = enotebase; pl->hyph = L->d->hyphenate;
   pl->shaped = 0;
+  { u32 r; pl->hidden = 2; for (r = 0; r < p->nr; r++) if (p->r[r].f.fx2 & FX2_HIDDEN) pl->hidden = L->showhidden; }   /* (WP9) */
   pl->lay = L;                      /* (WP22b) */
   strncpy(pl->label, label, sizeof pl->label - 1); pl->label[sizeof pl->label - 1] = 0;
   pl->labelw = 0;
@@ -519,6 +587,7 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
     /* fill the line: words that fit; a word too long for any line is cut */
     for (i = ls; i < w.n; i++) {
       Box *b = &w.b[i];
+      if (LAY_HIDDEN(L, b)) { b->x = (i32)x; b->w = 0; continue; }                    /* (WP9: hidden text takes no room) */
       if (b->kind == BX_DROP) { b->x = -dropw * QFINE; word = i + 1; continue; }     /* before the line's start */
       if (b->kind == BX_FLOAT) { b->x = (i32)x; continue; }                            /* (placed apart from the text) */
       if (b->kind == BX_SPACE) { b->x = (i32)x; x += b->w; word = i + 1; continue; }
@@ -551,6 +620,12 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
         continue;
       }
       if (x + b->w > (u32)room * QFINE) {
+        if (word == i && hyphen_break(L, p, &w, i, x, (u32)room * QFINE)) {   /* (WP10: at an optional or ordinary hyphen) */
+          b = &w.b[i];
+          b->x = (i32)x; x += b->w;
+          i++; brk = 1;
+          break;
+        }
         if (word == i && L->d->hyphenate && hyph_ready() && hyphenate(L, p, &w, i, x, (u32)room * QFINE)) {
           b = &w.b[i];                                         /* hyphenated: its first part ends the line */
           b->x = (i32)x; x += b->w;
@@ -597,6 +672,7 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
         }
         if (nsp) ln.width = room;
       }
+      else if (pf->align == AL_DISTRIBUTE && extra > 0) wp10_distribute(p, &w, ls, ls + lastend, i, extra, &ln);   /* (WP10) */
       if (ln.nbox && w.b[ls].kind == BX_MATH && w.b[ls].nspace) shift = math_line_shift(L->d, math_index(p->t + w.b[ls].off), extra);   /* WP14a */
       if (shift > 0) ln.left += shift;      /* centred and right-aligned lines start further in */
     }
@@ -2179,7 +2255,7 @@ static void counter_text(char *o, u32 n, int fmt)
   case NF_LOWER_ROMAN: roman(o, n, 0); break;
   case NF_UPPER_ROMAN: roman(o, n, 1); break;
   case NF_NONE: *o = 0; break;
-  default: sprintf(o, "%lu", (unsigned long)n);
+  default: if (!nf_counter(o, n, fmt)) sprintf(o, "%lu", (unsigned long)n);   /* (WP10's formats: charfx.c) */
   }
 }
 /* the next label for a list paragraph: steps its level's counter (deeper levels start again) and
@@ -2300,7 +2376,8 @@ int lay_update_part(Layout *L, u32 budget)
     if (d->nnotes || d->nenotes) number_notes(L, i, &fshown, &eshown);   /* (WP22b) */
     for (k = j; k < L->npl && k < j + 64; k++) if (L->pl[k].p == p) { found = k; break; }
     if (found < L->npl && L->pl[found].laid && L->pl[found].ver == p->ver && L->pl[found].avail == avail && !strcmp(L->pl[found].label, label) &&
-        L->pl[found].notebase == notebase && L->pl[found].enotebase == enotebase && L->pl[found].hyph == d->hyphenate && !L->pl[found].shaped) {
+        L->pl[found].notebase == notebase && L->pl[found].enotebase == enotebase && L->pl[found].hyph == d->hyphenate && !L->pl[found].shaped &&
+        (L->pl[found].hidden == 2 || L->pl[found].hidden == L->showhidden)) {   /* (WP9: hidden text shown or not) */
       npl[i] = L->pl[found];
       memset(&L->pl[found], 0, sizeof(ParaLay));
       j = found + 1;
