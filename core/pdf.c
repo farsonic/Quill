@@ -7,6 +7,8 @@
 #include "docx.h"
 #include "image.h"
 #include "objfx.h"     /* WP17/WP18 */
+#include "chart.h"                 /* (WP15a) charts and SmartArt */
+#include "charfx.h"
 #include "toc.h"
 #include "raster.h"
 
@@ -276,6 +278,8 @@ static void text(Pdf *p, Buf *b, const CharFmt *f, const char *s, u32 n, i32 x, 
     if ((f->flags & CF_CAPS) && cp >= 'a' && cp <= 'z') cp -= 32;
     if (small && ((cp >= 'a' && cp <= 'z') || (cp >= 0xE0 && cp <= 0xFE && cp != 0xF7))) { cp -= 32; low[k] = 1; }
     if (cp == '\t' || cp == '\v') cp = ' ';
+    if (cp == 0xAD) { i += (u32)used; continue; }        /* (WP10) an optional hyphen shows only where a line breaks */
+    if (cp == 0x2011) cp = '-';                          /* (WP10) a nonbreaking hyphen */
     cps[k++] = cp;
     i += (u32)used;
   }
@@ -288,31 +292,84 @@ static void text(Pdf *p, Buf *b, const CharFmt *f, const char *s, u32 n, i32 x, 
   /* a family without a bold or italic face: the regular one, stroked (bold) or slanted (italic) */
   synth_b = (f->flags & CF_BOLD) && !z->face->bold;
   synth_i = (f->flags & CF_ITALIC) && !z->face->italic;
-  if (synth_b || synth_i) buf_adds(b, "q ");
-  if (synth_b) { colour(b, f->rev ? 0xC00000 : f->color, "RG"); buf_printf(b, "%ld w ", (long)(size / 30 + 1)); }
-  buf_printf(b, "BT /F%d %ld Tf ", font_index(p, z->face), (long)size);
-  if (synth_b) buf_adds(b, "2 Tr ");
-  if (f->spacing) buf_printf(b, "%ld Tc ", (long)f->spacing);
-  if (f->scale && f->scale != 100) buf_printf(b, "%u Tz ", (unsigned)f->scale);
-  if (synth_i) buf_printf(b, "1 0 0.21 1 %ld %ld Tm ", (long)x, (long)y);
-  else buf_printf(b, "%ld %ld Td ", (long)x, (long)y);
-  /* small capitals: the lower case runs smaller */
-  for (j = 0; j < k; ) {
-    u32 e = j;
-    int fi = font_index(p, z->face);
-    while (e < k && low[e] == low[j]) e++;
-    if (small) { fi = font_index(p, (low[j] && zs ? zs : z)->face); buf_printf(b, "/F%d %ld Tf ", fi, (long)(low[j] ? ssize : size)); }
-    show(p, b, fi, cps + j, e - j);
-    j = e;
+  {
+    /* (WP9) shadow, emboss and engrave: a grey copy behind, offset; outline: hollow letters (stroked,
+       filled with white) */
+    int pass, npass = 1;
+    i32 off = size / 24 + 4, dx[2] = { 0, 0 }, dy[2] = { 0, 0 };
+    u32 pc[2] = { 0, 0 };
+    if (f->fx2 & (FX2_SHADOW | FX2_EMBOSS | FX2_ENGRAVE)) {
+      npass = 2; pc[0] = 0x808080;
+      dx[0] = f->fx2 & FX2_ENGRAVE ? -off : off; dy[0] = f->fx2 & FX2_ENGRAVE ? off : -off;
+    }
+    for (pass = 0; pass < npass; pass++) {
+      int last = pass == npass - 1, hollow = last && (f->fx2 & (FX2_OUTLINE | FX2_EMBOSS | FX2_ENGRAVE));
+      i32 px = x + dx[pass], py = y + dy[pass];
+      if (!last) colour(b, pc[pass], "rg");
+      else if (npass > 1) colour(b, f->rev ? 0xC00000 : f->color, "rg");
+      if (synth_b || synth_i || hollow) buf_adds(b, "q ");
+      if (hollow) {
+        /* the letters' outline in the text's colour, white inside (emboss and engrave: white letters, a grey edge) */
+        colour(b, f->fx2 & FX2_OUTLINE ? (f->rev ? 0xC00000 : f->color) : 0x808080, "RG");
+        buf_printf(b, "%ld w ", (long)(size / 40 + 2));
+        colour(b, 0xFFFFFF, "rg");
+      }
+      if (synth_b && !hollow) { colour(b, f->rev ? 0xC00000 : f->color, "RG"); buf_printf(b, "%ld w ", (long)(size / 30 + 1)); }
+      buf_printf(b, "BT /F%d %ld Tf ", font_index(p, z->face), (long)size);
+      if ((synth_b && last) || hollow) buf_adds(b, "2 Tr ");
+      if (f->spacing) buf_printf(b, "%ld Tc ", (long)f->spacing);
+      if (f->scale && f->scale != 100) buf_printf(b, "%u Tz ", (unsigned)f->scale);
+      if (synth_i) buf_printf(b, "1 0 0.21 1 %ld %ld Tm ", (long)px, (long)py);
+      else buf_printf(b, "%ld %ld Td ", (long)px, (long)py);
+      /* small capitals: the lower case runs smaller */
+      for (j = 0; j < k; ) {
+        u32 e = j;
+        int fi = font_index(p, z->face);
+        while (e < k && low[e] == low[j]) e++;
+        if (small) { fi = font_index(p, (low[j] && zs ? zs : z)->face); buf_printf(b, "/F%d %ld Tf ", fi, (long)(low[j] ? ssize : size)); }
+        show(p, b, fi, cps + j, e - j);
+        j = e;
+      }
+      buf_adds(b, (synth_b && last) || hollow ? "0 Tr ET\n" : "ET\n");
+      if (synth_b || synth_i || hollow) buf_adds(b, "Q\n");
+    }
   }
-  buf_adds(b, "ET\n");
-  if (synth_b || synth_i) buf_adds(b, "Q\n");
   if (f->spacing || (f->scale && f->scale != 100)) buf_adds(b, "BT 0 Tc 100 Tz ET\n");
+  if (f->ulcolor && (f->flags & CF_UNDERLINE) && !f->rev) { colour(b, f->ulcolor & 0xFFFFFF, "rg"); colour(b, f->ulcolor & 0xFFFFFF, "RG"); }   /* (WP9) */
   if ((f->flags & CF_UNDERLINE) || f->rev == REV_INS) deco_line(b, f->rev == REV_INS ? UL_SINGLE : f->ul, x, y - size / 9, w, size);
+  if (f->ulcolor && (f->flags & CF_UNDERLINE) && !f->rev) { colour(b, f->color, "rg"); colour(b, f->color, "RG"); }
   if ((f->flags & CF_STRIKE) || f->rev == REV_DEL) deco_line(b, UL_SINGLE, x, y + size / 4, w, size);
   if (f->fx & FX_DSTRIKE) deco_line(b, UL_DOUBLE, x, y + size / 4, w, size);
 }
 static void pdf_object(Pdf *p, Buf *b, int k, i32 x, i32 y);
+/* (WP9) enclosed characters: the circle, square, triangle or diamond round the box, the text in
+   its middle (shrunk to seven tenths unless the symbol is enlarged) */
+static void wp9_pdf_enclosed(Pdf *p, Buf *b, const Box *bx, const char *t, i32 lx, i32 base)
+{
+  CharFmt f = bx->f;
+  FaceSize *z;
+  i32 size = f.size * 10, w = bx->w, x0 = lx + bx->x, cx = x0 + w / 2, h = size * (f.fx2 & FX2_ENLARGE ? 3 : 2) / 2 - size / 5,
+      cy = base + size * 3 / 10, tw, r = w / 2 < h / 2 ? w / 2 : h / 2;
+  int shape = (int)ENCLOSURE(&f);
+  f.fx2 &= (u16)~(FX2_ENCLOSE | FX2_ENLARGE);
+  if (!(bx->f.fx2 & FX2_ENLARGE)) f.size = (u16)((f.size * 7 + 5) / 10);
+  z = lay_face(p->L, &f);
+  tw = z ? (i32)((fonts_text(z, t + bx->off, bx->len) + QFINE / 2) / QFINE) : w;
+  text(p, b, &f, t + bx->off, bx->len, cx - tw / 2, base + (bx->f.fx2 & FX2_ENLARGE ? 0 : size / 12), tw);
+  colour(b, bx->f.color, "RG");
+  buf_printf(b, "%ld w ", (long)(size / 20 + 4));
+  if (shape == EN_CIRCLE) {
+    /* four Bezier quarters (0.552 of the radius for the control points) */
+    i32 k = r * 552 / 1000;
+    buf_printf(b, "%ld %ld m %ld %ld %ld %ld %ld %ld c %ld %ld %ld %ld %ld %ld c %ld %ld %ld %ld %ld %ld c %ld %ld %ld %ld %ld %ld c S\n",
+               (long)(cx + r), (long)cy, (long)(cx + r), (long)(cy + k), (long)(cx + k), (long)(cy + r), (long)cx, (long)(cy + r),
+               (long)(cx - k), (long)(cy + r), (long)(cx - r), (long)(cy + k), (long)(cx - r), (long)cy,
+               (long)(cx - r), (long)(cy - k), (long)(cx - k), (long)(cy - r), (long)cx, (long)(cy - r),
+               (long)(cx + k), (long)(cy - r), (long)(cx + r), (long)(cy - k), (long)(cx + r), (long)cy);
+  } else if (shape == EN_SQUARE) buf_printf(b, "%ld %ld %ld %ld re S\n", (long)(cx - r), (long)(cy - r), (long)(2 * r), (long)(2 * r));
+  else if (shape == EN_TRIANGLE) buf_printf(b, "%ld %ld m %ld %ld l %ld %ld l h S\n", (long)(cx - r * 6 / 5), (long)(cy - r * 4 / 5), (long)(cx + r * 6 / 5), (long)(cy - r * 4 / 5), (long)cx, (long)(cy + r * 6 / 5));
+  else buf_printf(b, "%ld %ld m %ld %ld l %ld %ld l %ld %ld l h S\n", (long)(cx - r * 6 / 5), (long)cy, (long)cx, (long)(cy + r * 6 / 5), (long)(cx + r * 6 / 5), (long)cy, (long)cx, (long)(cy - r * 6 / 5));
+}
 /* WP14a: an equation (t: its reference, in format f), its origin at x on baseline y (PDF's y up):
    its glyphs as text where Windows-1252 has them as they are, else as their outlines (filled); its
    rules and drawn shapes filled */
@@ -378,10 +435,14 @@ static void pdf_line(Pdf *p, Buf *b, ParaLay *pl, u32 line, i32 lx, i32 base)
     f.flags &= (u8)~(CF_UNDERLINE | CF_STRIKE);
     text(p, b, &f, pl->label, (u32)strlen(pl->label), lx, base, pl->labelw);
   }
-  /* highlighting behind the text first (trailing spaces left out) */
+  /* highlighting behind the text first (trailing spaces left out); character shading under it (WP9) */
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *bx = &pl->boxes[k];
     i32 size = bx->f.size * 10;
+    if (bx->f.shade && !bx->f.hl && bx->w > 0 && bx->kind != BX_BREAK && bx->kind != BX_PIC && !(bx->kind == BX_SPACE && k + 1 == ln->box0 + ln->nbox)) {
+      colour(b, bx->f.shade & 0xFFFFFF, "rg");
+      buf_printf(b, "%ld %ld %ld %ld re f\n", (long)(lx + bx->x), (long)(base - size / 4), (long)bx->w, (long)(size * 23 / 20));
+    }
     if (!bx->f.hl || bx->kind == BX_BREAK || bx->kind == BX_PIC || (bx->kind == BX_SPACE && k + 1 == ln->box0 + ln->nbox)) continue;
     colour(b, bx->f.hl & 0xFFFFFF, "rg");
     buf_printf(b, "%ld %ld %ld %ld re f\n", (long)(lx + bx->x), (long)(base - size / 4), (long)bx->w, (long)(size * 23 / 20));
@@ -399,6 +460,8 @@ static void pdf_line(Pdf *p, Buf *b, ParaLay *pl, u32 line, i32 lx, i32 base)
   }
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *bx = &pl->boxes[k];
+    if (LAY_HIDDEN(p->L, bx)) continue;                     /* (WP9: hidden text isn't printed) */
+    if (ENCLOSURE(&bx->f) && bx->kind == BX_TEXT) { wp9_pdf_enclosed(p, b, bx, pl->p->t, lx, base); continue; }   /* (WP9) */
     if (bx->f.link && (bx->kind == BX_TEXT || bx->kind == BX_SPACE || bx->kind == BX_FIELD) && bx->w > 0) {
       i32 size = bx->f.size * 10;
       link_area(p, LK_URI, bx->f.link, lx + bx->x, base - size / 4, lx + bx->x + bx->w, base + size * 9 / 10);
@@ -587,10 +650,89 @@ static int pdf_rich(Pdf *p, Buf *b, const ObjPart *pt, i32 cx, i32 cy)
   objraster_free(&r);
   return 1;
 }
+/* (WP15a) a chart or SmartArt (its pack's primitives, pixels at 96 dpi: 15 twips each) in the w x h box
+   whose bottom left is x0, y0 in PDF space */
+static void pdf_pack(Pdf *p, Buf *b, const Image *im, i32 x0, i32 y0, i32 w, i32 h)
+{
+  Doc *d = p->L->d;
+  const char *fam = d->defcf.font < d->nfonts ? d->fonts[d->defcf.font] : "Calibri";
+  const PrimList *l = pack_prims(im->pack, w, h, p->L->fs, fam);
+  int i, k, font = d->defcf.font < d->nfonts ? d->defcf.font : 0;
+  for (k = 0; k < d->nfonts; k++) if (im->pack->font[0] && str_ieq(d->fonts[k], im->pack->font)) font = k;
+#define PX(v) ((long)x0 + (long)(v) * 15)
+#define PY(v) ((long)y0 + h - (long)(v) * 15)
+  if (!l) return;
+  buf_printf(b, "q %ld %ld %ld %ld re W n 1 j\n", (long)x0, (long)y0, (long)w, (long)h);
+  for (i = 0; i < l->n; i++) {
+    const Prim *q = &l->p[i];
+    long lw = (long)(q->width ? q->width : 1) * 15;
+    switch (q->t) {
+    case PR_RECT:
+      if (q->fill) { colour(b, q->fill & 0xFFFFFF, "rg"); buf_printf(b, "%ld %ld %ld %ld re f\n", PX(q->x), PY(q->y + q->h), (long)q->w * 15, (long)q->h * 15); }
+      if (q->line) { colour(b, q->line & 0xFFFFFF, "RG"); buf_printf(b, "%ld w %ld %ld %ld %ld re S\n", lw, PX(q->x), PY(q->y + q->h), (long)q->w * 15, (long)q->h * 15); }
+      break;
+    case PR_LINE: case PR_POLY:
+      if (q->np < 2 || (!q->fill && !q->line)) break;
+      for (k = 0; k < q->np; k++) buf_printf(b, "%ld %ld %s ", PX(q->pts[2 * k]), PY(q->pts[2 * k + 1]), k ? "l" : "m");
+      if (q->t == PR_POLY) buf_adds(b, "h ");
+      if (q->t == PR_POLY && q->fill) colour(b, q->fill & 0xFFFFFF, "rg");
+      if (q->line) { colour(b, q->line & 0xFFFFFF, "RG"); buf_printf(b, "%ld w ", lw); }
+      buf_adds(b, q->t == PR_LINE ? "S\n" : q->fill && q->line ? "B\n" : q->fill ? "f\n" : "S\n");
+      break;
+    case PR_ELLIPSE: {
+      /* four Bezier quarters; 0.5523 of the radius out along the tangents */
+      long rx = (long)q->w * 15 / 2, ry = (long)q->h * 15 / 2, cx = PX(q->x) + rx, cy = PY(q->y) - ry, kx = rx * 5523 / 10000, ky = ry * 5523 / 10000;
+      if (!q->fill && !q->line) break;
+      buf_printf(b, "%ld %ld m %ld %ld %ld %ld %ld %ld c %ld %ld %ld %ld %ld %ld c %ld %ld %ld %ld %ld %ld c %ld %ld %ld %ld %ld %ld c h ",
+                 cx + rx, cy, cx + rx, cy + ky, cx + kx, cy + ry, cx, cy + ry, cx - kx, cy + ry, cx - rx, cy + ky, cx - rx, cy,
+                 cx - rx, cy - ky, cx - kx, cy - ry, cx, cy - ry, cx + kx, cy - ry, cx + rx, cy - ky, cx + rx, cy);
+      if (q->fill) colour(b, q->fill & 0xFFFFFF, "rg");
+      if (q->line) { colour(b, q->line & 0xFFFFFF, "RG"); buf_printf(b, "%ld w ", lw); }
+      buf_adds(b, q->fill && q->line ? "B\n" : q->fill ? "f\n" : "S\n");
+      break; }
+    case PR_TEXT: {
+      CharFmt f;
+      FaceSize *z;
+      long tw, asc, ht, bx, top;
+      if (!q->text) break;
+      memset(&f, 0, sizeof f);
+      f.font = (u8)font;
+      f.size = (u16)(q->size * 3 / 2 > 0 ? q->size * 3 / 2 : 1);
+      f.color = q->line & 0xFFFFFF;
+      f.flags = (u8)((q->bold ? CF_BOLD : 0) | (q->italic ? CF_ITALIC : 0));
+      if (!(z = lay_face(p->L, &f))) break;
+      tw = (long)fonts_text(z, q->text, (u32)strlen(q->text)) / QFINE;
+      asc = z->ascent; ht = z->ascent + z->descent;
+      if (!q->vert) {
+        bx = PX(q->x) - (q->align == 1 ? tw / 2 : q->align == 2 ? tw : 0);
+        top = PY(q->y) + (q->valign == 1 ? ht / 2 : q->valign == 2 ? ht : 0);
+        text(p, b, &f, q->text, (u32)strlen(q->text), (i32)bx, (i32)(top - asc), (i32)tw);
+      } else {
+        /* reading upwards: its box ht wide and tw high, the baseline asc in from its left */
+        long left = PX(q->x) - (q->align == 1 ? ht / 2 : q->align == 2 ? ht : 0), bottom = PY(q->y) - (q->valign == 1 ? tw / 2 : q->valign == 2 ? tw : 0);
+        buf_printf(b, "q 0 1 -1 0 %ld %ld cm\n", left + asc, bottom);
+        text(p, b, &f, q->text, (u32)strlen(q->text), 0, 0, (i32)tw);
+        buf_adds(b, "Q\n");
+      }
+      break; }
+    }
+  }
+  buf_adds(b, "Q\n");
+  if (im->lstyle != PB_NONE && im->lwidth) {
+    i32 olw = im->lwidth * 5 / 2;
+    colour(b, im->lcolor, "RG");
+    buf_printf(b, "%ld w ", (long)(olw < 5 ? 5 : olw));
+    dash(b, im->lstyle, olw);
+    buf_printf(b, "%ld %ld %ld %ld re S [] 0 d\n", (long)x0, (long)y0, (long)w, (long)h);
+  }
+#undef PX
+#undef PY
+}
 /* one simple object (pt: as obj_parts gives it) with its centre at cx, cy in PDF space */
 static void pdf_leaf(Pdf *p, Buf *b, const ObjPart *pt, i32 cx, i32 cy)
 {
   const Image *im = pt->im;
+  if (im->pack) { pdf_pack(p, b, im, cx - pt->cx / 2, cy - pt->cy / 2, pt->cx, pt->cy); return; }   /* (WP15a) */
   i32 w = pt->cx, h = pt->cy, lw = im->lwidth * 5 / 2, c = icos(pt->rot), sn = isin(pt->rot);
   int fx = pt->flip & 1 ? -1 : 1, fy = pt->flip & 2 ? -1 : 1, ri;
   int outline = im->lstyle != PB_NONE && im->lwidth;
@@ -1157,7 +1299,17 @@ static int name_cmp(const void *a, const void *b) { return strcmp(*(const char *
    pictures known. Then the fonts, pictures, pages with their link annotations, the outline, the
    named destinations, the catalog (1), page tree (2) and document information (3). The result is
    malloc'd */
+static u8 *pdf_export_laid(Layout *L, const PdfOpts *o, size_t *len);
+/* (WP9) hidden text is left out of the PDF: the layout without it while the PDF is made, then as it was */
 u8 *pdf_export_opts(Layout *L, const PdfOpts *o, size_t *len)
+{
+  u8 shown = L->showhidden, *r;
+  L->showhidden = 0;
+  r = pdf_export_laid(L, o, len);
+  if (shown) { L->showhidden = shown; lay_update(L); }
+  return r;
+}
+static u8 *pdf_export_laid(Layout *L, const PdfOpts *o, size_t *len)
 {
   Pdf p;
   Doc *d = L->d;
