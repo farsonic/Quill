@@ -2108,7 +2108,6 @@
   { { "Pen", "Stift", "Stylo", "L\341piz", "Penna" } },
   { { "Red Pen", "Roter Stift", "Stylo rouge", "L\341piz rojo", "Penna rossa" } },
   { { "Blue Pen", "Blauer Stift", "Stylo bleu", "L\341piz azul", "Penna blu" } },
-  { { "Pencil", "Bleistift", "Crayon", "L\341piz de grafito", "Matita" } },
   { { "Highlighter", "Textmarker", "Surligneur", "Resaltador", "Evidenziatore" } },
   { { "Add Pen", "Stift hinzuf\374gen", "Ajouter un stylet", "Agregar l\341piz", "Aggiungi penna" } },
   { { "Next Added Pen", "N\344chster hinzugef\374gter Stift", "Stylet ajout\351 suivant", "Siguiente l\341piz agregado", "Penna aggiunta successiva" } },
