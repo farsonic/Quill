@@ -1,0 +1,8 @@
+british-english: the word list Quill checks spelling with, one word a line (UTF-8).
+
+It is SCOWL's British English list (size 50, from Debian's wbritish 2020.12.07) without the
+possessive forms ("'s"; Quill accepts those for any word), with a few dozen words added that
+documents about computers often use (footer, endnote, email, website...). SCOWL is
+Copyright 2000-2011 Kevin Atkinson and others; see LICENSE-dict.txt for its terms.
+
+Words added with "Add to Dictionary" go to Quill.words next to Quill, not here.

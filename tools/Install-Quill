@@ -1,0 +1,230 @@
+; $VER: Install-Quill 0.14 (26.10.2026)
+;
+; Installer script for Quill, the word processor (Commodore's Installer 43 or later, or AROS's).
+; Started from its icon (default tool Installer). It installs or updates Quill in a drawer of your
+; choosing, or removes it.
+;
+; Installs:  <where you choose>/Quill: the program, README.md, the Fonts, TrueType and Dict
+;            drawers, the example documents (optional) and the source code (optional), all with
+;            their icons; the Quill drawer gets Quill's own icon. The example documents' icons are
+;            set to open in the Quill just installed.
+; Keeps:     your settings and words (Quill.prefs, Quill.recent, Quill.words) when updating.
+; Needs:     a 68040 or better, MUI 3.8 or later (muimaster.library 19).
+;
+; The script runs in the drawer it was unpacked into (Quill/), so its sources are relative to that.
+; Texts carry their own line breaks (AROS's Installer doesn't wrap them), and function names are
+; in lower case (AROS's Installer doesn't know "IN", only "in").
+
+(set @app-name "Quill")
+(set #version "0.14")
+
+; ------------------------------------------------------------------ install or remove
+
+(set #mode
+  (askchoice
+    (prompt "Do you want to install Quill,\nor remove an installed copy?")
+    (help "Install or update: copies Quill into a drawer of your\n"
+          "choosing. Installing over an older Quill updates it\n"
+          "and keeps your settings (Quill.prefs), recent\n"
+          "documents and your own spelling words (Quill.words).\n\n"
+          "Remove: deletes an installed Quill drawer, settings and\n"
+          "all. Your documents are not touched unless you saved\n"
+          "them inside the Quill drawer.")
+    (choices "Install or update" "Remove")
+    (default 0)))
+
+(if (= #mode 1)
+(
+  ; ---------------------------------------------------------------- remove
+  (set #old
+    (askdir
+      (prompt "Which Quill drawer should be removed?")
+      (help "Choose the Quill drawer itself: the one holding\n"
+            "the Quill program and its Fonts drawer.")
+      (default (if (exists "Work:Quill" (noreq)) "Work:Quill" "SYS:"))))
+  ; only a drawer that really is Quill's
+  (if (not (and (exists (tackon #old "Quill")) (exists (tackon #old "Fonts/QuillSans.font"))))
+    (abort (cat "\"" #old "\"\n"
+                "doesn't look like a Quill drawer (there is no\n"
+                "Quill program with a Fonts drawer in it),\n"
+                "so nothing was removed.")))
+  (if (askbool
+        (prompt (cat "Delete the whole drawer\n\n" #old "\n\n"
+                     "with everything in it, including your Quill\n"
+                     "settings and any documents saved there?"))
+        (help "This can't be undone. Move any documents you\n"
+              "want to keep out of the drawer first.")
+        (default 0))
+  (
+    (set #parentinfo (cat #old ".info"))
+    (run (cat "C:Delete >NIL: \"" #old "\" ALL QUIET FORCE"))
+    (if (exists #parentinfo (noreq)) (delete #parentinfo))
+    (exit "Quill has been removed." (quiet))
+  )
+  (exit "Nothing was removed." (quiet)))
+))
+
+; ------------------------------------------------------------------ checks
+
+(set #cpu (database "cpu"))
+(if (or (= #cpu "68000") (= #cpu "68010") (= #cpu "68020") (= #cpu "68030"))
+  (if (not (askbool
+             (prompt (cat "This Amiga has a " #cpu " processor.\n"
+                          "Quill is built for a 68040 or better\n"
+                          "and will not run on it.\n\n"
+                          "Install anyway (for another Amiga, say)?"))
+             (help "Quill uses 68040 instructions and needs its\n"
+                   "speed for laying out pages. An accelerator\n"
+                   "card with a 68040 or 68060 is needed.")
+             (default 0)))
+    (abort "Quill was not installed.")))
+
+(set #mui 0)
+(if (exists "LIBS:muimaster.library" (noreq))
+  (set #mui (/ (getversion "LIBS:muimaster.library") 65536)))
+(if (< #mui 19)
+  (if (not (askbool
+             (prompt (if (= #mui 0)
+                       (cat "MUI isn't installed (there is no\n"
+                            "LIBS:muimaster.library).\n\n"
+                            "Quill needs MUI 3.8 or later. Install\n"
+                            "Quill anyway and add MUI afterwards?")
+                       (cat "The MUI installed (muimaster.library " #mui ")\n"
+                            "is older than Quill needs (version 19,\n"
+                            "MUI 3.8).\n\n"
+                            "Install Quill anyway and update MUI\n"
+                            "afterwards?")))
+             (help "MUI is the user interface system Quill is built\n"
+                   "with. It is on Aminet (dev/gui/mui38usr.lha) and\n"
+                   "at muidev.de (MUI 5). AROS and MorphOS have it\n"
+                   "built in.")
+             (default 1)))
+    (abort "Quill was not installed.")))
+
+; ------------------------------------------------------------------ where
+
+(set #where
+  (askdir
+    (prompt "Where should Quill go? A drawer called \"Quill\"\n"
+            "is made there (or updated, if it is there already).")
+    (help "Choose the drawer or disk to put Quill in, for\n"
+          "example Work:. Quill goes into a drawer of its own,\n"
+          "Quill, inside the one you choose. If an older Quill\n"
+          "is there, it is updated and your settings are kept.")
+    (default (if (exists "Work:" (noreq)) "Work:" "SYS:"))
+    (disk)))
+(set #dest (tackon #where "Quill"))
+(set @default-dest #dest)
+
+(set #update (exists (tackon #dest "Quill") (noreq)))
+
+; the parts
+(set #parts
+  (askoptions
+    (prompt "Which parts should be installed?")
+    (help "Quill itself (the program, its screen fonts, the\n"
+          "fonts it measures pages with, and the spelling\n"
+          "dictionary) is always installed.\n\n"
+          "Example documents: nine short Word documents\n"
+          "showing what Quill can do (about 200 KB).\n\n"
+          "Source code: Quill's C source, for programmers\n"
+          "(about 3.5 MB).")
+    (choices "Example documents" "Source code")
+    (default 1)))
+
+; ------------------------------------------------------------------ copy
+
+; the same drawer it was unpacked in: nothing to copy, only the icons to point at it
+(set #here (expandpath ""))
+(set #same (if (exists #dest (noreq)) (= (expandpath #dest) #here) 0))
+
+(if (not #same)
+(
+  (if (not (exists #dest (noreq)))
+    (makedir #dest
+      (prompt "Making the Quill drawer")
+      (help @makedir-help)))
+  ; the drawer's own icon (next to the unpacked drawer), else a plain one
+  (if (exists "/Quill.info" (noreq))
+    (copyfiles (source "/Quill.info") (dest #where) (nogauge))
+    (if (not (exists (cat #dest ".info") (noreq)))
+      (run (cat "C:Copy >NIL: \"ENVARC:Sys/def_drawer.info\" \"" #dest ".info\""))))
+
+  (complete 5)
+  (copyfiles
+    (prompt "Copying Quill")
+    (help @copyfiles-help)
+    (source "Quill")
+    (dest #dest)
+    (infos))
+  (copyfiles
+    (source "README.md")
+    (dest #dest)
+    (infos)
+    (nogauge))
+  (complete 10)
+  (copyfiles
+    (prompt "Copying Quill's screen fonts")
+    (help @copyfiles-help)
+    (source "Fonts")
+    (dest (tackon #dest "Fonts"))
+    (all))
+  (if (exists "Fonts.info" (noreq)) (copyfiles (source "Fonts.info") (dest #dest) (nogauge)))
+  (complete 55)
+  (copyfiles
+    (prompt "Copying the fonts Quill measures pages with")
+    (help @copyfiles-help)
+    (source "TrueType")
+    (dest (tackon #dest "TrueType"))
+    (all))
+  (if (exists "TrueType.info" (noreq)) (copyfiles (source "TrueType.info") (dest #dest) (nogauge)))
+  (complete 80)
+  (copyfiles
+    (prompt "Copying the spelling dictionary")
+    (help @copyfiles-help)
+    (source "Dict")
+    (dest (tackon #dest "Dict"))
+    (all))
+  (if (exists "Dict.info" (noreq)) (copyfiles (source "Dict.info") (dest #dest) (nogauge)))
+  (complete 85)
+
+  (if (in #parts 0)
+    (copyfiles
+      (prompt "Copying the example documents")
+      (help @copyfiles-help)
+      (source "")
+      (dest #dest)
+      (pattern "#?.docx")
+      (infos)))
+  (complete 90)
+  (if (in #parts 1)
+  (
+    (copyfiles
+      (prompt "Copying the source code")
+      (help @copyfiles-help)
+      (source "Source")
+      (dest (tackon #dest "Source"))
+      (all))
+    (if (exists "Source.info" (noreq)) (copyfiles (source "Source.info") (dest #dest) (nogauge)))
+  ))
+))
+
+; ------------------------------------------------------------------ icons
+
+; the example documents open in the Quill just installed
+(set #tool (tackon #dest "Quill"))
+(foreach #dest "#?.docx"
+  (if (exists (tackon #dest (cat @each-name ".info")) (noreq))
+    (tooltype
+      (dest (tackon #dest @each-name))
+      (setdefaulttool #tool))))
+(complete 100)
+
+(exit
+  (cat "Quill " #version " is "
+       (if #same "ready in" (if #update "updated in" "installed in"))
+       "\n\n" #dest "\n\n"
+       "Double-click the Quill icon to start it, or a\n"
+       "Word document whose icon has Quill as its\n"
+       "default tool. README.md tells you what is new\n"
+       "and how to use it."))

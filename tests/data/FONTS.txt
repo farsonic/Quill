@@ -1,0 +1,5 @@
+Test fonts (subsets to Latin-1, made with fontTools):
+  inter-sub.otf  Inter Regular, OpenType with CFF outlines. Copyright the Inter Project Authors, SIL Open Font License 1.1.
+  pair.ttc       a TrueType collection of Liberation Sans Regular and Bold. Copyright Red Hat, Inc., SIL Open Font License 1.1.
+  inter-var.otf  a variable OpenType font (CFF2, weight 400-700) built from Inter Regular and Bold subsets, SIL OFL 1.1.
+  inter-cff2.otf Inter Regular's subset with its outlines in CFF2, SIL OFL 1.1.

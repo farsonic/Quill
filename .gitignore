@@ -1,0 +1,4 @@
+*.lha
+/Quill
+*.o
+__pycache__/

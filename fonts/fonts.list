@@ -1,0 +1,22 @@
+# file;family;bold;italic - fonts Quill measures text with. Add your own TrueType
+# fonts here (TrueType outlines, not CFF/OpenType PostScript).
+Caladea-Bold.ttf;Caladea;1;0
+Caladea-BoldItalic.ttf;Caladea;1;1
+Caladea-Italic.ttf;Caladea;0;1
+Caladea-Regular.ttf;Caladea;0;0
+Carlito-Bold.ttf;Carlito;1;0
+Carlito-BoldItalic.ttf;Carlito;1;1
+Carlito-Italic.ttf;Carlito;0;1
+Carlito-Regular.ttf;Carlito;0;0
+LiberationMono-Bold.ttf;Liberation Mono;1;0
+LiberationMono-BoldItalic.ttf;Liberation Mono;1;1
+LiberationMono-Italic.ttf;Liberation Mono;0;1
+LiberationMono-Regular.ttf;Liberation Mono;0;0
+LiberationSans-Bold.ttf;Liberation Sans;1;0
+LiberationSans-BoldItalic.ttf;Liberation Sans;1;1
+LiberationSans-Italic.ttf;Liberation Sans;0;1
+LiberationSans-Regular.ttf;Liberation Sans;0;0
+LiberationSerif-Bold.ttf;Liberation Serif;1;0
+LiberationSerif-BoldItalic.ttf;Liberation Serif;1;1
+LiberationSerif-Italic.ttf;Liberation Serif;0;1
+LiberationSerif-Regular.ttf;Liberation Serif;0;0
