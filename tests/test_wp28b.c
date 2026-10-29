@@ -168,7 +168,7 @@ static void odt_everything(void)
   box = doc_add_shape(d, -1, 2000, 800);
   if (box >= 0) { story_set_text(d, d->images[box].text ? d->images[box].text : (d->images[box].text = (Story *)calloc(1, sizeof(Story))), "Boxed text", 0, AL_LEFT); pic_utf8(ref, box); add(d, &c, ref); }
   ps = doc_add_shape(d, SH_ELLIPSE, 1000, 600);
-  if (ps >= 0) { d->images[ps].fill = 0x00FF00; pic_utf8(ref, ps); add(d, &c, ref); }
+  if (ps >= 0) { d->images[ps].fill = 0x00FF00; d->images[ps].rot = 450; d->images[ps].x = 2000; d->images[ps].y = 300; pic_utf8(ref, ps); add(d, &c, ref); }
   add(d, &c, " note");
   note = doc_add_note(d);
   note_utf8(ref, note); add(d, &c, ref);
@@ -270,7 +270,9 @@ static void odt_everything(void)
        e->images[0].len == d->images[0].len && !memcmp(e->images[0].data, d->images[0].data, d->images[0].len) && !strcmp(e->images[0].alt, "A disc") &&
        e->images[1].wrap == WRAP_SQUARE && e->images[1].hrel == POS_PAGE && e->images[1].x == 3000 && e->images[1].flip == 1 && e->images[1].crop[0] / 100 == 100);
     ok("odt: a text box with its text, a shape with its fill", e->images[2].kind == OBJ_TEXTBOX && e->images[2].text && e->images[2].text->np &&
-       !strcmp(e->images[2].text->p[0]->t, "Boxed text") && e->images[3].kind == OBJ_SHAPE && e->images[3].shape == SH_ELLIPSE && e->images[3].fill == 0x00FF00);
+       !strcmp(e->images[2].text->p[0]->t, "Boxed text") && e->images[3].kind == OBJ_SHAPE && e->images[3].shape == SH_ELLIPSE && e->images[3].fill == 0x00FF00 &&
+       e->images[3].wrap == d->images[3].wrap && e->images[3].rot == 450 && abs(e->images[3].x - 2000) <= 2 && abs(e->images[3].y - 300) <= 2 && e->images[3].cx == 1000);
+    if (e->images[3].rot != 450 || abs(e->images[3].x - 2000) > 2) printf("  shape: rot %d x %d y %d wrap %d/%d\n", e->images[3].rot, e->images[3].x, e->images[3].y, e->images[3].wrap, d->images[3].wrap);
     ok("odt: footnote and endnote", e->nnotes == 1 && e->nenotes == 1 && e->notes[0].np == 1 && !strcmp(e->notes[0].p[0]->t, "The footnote's text.") &&
        !strcmp(e->enotes[0].p[0]->t, "An endnote."));
     ok("odt: hyperlink", ln && !strcmp(doc_link_url(e, ln), "https://example.org/quill"));
@@ -564,6 +566,29 @@ static void odt_details(void)
     if (b.data && e && strcmp(b.data, MLIN)) printf("  %s\n", b.data);
     buf_free(&b);
     math_free(e);
+  }
+  {
+    /* damaged files: LibreOffice's content.xml and styles.xml cut short and with bytes changed */
+    size_t n, k2, cn = 0, sn = 0;
+    u8 *data = file_read("tests/data/lo-headers.odt", &n);
+    char *ct = data ? odt_part(data, n, "content.xml") : NULL, *st = data ? odt_part(data, n, "styles.xml") : NULL;
+    int good = ct && st;
+    u32 seed = 12345;
+    if (ct) cn = strlen(ct);
+    if (st) sn = strlen(st);
+    for (k2 = 0; good && k2 < 40; k2++) {
+      char *c2 = str_dup(ct), *s2 = str_dup(st);
+      size_t j;
+      Doc *g;
+      if (!c2 || !s2) { free(c2); free(s2); break; }
+      if (k2 < 20) { c2[cn * k2 / 20] = 0; s2[sn * (19 - k2) / 20] = 0; }
+      else for (j = 0; j < 30; j++) { seed = seed * 1103515245 + 12345; c2[(seed >> 8) % cn] = (char)"<>/=\" &x"[(seed >> 4) % 8]; seed = seed * 1103515245 + 12345; s2[(seed >> 8) % sn] = (char)"<>/=\" &x"[(seed >> 4) % 8]; }
+      g = odt_str(c2, s2, &lost);
+      if (!g) good = 0;
+      doc_free(g); free(c2); free(s2);
+    }
+    ok("odt: damaged content and styles (cut short, bytes changed) open without harm", good);
+    free(ct); free(st); free(data);
   }
   ok("odt: garbage and truncated files don't crash", (d = odt_str(C0 "<office:body><office:text><text:p>x<text:span><text:a", NULL, &lost)) != NULL && d->p[0]->t[0] == 'x');
   doc_free(d);

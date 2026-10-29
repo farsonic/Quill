@@ -77,7 +77,7 @@ static int w_mcentre;       /* (w_pprops marks the alignment as display equation
 static void w_paras_story(W *w, const Story *s);
 
 /* ---- automatic styles */
-static const char *auto_name(W *w, AutoSet *s, const char *key, const char *head, char *name, size_t cap)
+static const char *auto_name(W *w, AutoSet *s, const char *key, char *name, size_t cap)
 {
   int i;
   for (i = 0; i < s->n; i++) if (!strcmp(s->e[i].key, key)) break;
@@ -91,7 +91,6 @@ static const char *auto_name(W *w, AutoSet *s, const char *key, const char *head
     if (!(s->e[s->n].key = str_dup(key))) { w->oom = 1; snprintf(name, cap, "%s1", s->prefix); return name; }
     s->n++;
   }
-  (void)head;
   snprintf(name, cap, "%s%d", s->prefix, i + 1);
   return name;
 }
@@ -476,7 +475,7 @@ static void place_attrs(W *w, const Image *im, int child, long offx, long offy, 
     long hx = cx / 2, hy = cy / 2;
     long rx = (hx * c + hy * s) / TRIG_ONE, ry = (-hx * s + hy * c) / TRIG_ONE;
     long tx = x + hx - rx, ty = y + hy - ry;
-    long rad = (long)ang * 31416L / 18000L;      /* radians x 10000 */
+    long rad = (long)ang * 31416L / 1800L;       /* radians x 10000 */
     attr_len(o, "svg:width", (i32)cx); attr_len(o, "svg:height", (i32)cy);
     buf_printf(o, " draw:transform=\"rotate (%s%ld.%04ld) translate (", rad < 0 ? "-" : "", labs(rad) / 10000, labs(rad) % 10000);
     odt_put_len(o, (i32)tx); buf_addc(o, ' '); odt_put_len(o, (i32)ty); buf_adds(o, ")\"");
@@ -500,7 +499,7 @@ static void w_shape(W *w, const Image *im, int child, long offx, long offy, long
   int z = im->z < 0 ? 0 : im->z;
   buf_init(&k);
   graphic_key(w, im, &k, 1);
-  auto_name(w, &w->ag[w->part], k.data ? k.data : "", NULL, gs, sizeof gs);
+  auto_name(w, &w->ag[w->part], k.data ? k.data : "", gs, sizeof gs);
   buf_free(&k);
   w->nframes++;
   if (im->shape == SH_LINE) {
@@ -536,7 +535,7 @@ static void math_guess(const MNode *n, int em, long *wd, long *ht)
     size_t k = 0, len = strlen(t);
     long chars = 0;
     while (k < len) { k = utf8_next(t, len, k); chars++; }
-    *wd = chars * em * 11 / 20;
+    *wd = chars * em * 3 / 5;
     return;
   }
   case MK_FRAC:
@@ -574,12 +573,14 @@ static void w_math(W *w, int k, const CharFmt *f)
   wd += em / 5; ht += em / 3;
   buf_init(&key);
   buf_adds(&key, " style:parent-style-name=\"Formula\"><style:graphic-properties style:vertical-pos=\"middle\" style:vertical-rel=\"text\" fo:margin-left=\"0in\" fo:margin-right=\"0in\" draw:ole-draw-aspect=\"1\"/>");
-  auto_name(w, &w->ag[w->part], key.data ? key.data : "", NULL, gs, sizeof gs);
+  auto_name(w, &w->ag[w->part], key.data ? key.data : "", gs, sizeof gs);
   buf_free(&key);
   w->nframes++;
-  /* (no size: LibreOffice sizes formula objects itself, and would scale the formula into a guessed one) */
-  buf_printf(w->o, "<draw:frame draw:style-name=\"%s\" draw:name=\"Formula%d\" text:anchor-type=\"as-char\" draw:z-index=\"0\">", gs, w->nframes);
-  (void)wd; (void)ht;
+  /* (in a package no size: LibreOffice sizes formula objects itself, and would scale the formula into a guessed
+     one; inline in a Flat ODT it needs one: a guess) */
+  buf_printf(w->o, "<draw:frame draw:style-name=\"%s\" draw:name=\"Formula%d\" text:anchor-type=\"as-char\" draw:z-index=\"0\"", gs, w->nframes);
+  if (w->flat) { attr_len(w->o, "svg:width", (i32)wd); attr_len(w->o, "svg:height", (i32)ht); }
+  buf_adds(w->o, ">");
   if (w->flat) {
     buf_adds(w->o, "<draw:object>");
     mathml_write(w->o, e);
@@ -609,7 +610,7 @@ static void w_object(W *w, const Image *im, int child, long offx, long offy, lon
     char gn[24];
     buf_init(&g);
     graphic_key(w, im, &g, 1);
-    auto_name(w, &w->ag[w->part], g.data ? g.data : "", NULL, gn, sizeof gn);
+    auto_name(w, &w->ag[w->part], g.data ? g.data : "", gn, sizeof gn);
     buf_free(&g);
     buf_printf(w->o, "<draw:g draw:style-name=\"%s\" draw:z-index=\"%d\"", gn, z);
     if (!child) buf_printf(w->o, " text:anchor-type=\"%s\"", im->wrap == WRAP_INLINE ? "as-char" : "char");
@@ -637,7 +638,7 @@ static void w_object(W *w, const Image *im, int child, long offx, long offy, lon
   }
   buf_init(&k);
   graphic_key(w, im, &k, 0);
-  auto_name(w, &w->ag[w->part], k.data ? k.data : "", NULL, gs, sizeof gs);
+  auto_name(w, &w->ag[w->part], k.data ? k.data : "", gs, sizeof gs);
   buf_free(&k);
   w->nframes++;
   buf_printf(w->o, "<draw:frame draw:style-name=\"%s\" draw:name=\"%s%d\" draw:z-index=\"%d\"", gs, im->kind == OBJ_TEXTBOX ? "Frame" : "Image", w->nframes, z);
@@ -787,7 +788,7 @@ static void w_span(W *w, const Para *p, u32 a, u32 b, const CharFmt *f, const Ch
     buf_init(&k);
     buf_addc(&k, '>');
     w_tprops(&k, w->d, f, m);
-    auto_name(w, &w->at[w->part], k.data ? k.data : "", NULL, ts, sizeof ts);
+    auto_name(w, &w->at[w->part], k.data ? k.data : "", ts, sizeof ts);
     buf_free(&k);
   }
   if (cs[0]) buf_printf(w->o, "<text:span text:style-name=\"%s\">", cs);
@@ -931,7 +932,7 @@ static void w_para(W *w, const Para *p, const char *master, int inlist)
     if (mcentre) { ParaFmt c = p->pf; c.align = AL_CENTER; w_mcentre = 1; w_pprops(&k, &c, a); w_mcentre = 0; }
     else w_pprops(&k, &p->pf, a);
     w_pgnum = 0;
-    auto_name(w, &w->ap[w->part], k.data ? k.data : "", NULL, an, sizeof an);
+    auto_name(w, &w->ap[w->part], k.data ? k.data : "", an, sizeof an);
     buf_free(&k);
   }
   if (lvl) buf_printf(w->o, "<text:h text:style-name=\"%s\" text:outline-level=\"%d\">", an[0] ? an : sn, lvl);
@@ -980,7 +981,7 @@ static int table_key(const ParaFmt *pf, int depth)
   return 0;
 }
 static const Cell *cell_at(const ParaFmt *pf, int depth) { return depth == 0 ? top_cell(pf) : &pf->cell; }
-static void cell_key(W *w, const Table *t, const Cell *c, int qlook, CellLook *cl, Buf *k)
+static void cell_key(const Table *t, const Cell *c, int qlook, CellLook *cl, Buf *k)
 {
   static const char *const edge[4] = { "top", "left", "bottom", "right" };
   int e;
@@ -1003,7 +1004,6 @@ static void cell_key(W *w, const Table *t, const Cell *c, int qlook, CellLook *c
   }
   if (qlook) buf_adds(k, " quill:look=\"style\"");
   buf_adds(k, "/>");
-  (void)w;
 }
 static u32 w_table(W *w, Para **p, u32 a, u32 b, int depth)
 {
@@ -1011,7 +1011,7 @@ static u32 w_table(W *w, Para **p, u32 a, u32 b, int depth)
   int tn = table_key(&p[a]->pf, depth), nrows = 0, r, c, k;
   const Table *t = tn && tn <= d->ntables ? &d->tables[tn - 1] : NULL;
   u32 e, i;
-  char tsn[24], buf[96];
+  char tsn[24];
   i32 width = 0;
   Buf key;
   int hdr_open = 0;
@@ -1034,7 +1034,7 @@ static u32 w_table(W *w, Para **p, u32 a, u32 b, int depth)
   buf_adds(&key, "/>");
   {
     char an[24];
-    auto_name(w, &w->atab[w->part], key.data ? key.data : "", NULL, an, sizeof an);
+    auto_name(w, &w->atab[w->part], key.data ? key.data : "", an, sizeof an);
     buf_printf(w->o, "<table:table table:name=\"%s\" table:style-name=\"%s\">", tsn, an);
   }
   buf_free(&key);
@@ -1044,16 +1044,15 @@ static u32 w_table(W *w, Para **p, u32 a, u32 b, int depth)
     buf_adds(&key, "><style:table-column-properties");
     attr_len(&key, "style:column-width", t->grid[k]);
     buf_adds(&key, "/>");
-    auto_name(w, &w->acol[w->part], key.data ? key.data : "", NULL, cn, sizeof cn);
+    auto_name(w, &w->acol[w->part], key.data ? key.data : "", cn, sizeof cn);
     buf_free(&key);
     buf_printf(w->o, "<table:table-column table:style-name=\"%s\"/>", cn);
   }
   for (r = 0; r < nrows; r++) {
     /* the row's cells in column order */
-    u32 first = e;
     const Cell *rc = NULL;
     char rn[24];
-    for (i = a; i < e; i++) if (cell_at(&p[i]->pf, depth)->row == r) { rc = cell_at(&p[i]->pf, depth); first = i; break; }
+    for (i = a; i < e; i++) if (cell_at(&p[i]->pf, depth)->row == r) { rc = cell_at(&p[i]->pf, depth); break; }
     if (rc && rc->header && !hdr_open && r == 0) { buf_adds(w->o, "<table:table-header-rows>"); hdr_open = 1; }
     if (hdr_open && (!rc || !rc->header)) { buf_adds(w->o, "</table:table-header-rows>"); hdr_open = 0; }
     buf_init(&key);
@@ -1061,10 +1060,9 @@ static u32 w_table(W *w, Para **p, u32 a, u32 b, int depth)
     if (rc && rc->rowh > 0) attr_len(&key, "style:min-row-height", rc->rowh);
     else if (rc && rc->rowh < 0) attr_len(&key, "style:row-height", -rc->rowh);
     buf_printf(&key, " fo:keep-together=\"%s\"/>", rc && rc->cantsplit ? "always" : "auto");
-    auto_name(w, &w->ar[w->part], key.data ? key.data : "", NULL, rn, sizeof rn);
+    auto_name(w, &w->ar[w->part], key.data ? key.data : "", rn, sizeof rn);
     buf_free(&key);
     buf_printf(w->o, "<table:table-row table:style-name=\"%s\">", rn);
-    (void)first;
     for (c = 0; c < t->ncols; ) {
       /* the cell starting at column c */
       u32 x = e, y;
@@ -1101,8 +1099,8 @@ static u32 w_table(W *w, Para **p, u32 a, u32 b, int depth)
           memset(&cl, 0, sizeof cl);
           if (qlook) tstyle_cell(d, t->tstyle, t->look, r, c, span, nrows, t->ncols, NULL, &cl);
           buf_init(&key);
-          cell_key(w, t, cc, qlook, &cl, &key);
-          auto_name(w, &w->ac[w->part], key.data ? key.data : "", NULL, cn, sizeof cn);
+          cell_key(t, cc, qlook, &cl, &key);
+          auto_name(w, &w->ac[w->part], key.data ? key.data : "", cn, sizeof cn);
           buf_free(&key);
           buf_printf(w->o, "<table:table-cell table:style-name=\"%s\" office:value-type=\"string\"", cn);
           if (span > 1) buf_printf(w->o, " table:number-columns-spanned=\"%d\"", span);
@@ -1119,7 +1117,6 @@ static u32 w_table(W *w, Para **p, u32 a, u32 b, int depth)
   }
   if (hdr_open) buf_adds(w->o, "</table:table-header-rows>");
   buf_adds(w->o, "</table:table>");
-  (void)buf;
   return e;
 }
 
@@ -1185,7 +1182,7 @@ static void w_body(W *w)
         buf_adds(&key, ">");
         if (cols > 1 && sf && sf->colline) buf_adds(&key, "<style:column-sep style:style=\"solid\" style:width=\"0.0071in\" style:color=\"#000000\" style:height=\"100%\" style:vertical-align=\"top\"/>");
         buf_adds(&key, "</style:columns></style:section-properties>");
-        auto_name(w, &w->asec[1], key.data ? key.data : "", NULL, sn, sizeof sn);
+        auto_name(w, &w->asec[1], key.data ? key.data : "", sn, sizeof sn);
         buf_free(&key);
         w->nsections++;
         buf_printf(w->o, "<text:section text:style-name=\"%s\" text:name=\"Section%d\">", sn, w->nsections);
@@ -1281,7 +1278,7 @@ static void w_fonts(W *w, Buf *b)
   }
   buf_adds(b, "</office:font-face-decls>");
 }
-static void w_level_text(Buf *b, const ListLevel *lv, int lvl)
+static void w_level_text(Buf *b, const ListLevel *lv)
 {
   /* prefix, the levels shown and suffix from Quill's "%1.%2." */
   const char *t = lv->text, *first = strchr(t, '%'), *last = NULL, *q;
@@ -1302,7 +1299,6 @@ static void w_level_text(Buf *b, const ListLevel *lv, int lvl)
     else xml_escape(b, q, 1);
   }
   buf_addc(b, '"');
-  (void)lvl;
 }
 static void w_list_styles(W *w, Buf *b)
 {
@@ -1320,7 +1316,7 @@ static void w_list_styles(W *w, Buf *b)
         buf_addc(b, '"');
       } else {
         buf_printf(b, "<text:list-level-style-number text:level=\"%d\" style:num-format=\"%s\"", l + 1, lv->fmt < 11 ? nf[lv->fmt] : "1");
-        w_level_text(b, lv, l);
+        w_level_text(b, lv);
         if (lv->start != 1) buf_printf(b, " text:start-value=\"%d\"", lv->start);
       }
       buf_adds(b, "><style:list-level-properties text:list-level-position-and-space-mode=\"label-alignment\"><style:list-level-label-alignment text:label-followed-by=\"listtab\"");
@@ -1492,8 +1488,6 @@ u8 *odt_write(Doc *d, int flat, size_t *len)
   /* the master pages (styles.xml's) */
   w.part = 0; w.o = &masters;
   {
-    Story none[HF_N];
-    memset(none, 0, sizeof none);
     w_master(&w, &layouts, "Standard", &d->page, d->hdr, d->ftr, d->titlepg);
     for (k = 0; k < d->nsects; k++) {
       const SectFmt *s = &d->sects[k];
@@ -1507,7 +1501,6 @@ u8 *odt_write(Doc *d, int flat, size_t *len)
       master_name(d, k + 1, 0, mn, sizeof mn);
       w_master(&w, &layouts, mn, s->haspage ? &s->page : &d->page, s->hf ? s->hf : d->hdr, s->hf ? s->hf + HF_N : d->ftr, s->titlepg);
     }
-    (void)none;
   }
   /* styles.xml */
   if (!flat) {

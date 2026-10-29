@@ -359,7 +359,7 @@ static void padding_attrs(Xml *x, i32 *pad, u8 *set)
   if (ok) for (k = 0; k < 4; k++) { pad[k] = v; *set |= (u8)(1 << k); }
   for (k = 0; k < 4; k++) { v = attr_len(x, edge[k], &ok); if (ok) { pad[k] = v; *set |= (u8)(1 << k); } }
 }
-static void para_props(Xml *x, R *r, OStyle *s)
+static void para_props(Xml *x, OStyle *s)
 {
   const char *v;
   int ok, bset = 0;
@@ -419,7 +419,6 @@ static void para_props(Xml *x, R *r, OStyle *s)
       } else skip(x);
     }
   }
-  (void)r;
 }
 static void text_props(Xml *x, R *r, OStyle *s)
 {
@@ -636,7 +635,7 @@ static void read_style(Xml *x, R *r, int autom, int isdefault)
     if (x->type == XT_END && x->depth < d0) break;
     if (x->type != XT_START) continue;
     s = &r->st[r->nst - 1];
-    if (!strcmp(x->name, "paragraph-properties")) para_props(x, r, s);
+    if (!strcmp(x->name, "paragraph-properties")) para_props(x, s);
     else if (!strcmp(x->name, "text-properties")) text_props(x, r, s);
     else if (!strcmp(x->name, "table-properties")) table_props(x, s);
     else if (!strcmp(x->name, "table-column-properties")) {
@@ -1127,15 +1126,34 @@ static void obj_place(Xml *x, R *r, Image *im, int *pageanchor)
     }
   }
   if ((v = xml_attr(x, "transform")) && strstr(v, "rotate")) {
-    /* rotate (radians), counter-clockwise */
-    const char *p = strstr(v, "rotate") + 6;
-    double a;
+    /* rotate (radians, counter-clockwise) round the top left, then translate: Quill's turn (clockwise round
+       the centre) and box. Integers only (68k maths): micro-radians */
+    const char *p = strstr(v, "rotate") + 6, *t;
+    long ur = 0, frac = 0, fd = 1, ang;
+    int neg = 0;
     while (*p == ' ' || *p == '(') p++;
-    a = atof(p);
-    {
-      long t = (long)(-a * 1800.0 / 3.14159265358979 + (a < 0 ? 0.5 : -0.5));
-      t %= 3600; if (t < 0) t += 3600;
-      im->rot = (u16)t;
+    if (*p == '-') { neg = 1; p++; }
+    while (*p >= '0' && *p <= '9') { ur = ur * 10 + (*p++ - '0'); if (ur > 100) ur = 100; }
+    if (*p == '.') { p++; while (*p >= '0' && *p <= '9') { if (fd < 1000000) { frac = frac * 10 + (*p - '0'); fd *= 10; } p++; } }
+    ur = ur * 1000000 + frac * (1000000 / fd);
+    if (neg) ur = -ur;
+    ang = ur * 18 / 31416;                      /* tenths of a degree, counter-clockwise */
+    ang %= 3600; if (ang < 0) ang += 3600;
+    im->rot = (u16)((3600 - ang) % 3600);
+    if ((t = strstr(v, "translate"))) {
+      i32 tx, ty;
+      int ok1, ok2;
+      t += 9;
+      while (*t == ' ' || *t == '(') t++;
+      tx = odt_len(t, &ok1);
+      while (*t && *t != ' ' && *t != ',') t++;
+      while (*t == ' ' || *t == ',') t++;
+      ty = odt_len(t, &ok2);
+      if (ok1 && ok2) {
+        long hx = im->cx / 2, hy = im->cy / 2, c = icos((int)ang), sn = isin((int)ang);
+        long rx = (hx * c + hy * sn) / TRIG_ONE, ry = (-hx * sn + hy * c) / TRIG_ONE;
+        im->x = (i32)(tx + rx - hx); im->y = (i32)(ty + ry - hy);
+      }
     }
   }
 }
@@ -2453,11 +2471,6 @@ static void read_part(Xml *x, R *r, int part, ParaList *body)
           blocks(x, r, body, &b);
         } else if (x->type == XT_START) skip(x);
       }
-    } else if (!strcmp(x->name, "meta")) {
-      /* (Flat ODT) */
-      int d1 = x->depth;
-      (void)d1;
-      skip(x);
     } else skip(x);
   }
 }
