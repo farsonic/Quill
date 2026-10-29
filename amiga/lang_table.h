@@ -2583,6 +2583,7 @@
   { { "Headers", "Kopfzeilen", "En-t\352tes", "Encabezados", "Intestazioni" } },
   { { "Footers", "Fu\337zeilen", "Pieds de page", "Pies de p\341gina", "Pi\350 di pagina" } },
   { { "Publish Date", "Ver\366ffentlichungsdatum", "Date de publication", "Fecha de publicaci\363n", "Data pubblicazione" } },
+  { { "The property goes in as a field that shows its value.", "Die Eigenschaft wird als Feld eingef\374gt, das ihren Wert anzeigt.", "La propri\351t\351 est ins\351r\351e comme un champ qui affiche sa valeur.", "La propiedad se inserta como un campo que muestra su valor.", "La propriet\340 viene inserita come un campo che ne mostra il valore." } },
   { { "(empty)", "(leer)", "(vide)", "(vac\355o)", "(vuoto)" } },
   { { "The document has no value for this property yet (File > Info > Properties).", "Das Dokument hat f\374r diese Eigenschaft noch keinen Wert (Datei > Informationen > Eigenschaften).", "Le document n'a pas encore de valeur pour cette propri\351t\351 (Fichier > Informations > Propri\351t\351s).", "El documento a\372n no tiene valor para esta propiedad (Archivo > Informaci\363n > Propiedades).", "Il documento non ha ancora un valore per questa propriet\340 (File > Informazioni > Propriet\340)." } },
   { { "Text from File", "Text aus Datei", "Texte d'un fichier", "Texto de archivo", "Testo da file" } },

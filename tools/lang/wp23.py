@@ -61,6 +61,7 @@ W = [
 ("Status", "Status", "État", "Estado", "Stato"),
 # document properties
 ("Publish Date", "Veröffentlichungsdatum", "Date de publication", "Fecha de publicación", "Data pubblicazione"),
+("The property goes in as a field that shows its value.", "Die Eigenschaft wird als Feld eingefügt, das ihren Wert anzeigt.", "La propriété est insérée comme un champ qui affiche sa valeur.", "La propiedad se inserta como un campo que muestra su valor.", "La proprietà viene inserita come un campo che ne mostra il valore."),
 ("(empty)", "(leer)", "(vide)", "(vacío)", "(vuoto)"),
 ("The document has no value for this property yet (File > Info > Properties).", "Das Dokument hat für diese Eigenschaft noch keinen Wert (Datei > Informationen > Eigenschaften).", "Le document n'a pas encore de valeur pour cette propriété (Fichier > Informations > Propriétés).", "El documento aún no tiene valor para esta propiedad (Archivo > Información > Propiedades).", "Il documento non ha ancora un valore per questa proprietà (File > Informazioni > Proprietà)."),
 # text from file, object

@@ -597,9 +597,11 @@ static ULONG spdispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, 
 /* the pane brought up to date with the current document and caret (force: its list made afresh) */
 static void sp_update(Object *obj, int force)
 {
-  struct SPData *d = INST_DATA(spcls->mcc_Class, obj);
-    Doc *doc = wp_doc();
+  struct SPData *d;
+  Doc *doc = wp_doc();
   int cur = -1, ccur = -1;
+  if (!obj || !spcls) return;
+  d = INST_DATA(spcls->mcc_Class, obj);
   if (doc) {
     const CharFmt *c = caret_cf(doc);
     Pos cp = get_pos(MUIA_Quill_Caret);
@@ -651,10 +653,10 @@ static void toggle_pane(void)
   if (!wa) return;
   if (!spcls && !(spcls = MUI_CreateCustomClass(NULL, MUIC_Area, NULL, sizeof(struct SPData), (APTR)spdispatch))) return;
   if (!(pane = NewObject(spcls->mcc_Class, NULL, MUIA_ShortHelp, (ULONG)" ", TAG_DONE))) return;
+  panewin = wp_win();                    /* (first: laying the window out again asks the state hook, which checks it) */
   DoMethod(wa, MUIM_Group_InitChange);
   DoMethod(wa, OM_ADDMEMBER, (ULONG)pane);
   DoMethod(wa, MUIM_Group_ExitChange);
-  panewin = wp_win();
   sp_update(pane, 1);
   wp_refresh();
 }
@@ -1777,8 +1779,7 @@ static void open_colors(void)
   }
   tc_fill(theme_of(d)->clr, "Custom 1");
   i = theme_colorset_of(d);
-  set(tc_set, MUIA_NoNotify, TRUE);
-  set(tc_set, MUIA_Cycle_Active, i >= 0 ? i : 0);
+  nnset(tc_set, MUIA_Cycle_Active, i >= 0 ? i : 0);
   set(tcw, MUIA_Window_Open, TRUE);
 }
 static void colors_save(void)
@@ -1842,10 +1843,10 @@ static void th_fill(void)
   char b[300], n1[70], n2[70], n3[70], n4[70];
   int i;
   if (!thw || !d) return;
-  i = theme_colorset_of(d); set(th_colors, MUIA_Cycle_Active, i >= 0 ? i : 0);
-  i = theme_fontset_of(d); set(th_fonts, MUIA_Cycle_Active, i >= 0 ? i : 0);
+  i = theme_colorset_of(d); nnset(th_colors, MUIA_Cycle_Active, i >= 0 ? i : 0);
+  i = theme_fontset_of(d); nnset(th_fonts, MUIA_Cycle_Active, i >= 0 ? i : 0);
   for (i = 0; i < neffects && strcmp(el_labels[i], t->ename); i++) ;
-  set(th_effects, MUIA_Cycle_Active, i < neffects ? i : 0);
+  nnset(th_effects, MUIA_Cycle_Active, i < neffects ? i : 0);
   lat(t->name, n1, sizeof n1); lat(t->cname, n2, sizeof n2); lat(t->fname, n3, sizeof n3); lat(t->ename, n4, sizeof n4);
   snprintf(b, sizeof b, "%s %s\n%s %s\n%s %s (%s / %s)\n%s %s", tr("Theme:"), n1, tr("Colours:"), n2, tr("Fonts:"), n3, t->major, t->minor, tr("Effects:"), n4);
   set(th_now, MUIA_Text_Contents, (ULONG)b);
@@ -1879,7 +1880,7 @@ static void open_theme(void)
     if (!thw) return;
     bt(apply, ID_TH_APPLY); bt(cc, ID_TC_OPEN); bt(cf, ID_TF_OPEN); bt(br, ID_TH_BROWSE); bt(sv, ID_TH_SAVE); bt(rs, ID_TH_RESET);
     DoMethod(cl, MUIM_Notify, MUIA_Pressed, FALSE, (ULONG)thw, 3, MUIM_Set, MUIA_Window_Open, FALSE);
-    DoMethod(th_colors, MUIM_Notify, MUIA_Cycle_Active, MUIV_EveryTime, (ULONG)wp_app(), 3, MUIM_Application_ReturnID, ID_TH_COLORS);
+    DoMethod(th_colors, MUIM_Notify, MUIA_Cycle_Active, MUIV_EveryTime, (ULONG)wp_app(), 2, MUIM_Application_ReturnID, ID_TH_COLORS);
     DoMethod(th_fonts, MUIM_Notify, MUIA_Cycle_Active, MUIV_EveryTime, (ULONG)wp_app(), 2, MUIM_Application_ReturnID, ID_TH_FONTS);
     DoMethod(th_effects, MUIM_Notify, MUIA_Cycle_Active, MUIV_EveryTime, (ULONG)wp_app(), 2, MUIM_Application_ReturnID, ID_TH_EFFECTS);
   }

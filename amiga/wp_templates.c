@@ -537,7 +537,7 @@ static void open_props(void)
   int i;
   if (!d) return;
   if (!prw) {
-    Object *c = VGroup, Child, pr_list = mklist(), End;
+    Object *c = VGroup, Child, pr_list = mklist(), Child, TextObject, MUIA_Text_Contents, (ULONG)tr("The property goes in as a field that shows its value."), End, End;
     if (!(prw = wp_dialog("Document Property", MAKE_ID('D','P','R','P'), c, "_Insert", ID_TP_PROPOK))) return;
     DoMethod(pr_list, MUIM_Notify, MUIA_Listview_DoubleClick, TRUE, (ULONG)wp_app(), 2, MUIM_Application_ReturnID, ID_TP_PROPOK);
   }
@@ -719,13 +719,12 @@ static const Item qp_items[] = {
   { K_DROP, S_LARGE, 0, 0, "Quick Parts", ID_TP_QUICK, 0, 0, 0, 0, "Building blocks of text kept for reuse; AutoText, document properties and the Building Blocks Organizer", &rl_quick, "ci R 2 1 13 15 ca F 4 3 11 6 cd L 4 9 11 9 L 4 12 9 12", 0 },
   { K_DROP, S_SMALL, 0, 0, "AutoText", ID_TP_AUTOTEXT, 0, 0, F_NEWCOL, 0, "Text kept for reuse: pick one, or type its name and press F3", &rl_auto, "ca B A ci L 9 12 15 12 L 12 9 12 15", 0 },
   { K_DROP, S_SMALL, 0, 0, "Object", ID_TP_OBJECT, 0, 0, F_SPLIT, 0, "Another file's text and formatting, or a picture, at the caret", &rl_object, "ci R 1 1 14 14 ca F 3 3 7 7 cd L 9 4 12 4 L 3 10 12 10", ID_TP_OBJECT },
-  { K_BUTTON, S_SMALL, IC_OPEN, 0, "Text from File", ID_TP_TEXTFILE, 0, 0, 0, 0, "A document's text and formatting at the caret (.docx, .txt and the other formats Quill reads)", NULL, NULL, 0 },
 };
 static const Item tpl_items[] = {
   { K_BUTTON, S_LARGE, IC_NEW, 0, "Document Template", ID_TP_TEMPLATES, 0, 0, 0, 0, "Templates and Add-ins: the template the document is attached to, and its styles", NULL, NULL, 0 },
 };
 static const WpGroup groups23[] = {
-  { TAB_INSERT, 7, { "Quick Parts", G_COLS, qp_items, 4 } },
+  { TAB_REFERENCES, -1, { "Quick Parts", G_COLS, qp_items, 3 } },   /* (the Insert tab is full at 640 pixels, as WP1 found) */
   { TAB_DEVELOPER, -1, { "Templates", G_COLS, tpl_items, 1 } },
 };
 static const WpMenu menus23[] = {
