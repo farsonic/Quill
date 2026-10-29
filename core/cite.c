@@ -1753,6 +1753,12 @@ int cite_insert(Doc *d, Pos *at, const char *tag, const char *pages, int suppres
   field_env(&e);
   doc_begin(d, *at);
   k = field_insert_result(d, at, code, NULL, &e, NULL);
+  /* numbered styles: the numbers go by the order of first citation, so the others may change (and the
+     new one was worked out before its marks were in) */
+  if (k >= 0 && cite_numbered(cite_doc_style(d))) {
+    Pos s, en;
+    if (cite_field_at(d, pos_left(d, *at), 0, &s, &en) >= 0) { cite_update_all(d); if (field_end(d, s, &en)) { en.off += 4; *at = en; } }
+  }
   doc_end(d, *at);
   return k;
 }

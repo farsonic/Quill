@@ -250,6 +250,12 @@ static void document(void)
   ok("cite: update", cite_update_all(d) > 0);
   ok("cite: IEEE citations", para_has(d, 0, "As shown [1, p. 12] and [2], [3]."));
   ok("cite: IEEE bibliography in citation order", para_has(d, 2, "[1]\tJ. R. Smith and A. Jones") && para_has(d, 3, "[2]\tJ. Doe") && para_has(d, 4, "[3]\tWorld Health"));
+  /* a citation put in first takes number 1, the others move up */
+  at = P(0, 0);
+  cite_insert(d, &at, "WHO21", NULL, 0, NULL, 0);
+  ok("cite: IEEE renumbered by a new first citation", para_has(d, 0, "[1]As shown [2, p. 12] and [3], [1].") && para_has(d, 2, "[1]\tWorld Health"));
+  doc_undo(d, &at);
+  ok("cite: and its undo", para_has(d, 0, "As shown [1, p. 12] and [2], [3]."));
   doc_undo(d, &at);
   ok("cite: one undo step", para_has(d, 0, "(Smith & Jones, 2020, p. 12)"));
   doc_redo(d, &at);
