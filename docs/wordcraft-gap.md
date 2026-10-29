@@ -6,10 +6,10 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 ## Summary
 
-- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 500 of them applicable to Quill. Quill has **346** (✅), **10** partly (🟨) and lacks **144** (⬜); 31 are ➖. So Quill covers 69% of the applicable commands fully and 71% at least in part.
+- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **386** (✅), **5** partly (🟨) and lacks **110** (⬜); 30 are ➖. So Quill covers 77% of the applicable commands fully and 78% at least in part.
 - **Beyond the ribbon (section 2):** 152 features: ✅ 48, 🟨 43, ⬜ 44, ➖ 17.
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
-- **Missing whole:** Mailings (22), Outline view and Outlining (14), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
+- **Missing whole:** Mailings (22), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
 - **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; content controls, charts, SmartArt, equations, OLE objects and VML pictures are dropped (formatting revisions are kept since WP5); no AutoSave or recovery (WP24 adds them). These are in priority 1 below.
 - **Other formats:** Quill reads and writes .docx and plain text and exports PDF; WordCraft also reads .doc and reads/writes .rtf, .odt, .html, .md, .tex and Word XML (WP28a-d).
 
@@ -18,31 +18,31 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | File | 23 | 16 | 1 | 4 | 2 |
 | Quick Access | 5 | 5 | 0 | 0 | 0 |
 | Title Bar | 1 | 0 | 0 | 1 | 0 |
-| Home | 105 | 96 | 2 | 6 | 1 |
-| Insert | 53 | 32 | 1 | 14 | 6 |
+| Home | 105 | 97 | 2 | 5 | 1 |
+| Insert | 53 | 38 | 0 | 9 | 6 |
 | Draw | 11 | 0 | 0 | 10 | 1 |
 | Design | 10 | 9 | 0 | 1 | 0 |
 | Layout | 22 | 19 | 0 | 3 | 0 |
-| References | 25 | 8 | 2 | 14 | 1 |
+| References | 25 | 9 | 1 | 14 | 1 |
 | Mailings | 23 | 0 | 0 | 22 | 1 |
 | Review | 31 | 21 | 1 | 7 | 2 |
-| View | 29 | 18 | 2 | 4 | 5 |
-| Read Mode | 3 | 0 | 0 | 2 | 1 |
+| View | 29 | 25 | 0 | 0 | 4 |
+| Read Mode | 3 | 2 | 0 | 0 | 1 |
 | Developer | 11 | 0 | 0 | 11 | 0 |
 | Zotero | 7 | 0 | 0 | 0 | 7 |
 | Help | 4 | 1 | 0 | 0 | 3 |
-| Table Design | 8 | 4 | 0 | 4 | 0 |
-| Table Layout | 33 | 26 | 1 | 6 | 0 |
+| Table Design | 8 | 8 | 0 | 0 | 0 |
+| Table Layout | 33 | 32 | 0 | 1 | 0 |
 | Picture Format | 14 | 14 | 0 | 0 | 0 |
 | Shape Format | 13 | 9 | 0 | 4 | 0 |
 | Header & Footer | 5 | 5 | 0 | 0 | 0 |
 | Equation | 22 | 21 | 0 | 0 | 1 |
-| Outlining | 13 | 0 | 0 | 13 | 0 |
+| Outlining | 13 | 13 | 0 | 0 | 0 |
 | SmartArt Design | 7 | 0 | 0 | 7 | 0 |
 | Chart Design | 5 | 0 | 0 | 5 | 0 |
-| Editing | 41 | 29 | 2 | 10 | 0 |
+| Editing | 41 | 41 | 0 | 0 | 0 |
 | Tools | 7 | 1 | 0 | 6 | 0 |
-| **All** | **531** | **346** | **10** | **144** | **31** |
+| **All** | **531** | **386** | **5** | **110** | **30** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
@@ -187,7 +187,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 
 - ⬜ Search (Tell Me) (Search) `tools.search` — no command search [WP26]
 
-### Home (105: ✅ 96 · 🟨 2 · ⬜ 6 · ➖ 1)
+### Home (105: ✅ 97 · 🟨 2 · ⬜ 5 · ➖ 1)
 
 - ✅ Paste (Clipboard) `edit.paste` — `ID_PASTEDD` split button / `ID_PASTE`
 - ✅ Paste Keep Text Only (Clipboard) `edit.pasteText` — `ID_PASTETEXT` (`CMD_PASTEAS`)
@@ -263,7 +263,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Keep Lines Together (Paragraph) `para.keepLines` — Paragraph window `pa_lines`
 - ✅ Page Break Before (Paragraph) `para.pageBreakBefore` — Paragraph window `pa_break`
 - ✅ Widow/Orphan Control (Paragraph) `para.widowControl` — Paragraph window `pa_widow`
-- ⬜ Outline Level (Paragraph) `para.outlineLevel` — `ParaFmt` has no outline level (only "heading N" style names count, core/toc.c) [WP11]
+- ✅ Outline Level (Paragraph) `para.outlineLevel` — `ParaFmt.outlvl` (`PM_OUTLINE`; "heading N" styles have N, core/doc.c), in the Paragraph and Modify Style windows (main.c `pa_olvl`, `sy_olvl`), `w:outlineLvl` read and written for paragraphs and styles (core/docx.c; body-text overrides of Heading styles kept); used by the navigation pane, the TOC (core/toc.c, as Word's `\o \u`) and the PDF outline; LibreOffice reads it (tests/test_wp11.c writes /tmp/quill_wp11.docx; its PDF bookmarks show the Normal paragraph with level 3) [WP11]
 - ✅ Hanging Indent (Paragraph) `para.hangingIndent` — `ID_P_HANG` (Ctrl-T) and `ID_P_UNHANG` (Ctrl-Shift-T), Format › Paragraph Tools [WP10]
 - ⬜ Right-to-Left Text Direction (Paragraph) `para.rtl` — no bidi [WP27]
 - ⬜ Left-to-Right Text Direction (Paragraph) `para.ltr` — no bidi [WP27]
@@ -295,16 +295,16 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Dictate (Voice) `tools.dictate` — WordCraft doesn't have it either (cloud speech service)
 - ✅ Editor (Editor) `review.editor` — WordCraft's Editor runs Spelling: Quill `ID_SPELL`
 
-### Insert (53: ✅ 32 · 🟨 1 · ⬜ 14 · ➖ 6)
+### Insert (53: ✅ 38 · 🟨 0 · ⬜ 9 · ➖ 6)
 
 - ✅ Cover Page (Pages) `insert.coverPage` — `ID_COVERDD` (3 designs, remove)
 - ✅ Blank Page (Pages) `insert.blankPage` — `ID_BLANKPAGE`
 - ✅ Page Break (Pages) `insert.pageBreak` — `ID_PAGEBREAK`
 - ✅ Insert Table (Tables) `insert.table` — `ID_TABLE` (`open_table()`)
-- ⬜ Draw Table (Tables) `table.draw` — README 0.4 "Not yet: drawing tables with the mouse" [WP21b]
+- ✅ Draw Table (Tables) `table.draw` — WP21b: Insert › Tables › Draw Table, Table Layout › Cells, Table › Draw Table (wp_tables2.c `ID_TB_DRAWTABLE`, a mouse tool in view.c; Esc ends it): a box drawn outside tables makes a one-cell table that size, a line across or down cells splits them (core/tbldraw.c `tbl_draw_stroke`, core/table.c `tbl_hsplit`/`tbl_vsplit`; tests/test_wp21b.c "draw table") [WP21b]
 - ✅ Convert Text to Table (Tables) `table.fromText` — `ID_TOTABLE`
-- ⬜ Excel Spreadsheet (Tables) `insert.spreadsheet` — WordCraft's makes a table from CSV text [WP21a]
-- ⬜ Quick Tables (Tables) `table.quick` [WP21a]
+- ✅ Excel Spreadsheet (Tables) `insert.spreadsheet` — WP21a: Insert › Tables › Spreadsheet, Insert › Spreadsheet (CSV)...: a CSV/TSV file as a table (comma, semicolon or tab, quoted fields, Latin-1 or UTF-8, numbers to the right, heading row repeats; core/tblquick.c `tbl_from_csv`, tests "spreadsheet") [WP21a]
+- ✅ Quick Tables (Tables) `table.quick` — WP21a: Insert › Tables › Quick Tables (a window to choose from) and Insert › Quick Tables: Calendar 1-3 (this month; Sunday first; week numbers), Double Table, Matrix, Tabular List, With Subheads 1-2, words in the interface language (core/tblquick.c `tbl_quick`, tests "quick tables") [WP21a]
 - ✅ Pictures (Illustrations) `insert.picture` — `ID_PICTURE` (PNG, JPEG only)
 - ➖ Online Pictures (Illustrations) `insert.onlinePicture` — WordCraft doesn't have it either (online service)
 - ✅ Shapes (Illustrations) `insert.shape` — `ID_SHAPESDD` (24 presets, `SH_` in doc.h)
@@ -403,7 +403,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Group (Arrange) `arrange.group` — `ID_GROUPDD`, `ID_GROUP`, `ID_UNGROUP`
 - ✅ Rotate (Arrange) `arrange.rotate` — `ID_OBJROTDD`
 
-### References (25: ✅ 8 · 🟨 2 · ⬜ 14 · ➖ 1)
+### References (25: ✅ 9 · 🟨 1 · ⬜ 14 · ➖ 1)
 
 - 🟨 Table of Contents (Table of Contents) `references.toc` — `ID_TOCDD`/`ID_TOC` (one built-in format, levels 1-3); no Custom Table of Contents dialog (levels, leaders, page numbers, styles) [WP2]
 - ✅ Add Text (Table of Contents) `references.addText` — `ID_ADDTEXTDD` (`add_text()`)
@@ -491,42 +491,42 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Restrict Editing (Protect) `review.restrict` [WP7]
 - ⬜ Hide Ink (Ink) `review.hideInk` — (no ink) [WP20]
 
-### View (29: ✅ 18 · 🟨 2 · ⬜ 4 · ➖ 5)
+### View (29: ✅ 25 · 🟨 0 · ⬜ 0 · ➖ 4)
 
 - ✅ Read Mode (Views) `view.readMode` — `ID_VREAD`
 - ✅ Print Layout (Views) `view.printLayout` — `ID_VPRINT`
 - ✅ Web Layout (Views) `view.webLayout` — `ID_VWEB`
-- ⬜ Outline (Views) `view.outline` — no Outline view (`VM_` has none) [WP11]
+- ✅ Outline (Views) `view.outline` — `VM_OUTLINE` (`ID_OL_VIEW`, View tab, View menu): web layout with core/layout.c's outline mode (`Layout.outline`: indents by level, body text under its heading, outline symbols, collapsed parts hidden), the contextual Outlining tab (amiga/wp_outline.c, wp_outline_view.h) [WP11]
 - ✅ Draft (Views) `view.draft` — `ID_VDRAFT`
 - ✅ Focus (Immersive) `view.focus` — `ID_FOCUS` (status bar)
 - ✅ Immersive Reader (Immersive) `view.immersive` — WordCraft's command toggles Read Mode: Quill `ID_VREAD` (no line focus, syllables, text spacing)
 - ✅ Vertical (Page Movement) `view.vertical` — pages run down the window (the only page movement)
-- ⬜ Side to Side (Page Movement) `view.sideToSide` [WP25]
+- ✅ Side to Side (Page Movement) `view.sideToSide` — `ID_WW_SIDE` (View tab's Page Movement, View menu > Pages): every page in one row a page high, the wheel and the sideways scroll bar turn them; **Vertical** back (amiga/wp_windows.c, wp_windows_view.h) [WP25]
 - ✅ Ruler (Show) `view.ruler` — `ID_RULER`
 - ✅ Gridlines (Show) `view.gridlines` — `ID_GRID`
 - ✅ Navigation Pane (Show) `view.navigationPane` — `ID_OUTLINE` (headings, pages, results; panes.c)
-- ✅ Zoom (Zoom) `view.zoom` — `ID_ZOOMDD` (list); no Zoom dialog
+- ✅ Zoom (Zoom) `view.zoom` — `ID_ZOOMDD` (list); the Zoom window `ID_WW_ZOOMDLG` (200%, 100%, 75%, page width, whole page, many pages, percent) [WP25]
 - ✅ 100% (Zoom) `view.zoom100` — `ID_ZOOM100`, `ID_ZOOM100B`
 - ✅ One Page (Zoom) `view.onePage` — `ID_ONEPAGE`
-- 🟨 Multiple Pages (Zoom) `view.multiplePages` — `ID_MULTIPAGE` two pages a row (more when wide); no choice of how many [WP25]
+- ✅ Multiple Pages (Zoom) `view.multiplePages` — `ID_MULTIPAGE` two pages a row; **Many Pages** (`ID_WW_MANY`: 2, 3, 4 pages, 2 x 2, 2 x 3, 2 x 4, fitted in the window), also in the Zoom window [WP25]
 - ✅ Page Width (Zoom) `view.pageWidth` — `ID_PAGEWIDTH`
 - ✅ Zoom In (Zoom) `view.zoomIn` — status bar + (`ID_ZOOMSET`, panes.c)
 - ✅ Zoom Out (Zoom) `view.zoomOut` — status bar - (`ID_ZOOMSET`)
 - ✅ Switch Modes (Dark Mode) `view.darkMode` — `ID_DARKPAGE`
-- ⬜ New Window (Window) `view.newWindow` — a second window on the same document isn't possible (each window holds its own document) [WP25]
-- ➖ Arrange All (Window) `view.arrangeAll` — WordCraft doesn't have it either
-- ⬜ Split (Window) `view.split` [WP25]
+- ✅ New Window (Window) `view.newWindow` — `ID_WW_NEWWIN`: another window on the same Doc (main.c `wp_win_new_shared()`; the Doc is freed with the last window showing it, which alone asks to save; titles Doc:1, Doc:2; each view lays out again what another changed: `ww_sync`) [WP25]
+- ✅ Arrange All (Window) `view.arrangeAll` — `ID_WW_ARRANGE`: the windows one above another down the screen, in a grid when too small (WordCraft doesn't have it) [WP25]
+- ✅ Split (Window) `view.split` — `ID_WW_SPLIT`: a second pane with its own scroll bar over the window's own, a balance between; the pane clicked into is worked in (keys, ribbon, rulers); again: one pane [WP25]
 - ➖ View Side by Side (Window) `view.sideBySide` — WordCraft doesn't have it either
 - ➖ Synchronous Scrolling (Window) `view.syncScroll` — WordCraft doesn't have it either
-- 🟨 Switch Windows (Window) `view.switchWindows` — `ID_NEXTWIN` (Amiga-`) cycles; no list of open documents (README roadmap "a Window menu") [WP25]
+- ✅ Switch Windows (Window) `view.switchWindows` — `ID_NEXTWIN` (Amiga-`) cycles; **Switch Windows** list on the View tab and View > Window lists the open windows, the one it is in ticked (`wp25_windows_changed()`) [WP25]
 - ➖ Macros (Macros) `tools.macros` — macros and scripting left out on purpose
 - ➖ Record Macro (Macros) `tools.recordMacro` — macros and scripting left out on purpose
 - ✅ Properties (SharePoint) `file.properties` — as File › Properties: `ID_INFO_PROPS` [WP24]
 
-### Read Mode (3: ✅ 0 · 🟨 0 · ⬜ 2 · ➖ 1)
+### Read Mode (3: ✅ 2 · 🟨 0 · ⬜ 0 · ➖ 1)
 
-- ⬜ Column Width (View) `view.readColumnWidth` — Read Mode always shows two pages a row [WP25]
-- ⬜ Page Color (View) `view.readPageColor` — no sepia/inverse in Read Mode (Dark Mode is separate) [WP25]
+- ✅ Column Width (View) `view.readColumnWidth` — `ID_WW_RCOL`: Narrow and Wide reflow Read Mode's text into a column (3.5 and 6.5 inches) in the middle of the window, Default shows the pages; also Text Size (smaller to largest) and Line Spacing (wider: `Layout.linepct`) (View tab's Read Mode group, View > Read Mode Options, Read Mode's right-button menu) [WP25]
+- ✅ Page Color (View) `view.readPageColor` — `ID_WW_RCOLOR`: None, Sepia, Inverse (the dark page while reading) [WP25]
 - ➖ Layout (View) `view.readLayout` — WordCraft doesn't have it either
 
 ### Developer (11: ✅ 0 · 🟨 0 · ⬜ 11 · ➖ 0)
@@ -560,18 +560,18 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Community Discord (Help) `ui.discord` — network (opens a web page)
 - ➖ Commands (Agents) `ui.dialog commands` — WordCraft's list of command ids for agents/scripts: control protocols left out on purpose
 
-### Table Design (8: ✅ 4 · 🟨 0 · ⬜ 4 · ➖ 0)
+### Table Design (8: ✅ 8 · 🟨 0 · ⬜ 0 · ➖ 0)
 
 - ✅ Table Style Options (Table Style Options) `table.look` — `ID_LK_FIRSTROW` … `ID_LK_BANDCOLS` (6)
 - ✅ Table Styles (Table Styles) `table.style` — `ID_TSTYLEDD`
-- ⬜ New Table Style (Table Styles) `table.newStyle` — README roadmap "a table style editor" [WP21a]
-- ⬜ Modify Table Style (Table Styles) `table.modifyStyle` [WP21a]
-- ⬜ Delete Table Style (Table Styles) `table.deleteStyle` [WP21a]
+- ✅ New Table Style (Table Styles) `table.newStyle` — WP21a: Table Design › Style › New Style, Table › Table Styles: the table style editor (name, based on, every part: whole table, header/total rows, first/last column, odd/even banded rows and columns, the four corner cells; bold, italic, underline, size, colour, shading, borders in any pen, 9-way alignment; a picture of the result); written to styles.xml as a `w:customStyle` table style with its `w:tblStylePr` parts (core/tstyle.c `tstyle_define`, tests "new table style") [WP21a]
+- ✅ Modify Table Style (Table Styles) `table.modifyStyle` — WP21a: the editor on the caret's table's style; every table in it (or in styles based on it) is formatted afresh in one undo step (`tstyle_define`, tests "modify table style") [WP21a]
+- ✅ Delete Table Style (Table Styles) `table.deleteStyle` — WP21a: the caret's table's style deleted after asking; its tables keep their look without a style, styles based on it take its base, it isn't saved (`tstyle_delete`, tests "delete table style") [WP21a]
 - ✅ Shading (Table Styles) `table.shading` — `ID_SHADINGDD`
 - ✅ Borders (Borders) `table.borders` — `ID_TBORDERSDD` with pen `ID_PENSTYLE`/`ID_PENWIDTH`/`ID_PENCOLOR`
-- ⬜ Border Painter (Borders) `table.borderPainter` [WP21a]
+- ✅ Border Painter (Borders) `table.borderPainter` — WP21a: Table Design › Paint › Border Painter, a mouse tool: a click puts the Borders group's pen (style, weight, colour) on the nearest cell edge (both cells' sides), a stroke on every edge along it; Esc ends it (core/tbldraw.c `tbl_paint_stroke`, tests "border painter") [WP21a]
 
-### Table Layout (33: ✅ 26 · 🟨 1 · ⬜ 6 · ➖ 0)
+### Table Layout (33: ✅ 32 · 🟨 0 · ⬜ 1 · ➖ 0)
 
 - ✅ Select Table (Table) `table.selectTable` — `ID_TSELECTDD` (`CMD_TSELECT` 3)
 - ✅ Select Row (Table) `table.selectRow` — `ID_TSELECTDD`
@@ -579,11 +579,11 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Select Cell (Table) `table.selectCell` — `ID_TSELECTDD`
 - ✅ View Gridlines (Table) `table.viewGridlines` — `ID_TGRID`
 - ✅ Properties (Table) `table.properties` — `ID_TPROPS` (`open_tprops()`)
-- ⬜ Alt Text (Table) `table.altText` — no w:tblCaption/w:tblDescription [WP21b]
+- ✅ Alt Text (Table) `table.altText` — WP21b: Table Layout › Cells › Alt Text, Table › Alt Text..., right-button menu: title and description read and written as `w:tblCaption`/`w:tblDescription` (tests "alt text and floating") [WP21b]
 - ⬜ Table Direction (Table) `table.rtl` [WP27]
-- ⬜ Draw Table (Draw) `table.draw` [WP21b]
-- ⬜ Eraser (Draw) `table.eraser` [WP21b]
-- ⬜ Delete Cells (Rows & Columns) `table.deleteCells` — rows, columns or table only (`ID_DELTABLEDD`); no Delete Cells (shift left/up) [WP21b]
+- ✅ Draw Table (Draw) `table.draw` — WP21b: Table Layout › Cells › Draw Table (see Insert) [WP21b]
+- ✅ Eraser (Draw) `table.eraser` — WP21b: Table Layout › Cells › Eraser, Table › Eraser, a mouse tool: the edge between two cells nearest the click goes (the cells merged), an outside edge loses its line (core/tbldraw.c `tbl_erase_stroke`, tests "eraser") [WP21b]
+- ✅ Delete Cells (Rows & Columns) `table.deleteCells` — WP21b: Table Layout › Cells › Delete Cells, Table › Delete Cells..., right-button menu: shift cells left (rows end short, as in Word), shift cells up (empty cells at the bottom), entire row, entire column, on the selected block (core/table.c `tbl_delete_cells`, tests "delete cells") [WP21b]
 - ✅ Delete Rows (Rows & Columns) `table.deleteRow` — `ID_DEL_ROW`
 - ✅ Delete Columns (Rows & Columns) `table.deleteColumn` — `ID_DEL_COL`
 - ✅ Delete Table (Rows & Columns) `table.deleteTable` — `ID_DEL_TABLE`
@@ -599,9 +599,9 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Column Width (Cell Size) `table.columnWidth` — `ID_COLW`
 - ✅ Distribute Rows (Cell Size) `table.distributeRows` — `ID_DISTROWS`
 - ✅ Distribute Columns (Cell Size) `table.distributeColumns` — `ID_DISTCOLS`
-- 🟨 Alignment (Alignment) `table.cellAlign` — `ID_VALIGN0`-`2`: top, centre, bottom only; WordCraft's 9-way grid sets the paragraphs' alignment too [WP21b]
-- ⬜ Text Direction (Alignment) `table.textDirection` — README roadmap "text direction in cells" [WP21b]
-- ✅ Cell Margins (Alignment) `table.cellMargins` — `ID_TPROPS` (table cell margins; no per-cell margins)
+- ✅ Alignment (Alignment) `table.cellAlign` — `ID_VALIGN0`-`2`, and WP21b's 9-way Align list (Table Layout › Cells, Table › Cell Alignment, right-button menu) setting the cells' vertical alignment and their paragraphs' alignment (core/table.c `tbl_cell_align`, tests "cell align"); table styles can set it too (`w:vAlign` in a style's `w:tcPr`) [WP21b]
+- ✅ Text Direction (Alignment) `table.textDirection` — WP21b: Table Layout › Cells › Text Direction, Table › Text Direction, right-button menu: across, turned 90° (`tbRl`) or 270° (`btLr`), read and written; turned text is laid out along the cell (the row growing to fit it, or wrapping in an exact row), drawn turned on the screen (view.c `draw_turned`) and in PDFs (a turned text frame), with the caret across it and clicks finding it (core/layout.c `place_turned`, tests "turned text") [WP21b]
+- ✅ Cell Margins (Alignment) `table.cellMargins` — `ID_TPROPS` (table cell margins), and WP21b's Cell Options (per-cell margins, `w:tcMar`, laid out per cell; tests "cell margins")
 - ✅ Sort (Data) `table.sort` — `ID_TSORT`
 - ✅ Repeat Header Rows (Data) `table.repeatHeader` — `ID_HEADERROW`
 - ✅ Convert to Text (Data) `table.toText` — `ID_TOTEXT`
@@ -673,21 +673,21 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Equation Number (#) (Equation Options) `equation.number` — kept as Word does: the equation an `m:eqArr` of one row ending `#(n)` (typing `expr#(n)` numbers it too); laid out with the number at the line's right edge and the equation justified in the rest (core/mathlay.c, `math_fit` from core/layout.c); automatic numbers (1), (2)… renumbered in document order like SEQ fields (`math_renumber`); checked: tests/test_wp14b.c (layout spans the line, .docx round trip, renumbering), emulator screenshot (numbers at the right margin) [WP14b]
 - ✅ Structure Commands (Equation Options) `equation.structure` — the commands that apply at the caret (Word's right-click actions: insert/delete matrix rows and columns, equation-array rows, bracket arguments, change brackets ( ) [ ] { } ⟨ ⟩ | | ‖ ‖ ⌊ ⌋ ⌈ ⌉ or none, stretch, fraction type, show/hide degree and limits, limit location, add/remove scripts, flip group characters and bars, remove the structure) in a popup, Format › Equation and the right-button submenu (`me_actions`, `me_apply`); checked: tests/test_wp14b.c, emulator screenshot [WP14b]
 
-### Outlining (13: ✅ 0 · 🟨 0 · ⬜ 13 · ➖ 0)
+### Outlining (13: ✅ 13 · 🟨 0 · ⬜ 0 · ➖ 0)
 
-- ⬜ Promote to Heading 1 (Outline Tools) `outline.promoteToHeading1` — no Outline view [WP11]
-- ⬜ Promote (Outline Tools) `outline.promote` [WP11]
-- ⬜ Outline Level (Outline Tools) `outline.level` [WP11]
-- ⬜ Demote (Outline Tools) `outline.demote` [WP11]
-- ⬜ Demote to Body Text (Outline Tools) `outline.demoteToBody` [WP11]
-- ⬜ Move Up (Outline Tools) `outline.moveUp` [WP11]
-- ⬜ Move Down (Outline Tools) `outline.moveDown` [WP11]
-- ⬜ Expand (Outline Tools) `outline.expand` [WP11]
-- ⬜ Collapse (Outline Tools) `outline.collapse` [WP11]
-- ⬜ Show Level (Outline Tools) `outline.showLevel` [WP11]
-- ⬜ Show Text Formatting (Outline Tools) `outline.showFormatting` [WP11]
-- ⬜ Show First Line Only (Outline Tools) `outline.firstLineOnly` [WP11]
-- ⬜ Close Outline View (Close) `outline.close` [WP11]
+- ✅ Promote to Heading 1 (Outline Tools) `outline.promoteToHeading1` — `ID_OL_TOH1` (`outline_set_level()`) [WP11]
+- ✅ Promote (Outline Tools) `outline.promote` — `ID_OL_PROMOTE` (a collapsed heading's part with it; body text takes the heading above's level) [WP11]
+- ✅ Outline Level (Outline Tools) `outline.level` — `ID_OL_LEVEL` field (Level 1-9, Body Text) [WP11]
+- ✅ Demote (Outline Tools) `outline.demote` — `ID_OL_DEMOTE` (Heading 4-9 made like the one above when missing: `outline_heading_style()`) [WP11]
+- ✅ Demote to Body Text (Outline Tools) `outline.demoteToBody` — `ID_OL_TOBODY` (the Normal style) [WP11]
+- ✅ Move Up (Outline Tools) `outline.moveUp` — `ID_OL_UP` (past the part shown above; folds go with the paragraphs) [WP11]
+- ✅ Move Down (Outline Tools) `outline.moveDown` — `ID_OL_DOWN` [WP11]
+- ✅ Expand (Outline Tools) `outline.expand` — `ID_OL_EXPAND`, Alt-Shift-+, double-click a plus (a level at a time, as Word) [WP11]
+- ✅ Collapse (Outline Tools) `outline.collapse` — `ID_OL_COLLAPSE`, Alt-Shift-- (deepest open headings first; a dotted line under a collapsed heading) [WP11]
+- ✅ Show Level (Outline Tools) `outline.showLevel` — `ID_OL_SHOWLEVEL` field, Alt-Shift-1..9 and A [WP11]
+- ✅ Show Text Formatting (Outline Tools) `outline.showFormatting` — `ID_OL_FORMAT` (off: all text in the Normal style's look, `OL_PLAIN`) [WP11]
+- ✅ Show First Line Only (Outline Tools) `outline.firstLineOnly` — `ID_OL_FIRSTLINE` (`OL_FIRST`, "..." after a cut paragraph) [WP11]
+- ✅ Close Outline View (Close) `outline.close` — `ID_OL_CLOSE` (back to Print Layout) [WP11]
 
 ### SmartArt Design (7: ✅ 0 · 🟨 0 · ⬜ 7 · ➖ 0)
 
@@ -707,7 +707,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Legend (Chart Layouts) `chart.legend` [WP15b]
 - ⬜ Data Labels (Chart Layouts) `chart.dataLabels` [WP15b]
 
-### Editing (41: ✅ 29 · 🟨 2 · ⬜ 10 · ➖ 0)
+### Editing (41: ✅ 41 · 🟨 0 · ⬜ 0 · ➖ 0)
 
 - ✅ Type Text (Keyboard) `text.insert` — view.c `key()`, `CMD_TEXT`
 - ✅ New Paragraph (Keyboard) `text.newParagraph` — Return
@@ -719,10 +719,10 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Delete (Keyboard) `text.delete`
 - ✅ Delete Previous Word (Keyboard) `text.deleteWordBack` — Alt-Backspace
 - ✅ Delete Next Word (Keyboard) `text.deleteWordForward` — Alt-Del
-- ⬜ Move Paragraph Up (Keyboard) `para.moveUp` [WP11]
-- ⬜ Move Paragraph Down (Keyboard) `para.moveDown` [WP11]
-- 🟨 Promote (Keyboard) `para.promote` — Shift-Tab raises a list item's level; headings can't be promoted [WP11]
-- 🟨 Demote (Keyboard) `para.demote` — Tab lowers a list item's level; headings can't be demoted [WP11]
+- ✅ Move Paragraph Up (Keyboard) `para.moveUp` — Ctrl-Alt-Shift-Up anywhere (Alt-Shift-Up selects by paragraph in Quill), Alt-Shift-Up too in Outline view: `outline_move()` (a collapsed heading with its part) [WP11]
+- ✅ Move Paragraph Down (Keyboard) `para.moveDown` — Ctrl-Alt-Shift-Down; Alt-Shift-Down in Outline view [WP11]
+- ✅ Promote (Keyboard) `para.promote` — Ctrl-Alt-Shift-Left (headings by their Heading styles, `outline_promote()`); in Outline view also Alt-Shift-Left and Shift-Tab; Shift-Tab raises a list item's level elsewhere [WP11]
+- ✅ Demote (Keyboard) `para.demote` — Ctrl-Alt-Shift-Right; in Outline view also Alt-Shift-Right and Tab [WP11]
 - ✅ Toggle Unicode Character (Keyboard) `text.toggleUnicode` — Ctrl-X (Alt-X types a character on Amiga keymaps), `fx_toggle_unicode()`: hex code (up to six digits, U+ allowed) to character and back (00E9, U+ after hex digits) [WP12]
 - ✅ Spike (Keyboard) `edit.spike` — Ctrl-F3 (`ID_FX_SPIKE`): the selection cut and added, with its formatting, to the Spike (a document of its own; the clipboard is untouched) [WP12]
 - ✅ Insert Spike (Keyboard) `edit.insertSpike` — Ctrl-Shift-F3 (`ID_FX_INSSPIKE`): the Spike pasted with its formatting and emptied [WP12]
@@ -791,7 +791,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 
 - 🟨 **Run and paragraph properties, styles, numbering, sections** — Quill reads and writes the common set (core/docx.c). Missing: complex-script properties (`w:rtl`, `w:cs`, `w:szCs`, `w:bCs`) and East Asian font slots (`w:eastAsia`), languages (`w:lang`, none read), every `ST_NumberFormat` beyond decimal/letters/roman (`NF_` in doc.h), indents in characters, more than 8 tab stops a paragraph (`ParaFmt.tabs[8]`), hidden, emboss, imprint, outline, shadow, underline colour, `w:outlineLvl`.
 - 🟨 **Positional tabs (`w:ptab`)** — read as an ordinary tab (docx.c line 1355), not placed by alignment/margin.
-- 🟨 **Tables** — widths, merges, borders, shading, styles with conditional formatting, nested tables (one level), cantSplit, heading rows: ✅. Floating tables (`w:tblpPr`) are placed in the text (README roadmap); row exceptions (`w:tblPrEx`) and right-to-left tables (`w:bidiVisual`) not read; tables in headers and footers come in as their text (README roadmap).
+- 🟨 **Tables** — widths, merges, borders, shading, styles with conditional formatting, nested tables (one level), cantSplit, heading rows: ✅. Floating tables (`w:tblpPr`) ✅ (WP21b: placed where they say, the text wrapping round them, written back), cells' text direction (`w:textDirection`), own margins (`w:tcMar`) and tables' alt text (`w:tblCaption`, `w:tblDescription`) ✅ (WP21b), custom table styles ✅ (WP21a); row exceptions (`w:tblPrEx`) and right-to-left tables (`w:bidiVisual`) not read; tables in headers and footers come in as their text (README roadmap).
 - ✅ **Headers/footers, page borders, line numbers, gutter, mirror margins** — first/even/odd, per section, link to previous: ✅. WP22a: `w:pgMar w:gutter`, `w:rtlGutter`, `w:gutterAtTop`, `w:mirrorMargins`, `w:printTwoOnOne`, `w:bookFoldPrinting`/`w:bookFoldRevPrinting`/`w:bookFoldPrintingSheets`, `w:bordersDoNotSurroundHeader/Footer`; page borders per section and per side (`w:pgBorders` every attribute), read and written (tests/test_wp22a.c).
 - ✅ **Hyphenation settings** — `w:autoHyphenation`, `w:hyphenationZone`, `w:doNotHyphenateCaps`, `w:consecutiveHyphenLimit` read, written and laid out (WP22a: core/pages.c `pages_hyph_zone`, `pages_hyph_allowed`).
 - ✅ **Footnotes, endnotes, comments** — read and written. Note options (`w:footnotePr`/`w:endnotePr`) and the document's own separators and continuation notice read and written (WP22b ✅). Comments' replies, resolved state, durable ids and UTC times, and the people (`commentsExtended`, `commentsIds`, `commentsExtensible`, `people.xml`, each person's own entry kept) ✅ (WP5, core/docx.c `wp5_read_parts()`, `wp5_write_parts()`).
@@ -844,7 +844,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ✅ **Turned text** — WP18: text in shapes and text boxes turns with them, and turns a quarter for vertical text, on the screen (drawn upright into a bitmap of its own and copied turned, amiga/view.c `draw_text_turned`) and in PDFs.
 - ✅ **Line numbering** — start, count by, distance, restart, for each section on its own (WP22a: Apply to in the Line Numbers window).
 - ✅ **Drop caps** — dropped or in the margin, 1-10 lines.
-- 🟨 **Tables across pages** — rows break, heading rows repeat ✅; floating tables ⬜.
+- ✅ **Tables across pages** — rows break, heading rows repeat ✅; floating tables ✅ (WP21b: on the page their anchor is on, the text wrapping round them; core/layout.c `place_float_table`, tests "floating table"; a floating table taller than the page runs on rather than breaking as Word's can).
 - ✅ **Footnotes** — at the foot of the page that refers to them or beneath its text; a long note continues on the next page under the continuation separator (with the document's continuation notice); endnotes at the document's or each section's end; numbering by format, start, restart each section/page (WP22b).
 - ✅ **Tab stops** — left, centre, right, decimal, leaders (at most 8 a paragraph).
 - ✅ **Contextual spacing, line spacing rules (auto/at least/exactly)**.

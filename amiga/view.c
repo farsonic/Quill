@@ -51,6 +51,7 @@
 #include "wp_charpara.h"                /* (WP9, WP10) */
 #include "theme.h"
 #include "lang.h"
+#include "wp_tables.h"                 /* WP21a/WP21b: the table tools and turned text */
 #include "wp_objects.h"            /* WP17/WP18 */
 #include "../core/objfx.h"
 
@@ -145,6 +146,12 @@ struct Data {
   /* WP22a: the picture watermark as pens at its shown size */
   UBYTE *wmp_px; LONG wmp_w, wmp_h; const u8 *wmp_data; int wmp_wash;
   void *wp12;                           /* WP12's own state (wp_find_view.h) */
+  /* WP21a/WP21b: a table tool's stroke being dragged (Draw Table, Eraser, Border Painter): where it
+     started and where the pointer is (window pixels); the caret lying across turned text, cw wide */
+  int tdrag, tdrag_on; LONG tdrag_mx, tdrag_my, tdrag_x, tdrag_y;
+  int cturn; LONG cw;
+  void *wp11;                           /* WP11's own state (wp_outline_view.h) */
+  void *wp25;                           /* WP25's own state (wp_windows_view.h) */
   void *wp14b;                          /* WP14b's own state (wp_equation_view.h): the equation being edited */
 };
 
@@ -192,11 +199,17 @@ static int paged(struct Data *d) { return d->vmode == VM_PRINT || d->vmode == VM
 static LONG text_h(struct Data *d) { LONG h = tx(d, d->doc->page.height - d->doc->page.top - d->doc->page.bottom); return h > 8 ? h : 8; }
 static LONG col_w(struct Data *d);
 static int metric(struct Data *d);
+/* (WP25, wp_windows_view.h) Side to Side, Multiple Pages, reflowed Read Mode */
+static int ww_cols(struct Data *d);
+static void ww_fit(struct Data *d, LONG w);
+static LONG ww_left(struct Data *d, LONG w, LONG rw);
+static void ww_pens(struct Data *d, Object *obj);
 /* pages in a row */
 static int cols(struct Data *d)
 {
   LONG w, n;
   if (!paged(d) || !d->obj) return 1;
+  { int wc = ww_cols(d); if (wc > 0) return wc; }      /* WP25 */
   w = _mwidth(d->obj) - col_w(d);
   n = (w - GAP) / (page_w(d) + GAP);
   if (d->lay && n > (LONG)d->lay->npages) n = (LONG)d->lay->npages;
@@ -281,6 +294,7 @@ static LONG row_w(struct Data *d)
 static LONG page_left(struct Data *d, LONG w)
 {
   LONG pw = row_w(d), max = pw + 2 * GAP - w;
+  { LONG c = ww_left(d, w, pw); if (c >= 0) { d->scrollx = 0; return c; } }     /* WP25: reflowed Read Mode, in the middle */
   if (paged(d) && w > pw + 2 * GAP) return (w - pw) / 2;
   if (!paged(d) && w >= pw) max = 0;
   if (d->scrollx > max) d->scrollx = max;
@@ -321,6 +335,7 @@ static void fit_zoom(struct Data *d, LONG w)
   else if (w > 4 * GAP) d->zoom = (LONG)((w - 2 * GAP) * 2000L / (d->cellw ? d->cellw : 11906));
   if (d->zoom < 25) d->zoom = 25;
   if (d->zoom > 400) d->zoom = 400;
+  ww_fit(d, w);                                  /* WP25: Multiple Pages, Side to Side, Read Mode's text size */
 }
 
 /* ------------------------------------------------------------------ */
@@ -475,6 +490,7 @@ static void get_pens(struct Data *d, Object *obj)
   d->pen_sel = dk ? best(obj, 0x4A, 0x5A, 0x8E) : best(obj, 170, 200, 240);
   d->pen_grid = dk ? best(obj, 0x45, 0x4C, 0x5C) : best(obj, 0xD5, 0xDD, 0xEE);
   d->ncol = 0;
+  ww_pens(d, obj);                               /* WP25: Read Mode's sepia page */
 }
 /* drop the cached pictures: their pixels are pen numbers, wrong once the pens change */
 static void free_pics(struct Data *d)
@@ -541,12 +557,15 @@ static int has_sel(struct Data *d) { return pos_cmp(d->anchor, d->caret) != 0; }
 static int sel_object(struct Data *d, Pos *at);
 /* what the work packages' hooks are told (wphooks.h WpCtx): the document, caret, selection, table,
    view mode, the object selected, and where (WPC_) */
+static struct Data *ctx_view;          /* (WP11) the view the last WpCtx was made for */
+static int shown_mode(struct Data *d);  /* (WP11, WP25) the view mode as the outside sees it: VM_OUTLINE, VM_READ reflowed */
 static void wp_ctx(struct Data *d, WpCtx *c, int where)
 {
   memset(c, 0, sizeof *c);
   c->doc = d->doc; c->caret = d->caret; c->anchor = d->anchor; c->hassel = has_sel(d);
   c->intable = d->doc && d->caret.para < d->doc->np && in_table(&d->doc->p[d->caret.para]->pf);
-  c->vmode = d->vmode; c->obj = d->doc ? sel_object(d, NULL) : -1; c->where = where;
+  c->vmode = shown_mode(d); c->obj = d->doc ? sel_object(d, NULL) : -1; c->where = where;
+  ctx_view = d;
 }
 
 /* x (twips, from the line's start) of byte off on a line */
@@ -562,6 +581,9 @@ static i32 line_x(Layout *L, ParaLay *pl, Line *ln, u32 off)
   return x;
 }
 #include "wp_find_view.h"               /* WP12: block and similar selections, Extend Selection, Select Objects, Highlight All */
+#include "wp_outline_view.h"            /* WP11: Outline view and the outline commands */
+#include "wp_windows_view.h"            /* WP25: views shared by windows, Split, page movement, Read Mode's options */
+static int shown_mode(struct Data *d) { return ov_on(d) ? VM_OUTLINE : ww_reading(d) ? VM_READ : d->vmode; }
 /* an underline or strike line of a kind (UL_) from x, w pixels wide, at y */
 static void deco_line(struct RastPort *rp, int kind, LONG x, LONG y, LONG w)
 {
@@ -1301,11 +1323,59 @@ static LONG math_pen(ULONG rgb) { return pen_for(mpen_d, mpen_obj, rgb); }
    is at (px, py). Back to front: change bar, comment shading, highlights, the selection (sel: slo to
    shi), then the text, note numbers, fields, inline pictures, leaders and formatting marks. Headers,
    footers, notes and text boxes use it too, with pc->para 0xFFFFFFFF (no paragraph of the body) */
+/* WP21b: a line of turned text in a table cell: its text drawn across into a scratch bitmap, then put
+   on the page turned, pixel by pixel (pixels left at pen 0 are what's behind); the selection behind it */
+static void draw_turned(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Placed *pc, LONG px, LONG py, Pos slo, Pos shi, int sel)
+{
+  Line *ln = &pl->lines[pc->line];
+  LONG W = tx(d, pc->tlen) + 1, H = tx(d, ln->height) + 1, bw = tx(d, pc->w), bh = tx(d, pc->tlen), u, v;
+  LONG bx = px + tx(d, d->pg->left + pc->x), by = py + tx(d, pc->y), sh = tx(d, pc->tshift + ln->left);
+  struct BitMap *bm;
+  struct RastPort trp;
+  u32 k;
+  if (W < 2 || H < 2 || W > 4000 || H > 400) return;
+  if (sel && pc->para >= slo.para && pc->para <= shi.para) {
+    u32 s0 = pc->para == slo.para ? slo.off : 0, e0 = pc->para == shi.para ? shi.off : pl->p->len;
+    if (e0 > s0) {
+      LONG a = sh + tx(d, line_x(d->lay, pl, ln, s0)), b = sh + tx(d, line_x(d->lay, pl, ln, e0));
+      SetAPen(rp, d->pen_sel);
+      if (pc->turn == TD_DOWN) RectFill(rp, bx, by + a, bx + bw - 1, by + b - 1);
+      else RectFill(rp, bx, by + bh - b, bx + bw - 1, by + bh - a - 1);
+    }
+  }
+  /* (eight planes of its own whatever the screen: a pixel read back is the pen it was drawn in) */
+  if (!(bm = AllocBitMap((ULONG)W, (ULONG)H, 8, BMF_CLEAR, NULL))) return;
+  InitRastPort(&trp);
+  trp.BitMap = bm;
+  SetDrMd(&trp, JAM1);
+  for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
+    Box *b = &pl->boxes[k], nb = *b;
+    char num[24];
+    if (LAY_HIDDEN(d->lay, b)) continue;                   /* (WP9: hidden text, formatting marks off) */
+    if (b->kind == BX_TEXT) draw_text(d, obj, &trp, b, pl->p->t, sh + tx(d, b->x), tx(d, ln->ascent));
+    else if (b->kind == BX_NOTE || b->kind == BX_ENOTE || b->kind == BX_FIELD) {
+      if (b->kind == BX_FIELD) lay_field_text(d->lay, pl->p, b, pc->page, num); else lay_note_label(pl, k, num);
+      nb.kind = BX_TEXT; nb.off = 0; nb.len = (u16)strlen(num);
+      draw_text(d, obj, &trp, &nb, num, sh + tx(d, b->x), tx(d, ln->ascent));
+    }
+  }
+  for (v = 0; v < H && v < bw + 1; v++)
+    for (u = 0; u < W; u++) {
+      LONG c = ReadPixel(&trp, u, v);
+      if (c <= 0) continue;
+      SetAPen(rp, (ULONG)c);
+      if (pc->turn == TD_DOWN) WritePixel(rp, bx + bw - 1 - v, by + u);
+      else WritePixel(rp, bx + v, by + bh - 1 - u);
+    }
+  WaitBlit();
+  FreeBitMap(bm);
+}
 static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Placed *pc, LONG px, LONG py, Pos slo, Pos shi, int sel)
 {
   Layout *L = d->lay;
   Doc *doc = d->doc;
   Line *ln = &pl->lines[pc->line];
+  if (pc->turn) { draw_turned(d, obj, rp, pl, pc, px, py, slo, shi, sel); return; }     /* WP21b */
   LONG lx = px + tx(d, d->pg->left + pc->x + ln->left), top = py + tx(d, pc->y), base = py + tx(d, pc->y + ln->ascent);
   u32 k;
   /* a changed line has a bar in the margin (WP5: where the Track Changes Options say; red in Simple Markup) */
@@ -1987,6 +2057,7 @@ static void draw_all(struct Data *d, Object *obj, struct RastPort *rp, LONG w, L
         for (x = 0; x < w; x += 4) WritePixel(rp, x, py - 1);
       }
       draw_page(d, obj, rp, k, page_x(d, k, w), pt, h, sel, slo, shi);
+      ov_draw(d, obj, rp, k, page_x(d, k, w), pt, h);       /* WP11: the outline symbols */
     }
     (void)pw; (void)ph; (void)pl;
     return;
@@ -2022,6 +2093,18 @@ static void caret_xor(struct Data *d, Object *obj)
 {
   struct RastPort *rp = _rp(obj);
   LONG x0 = d->cx, y0 = d->cy, y1 = d->cy + d->ch - 1;
+  if (d->cturn) {
+    /* WP21b: across turned text */
+    LONG x1 = x0 + d->cw - 1;
+    if (y0 < _mtop(obj) || y0 + 1 > _mbottom(obj)) return;
+    if (x0 < _mleft(obj)) x0 = _mleft(obj);
+    if (x1 > _mright(obj)) x1 = _mright(obj);
+    if (x1 < x0) return;
+    SetDrMd(rp, COMPLEMENT);
+    RectFill(rp, x0, y0, x1, y0 + 1);
+    SetDrMd(rp, JAM1);
+    return;
+  }
   if (x0 < _mleft(obj) || x0 + 1 > _mright(obj)) return;
   if (y0 < _mtop(obj)) y0 = _mtop(obj);
   if (y1 > _mbottom(obj)) y1 = _mbottom(obj);
@@ -2041,6 +2124,8 @@ static void caret_place(struct Data *d, Object *obj)
   d->cy = _mtop(obj) + page_top(d, page) - d->scrolly + tx(d, y);
   d->ch = tx(d, h);
   if (d->ch < 4) d->ch = 4;
+  d->cturn = lay_caret_turn; d->cw = tx(d, lay_caret_w);      /* WP21b: turned text */
+  if (d->cw < 4) d->cw = 4;
 }
 /* the caret is XORed on the window, so taking it away is drawing it again: caret_shown must be true
    to the screen, or a stray bar is left. Anything drawing into the window hides it first; caret_show
@@ -2051,7 +2136,7 @@ static void caret_hide(struct Data *d, Object *obj)
 }
 static void caret_show(struct Data *d, Object *obj)
 {
-  if (!d->caret_shown && !has_sel(d) && !ev_hidecaret(d)) { caret_place(d, obj); caret_xor(d, obj); d->caret_shown = 1; }   /* (WP14b: not with a selection in an equation) */
+  if (!d->caret_shown && !has_sel(d) && !ww_passive(d) && !ev_hidecaret(d)) { caret_place(d, obj); caret_xor(d, obj); d->caret_shown = 1; }   /* (WP25: not in a split window's other pane; WP14b: not with a selection in an equation) */
 }
 
 /* ------------------------------------------------------------------ */
@@ -2072,6 +2157,7 @@ static void update_prop(struct Data *d)
       DoMethod(_app(d->obj), MUIM_Application_PushMethod, (ULONG)d->tb->hprop, 3, MUIM_Set, MUIA_ShowMe, (ULONG)need);
     }
   }
+  ww_prop(d);                                    /* WP25: a split window's other pane's scroll bar */
 }
 /* Scrolling with the blitter. Most of what a scroll shows was on screen already, so instead of
    drawing the whole view again, the off-screen buffer's picture is moved by dy with ScrollRaster
@@ -2202,7 +2288,7 @@ static void update_toolbar(struct Data *d)
   CharFmt f;
   int i;
   char st[160];
-  if (!tb || !doc) return;
+  if (!tb || !doc || ww_passive(d)) return;     /* (WP25: a split window's other pane works the tools) */
   if (has_sel(d)) { Pos a = sel_lo(d); p = doc->p[a.para]; f = *para_fmt_at(p, a.off); }
   else { p = doc->p[d->caret.para]; f = d->pending ? d->pendfmt : *para_fmt_before(p, d->caret.off); }
   if (tb->bold) SetAttrs(tb->bold, MUIA_NoNotify, TRUE, MUIA_Selected, (f.flags & CF_BOLD) != 0, TAG_DONE);
@@ -2259,7 +2345,7 @@ static void update_toolbar(struct Data *d)
       ss.MethodID = MUIM_Status_Set;
       ss.page = page; ss.pages = d->lay->npages; ss.complete = d->lay->complete;
       ss.words = d->words_stale && !d->words ? ~0UL : d->words;
-      ss.zoom = d->zoom; ss.vmode = d->vmode;
+      ss.zoom = d->zoom; ss.vmode = shown_mode(d);
       DoMethodA(tb->statusbar, (Msg)&ss);
     }
     if (tb->nav) {
@@ -2370,7 +2456,7 @@ static void update_toolbar(struct Data *d)
     rs.style = p->pf.style;
     rs.left = p->pf.left; rs.right = p->pf.right; rs.before = p->pf.before; rs.after = p->pf.after;
     rs.metric = metric(d);
-    rs.doc = doc; rs.fs = d->fs; rs.vmode = d->vmode;
+    rs.doc = doc; rs.fs = d->fs; rs.vmode = shown_mode(d);
     {
       int i;
       u32 sig = (u32)doc->nstyles;
@@ -2411,6 +2497,8 @@ static void relayout(struct Data *d, Object *obj)
   /* web layout: the text as wide as the window */
   d->lay->webw = d->vmode == VM_WEB ? tw(d, (w > 0 ? w : 640) - 2 * WEB_PAD - 4) : 0;
   if (d->vmode == VM_WEB && d->lay->webw < 1440) d->lay->webw = 1440;
+  ov_prepare(d);                                 /* WP11: Outline view */
+  ww_prepare(d);                                 /* WP25: reflowed Read Mode */
   /* a document still being laid out continues from where it got to; after that, edits re-lay out
      only what changed */
   {
@@ -2418,6 +2506,7 @@ static void relayout(struct Data *d, Object *obj)
     int ok_;
     d->lay->showhidden = (u8)(d->marks != 0);                  /* (WP9: hidden text shown with the formatting marks) */
     ok_ = lay_update_part(d->lay, d->lay->complete ? 0 : FIRST_PARAS);
+    ww_laid(d);                                  /* WP25: the version laid out */
     if (qlog) { fprintf(qlog, "[ok %d, free %lu] ", ok_, (unsigned long)AvailMem(MEMF_ANY)); fprintf(qlog, "layout: %lu laid, %lu pages%s, %ld ticks (mode %d, web %ld, zoom %ld)\n", (unsigned long)d->lay->laid, (unsigned long)d->lay->npages, d->lay->complete ? "" : " so far", (long)(ticks50() - t0), d->vmode, (long)d->lay->webw, (long)d->zoom); fflush(qlog); }
   }
   d->doch = doc_height(d);
@@ -2467,6 +2556,7 @@ static void refresh(struct Data *d, Object *obj, int edited)
   }
   d->caret = pos_clamp(d->doc, d->caret);
   d->anchor = pos_clamp(d->doc, d->anchor);
+  ov_caret(d);                                 /* WP11: not in a paragraph a collapsed outline hides */
   ensure_laid(d, obj, d->caret.para);
   make_visible(d, obj);
   update_toolbar(d);
@@ -2918,6 +3008,9 @@ static ULONG do_command(struct IClass *cl, Object *obj, struct MUIP_Quill_Comman
   CharFmt v;
   int edited = 1;
   if (!doc) return 0;
+  ww_sync(d, obj, 1);                          /* WP25: changed in another view */
+  if (ww_command(d, obj, m)) return 0;         /* WP25's commands */
+  if (ov_command(d, obj, m)) return 0;         /* WP11's commands */
   if (ev_command(d, obj, m)) return 0;         /* WP14b's commands, and editing commands inside an equation */
   if (fv_command(d, obj, m)) return 0;         /* WP12's commands, and commands while several ranges are selected */
   caret_hide(d, obj);
@@ -3943,8 +4036,9 @@ static Object *ctx_build(struct Data *d, Object *obj, LONG mx, LONG my)
   Para *q;
   u32 ws, we;
   int i;
-  if (!d->lay || !d->doc || !d->ctxstrip || d->vmode == VM_READ) return NULL;
+  if (!d->lay || !d->doc || !d->ctxstrip) return NULL;
   if (d->ctxmenu) { DoMethod(d->ctxstrip, MUIM_Family_Remove, (ULONG)d->ctxmenu); MUI_DisposeObject(d->ctxmenu); d->ctxmenu = NULL; }
+  if (shown_mode(d) == VM_READ) return ww_readmenu(d);     /* (WP25: Read Mode's own menu) */
   {
     /* a picture or shape under the pointer has its own menu */
     Pos at;
@@ -4300,6 +4394,25 @@ static int edge_at(struct Data *d, Object *obj, LONG mx, LONG my, u16 *table, in
   }
   return 0;
 }
+/* WP21a/WP21b: a table tool's stroke, drawn or taken away (XOR): a box for Draw Table (a line when it
+   is thin, as it is then one), a line for the others; clipped to the view */
+static void tdrag_show(struct Data *d, Object *obj)
+{
+  struct RastPort *rp = _rp(obj);
+  LONG x0 = d->tdrag_mx, y0 = d->tdrag_my, x1 = d->tdrag_x, y1 = d->tdrag_y, t, ax, ay;
+  LONG L = _mleft(obj), T = _mtop(obj), R = _mright(obj), B = _mbottom(obj);
+  APTR clip = MUI_AddClipping((struct MUI_RenderInfo *)(APTR)muiRenderInfo(obj), (WORD)L, (WORD)T, (WORD)(R - L + 1), (WORD)(B - T + 1));
+  SetDrMd(rp, COMPLEMENT);
+  ax = x1 > x0 ? x1 - x0 : x0 - x1; ay = y1 > y0 ? y1 - y0 : y0 - y1;
+  if (wp21_tool() == 1 && ax > 6 && ay > 6 && ax < 3 * ay && ay < 3 * ax) {
+    if (x0 > x1) { t = x0; x0 = x1; x1 = t; }
+    if (y0 > y1) { t = y0; y0 = y1; y1 = t; }
+    Move(rp, x0, y0); Draw(rp, x1, y0); Draw(rp, x1, y1); Draw(rp, x0, y1); Draw(rp, x0, y0 + 1);
+  } else if (x0 != x1 || y0 != y1) { Move(rp, x0, y0); Draw(rp, x1, y1); }
+  else RectFill(rp, x0 - 1, y0 - 1, x0 + 1, y0 + 1);
+  SetDrMd(rp, JAM1);
+  MUI_RemoveClipping((struct MUI_RenderInfo *)(APTR)muiRenderInfo(obj), clip);
+}
 /* the line showing where a dragged column edge goes (drawn and taken away by XOR) */
 static void coldrag_line(struct Data *d, Object *obj, LONG x)
 {
@@ -4333,6 +4446,7 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
     return 0;
   }
   if (q & (IEQUALIFIER_LCOMMAND | IEQUALIFIER_RCOMMAND)) return 0;      /* menu shortcuts */
+  if (ww_key(d, obj, im)) return 1;             /* WP25: reflowed Read Mode, Side to Side's wheel */
   if (d->vmode == VM_READ) {
     /* read mode: no editing; the keys turn the pages, Esc goes back to print layout */
     LONG vh = _mheight(obj);
@@ -4530,9 +4644,12 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
   struct Data *d = INST_DATA(cl, obj);
   struct IntuiMessage *im = m->imsg;
   if (!im || !d->doc || !d->lay || !d->shown) return 0;
-  if (im->Class == IDCMP_RAWKEY) return key_grab || !key(d, obj, im) ? 0 : MUI_EventHandlerRC_Eat;
+  ww_sync(d, obj, 1);                            /* WP25: changed in another view */
+  ww_click(d, obj, im);                          /* WP25: the working pane of a split window */
+  if (im->Class == IDCMP_RAWKEY) return key_grab || ww_passive(d) || !key(d, obj, im) ? 0 : MUI_EventHandlerRC_Eat;
   { ULONG r = ev_mouse(d, obj, im); if (r) return r; }    /* WP14b: dragging in an equation */
   { ULONG r = fv_mouse(d, obj, im); if (r) return r; }    /* WP12: Select Objects */
+  { ULONG r = ov_mouse(d, obj, im); if (r) return r; }    /* WP11: the outline symbols */
   if (im->Class == IDCMP_MOUSEBUTTONS) {
     if (im->Code == SELECTDOWN && im->MouseX >= _mleft(obj) && im->MouseX <= _mright(obj) && im->MouseY >= _mtop(obj) && im->MouseY <= _mbottom(obj)) {
       Pos p;
@@ -4564,6 +4681,17 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
           d->anchor = a; d->caret = pos_cmp(b, a) > 0 ? b : a;
           refresh(d, obj, 0);
         }
+        return MUI_EventHandlerRC_Eat;
+      }
+      if (wp21_tool() && paged(d) && !d->doc->edit.kind) {
+        /* WP21a/WP21b: a table tool (Draw Table, Eraser, Border Painter): a stroke dragged out */
+        caret_hide(d, obj);
+        d->tdrag = 1; d->tdrag_on = 0; d->tdrag_mx = d->tdrag_x = im->MouseX; d->tdrag_my = d->tdrag_y = im->MouseY;
+        tdrag_show(d, obj);
+        DoMethod(_win(obj), MUIM_Window_RemEventHandler, (ULONG)&d->ehn);
+        d->ehn.ehn_Events |= IDCMP_MOUSEMOVE;
+        DoMethod(_win(obj), MUIM_Window_AddEventHandler, (ULONG)&d->ehn);
+        set(_win(obj), MUIA_Window_ActiveObject, (ULONG)obj);
         return MUI_EventHandlerRC_Eat;
       }
       {
@@ -4666,6 +4794,20 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
       refresh(d, obj, 0);
       return MUI_EventHandlerRC_Eat;
     }
+    if (im->Code == SELECTUP && d->tdrag) {
+      /* WP21a/WP21b: the stroke done: its ends on the page where it began, to the tool */
+      i32 x0, y0, x1, y1;
+      u32 page;
+      tdrag_show(d, obj);
+      d->tdrag = 0;
+      DoMethod(_win(obj), MUIM_Window_RemEventHandler, (ULONG)&d->ehn);
+      DoMethod(_win(obj), MUIM_Window_AddEventHandler, (ULONG)&d->ehn);
+      page = point_page(d, obj, d->tdrag_mx, d->tdrag_my, &x0, &y0);
+      x1 = x0 + tw(d, im->MouseX - d->tdrag_mx); y1 = y0 + tw(d, im->MouseY - d->tdrag_my);
+      if (wp21_stroke(d->doc, d->lay, page, x0, y0, x1, y1, &d->caret)) { d->anchor = d->caret; d->pending = 0; refresh(d, obj, 1); }
+      else { DisplayBeep(NULL); refresh(d, obj, 0); }
+      return MUI_EventHandlerRC_Eat;
+    }
     if (im->Code == SELECTUP && d->odrag) {
       if (d->odrag_on) drag_outline(d, obj);
       DoMethod(_win(obj), MUIM_Window_RemEventHandler, (ULONG)&d->ehn);
@@ -4715,6 +4857,10 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
     /* (a few pixels first, so a click doesn't nudge it) */
     if (d->odrag_on || im->MouseX - d->odrag_mx > 2 || d->odrag_mx - im->MouseX > 2 || im->MouseY - d->odrag_my > 2 || d->odrag_my - im->MouseY > 2)
       drag_show(d, obj, im->MouseX, im->MouseY);
+    return MUI_EventHandlerRC_Eat;
+  }
+  if (im->Class == IDCMP_MOUSEMOVE && d->tdrag) {
+    if (im->MouseX != d->tdrag_x || im->MouseY != d->tdrag_y) { tdrag_show(d, obj); d->tdrag_x = im->MouseX; d->tdrag_y = im->MouseY; tdrag_show(d, obj); }
     return MUI_EventHandlerRC_Eat;
   }
   if (im->Class == IDCMP_MOUSEMOVE && d->coldrag) {
@@ -4862,8 +5008,10 @@ static ULONG mSet(struct IClass *cl, Object *obj, struct opSet *msg, int init)
     case MUIA_Quill_Toolbar: d->tb = (struct Toolbar *)t->ti_Data; break;
     case MUIA_Quill_Doc: set_doc(d, obj, (Doc *)t->ti_Data, !init && _win(obj) && d->bw); break;
     case MUIA_Quill_ViewMode:
-      if ((int)t->ti_Data != d->vmode && t->ti_Data <= VM_READ) {
-        d->vmode = (int)t->ti_Data;
+      if (t->ti_Data <= VM_OUTLINE && (int)t->ti_Data != shown_mode(d)) {
+        ov_switch(d, t->ti_Data == VM_OUTLINE);          /* WP11: Outline view is web layout with the outline on */
+        d->vmode = t->ti_Data == VM_OUTLINE ? VM_WEB : (int)t->ti_Data;
+        ww_mode(d, obj, init);                           /* WP25: Read Mode reflowed (web layout inside), its page colour */
         d->scrollx = 0;
         drop_plain(d);
         if (!init && d->doc && d->bw) { caret_hide(d, obj); relayout(d, obj); close_fonts(d); make_visible(d, obj); update_prop(d); update_toolbar(d); MUI_Redraw(obj, MADF_DRAWOBJECT); }
@@ -4882,6 +5030,7 @@ static ULONG mSet(struct IClass *cl, Object *obj, struct opSet *msg, int init)
       break;
     case MUIA_Quill_Zoom:
       d->zoomset = (LONG)t->ti_Data;
+      ww_zoomed(d);                                      /* WP25: a zoom of its own ends Multiple Pages */
       if (!init && d->doc && d->bw) { caret_hide(d, obj); if (d->lay) { relayout(d, obj); close_fonts(d); make_visible(d, obj); update_toolbar(d); MUI_Redraw(obj, MADF_DRAWOBJECT); } }
       break;
     case MUIA_Quill_Scroll: if (!init && d->bw) { caret_hide(d, obj); scroll_to(d, obj, (LONG)t->ti_Data); } break;
@@ -4936,6 +5085,8 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     free(d->rowt);
     drop_plain(d);
     fv_free(d);                         /* WP12 */
+    ov_free(d);                         /* WP11 */
+    ww_free(d);                         /* WP25 */
     ev_free(d);                         /* WP14b */
     break;
   case OM_SET:
@@ -4955,9 +5106,9 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     if (g->opg_AttrID == MUIA_Quill_Outline) { *g->opg_Storage = 0; return TRUE; }
     if (g->opg_AttrID == MUIA_Quill_EditStory) { *g->opg_Storage = (ULONG)&d->sreq; return TRUE; }
     if (g->opg_AttrID == MUIA_Quill_Scroll) { *g->opg_Storage = (ULONG)d->scrolly; return TRUE; }
-    if (g->opg_AttrID == MUIA_Quill_LayoutNow) { *g->opg_Storage = (ULONG)d->lay; return TRUE; }
-    if (g->opg_AttrID == MUIA_Quill_Layout) { *g->opg_Storage = (ULONG)paged_layout(d); return TRUE; }
-    if (g->opg_AttrID == MUIA_Quill_ViewMode) { *g->opg_Storage = (ULONG)d->vmode; return TRUE; }
+    if (g->opg_AttrID == MUIA_Quill_LayoutNow) { ww_sync(d, obj, 2); *g->opg_Storage = (ULONG)d->lay; return TRUE; }   /* (WP25: up to date) */
+    if (g->opg_AttrID == MUIA_Quill_Layout) { ww_sync(d, obj, 2); *g->opg_Storage = (ULONG)paged_layout(d); return TRUE; }
+    if (g->opg_AttrID == MUIA_Quill_ViewMode) { *g->opg_Storage = (ULONG)shown_mode(d); return TRUE; }   /* (WP11: VM_OUTLINE too) */
     break;
   }
   case MUIM_AskMinMax: {
@@ -5005,6 +5156,7 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     if (!(m->flags & (MADF_DRAWOBJECT | MADF_DRAWUPDATE))) return 0;
     d = INST_DATA(cl, obj);
     w = _mwidth(obj); h = _mheight(obj);
+    ww_sync(d, obj, 0);                          /* WP25: changed in another view */
     if (d->doc && (!d->lay || ((d->zoomset <= 0 || d->vmode == VM_WEB) && d->bw != w))) {
       LONG oz = d->zoom;
       relayout(d, obj);
@@ -5047,6 +5199,7 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     return handle_event(cl, obj, (struct MUIP_HandleEvent *)msg);
   case MUIM_Quill_Blink:
     d = INST_DATA(cl, obj);
+    ww_sync(d, obj, 1);                          /* WP25: changed in another view */
     if (d->idle < 100) d->idle++;
     if (d->stale && d->bw) { caret_hide(d, obj); refresh(d, obj, 1); d->stale = 0; }   /* a backstop for deferred typing */
     if (d->words_stale && d->idle == 2 && d->bw) update_toolbar(d);

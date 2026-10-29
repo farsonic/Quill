@@ -95,7 +95,14 @@ typedef struct {
   i16 rowh;                 /* row height: > 0 at least, < 0 exactly, 0 automatic */
   u32 shade;                /* fill 0xRRGGBB, or COLOR_AUTO */
   u32 bcolor[4];            /* 0xRRGGBB or COLOR_AUTO; 0 (black) is also what a zeroed cell has */
+  /* WP21b: */
+  u8  tdir;                 /* which way its text runs: TD_ (w:textDirection) */
+  u8  marset;               /* which of its own margins it has (1 << E_ edge; else the table's) */
+  i16 mar[4];               /* its own margins (E_ order), twips (w:tcMar) */
 } Cell;
+/* a cell's text direction: across (lrTb), turned 90 degrees clockwise so lines read downwards (tbRl),
+   or turned 270 degrees so they read upwards (btLr) */
+enum { TD_HORZ, TD_DOWN, TD_UP };
 #define MAX_COLS 64
 /* tblLook: which parts of a table its style formats specially (Word's bits) */
 enum { LK_FIRSTROW = 0x20, LK_LASTROW = 0x40, LK_FIRSTCOL = 0x80, LK_LASTCOL = 0x100, LK_NOHBAND = 0x200, LK_NOVBAND = 0x400 };
@@ -110,7 +117,19 @@ typedef struct {
   i32 indent;               /* left edge from the left margin */
   i32 marl, marr;           /* cell margins (Word's default 108 = 0.19 cm) */
   i32 mart, marb;           /* and above and below the text (0) */
+  /* WP21b: a floating table (w:tblpPr): placed from its anchor's column (TA_TEXT), the margin or the
+     page across (hanchor) and down (vanchor), at tx, ty or aligned (xspec, yspec: PA_ of doc.h's
+     objects, PA_NONE for tx/ty), the text dl, dr, dt, db away round it; and its alternative text */
+  u8  floating;
+  u8  hanchor, vanchor;     /* TA_ */
+  u8  xspec, yspec;         /* PA_NONE (use tx, ty), PA_START, PA_CENTER, PA_END */
+  u8  nooverlap;            /* w:tblOverlap never */
+  i32 tx, ty;
+  i32 dl, dr, dt, db;
+  char caption[128];        /* w:tblCaption (UTF-8) */
+  char descr[256];          /* w:tblDescription (UTF-8) */
 } Table;
+enum { TA_TEXT, TA_MARGIN, TA_PAGE };
 
 /* table styles: lines and fill for the whole table, and for parts of it (Word's conditional
    formatting: the heading row, banded rows...), each part over the ones before it */
@@ -125,12 +144,16 @@ typedef struct {
   TBorder cb[4];            /* every cell's own edges (tcBorders) */
   unsigned cmask; CharFmt cf;   /* character formatting it sets (CM_ flags) */
   u8 align_set, align;      /* paragraph alignment it sets */
+  u8 valign_set, valign;    /* WP21b: the cells' vertical alignment it sets (0 top, 1 centre, 2 bottom) */
 } TCond;
 typedef struct {
   char id[40], name[48];
   char based[40];
   TCond c[TC_N];
   u8 mar_set; i32 marl, marr;
+  /* WP21a: */
+  u8 custom;                /* made by the user (w:customStyle): offered in the gallery even when unused */
+  u8 gone;                  /* deleted (its place kept: tables and undo refer to styles by number) */
 } TableStyle;
 #define MAX_TSTYLES 250
 typedef struct {
@@ -162,6 +185,7 @@ typedef struct {
   Cell cell;                /* the (innermost) table cell it is in */
   Cell outer;               /* a table inside a table cell: the outer table's cell (table 0: not nested) */
   u16 prev;                 /* WP5: a tracked paragraph formatting change (w:pPrChange): Doc.frevs index + 1, 0 none */
+  u8 outlvl;                /* (WP11) its outline level: 1-9, 0 body text (w:outlineLvl 0-8, 9); "heading N" styles have N */
 } ParaFmt;
 /* a paragraph's borders: those with the same borders run together in one box, "between" lines
    separating them */
@@ -171,8 +195,9 @@ enum { LEAD_NONE, LEAD_DOT, LEAD_HYPHEN, LEAD_LINE };
 enum { PM_STYLE = 1, PM_ALIGN = 2, PM_INDENT = 4, PM_SPACING = 8, PM_LINE = 16, PM_TABS = 32, PM_KEEP = 64, PM_LIST = 128,
        PM_BREAK = 256, PM_CELL = 512, PM_SECT = 1024, PM_DROP = 2048,
        PM_BORDER = 0x1000, PM_SHADE = 0x2000, PM_PAGINATION = 0x4000 /* keeplines, nowidow */, PM_CONTEXT = 0x8000,
+       PM_OUTLINE = 0x100000,    /* (WP11) outlvl */
        PM_PREV = 0x40000000,     /* WP5: prev (not in PM_ALL) */
-       PM_ALL = 0xF1FF };   /* PM_ALL leaves the cell, the section and drop caps alone */
+       PM_ALL = 0x10F1FF };   /* PM_ALL leaves the cell, the section and drop caps alone */
 #define PM_STYLED (PM_ALL & ~PM_STYLE)    /* what a paragraph style can set */
 #define in_table(pf) ((pf)->cell.table != 0)
 #define is_nested(pf) ((pf)->outer.table != 0)

@@ -285,6 +285,7 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
     else if (!strcmp(n, "keepLines")) { p->set |= PM_PAGINATION; p->pf.keeplines = (u8)onoff(x); }
     else if (!strcmp(n, "widowControl")) { p->set |= PM_PAGINATION; p->pf.nowidow = (u8)!onoff(x); }
     else if (!strcmp(n, "contextualSpacing")) { p->set |= PM_CONTEXT; p->pf.contextual = (u8)onoff(x); }
+    else if (!strcmp(n, "outlineLvl") && v) { p->set |= PM_OUTLINE; p->pf.outlvl = (u8)(atoi(v) >= 0 && atoi(v) < 9 ? atoi(v) + 1 : 0); }   /* (WP11) */
     else if (!strcmp(n, "shd")) {
       const char *fill = xml_attr(x, "fill");
       u32 col = fill ? hexcolor(fill) : COLOR_AUTO;
@@ -364,7 +365,7 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
 /* apply onto dst the paragraph fields p sets (lists are applied separately, by apply_list) */
 static void pf_set(ParaFmt *dst, const PPr *p)
 {
-  pf_apply(dst, p->set & (PM_ALIGN | PM_INDENT | PM_SPACING | PM_LINE | PM_TABS | PM_KEEP | PM_BORDER | PM_SHADE | PM_PAGINATION | PM_CONTEXT), &p->pf);
+  pf_apply(dst, p->set & (PM_ALIGN | PM_INDENT | PM_SPACING | PM_LINE | PM_TABS | PM_KEEP | PM_BORDER | PM_SHADE | PM_PAGINATION | PM_CONTEXT | PM_OUTLINE), &p->pf);
   if (p->set & PM_BREAK) dst->pagebreak = p->pf.pagebreak;
 }
 /* apply onto dst the character look fields r sets */
@@ -462,6 +463,94 @@ static void parse_borders(Xml *x, TBorder *out)
     xml_skip(x);
   }
 }
+/* ---- WP21b: floating tables, tables' alternative text, cells' text direction and own margins */
+static const char *const anchors_wp21[3] = { "text", "margin", "page" };
+/* an anchor's TA_ from its name */
+static u8 anchor_wp21(const char *v, u8 dflt)
+{
+  int k;
+  for (k = 0; v && k < 3; k++) if (!strcmp(v, anchors_wp21[k])) return (u8)k;
+  return dflt;
+}
+/* an element of a w:tblPr that WP21b reads (n its name): w:tblpPr, w:tblOverlap, w:tblCaption,
+   w:tblDescription; the element's children are left to the caller to skip */
+static void read_tblpr_wp21(Xml *x, const char *n, Table *t)
+{
+  const char *v;
+  if (!strcmp(n, "tblpPr")) {
+    t->floating = 1;
+    t->hanchor = anchor_wp21(xml_attr(x, "horzAnchor"), TA_TEXT);
+    t->vanchor = anchor_wp21(xml_attr(x, "vertAnchor"), TA_MARGIN);   /* (the schema's default) */
+    attr_num(x, "tblpX", &t->tx); attr_num(x, "tblpY", &t->ty);
+    attr_num(x, "leftFromText", &t->dl); attr_num(x, "rightFromText", &t->dr);
+    attr_num(x, "topFromText", &t->dt); attr_num(x, "bottomFromText", &t->db);
+    v = xml_attr(x, "tblpXSpec");
+    t->xspec = (u8)(!v ? PA_NONE : !strcmp(v, "left") || !strcmp(v, "inside") ? PA_START : !strcmp(v, "center") ? PA_CENTER :
+                    !strcmp(v, "right") || !strcmp(v, "outside") ? PA_END : PA_NONE);
+    v = xml_attr(x, "tblpYSpec");
+    t->yspec = (u8)(!v || !strcmp(v, "inline") ? PA_NONE : !strcmp(v, "top") || !strcmp(v, "inside") ? PA_START : !strcmp(v, "center") ? PA_CENTER :
+                    !strcmp(v, "bottom") || !strcmp(v, "outside") ? PA_END : PA_NONE);
+  } else if (!strcmp(n, "tblOverlap")) { v = xml_attr(x, "val"); t->nooverlap = (u8)(v && !strcmp(v, "never")); }
+  else if (!strcmp(n, "tblCaption")) copy_attr(x, "val", t->caption, sizeof t->caption);
+  else if (!strcmp(n, "tblDescription")) copy_attr(x, "val", t->descr, sizeof t->descr);
+}
+/* an element of a cell's w:tcPr that WP21b reads, read to its end: 1 if it was one */
+static int read_tcpr_wp21(Xml *x, Cell *c)
+{
+  if (!strcmp(x->name, "textDirection")) {
+    const char *v = xml_attr(x, "val");
+    c->tdir = (u8)(!v ? TD_HORZ : (!strcmp(v, "tbRl") || !strcmp(v, "tbRlV") || !strcmp(v, "rl") || !strcmp(v, "tbV")) ? TD_DOWN :
+                   (!strcmp(v, "btLr") || !strcmp(v, "lr")) ? TD_UP : TD_HORZ);
+    xml_skip(x);
+    return 1;
+  }
+  if (!strcmp(x->name, "tcMar")) {
+    int d1 = x->depth;
+    while (xml_next(x) != XT_EOF) {
+      i32 k;
+      int e;
+      const char *n = x->name;
+      if (x->type == XT_END && x->depth < d1) break;
+      if (x->type != XT_START) continue;
+      e = !strcmp(n, "top") ? E_TOP : (!strcmp(n, "left") || !strcmp(n, "start")) ? E_LEFT : !strcmp(n, "bottom") ? E_BOTTOM :
+          (!strcmp(n, "right") || !strcmp(n, "end")) ? E_RIGHT : -1;
+      if (e >= 0 && attr_num(x, "w", &k) && k >= 0 && k <= 4000) { c->mar[e] = (i16)k; c->marset |= (u8)(1 << e); }
+    }
+    return 1;
+  }
+  return 0;
+}
+/* a floating table's w:tblpPr (and w:tblOverlap) */
+static void write_tblppr_wp21(Buf *o, const Table *t)
+{
+  static const char *const xs[4] = { NULL, "left", "center", "right" }, *const ys[4] = { NULL, "top", "center", "bottom" };
+  if (!t->floating) return;
+  buf_printf(o, "<w:tblpPr w:leftFromText=\"%ld\" w:rightFromText=\"%ld\" w:topFromText=\"%ld\" w:bottomFromText=\"%ld\" w:vertAnchor=\"%s\" w:horzAnchor=\"%s\"",
+             (long)t->dl, (long)t->dr, (long)t->dt, (long)t->db, anchors_wp21[t->vanchor % 3], anchors_wp21[t->hanchor % 3]);
+  if (t->xspec && t->xspec < 4) buf_printf(o, " w:tblpXSpec=\"%s\"", xs[t->xspec]); else buf_printf(o, " w:tblpX=\"%ld\"", (long)t->tx);
+  if (t->yspec && t->yspec < 4) buf_printf(o, " w:tblpYSpec=\"%s\"", ys[t->yspec]); else buf_printf(o, " w:tblpY=\"%ld\"", (long)t->ty);
+  buf_adds(o, "/>");
+  if (t->nooverlap) buf_adds(o, "<w:tblOverlap w:val=\"never\"/>");
+}
+/* a table's w:tblCaption and w:tblDescription */
+static void write_tblcaption_wp21(Buf *o, const Table *t)
+{
+  if (t->caption[0]) { buf_adds(o, "<w:tblCaption w:val=\""); xml_escape(o, t->caption, strlen(t->caption)); buf_adds(o, "\"/>"); }
+  if (t->descr[0]) { buf_adds(o, "<w:tblDescription w:val=\""); xml_escape(o, t->descr, strlen(t->descr)); buf_adds(o, "\"/>"); }
+}
+/* a cell's w:tcMar and w:textDirection (in the schema's place: after w:shd, before w:vAlign) */
+static void write_tcpr_wp21(Buf *o, const Cell *c)
+{
+  static const char *const edges[4] = { "top", "left", "bottom", "right" };
+  int k;
+  if (c->marset & 15) {
+    buf_adds(o, "<w:tcMar>");
+    for (k = 0; k < 4; k++) if (c->marset & (1 << k)) buf_printf(o, "<w:%s w:w=\"%d\" w:type=\"dxa\"/>", edges[k], (int)c->mar[k]);
+    buf_adds(o, "</w:tcMar>");
+  }
+  if (c->tdir == TD_DOWN) buf_adds(o, "<w:textDirection w:val=\"tbRl\"/>");
+  else if (c->tdir == TD_UP) buf_adds(o, "<w:textDirection w:val=\"btLr\"/>");
+}
 /* what a tblPr says: borders (into b, TE_N of them), cell margins (set bit 2), and, when t is given,
    the table's indent, alignment, layout, look and style */
 static void parse_tblpr(Xml *x, unsigned *set, TBorder *b, i32 *marl, i32 *marr, Table *t, char *tstyle, int *gotlook)
@@ -506,6 +595,7 @@ static void parse_tblpr(Xml *x, unsigned *set, TBorder *b, i32 *marl, i32 *marr,
       }
     }
     if (!strcmp(n, "tblStyle") && tstyle) copy_attr(x, "val", tstyle, 40);
+    if (t) read_tblpr_wp21(x, n, t);                 /* WP21b: floating, alternative text */
     xml_skip(x);
   }
 }
@@ -517,6 +607,7 @@ static void parse_style_tcpr(Xml *x, TCond *c)
     if (x->type == XT_END && x->depth < d0) break;
     if (x->type != XT_START) continue;
     if (!strcmp(x->name, "shd")) { c->shade_set = 1; c->shade = hexcolor(xml_attr(x, "fill")); c->used = 1; }
+    else if (!strcmp(x->name, "vAlign")) { const char *v = xml_attr(x, "val"); c->valign_set = 1; c->valign = (u8)(v && !strcmp(v, "center") ? 1 : v && !strcmp(v, "bottom") ? 2 : 0); c->used = 1; }   /* WP21b */
     else if (!strcmp(x->name, "tcBorders")) {
       TBorder b[TE_N];
       int k;
@@ -598,6 +689,7 @@ static void parse_styles(Ctx *c, const char *xml, size_t n)
       copy_attr(&x, "styleId", s->id, sizeof s->id);
       if (!s->id[0]) { xml_skip(&x); continue; }
       if (t && !strcmp(t, "table") && (s->ts = (TableStyle *)calloc(1, sizeof(TableStyle)))) s->ts->c[TC_WHOLE].used = 1;
+      if (s->ts) { const char *cs = xml_attr(&x, "customStyle"); s->ts->custom = (u8)(cs && (*cs == '1' || *cs == 't')); }   /* WP21a */
       while (xml_next(&x) != XT_EOF) {
         if (x.type == XT_END && x.depth < d0) break;
         if (x.type != XT_START) continue;
@@ -1944,7 +2036,7 @@ static void parse_table_body(Xml *x, PCtx *pc)
           continue;
         }
         if (!strcmp(m, "tc")) {
-          int d2 = x->depth, any = 0, shd = 0;
+          int d2 = x->depth, any = 0, shd = 0, valn = 0;
           Cell cl;
           TBorder cb[TE_N];
           memset(&cl, 0, sizeof cl);
@@ -1966,9 +2058,10 @@ static void parse_table_body(Xml *x, PCtx *pc)
                 val = xml_attr(x, "val");
                 if (!strcmp(x->name, "gridSpan") && num(val, &v) && v > 1 && v < MAX_COLS) cl.span = (u8)v;
                 else if (!strcmp(x->name, "vMerge")) cl.vmerge = (u8)(val && !strcmp(val, "restart") ? VM_START : VM_CONT);
-                else if (!strcmp(x->name, "vAlign") && val) cl.valign = (u8)(!strcmp(val, "center") ? 1 : !strcmp(val, "bottom") ? 2 : 0);
+                else if (!strcmp(x->name, "vAlign") && val) { cl.valign = (u8)(!strcmp(val, "center") ? 1 : !strcmp(val, "bottom") ? 2 : 0); valn = 1; }
                 else if (!strcmp(x->name, "shd")) { cl.shade = hexcolor(xml_attr(x, "fill")); shd = 1; }
                 else if (!strcmp(x->name, "tcBorders")) { parse_borders(x, cb); continue; }
+                else if (read_tcpr_wp21(x, &cl)) continue;           /* WP21b: text direction, own margins */
                 xml_skip(x);
               }
               continue;
@@ -1998,6 +2091,7 @@ static void parse_table_body(Xml *x, PCtx *pc)
             }
             cl.borders = lk.borders;
             if (!shd) cl.shade = lk.shade;
+            if (lk.valign_set && !valn) cl.valign = lk.valign;     /* WP21b */
             if (!any) { Para *e; pc->cell = cl; para_begin(pc); if ((e = para_new(&pc->pf, &pc->markcf))) emit(pc, e); }
             for (q = first; q < pc->nout; q++) {
               Cell *qc = &pc->out[q]->pf.cell, *qo = &pc->out[q]->pf.outer;
@@ -3345,6 +3439,7 @@ static void w_ppr_body(Buf *b, Doc *d, const ParaFmt *p, const ParaFmt *base, in
   }
   if (full ? p->contextual : p->contextual != base->contextual) buf_adds(b, p->contextual ? "<w:contextualSpacing/>" : "<w:contextualSpacing w:val=\"0\"/>");
   if (full ? p->align != AL_LEFT : p->align != base->align) buf_printf(b, "<w:jc w:val=\"%s\"/>", jc[p->align <= AL_DISTRIBUTE ? p->align : 0]);
+  if (full ? p->outlvl != 0 : p->outlvl != base->outlvl) buf_printf(b, "<w:outlineLvl w:val=\"%d\"/>", p->outlvl >= 1 && p->outlvl <= 9 ? p->outlvl - 1 : 9);   /* (WP11) */
 }
 /* ---- WP5 writing (core/review.h): tracked formatting changes, moves, kept property changes */
 static int w5_revid = 500000;           /* ids of the change elements WP5 writes (clear of w_para_ex's) */
@@ -3562,7 +3657,7 @@ static void w_tcond(Buf *o, Doc *d, const TableStyle *ts, int k)
       buf_printf(o, "<w:tblCellMar><w:left w:w=\"%ld\" w:type=\"dxa\"/><w:right w:w=\"%ld\" w:type=\"dxa\"/></w:tblCellMar>", (long)ts->marl, (long)ts->marr);
     buf_adds(o, "</w:tblPr>");
   }
-  any = c->shade_set;
+  any = c->shade_set || c->valign_set;
   for (e = 0; e < 4; e++) if (c->cb[e].set) any = 1;
   if (any) {
     buf_adds(o, "<w:tcPr>");
@@ -3575,6 +3670,7 @@ static void w_tcond(Buf *o, Doc *d, const TableStyle *ts, int k)
       if (c->shade == COLOR_AUTO) buf_adds(o, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"auto\"/>");
       else buf_printf(o, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"%06lX\"/>", (unsigned long)(c->shade & 0xFFFFFF));
     }
+    if (c->valign_set) buf_printf(o, "<w:vAlign w:val=\"%s\"/>", c->valign == 1 ? "center" : c->valign == 2 ? "bottom" : "top");   /* WP21b */
     buf_adds(o, "</w:tcPr>");
   }
 }
@@ -3586,7 +3682,8 @@ static void w_tstyles(Buf *o, Doc *d)
   int i, k;
   for (i = 0; i < d->ntstyles; i++) {
     const TableStyle *ts = &d->tstyles[i];
-    buf_adds(o, "<w:style w:type=\"table\" w:styleId=\""); xml_escape(o, ts->id, strlen(ts->id));
+    if (ts->gone) continue;                          /* WP21a: deleted */
+    buf_adds(o, ts->custom ? "<w:style w:type=\"table\" w:customStyle=\"1\" w:styleId=\"" : "<w:style w:type=\"table\" w:styleId=\""); xml_escape(o, ts->id, strlen(ts->id));
     buf_adds(o, "\"><w:name w:val=\""); xml_escape(o, ts->name, strlen(ts->name)); buf_adds(o, "\"/>");
     if (ts->based[0]) { buf_adds(o, "<w:basedOn w:val=\""); xml_escape(o, ts->based, strlen(ts->based)); buf_adds(o, "\"/>"); }
     w_tcond(o, d, ts, TC_WHOLE);
@@ -3612,6 +3709,7 @@ static void w_tbl_start(Buf *o, Doc *d, const Table *t)
     const char *id = d->tstyles[t->tstyle - 1].id;
     buf_adds(o, "<w:tblStyle w:val=\""); xml_escape(o, id, strlen(id)); buf_adds(o, "\"/>");
   }
+  write_tblppr_wp21(o, t);                           /* WP21b: a floating table's place */
   buf_printf(o, "<w:tblW w:w=\"%ld\" w:type=\"dxa\"/>", (long)sum);
   if (t->jc && t->jc < 3) buf_printf(o, "<w:jc w:val=\"%s\"/>", jc[t->jc]);
   buf_printf(o, "<w:tblInd w:w=\"%ld\" w:type=\"dxa\"/><w:tblLayout w:type=\"%s\"/><w:tblCellMar>", (long)t->indent, t->autofit ? "autofit" : "fixed");
@@ -3622,6 +3720,7 @@ static void w_tbl_start(Buf *o, Doc *d, const Table *t)
   buf_printf(o, "<w:tblLook w:val=\"%04X\" w:firstRow=\"%d\" w:lastRow=\"%d\" w:firstColumn=\"%d\" w:lastColumn=\"%d\" w:noHBand=\"%d\" w:noVBand=\"%d\"/>",
              (unsigned)t->look, !!(t->look & LK_FIRSTROW), !!(t->look & LK_LASTROW), !!(t->look & LK_FIRSTCOL), !!(t->look & LK_LASTCOL),
              !!(t->look & LK_NOHBAND), !!(t->look & LK_NOVBAND));
+  write_tblcaption_wp21(o, t);                       /* WP21b: its alternative text */
   wp5_kept(o, d, RK_TBL, (int)(t - d->tables) + 1, 0, 0, 0);       /* (WP5: its w:tblPrChange) */
   buf_adds(o, "</w:tblPr><w:tblGrid>");
   for (k = 0; k < t->ncols; k++) buf_printf(o, "<w:gridCol w:w=\"%ld\"/>", (long)t->grid[k]);
@@ -3630,11 +3729,13 @@ static void w_tbl_start(Buf *o, Doc *d, const Table *t)
 }
 /* open a row, with the row properties its cells carry: height (negative means exact), heading
    row, can't split */
-static void w_tr_start(Buf *o, const Cell *c)
+static void w_tr_start(Buf *o, const Cell *c, int before, int after)
 {
   buf_adds(o, "<w:tr>");
-  if (c->rowh || c->header || c->cantsplit || wp5_tr_kept(c)) {
+  if (c->rowh || c->header || c->cantsplit || before || after || wp5_tr_kept(c)) {
     buf_adds(o, "<w:trPr>");
+    if (before > 0) buf_printf(o, "<w:gridBefore w:val=\"%d\"/>", before);     /* WP21b: rows that start late or end short */
+    if (after > 0) buf_printf(o, "<w:gridAfter w:val=\"%d\"/>", after);
     if (c->cantsplit) buf_adds(o, "<w:cantSplit/>");
     if (c->rowh) buf_printf(o, "<w:trHeight w:val=\"%d\" w:hRule=\"%s\"/>", c->rowh < 0 ? -c->rowh : c->rowh, c->rowh < 0 ? "exact" : "atLeast");
     if (c->header) buf_adds(o, "<w:tblHeader/>");
@@ -3658,6 +3759,7 @@ static void w_tc_start(Buf *o, const Table *t, const Cell *c)
   for (k = 0; k < 4; k++) w_line(o, edges[k], c->borders & (1 << k), c->bstyle[k], c->bwidth[k], c->bcolor[k]);
   buf_adds(o, "</w:tcBorders>");
   if (c->shade != COLOR_AUTO) buf_printf(o, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"%06lX\"/>", (unsigned long)(c->shade & 0xFFFFFF));
+  write_tcpr_wp21(o, c);                             /* WP21b: own margins, text direction */
   if (c->valign) buf_adds(o, c->valign == 1 ? "<w:vAlign w:val=\"center\"/>" : "<w:vAlign w:val=\"bottom\"/>");
   wp5_kept(o, w5_doc, RK_TCREV, c->table, c->row, c->col, 0); wp5_kept(o, w5_doc, RK_TC, c->table, c->row, c->col, 0);   /* (WP5) */
   buf_adds(o, "</w:tcPr>");
@@ -3673,6 +3775,20 @@ static int cell_path(Doc *d, const ParaFmt *pf, const Cell **v)
 }
 /* whether two cell references are the same cell (the other fields, such as its lines, may differ) */
 static int same_c(const Cell *a, const Cell *b) { return a->table == b->table && a->row == b->row && a->col == b->col; }
+/* WP21b: the grid columns a row leaves empty before its first cell and after its last (a row whose
+   cells were deleted with the rest shifting left ends short): from paragraph i, the row's first */
+static void row_grid_wp21(Doc *d, u32 i, const Cell *c, const Table *t, int *before, int *after)
+{
+  int end = 0;
+  u32 j;
+  *before = c->col; *after = 0;
+  for (j = i; j < d->np; j++) {
+    const Cell *x = cell_in(&d->p[j]->pf, c->table);
+    if (!x || x->row != c->row) break;
+    if (x->col + x->span > end) end = x->col + x->span;
+  }
+  if (end < t->ncols) *after = t->ncols - end;
+}
 /* table structure around paragraph i: the starts of tables, rows and cells before it (as far as the
    paragraph before isn't in them already), the ends after it */
 static void w_table_open(Buf *o, Doc *d, u32 i)
@@ -3685,7 +3801,7 @@ static void w_table_open(Buf *o, Doc *d, u32 i)
     int tblopen = l == k && l < np && pv[l]->table == cv[l]->table;
     int rowopen = tblopen && pv[l]->row == cv[l]->row;
     if (!tblopen) w_tbl_start(o, d, t);
-    if (!rowopen) w_tr_start(o, cv[l]);
+    if (!rowopen) { int gb, ga; row_grid_wp21(d, i, cv[l], t, &gb, &ga); w_tr_start(o, cv[l], gb, ga); }
     w_tc_start(o, t, cv[l]);
   }
 }

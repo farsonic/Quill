@@ -71,6 +71,7 @@ extern struct WBStartup *_WBenchMsg;
 #include "wphooks.h"
 #include "wp_charpara.h"                /* (WP9, WP10) */
 #include "wp_find.h"                  /* WP12: its ids, for Find's, Select's and Go To's entries */
+#include "wp_windows.h"               /* WP25: New Window, the window list */
 void wp12_note(ULONG id, LONG v);       /* WP12 (wp_find.c): each command as it starts, for Repeat */
 
 static struct NewMenu menus[] = {
@@ -252,6 +253,8 @@ static struct Toolbar *tbp;
 static Object *vscroll, *hscroll;       /* the page's scroll bars, down and across */
 /* several documents, each in a window of its own (see DocWin below) */
 static int  win_new(Doc *d, const char *path);
+static int  win_share_index(Doc *d, int slot, int *count);   /* (WP25) windows showing one document */
+static void win_title_siblings(void), win_title_doc(Doc *d);
 static void win_close_current(void);
 static void win_reopen_all(void), win_share_units(void);
 static void win_next(void);
@@ -411,9 +414,12 @@ static void set_title(void)
   ULONG changed = 0;
   get(view, MUIA_Quill_Changed, &changed);
   char *t = title_store();
-  sprintf(title, "Quill - %.400s%s", name, changed ? " *" : "");
+  int nshare = 0, kshare = win_share_index(doc, -1, &nshare);      /* (WP25) Doc:1, Doc:2 for a document in two windows */
+  if (nshare > 1) sprintf(title, "Quill - %.400s:%d%s", name, kshare, changed ? " *" : "");
+  else sprintf(title, "Quill - %.400s%s", name, changed ? " *" : "");
   if (t != title) strcpy(t, title);
   set(win, MUIA_Window_Title, (ULONG)t);  /* (MUI keeps the pointer: each window needs its own string) */
+  win_title_siblings();                   /* (WP25) */
 }
 /* menu items by their ids: checkmarks and ghosting */
 static void menu_set(ULONG id, ULONG attr, ULONG val)
@@ -466,7 +472,7 @@ static void show_doc(Doc *d)
   page_cycles();
   set(view, MUIA_Quill_Doc, (ULONG)d);
   set(view, MUIA_Quill_Changed, FALSE);
-  if (old && old != d) doc_free(old);
+  if (old && old != d && !win_share_index(old, -2, NULL)) doc_free(old);   /* (WP25: not while another window shows it) */
   rebuild_nav(1);
   set_title();
 }
@@ -2147,6 +2153,7 @@ static void font_done(void)
 
 /* ---- the Paragraph window */
 static Object *parawin, *pa_align, *pa_left, *pa_right, *pa_special, *pa_by, *pa_before, *pa_after, *pa_line, *pa_at, *pa_ctx, *pa_keep, *pa_lines, *pa_break, *pa_widow;
+static Object *pa_olvl;                 /* (WP11) the outline level */
 static ParaFmt pa_was;
 /* the Paragraph window, filled from the caret's paragraph (kept in pa_was). Line spacing is in
    240ths of a line for the automatic kinds, in twips for At least and Exactly */
@@ -2155,13 +2162,16 @@ static void open_para(void)
   static const char *const aligns[] = { "Left", "Centred", "Right", "Justified", "Distributed", NULL }, *const specials[] = { "(none)", "First line", "Hanging", NULL },
                *const lines[] = { "Single", "1.5 lines", "Double", "At least", "Exactly", "Multiple", NULL };
   static const char *t_al[6], *t_sp[5], *t_ln[8];
+  static const char *const olvls[] = { "Body Text", "Level 1", "Level 2", "Level 3", "Level 4", "Level 5", "Level 6", "Level 7", "Level 8", "Level 9", NULL };
+  static const char *t_ol[12];          /* (WP11) */
   const ParaFmt *pf = caret_pf();
   char b[24];
   int ls;
   if (!pf) return;
   if (!parawin) {
     Object *c = VGroup,
-      Child, QTitle(tr("General")), Child, HGroup, QFRAME, Child, Label1(tr("Alignment")), Child, pa_align = CycleObject, MUIA_Cycle_Entries, (ULONG)trl(aligns, t_al), MUIA_CycleChain, 1, End, End,
+      Child, QTitle(tr("General")), Child, HGroup, QFRAME, Child, Label1(tr("Alignment")), Child, pa_align = CycleObject, MUIA_Cycle_Entries, (ULONG)trl(aligns, t_al), MUIA_CycleChain, 1, End,
+        Child, Label1(tr("Outline level")), Child, pa_olvl = CycleObject, MUIA_Cycle_Entries, (ULONG)trl(olvls, t_ol), MUIA_CycleChain, 1, End, End,   /* (WP11) */
       Child, QTitle(tr("Indentation")), Child, ColGroup(4), QFRAME,
         Child, Label2(tr("Left")), Child, pa_left = StringObject, StringFrame, MUIA_String_MaxLen, 16, MUIA_CycleChain, 1, End,
         Child, Label1(tr("Special")), Child, pa_special = CycleObject, MUIA_Cycle_Entries, (ULONG)trl(specials, t_sp), MUIA_CycleChain, 1, End,
@@ -2188,6 +2198,7 @@ static void open_para(void)
   }
   pa_was = *pf;
   set(pa_align, MUIA_Cycle_Active, pf->align <= AL_DISTRIBUTE ? pf->align : 0);
+  set(pa_olvl, MUIA_Cycle_Active, pf->outlvl <= 9 ? pf->outlvl : 0);      /* (WP11) */
   tab_text(pf->left, b); set_str(pa_left, b);
   tab_text(pf->right, b); set_str(pa_right, b);
   set(pa_special, MUIA_Cycle_Active, pf->first > 0 ? 1 : pf->first < 0 ? 2 : 0);
@@ -2244,6 +2255,7 @@ static void para_done(void)
   if (n->nowidow != w->nowidow || n->keeplines != w->keeplines) q.mask |= PM_PAGINATION;
   if (n->keepnext != w->keepnext) q.mask |= PM_KEEP;
   if (n->pagebreak != w->pagebreak) q.mask |= PM_BREAK;
+  n->outlvl = (u8)cyc(pa_olvl); if (n->outlvl != w->outlvl) q.mask |= PM_OUTLINE;     /* (WP11) */
   if (q.mask) DoMethod(view, MUIM_Quill_Command, CMD_PARAFMT, (ULONG)&q);
   set(win, MUIA_Window_Activate, TRUE);
 }
@@ -2359,6 +2371,7 @@ static void shade_para(LONG v)
 /* ---- a style: new or changed */
 static Object *stywin, *sy_name, *sy_type, *sy_based, *sy_next, *sy_font, *sy_size, *sy_bold, *sy_italic, *sy_ul, *sy_color, *sy_align,
               *sy_before, *sy_after, *sy_line, *sy_left, *sy_first, *sy_keep, *sy_quick;
+static Object *sy_olvl;                   /* (WP11) the outline level */
 static int sy_k;                          /* the style being changed, -1 a new one */
 static Style sy_s;                        /* what it starts from */
 static const char *sy_bnames[MAX_STYLES + 2], *sy_nnames[MAX_STYLES + 2];
@@ -2380,6 +2393,8 @@ static void open_style(int k, int newtype)
   static const char *const types[] = { "Paragraph", "Character", NULL }, *const aligns[] = { "Left", "Centred", "Right", "Justified", "Distributed", NULL },
                *const lines[] = { "Single", "1.15", "1.5 lines", "Double", NULL };
   static const char *t_al[6], *t_ln[6], *t_col[14];
+  static const char *const olvls[] = { "Body Text", "Level 1", "Level 2", "Level 3", "Level 4", "Level 5", "Level 6", "Level 7", "Level 8", "Level 9", NULL };
+  static const char *t_ol[12];            /* (WP11) */
   static const i32 linevals[4] = { 240, 276, 360, 480 };
   Pos *cp = caret_pos();
   Style *s = &sy_s;
@@ -2440,6 +2455,8 @@ static void open_style(int k, int newtype)
         Child, Label2(tr("After")), Child, sy_after = StringObject, StringFrame, MUIA_String_MaxLen, 10, MUIA_Disabled, type != ST_PARA, MUIA_CycleChain, 1, End,
         Child, Label2(tr("Left indent")), Child, sy_left = StringObject, StringFrame, MUIA_String_MaxLen, 16, MUIA_Disabled, type != ST_PARA, MUIA_CycleChain, 1, End,
         Child, Label2(tr("First line")), Child, sy_first = StringObject, StringFrame, MUIA_String_MaxLen, 16, MUIA_Disabled, type != ST_PARA, MUIA_CycleChain, 1, End,
+        Child, Label1(tr("Outline level")), Child, sy_olvl = CycleObject, MUIA_Cycle_Entries, (ULONG)trl(olvls, t_ol), MUIA_Disabled, type != ST_PARA, MUIA_CycleChain, 1, End,   /* (WP11) */
+        Child, HSpace(0), Child, HSpace(0),
       End,
       Child, HGroup, Child, sy_keep = CheckMark(FALSE), Child, LLabel1(tr("Keep with next")), Child, sy_quick = CheckMark(TRUE), Child, LLabel1(tr("Show in the styles gallery")), Child, HSpace(0), End,
     End;
@@ -2466,6 +2483,7 @@ static void open_style(int k, int newtype)
   if (s->pf.first < 0) { memmove(b + 1, b, strlen(b) + 1); b[0] = '-'; }
   set_str(sy_first, b);
   set(sy_keep, MUIA_Selected, s->pf.keepnext != 0);
+  set(sy_olvl, MUIA_Cycle_Active, s->pf.outlvl <= 9 ? s->pf.outlvl : 0);   /* (WP11) */
   set(sy_quick, MUIA_Selected, s->quick != 0);
   set(stywin, MUIA_Window_Open, TRUE);
   set(stywin, MUIA_Window_ActiveObject, (ULONG)sy_name);
@@ -2528,6 +2546,10 @@ static void style_done(void)
 #define OWN_P(bit) do { if (!pf_same_g(&n, bp, bit)) { s->pmask |= (bit); pf_apply(&s->opf, (bit), &n); } else s->pmask &= ~(unsigned)(bit); } while (0)
     OWN_P(PM_ALIGN); OWN_P(PM_LINE); OWN_P(PM_SPACING); OWN_P(PM_INDENT); OWN_P(PM_KEEP);
 #undef OWN_P
+    /* (WP11) the outline level: its own when it differs from its base's, or when it changed (a Heading style's level is its own) */
+    n.outlvl = (u8)cyc(sy_olvl);
+    if (n.outlvl != bp->outlvl || n.outlvl != s->pf.outlvl) { s->pmask |= PM_OUTLINE; s->opf.outlvl = n.outlvl; }
+    else s->pmask &= ~(unsigned)PM_OUTLINE;
   }
   if (DoMethod(view, MUIM_Quill_Command, CMD_SETSTYLE, (ULONG)&q) && q.k >= 0 && sy_k < 0 && s->type == ST_PARA)
     DoMethod(view, MUIM_Quill_Command, CMD_STYLE, (ULONG)q.k);     /* a new paragraph style: the caret's paragraph gets it */
@@ -2905,6 +2927,7 @@ static void formula_done(void)
 }
 /* the borders' pen (Table Design > Borders) */
 static struct QBorders pen = { TB_ALL, PB_SINGLE, 4, COLOR_AUTO };
+const struct QBorders *wp_pen(void) { return &pen; }      /* WP21a: the Border Painter's pen (wp_tables.h) */
 
 /* ------------------------------------------------------------------ */
 /* Window and Screen: the public screen Quill opens on, and where its window opens */
@@ -4402,6 +4425,7 @@ static void ui_apply(void)
 static void win_switch(int i)
 {
   if (i == curwin || i < 0 || i >= MAXWIN || !wins[i].used) return;
+  if (curwin >= 0 && wins[curwin].used && doc && doc->edit.kind && wins[i].doc == doc) story_close(1);   /* (WP25: the same document) */
   if (curwin >= 0 && wins[curwin].used) win_save(&wins[curwin]);
   if (spwin) set(spwin, MUIA_Window_Open, FALSE);       /* it points into the other document */
   curwin = i;
@@ -4409,6 +4433,7 @@ static void win_switch(int i)
   if (qlog) { fprintf(qlog, "window %d: %s\n", i, docpath[0] ? docpath : "(untitled)"); fflush(qlog); }
   table_menu();
   if (styleswin && xget_open(styleswin)) styles_fill();
+  wp25_windows_changed();                               /* (WP25) the window list's tick */
 }
 /* how many document windows are open */
 static int win_count(void)
@@ -4428,6 +4453,7 @@ static int doc_untouched(void)
    current one. The first window takes its size from the preferences; later ones sit a little down
    and right of the window they were opened from. Returns 0 (and frees d) if there was no room or
    memory. */
+static int win_sharing;                 /* (WP25) win_new for New Window: d is another window's too */
 static int win_new(Doc *d, const char *path)
 {
   int i, slot = -1, has_box;
@@ -4436,7 +4462,7 @@ static int win_new(Doc *d, const char *path)
   if (!d) return 0;
   for (i = 0; i < MAXWIN && slot < 0; i++) if (!wins[i].used) slot = i;
   if (slot < 0) {
-    doc_free(d);
+    if (!win_sharing) doc_free(d);
     if (curwin >= 0) ask("OK", "Quill can have %s documents open at once.\nClose one to open another.", "8");
     return 0;
   }
@@ -4487,7 +4513,7 @@ static int win_new(Doc *d, const char *path)
   End;
   if (!w) {
     if (menus_obj) MUI_DisposeObject(menus_obj);
-    doc_free(d);
+    if (!win_sharing) doc_free(d);
     if (curwin >= 0) { win_load(&wins[curwin]); ask("OK", "%s", "There isn't enough memory for another window."); }
     return 0;
   }
@@ -4529,18 +4555,22 @@ static int win_new(Doc *d, const char *path)
    last window going ends Quill: the caller sees win_count() == 0 */
 static int win_close(void)
 {
-  int i = curwin;
+  int i = curwin, shared;
   Object *w = win;
+  Doc *gone;
   if (i < 0) return 1;
   if (doc->edit.kind) story_close(1);
-  if (!may_discard()) return 0;
+  shared = win_share_index(doc, -2, NULL);             /* (WP25) another window shows the document: it stays */
+  if (!shared && !may_discard()) return 0;
   if (pref_win == WIN_LAST && i == 0 && win_now(win_box)) save_prefs();
   if (back_shown) backstage_show(0, 0);
   if (spwin) set(spwin, MUIA_Window_Open, FALSE);
   set(w, MUIA_Window_Open, FALSE);
   DoMethod(app, OM_REMMEMBER, (ULONG)w);
+  wp25_window_gone(w);                   /* (WP25) */
   MUI_DisposeObject(w);                  /* its menus, view and the rest with it */
-  doc_free(doc);
+  gone = doc;
+  if (!shared) doc_free(doc);
   doc = NULL;
   memset(&wins[i], 0, sizeof wins[i]);
   curwin = -1;
@@ -4550,6 +4580,8 @@ static int win_close(void)
     set(win, MUIA_Window_Activate, TRUE);
     break;
   }
+  if (shared) win_title_doc(gone);       /* (WP25) the windows left on its document retitled */
+  wp25_windows_changed();
   return 1;
 }
 /* (win_close without the answer, for the prototype at the top) */
@@ -4601,6 +4633,104 @@ static void win_next(void)
     }
   }
 }
+/* ---- (WP25) a document in more than one window (New Window), the window list, a split window's panes.
+   A document belongs to every window showing it: it is freed with the last of them (win_close),
+   which alone asks about unsaved changes; their titles say which window it is (Doc:1, Doc:2) */
+/* the windows showing d: slot -1: the current window's place among them (from 1), with how many in
+   *count; slot -2: whether another window than the current one shows it; else that slot's place */
+static int win_share_index(Doc *d, int slot, int *count)
+{
+  int i, n = 0, k = 0;
+  for (i = 0; i < MAXWIN; i++) {
+    Doc *x = i == curwin ? doc : wins[i].doc;
+    if (!wins[i].used || !d || x != d) continue;
+    n++;
+    if (i == (slot == -1 ? curwin : slot)) k = n;
+    if (slot == -2 && i != curwin) return 1;
+  }
+  if (count) *count = n;
+  return slot == -2 ? 0 : k;
+}
+/* the title of window slot i (not the current one) from its own state */
+static void win_title_slot(int i)
+{
+  DocWin *w = &wins[i];
+  ULONG changed = 0;
+  int n = 0, k = win_share_index(w->doc, i, &n);
+  const char *name = w->docpath[0] ? (const char *)FilePart((STRPTR)w->docpath) : tr("Untitled");
+  if (w->view) get(w->view, MUIA_Quill_Changed, &changed);
+  if (w->doc && w->doc->dirty) changed = 1;
+  if (n > 1) sprintf(w->title, "Quill - %.400s:%d%s", name, k, changed ? " *" : "");
+  else sprintf(w->title, "Quill - %.400s%s", name, changed ? " *" : "");
+  set(w->win, MUIA_Window_Title, (ULONG)w->title);
+}
+/* (set_title) the other windows on the current document: its path, changed or not, their titles */
+static void win_title_siblings(void)
+{
+  int i;
+  ULONG changed = 0;
+  if (curwin < 0 || !doc) return;
+  get(view, MUIA_Quill_Changed, &changed);
+  for (i = 0; i < MAXWIN; i++) {
+    if (i == curwin || !wins[i].used || wins[i].doc != doc) continue;
+    memcpy(wins[i].docpath, docpath, sizeof docpath);
+    if (wins[i].view) SetAttrs(wins[i].view, MUIA_NoNotify, TRUE, MUIA_Quill_Changed, changed, TAG_DONE);
+    win_title_slot(i);
+  }
+  wp25_windows_changed();
+}
+/* every window on d retitled */
+static void win_title_doc(Doc *d)
+{
+  int i;
+  if (curwin >= 0 && doc == d) { set_title(); return; }
+  for (i = 0; i < MAXWIN; i++) if (wins[i].used && wins[i].doc == d && i != curwin) win_title_slot(i);
+}
+/* (wp_windows.h) */
+int wp_win_get(int slot, WpWin *o)
+{
+  if (slot < 0 || slot >= MAXWIN || !wins[slot].used) return 0;
+  if (slot == curwin) { o->win = win; o->strip = strip; o->view = view; o->doc = doc; o->title = title_store(); o->current = 1; }
+  else { o->win = wins[slot].win; o->strip = wins[slot].strip; o->view = wins[slot].view; o->doc = wins[slot].doc; o->title = wins[slot].title; o->current = 0; }
+  return 1;
+}
+void wp_win_activate(int slot)
+{
+  if (slot < 0 || slot >= MAXWIN || !wins[slot].used) return;
+  win_switch(slot);
+  DoMethod(win, MUIM_Window_ToFront);
+  set(win, MUIA_Window_Activate, TRUE);
+}
+int wp_win_new_shared(void)
+{
+  ULONG ch = 0;
+  Doc *d = doc;
+  char p[512];
+  int ok;
+  if (!d || curwin < 0) return 0;
+  if (d->edit.kind) story_close(1);
+  get(view, MUIA_Quill_Changed, &ch);
+  memcpy(p, docpath, sizeof p);
+  win_sharing = 1;
+  ok = win_new(d, p);
+  win_sharing = 0;
+  if (ok) { set(view, MUIA_Quill_Changed, ch); set_title(); }
+  return ok;
+}
+void wp_set_view(Object *v)
+{
+  if (!v || v == view || curwin < 0) return;
+  view = v;
+  set(navgrp, MUIA_Nav_View, (ULONG)view);
+  set(win, MUIA_Window_DefaultObject, (ULONG)view);
+  set(win, MUIA_Window_ActiveObject, (ULONG)view);
+  win_save(&wins[curwin]);
+  DoMethod(view, MUIM_Quill_Command, CMD_REFRESH, 0);
+}
+struct Toolbar *wp_toolbar(void) { return tbp; }
+FontSet *wp_fonts(void) { return &fonts; }
+void wp_view_mode_changed(void) { chrome(); }
+
 /* every window closed, each asking about unsaved changes first; 0 if the user cancelled one */
 static int win_close_all(void)
 {
@@ -4890,7 +5020,12 @@ int main(int argc, char **argv)
 done:
   /* (Ctrl-C leaves windows open: their documents go with them) */
   if (curwin >= 0 && wins[curwin].used) win_save(&wins[curwin]);
-  for (i = 0; i < MAXWIN; i++) if (wins[i].used && wins[i].doc) { doc_free(wins[i].doc); wins[i].doc = NULL; }
+  for (i = 0; i < MAXWIN; i++) if (wins[i].used && wins[i].doc) {
+    Doc *x = wins[i].doc;
+    int j;
+    for (j = i + 1; j < MAXWIN; j++) if (wins[j].doc == x) wins[j].doc = NULL;     /* (WP25: shown in two windows, freed once) */
+    doc_free(x); wins[i].doc = NULL;
+  }
   if (curwin < 0 && doc) doc_free(doc);
   doc = NULL;
   if (app) MUI_DisposeObject(app);
