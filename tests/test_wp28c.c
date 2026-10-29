@@ -138,7 +138,7 @@ static void html_roundtrip(void)
     u32 pi = find_para(e, "Picture");
     ok("html: picture embedded with its size and alt text", e->nimages == 1 && e->images[0].cx == 1500 && !strcmp(e->images[0].alt, "a disc") && e->images[0].len == d->images[0].len &&
        html && strstr(html, "<img src=\"data:image/png;base64,iVBOR") != NULL);
-    ok("html: footnote back as a footnote", e->nnotes == 1 && e->notes[0].np == 1 && !strcmp(e->notes[0].p[0]->t, "The note's text.") && pi != (u32)-1 && strstr(e->p[pi]->t, "\xF3\xB4\x80\x80"));
+    ok("html: footnote back as a footnote (in LibreOffice's markup)", e->nnotes == 1 && e->notes[0].np == 1 && !strcmp(e->notes[0].p[0]->t, "The note's text.") && pi != (u32)-1 && strstr(e->p[pi]->t, "\xF3\xB4\x80\x80"));
   }
   {
     const CharFmt *g = fmt_of(e, "Last");

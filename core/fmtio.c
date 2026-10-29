@@ -439,7 +439,7 @@ i32 css_twips(const char *s, size_t n, int *ok)
   *ok = 0;
   while (i < n && (s[i] == ' ' || s[i] == '\t')) i++;
   if (i < n && (s[i] == '-' || s[i] == '+')) neg = s[i++] == '-';
-  while (i < n && s[i] >= '0' && s[i] <= '9') { whole = whole * 10 + (s[i++] - '0'); any = 1; if (whole > 100000) whole = 100000; }
+  while (i < n && s[i] >= '0' && s[i] <= '9') { whole = whole * 10 + (s[i++] - '0'); any = 1; if (whole > 1000000) whole = 1000000; }
   if (i < n && s[i] == '.') { i++; while (i < n && s[i] >= '0' && s[i] <= '9') { if (fd < 10000) { frac = frac * 10 + (s[i] - '0'); fd *= 10; } i++; any = 1; } }
   if (!any) return 0;
   /* twips per unit, times 1000 (integers only: vbcc's maths) */
@@ -459,7 +459,7 @@ i32 css_twips(const char *s, size_t n, int *ok)
       else if (un >= 2 && (u[0] | 0x20) == 'e' && (u[1] | 0x20) == 'x') per = 120000;
       else if (un >= 1 && u[0] == '%') per = 2400;
     }
-    t = (whole * per + frac * per / fd) / 1000;
+    t = (long)(((long long)whole * per + (long long)frac * per / fd) / 1000);   /* (64 bits: inches times 1440000 overflow a long) */
     *ok = 1;
     return (i32)(neg ? -t : t);
   }

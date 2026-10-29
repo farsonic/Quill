@@ -508,7 +508,7 @@ static const char *find_def(MR *m, const char *s, size_t n)
   for (i = 0; i < m->ndefs; i++) if (!strcmp(m->defs[i].label, lab)) return m->defs[i].url;
   return NULL;
 }
-static int note_for(MR *m, const char *label, size_t n, int define)
+static int note_for(MR *m, const char *label, size_t n)
 {
   char lab[32];
   int i, en;
@@ -523,7 +523,6 @@ static int note_for(MR *m, const char *label, size_t n, int define)
     strcpy(m->notelabels[i], lab);
     m->nnotelabels++;
   }
-  (void)define;
   if (i >= 512) return -1;
   if (!m->notemap[en][i]) {
     int k2 = en ? doc_add_endnote(m->d) : doc_add_note(m->d);
@@ -677,7 +676,7 @@ static void inlines(MR *m, const char *s, size_t n)
         size_t k = i + 2;
         while (k < n && s[k] != ']' && s[k] != ' ' && s[k] != '[') k++;
         if (k < n && s[k] == ']' && k > i + 2) {
-          int note = note_for(m, s + i + 2, k - i - 2, 0);
+          int note = note_for(m, s + i + 2, k - i - 2);
           if (note >= 0) {
             char ref[8];
             if (note & 0x10000) enote_utf8(ref, note & 0xFFFF); else note_utf8(ref, note);
@@ -711,7 +710,6 @@ static void inlines(MR *m, const char *s, size_t n)
         size_t e = k + 1;
         while (e < n && s[e] != ']') e++;
         if (e < n) {
-          if (e == k + 1) { size_t ls = image ? m->pc[op].off : m->pc[op].off; (void)ls; }
           def = e > k + 1 ? find_def(m, s + k + 1, e - k - 1) : NULL;
           if (def) { k = e + 1; ok = 2; }
         }
@@ -1228,7 +1226,7 @@ static Doc *md_load(const u8 *data, size_t len, unsigned *lost, char *err, size_
       size_t k = ip + 2;
       while (k < n && ln[k] != ']') k++;
       if (k + 1 < n && ln[k + 1] == ':') {
-        int note = note_for(&b->m, ln + ip + 2, k - ip - 2, 1);
+        int note = note_for(&b->m, ln + ip + 2, k - ip - 2);
         flush_para(b);
         b->blank = 0;
         if (note >= 0) {

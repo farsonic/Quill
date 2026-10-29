@@ -25,6 +25,7 @@
 #include "fmtio.h"
 #include "codepage.h"
 #include "image.h"
+#include "tstyle.h"
 
 /* ================================================================== */
 /* writing */
@@ -238,8 +239,9 @@ static void w_runs(HW *w, const Para *p, int notes)
         int en = IS_ENOTE(p->t + i), n = note_index(p->t + i);
         if (notes && n >= 0 && n < (en ? d->nenotes : d->nnotes)) {
           int num = en ? note_number(w->enoteorder, &w->nenote, n) : note_number(w->noteorder, &w->nnote, n);
-          if (en) buf_printf(b, "<sup><a href=\"#en%d\" id=\"enref%d\">%d</a></sup>", num, num, num);
-          else buf_printf(b, "<sup><a href=\"#fn%d\" id=\"fnref%d\">%d</a></sup>", num, num, num);
+          /* (LibreOffice's markup: it reads these as notes, as Quill does) */
+          const char *k = en ? "sdendnote" : "sdfootnote";
+          buf_printf(b, "<a class=\"%sanc\" name=\"%s%danc\" href=\"#%s%dsym\"><sup>%d</sup></a>", k, k, num, k, num, num);
         }
         prevspace = 0;
         i += 4;
@@ -292,7 +294,6 @@ static void w_para(HW *w, const Para *p, int inli, i32 parent_left)
   buf_free(&css);
   w_runs(w, p, 1);
   if (tag) buf_printf(b, "</%s>\n", tag);
-  (void)parent_left;
 }
 /* lists: each paragraph in one, in <ul>/<ol> nested by level; returns the paragraph after them */
 static u32 w_lists(HW *w, Para **p, u32 i, u32 end)
@@ -340,15 +341,15 @@ static u32 w_table(HW *w, Para **p, u32 i, u32 end)
   u16 tn = c0->table;
   const Table *t = tn <= d->ntables ? &d->tables[tn - 1] : NULL;
   u32 j, e = i;
-  int k, row = -1;
-  while (e < end && top_cell(&p[e]->pf)->table == tn) e++;
+  int k, row = -1, nrows = 0;
+  while (e < end && top_cell(&p[e]->pf)->table == tn) { if (top_cell(&p[e]->pf)->row + 1 > nrows) nrows = top_cell(&p[e]->pf)->row + 1; e++; }
   buf_adds(b, "<table style=\"border-collapse:collapse");
   if (t && t->jc == AL_CENTER) buf_adds(b, ";margin-left:auto;margin-right:auto");
   else if (t && t->indent) { buf_adds(b, ";margin-left:"); pt(b, t->indent); }
   buf_adds(b, "\">\n");
   if (t) {
     buf_adds(b, "<colgroup>");
-    for (k = 0; k < t->ncols; k++) { buf_adds(b, "<col style=\"width:"); pt(b, t->grid[k]); buf_adds(b, "\">"); }
+    for (k = 0; k < t->ncols; k++) { buf_printf(b, "<col width=\"%ld\" style=\"width:", (long)(t->grid[k] + 7) / 15); pt(b, t->grid[k]); buf_adds(b, "\">"); }
     buf_adds(b, "</colgroup>\n");
   }
   for (j = i; j < e; ) {
@@ -377,17 +378,32 @@ static u32 w_table(HW *w, Para **p, u32 i, u32 end)
           rs++; r = x->row;
         }
       }
+      CellLook cl;
+      int fromstyle = 0;
+      memset(&cl, 0, sizeof cl);
+      cl.shade = COLOR_AUTO;
+      if (t && t->tstyle && !c->borders && c->shade == COLOR_AUTO) {
+        /* lines and shading that come from the table's style: shown, but marked so that reading
+           the page back leaves them to the style */
+        tstyle_cell(d, t->tstyle, t->look, c->row, c->col, c->span ? c->span : 1, nrows, t->ncols, NULL, &cl);
+        fromstyle = cl.borders || cl.shade != COLOR_AUTO;
+      }
       buf_printf(b, "<%s", tag);
       if (c->span > 1) buf_printf(b, " colspan=\"%d\"", c->span);
       if (rs > 1) buf_printf(b, " rowspan=\"%d\"", rs);
+      if (fromstyle) buf_adds(b, " data-look=\"style\"");
       buf_adds(b, " style=\"vertical-align:");
       buf_adds(b, c->valign == 1 ? "middle" : c->valign == 2 ? "bottom" : "top");
       if (t) { buf_adds(b, ";padding:0 "); pt(b, t->marr); buf_addc(b, ' '); buf_adds(b, "0 "); pt(b, t->marl); }
       if (c->shade != COLOR_AUTO) { buf_adds(b, ";background-color:"); hex(b, c->shade); }
+      else if (fromstyle && cl.shade != COLOR_AUTO) { buf_adds(b, ";background-color:"); hex(b, cl.shade); }
       buf_addc(b, ';');
       {
         static const char *const edge[4] = { "top", "left", "bottom", "right" };
-        for (k = 0; k < 4; k++) if (c->borders & (1 << k)) css_border(b, edge[k], c->bstyle[k] ? c->bstyle[k] : PB_SINGLE, c->bwidth[k], c->bcolor[k]);
+        for (k = 0; k < 4; k++) {
+          if (c->borders & (1 << k)) css_border(b, edge[k], c->bstyle[k] ? c->bstyle[k] : PB_SINGLE, c->bwidth[k], c->bcolor[k]);
+          else if (fromstyle && (cl.borders & (1 << k))) css_border(b, edge[k], cl.bstyle[k] ? cl.bstyle[k] : PB_SINGLE, cl.bwidth[k], cl.bcolor[k]);
+        }
       }
       buf_adds(b, "\">");
       w_blocks(w, p, j, ce, 1);
@@ -417,22 +433,21 @@ static void w_notes(HW *w, int end)
   Doc *d = w->d;
   Buf *b = w->b;
   int i, n = end ? w->nenote : w->nnote;
-  if (!n) return;
-  buf_printf(b, "<hr class=\"notes\">\n<ol class=\"%s\">\n", end ? "endnotes" : "footnotes");
+  const char *kn = end ? "sdendnote" : "sdfootnote";
   for (i = 0; i < n; i++) {
     int k = end ? w->enoteorder[i] : w->noteorder[i];
     const Story *s = end ? &d->enotes[k] : &d->notes[k];
     u32 j;
-    buf_printf(b, "<li id=\"%s%d\">", end ? "en" : "fn", i + 1);
+    buf_printf(b, "<div id=\"%s%d\">", kn, i + 1);
     for (j = 0; j < s->np; j++) {
       buf_adds(b, "<p class=\""); class_name(b, &d->styles[s->p[j]->pf.style < d->nstyles ? s->p[j]->pf.style : 0]); buf_adds(b, "\">");
+      if (!j) buf_printf(b, "<a class=\"%ssym\" name=\"%s%dsym\" href=\"#%s%danc\">%d</a>", kn, kn, i + 1, kn, i + 1, i + 1);
       w_runs(w, s->p[j], 0);
-      if (j + 1 == s->np) buf_printf(b, " <a href=\"#%sref%d\">&#8617;</a>", end ? "en" : "fn", i + 1);
       buf_adds(b, "</p>");
     }
-    buf_adds(b, "</li>\n");
+    if (!s->np) buf_printf(b, "<p><a class=\"%ssym\" name=\"%s%dsym\" href=\"#%s%danc\">%d</a></p>", kn, kn, i + 1, kn, i + 1, i + 1);
+    buf_adds(b, "</div>\n");
   }
-  buf_adds(b, "</ol>\n");
 }
 static u8 *html_save(Doc *d, size_t *len)
 {
@@ -528,6 +543,7 @@ typedef struct {
   i32 colw[MAX_COLS]; int ncolw;   /* the outermost table's <col> widths */
   i32 padl, padr;           /* its cells' padding (-1: none given) */
   i32 tindent; u8 tjc;      /* its place */
+  int stylecell;            /* the cell's lines and shading are its table style's (data-look="style") */
 } HR;
 
 static HFrame *ftop(HR *r) { return &r->f[r->depth]; }
@@ -880,13 +896,11 @@ static void h_image(HR *r, const HAttr *a, int na)
   if (attr(a, na, "height", &v, &vl)) { int ok; cy = css_twips(v, vl, &ok); }
   if (attr(a, na, "style", &v, &vl)) {
     /* width: and height: in the style */
-    const char *w = NULL;
     size_t i;
     for (i = 0; i + 6 < vl; i++) {
-      if (!strncmp(v + i, "width:", 6) && (i == 0 || v[i - 1] == ' ' || v[i - 1] == ';')) { int ok; size_t e = i + 6; while (e < vl && v[e] != ';') e++; w = v; cx = css_twips(v + i + 6, e - i - 6, &ok); }
+      if (!strncmp(v + i, "width:", 6) && (i == 0 || v[i - 1] == ' ' || v[i - 1] == ';')) { int ok; size_t e = i + 6; while (e < vl && v[e] != ';') e++; cx = css_twips(v + i + 6, e - i - 6, &ok); }
       if (!strncmp(v + i, "height:", 7) && (i == 0 || v[i - 1] == ' ' || v[i - 1] == ';')) { int ok; size_t e = i + 7; while (e < vl && v[e] != ';') e++; cy = css_twips(v + i + 7, e - i - 7, &ok); }
     }
-    (void)w;
   }
   if (!data) { if (r->lost) *r->lost |= LOST_PICTURES; return; }
   {
@@ -952,7 +966,7 @@ static int h_list(HR *r, int ordered, const HAttr *a, int na, int *level)
 }
 
 #define NOVAL ((i32)0x7FFFFF00L)
-static void h_open(HR *r, const char *tag, const HAttr *a, int na, int selfclose)
+static void h_open(HR *r, const char *tag, const HAttr *a, int na)
 {
   HFrame *p = ftop(r), *t;
   const char *v;
@@ -960,7 +974,6 @@ static void h_open(HR *r, const char *tag, const HAttr *a, int na, int selfclose
   Doc *d = r->d;
   int kind = HK_INLINE, item = 0;
   i32 item_left = 0, item_first = 0, parent_left = 0;
-  (void)selfclose;
   if (!strcmp(tag, "head") || !strcmp(tag, "script") || !strcmp(tag, "style") || !strcmp(tag, "title") || !strcmp(tag, "noembed") || !strcmp(tag, "template") || !strcmp(tag, "svg") || !strcmp(tag, "math") || !strcmp(tag, "object") || !strcmp(tag, "iframe") || !strcmp(tag, "select") || !strcmp(tag, "textarea")) kind = HK_SKIP;
   else if (in_list(tag, para_tags, NELEM(para_tags))) kind = HK_PARA;
   else if (!strcmp(tag, "li")) kind = HK_ITEM;
@@ -1105,6 +1118,7 @@ static void h_open(HR *r, const char *tag, const HAttr *a, int na, int selfclose
     tb_cell(&r->tb, attr_int(a, na, "colspan", 1), attr_int(a, na, "rowspan", 1), !strcmp(tag, "th"));
     r->pendshade = COLOR_AUTO; r->pendborders = (u8)(r->tb.borders != 0);
     if (attr(a, na, "bgcolor", &v, &vl)) r->pendshade = css_color(v, vl);
+    r->stylecell = attr(a, na, "data-look", &v, &vl);
     t->pf = d->styles[0].pf; t->cf = d->styles[0].cf;
     t->pf.left = t->pf.first = 0;
     if (!strcmp(tag, "th")) t->cf.flags |= CF_BOLD;
@@ -1212,7 +1226,12 @@ static void h_open(HR *r, const char *tag, const HAttr *a, int na, int selfclose
     else if (has_word(v, vl, "justify")) t->pf.align = AL_JUSTIFY;
     else if (has_word(v, vl, "left")) t->pf.align = AL_LEFT;
   }
-  if (attr(a, na, "style", &v, &vl)) css_apply(r, t, v, vl, kind != HK_INLINE);
+  if (attr(a, na, "style", &v, &vl)) {
+    u32 shade = r->pendshade;
+    u8 borders = r->pendborders;
+    css_apply(r, t, v, vl, kind != HK_INLINE);
+    if (kind == HK_CELL && r->stylecell) { r->pendshade = shade; r->pendborders = borders; }   /* (the table style's: Quill wrote them) */
+  }
   if (item) {
     t->pf.left = t->pf.left == NOVAL ? item_left : parent_left + t->pf.left;
     if (t->pf.first == NOVAL) t->pf.first = item_first;
@@ -1469,7 +1488,7 @@ static void parse_html(HR *r)
         r->i = i < n ? i + 1 : n;
         if (end) h_close(r, tag);
         else {
-          h_open(r, tag, a, na, selfclose);
+          h_open(r, tag, a, na);
           if (selfclose && !void_tag(tag) && r->depth > 0 && !strcmp(ftop(r)->tag, tag)) h_close(r, tag);
           /* raw text elements: their content up to the closing tag isn't markup */
           if (!strcmp(tag, "script") || !strcmp(tag, "style")) {

@@ -298,7 +298,7 @@ static void put_byte(R *r, u8 c)
 /* ---- paragraphs, cells, rows, tables */
 static void table_end(R *r);
 /* the paragraph being filled ends (cell: it ends a table cell) */
-static void para_end(R *r, int cellend)
+static void para_end(R *r)
 {
   Sto *s = top(r);
   GState *g = &r->g[r->depth];
@@ -334,7 +334,6 @@ static void para_end(R *r, int cellend)
   }
   if (s->kind == 2) s->chftn = 2;
   if (!pl_add(&s->l, p)) r->oom = 1;
-  (void)cellend;
 }
 static void cell_end(R *r)
 {
@@ -342,7 +341,7 @@ static void cell_end(R *r)
   GState *g = &r->g[r->depth];
   u8 was = g->intbl;
   if (!was) g->intbl = 1;               /* a \cell outside \intbl still ends a cell */
-  para_end(r, 1);
+  para_end(r);
   g->intbl = was;
   s->cell++;
 }
@@ -350,7 +349,7 @@ static void row_end(R *r)
 {
   Sto *s = top(r);
   flush(r);
-  if (s->cur) { GState *g = &r->g[r->depth]; u8 was = g->intbl; g->intbl = 1; para_end(r, 1); g->intbl = was; s->cell++; }
+  if (s->cur) { GState *g = &r->g[r->depth]; u8 was = g->intbl; g->intbl = 1; para_end(r); g->intbl = was; s->cell++; }
   if (s->nrows >= s->rcap) {
     int nc = s->rcap ? s->rcap * 2 : 16;
     RowDef *nr = (RowDef *)realloc(s->rows, (size_t)nc * sizeof(RowDef));
@@ -465,7 +464,7 @@ static void sto_close(R *r)
 {
   Sto *s = top(r);
   flush(r);
-  if (s->cur && (s->cur->len || s->kind == 0 || !s->l.np)) para_end(r, 0);
+  if (s->cur && (s->cur->len || s->kind == 0 || !s->l.np)) para_end(r);
   else if (s->cur) { para_free(s->cur); s->cur = NULL; }
   if (s->nrows) table_end(r);
 }
@@ -508,10 +507,10 @@ static void sect_end(R *r)
   SectFmt f = r->sec;
   int k, own = 0;
   if (s->kind != 0) return;
-  if (s->cur && (s->cur->len || !s->l.np)) para_end(r, 0);
+  if (s->cur && (s->cur->len || !s->l.np)) para_end(r);
   else if (s->cur) { para_free(s->cur); s->cur = NULL; }
   if (s->nrows) table_end(r);
-  if (!s->l.np) { GState *g = &r->g[r->depth]; s->cur = para_new(&g->pf, &g->cf); para_end(r, 0); }
+  if (!s->l.np) { GState *g = &r->g[r->depth]; s->cur = para_new(&g->pf, &g->cf); para_end(r); }
   if (!s->l.np) return;
   f.haspage = 1;
   f.page = r->secpage;
@@ -719,7 +718,6 @@ enum { FK_OTHER, FK_LINK, FK_PAGE, FK_PAGES, FK_PAGEREF };
 static void field_inst_done(R *r)
 {
   char *s, *p, *q;
-  GState *g = &r->g[r->depth];
   if (!r->nfld) return;
   s = r->fld[r->nfld - 1].inst.data;
   if (!s) return;
@@ -754,7 +752,6 @@ static void field_inst_done(R *r)
     r->fld[r->nfld - 1].kind = FK_LINK;
     buf_free(&r->fld[r->nfld - 1].inst);
     buf_adds(&r->fld[r->nfld - 1].inst, url);
-    (void)g;
     return;
   }
   for (q = p; *q && *q != ' '; q++) ;
@@ -1090,12 +1087,7 @@ static void control(R *r, const char *w, int has, long v, int star)
   if (kw(w, "footery") && has) { r->secpage.footer = (i32)v; if (!r->secpage_set) d->page.footer = (i32)v; return; }
   if (kw(w, "facingp")) { r->facingp = 1; return; }
   if (kw(w, "titlepg")) { r->sec.titlepg = 1; return; }
-  if (kw(w, "sectd")) {
-    int k;
-    sec_reset(r);
-    for (k = 0; k < 2 * HF_N; k++) (void)k;     /* (headers carry on from the section before) */
-    return;
-  }
+  if (kw(w, "sectd")) { sec_reset(r); return; }     /* (headers carry on from the section before) */
   if (kw(w, "sect")) { sect_end(r); return; }
   if (kw(w, "sbknone")) { r->sec.start = SB_CONT; return; }
   if (kw(w, "sbkpage")) { r->sec.start = SB_NEXT; return; }
@@ -1127,9 +1119,9 @@ static void control(R *r, const char *w, int has, long v, int star)
 
   /* ---- breaks and special characters */
   if (dst == D_BODY) {
-    if (kw(w, "par")) { para_end(r, 0); return; }
+    if (kw(w, "par")) { para_end(r); return; }
     if (kw(w, "cell")) { cell_end(r); return; }
-    if (kw(w, "nestcell")) { r->nested_lost = 1; para_end(r, 0); return; }
+    if (kw(w, "nestcell")) { r->nested_lost = 1; para_end(r); return; }
     if (kw(w, "row")) { row_end(r); return; }
     if (kw(w, "nestrow")) { r->nested_lost = 1; return; }
     if (kw(w, "line")) { put_cp(r, '\v'); return; }
@@ -1137,14 +1129,14 @@ static void control(R *r, const char *w, int has, long v, int star)
     if (kw(w, "page")) {
       Sto *s = top(r);
       flush(r);
-      if (s->cur && s->cur->len) para_end(r, 0);
+      if (s->cur && s->cur->len) para_end(r);
       if (s->kind == 0) s->pagebreak = 1;
       return;
     }
     if (kw(w, "column")) {
       Sto *s = top(r);
       flush(r);
-      if (s->cur && s->cur->len) para_end(r, 0);
+      if (s->cur && s->cur->len) para_end(r);
       if (s->kind == 0) s->colbreak = 1;
       return;
     }
@@ -1508,7 +1500,7 @@ static void parse(R *r)
         case '~': if (g->dest != D_SKIP) put_cp(r, 0xA0); break;
         case '-': if (g->dest != D_SKIP) put_cp(r, 0xAD); break;
         case '_': if (g->dest != D_SKIP) put_cp(r, 0x2011); break;
-        case '\n': case '\r': if (g->dest == D_BODY) para_end(r, 0); break;
+        case '\n': case '\r': if (g->dest == D_BODY) para_end(r); break;
         case '\\': case '{': case '}': if (g->dest != D_SKIP && g->dest != D_PICT) put_cp(r, c); break;
         case '|': case ':': break;
         case '\t': if (g->dest != D_SKIP) put_cp(r, '\t'); break;
@@ -1976,7 +1968,7 @@ static void wrow(W *w, Para **p, u32 a, u32 b, const Table *t)
   }
 }
 /* the body or a story with tables: paragraphs from a to b */
-static void wbody(W *w, Para **p, u32 a, u32 b, int sections)
+static void wbody(W *w, Para **p, u32 a, u32 b)
 {
   Buf *bf = w->b;
   u32 i;
@@ -1998,11 +1990,7 @@ static void wbody(W *w, Para **p, u32 a, u32 b, int sections)
           Para **cells = (Para **)malloc((e - i) * sizeof(Para *));
           u32 k, n = 0;
           if (cells) {
-            for (k = i; k < e; k++) {
-              Para tmp;
-              (void)tmp;
-              cells[n++] = p[k];
-            }
+            for (k = i; k < e; k++) cells[n++] = p[k];
             {
               /* the definition wants each cell's own Cell: the outer one for nested paragraphs */
               u32 m;
@@ -2038,7 +2026,6 @@ static void wbody(W *w, Para **p, u32 a, u32 b, int sections)
     } else buf_adds(bf, "\\par\n");
     w->col = 0;
   }
-  (void)sections;
 }
 static void wsect(W *w, const SectFmt *s, int last)
 {
@@ -2237,7 +2224,7 @@ static u8 *rtf_save(Doc *d, size_t *len)
     int last = i + 1 >= d->np;
     if (d->p[i]->pf.sect || last) {
       wsect(&w, d->p[i]->pf.sect && d->p[i]->pf.sect <= d->nsects ? &d->sects[d->p[i]->pf.sect - 1] : NULL, last);
-      wbody(&w, d->p, a, i + 1, 1);
+      wbody(&w, d->p, a, i + 1);
       if (!last) buf_adds(&body, "\\sect\n");
       a = i + 1;
     }
