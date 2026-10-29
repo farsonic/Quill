@@ -6,3 +6,16 @@ documents about computers often use (footer, endnote, email, website...). SCOWL 
 Copyright 2000-2011 Kevin Atkinson and others; see LICENSE-dict.txt for its terms.
 
 Words added with "Add to Dictionary" go to Quill.words next to Quill, not here.
+
+th_en.dat: the English thesaurus (Review > Thesaurus, Synonyms on the right-button menu), in MyThes's
+format. It is made by tools/mkthes.py from LibreOffice's th_en_US_v2 (made from Princeton's WordNet):
+the words in british-english, up to four meanings of six synonyms each. WordNet's licence is in
+LICENSE-thesaurus.txt.
+
+hyph_de_DE.dic, hyph_fr_FR.dic, hyph_es_ES.dic, hyph_it_IT.dic, hyph_pt_PT.dic, hyph_nl_NL.dic,
+hyph_pl_PL.dic: hyphenation patterns for text in those languages, made by tools/mkhyph.py from the
+hyph-utf8 patterns (see each .txt and LICENSE-hyph.txt).
+
+Other languages: put a Hunspell dictionary here, named by its language (de_DE.aff and de_DE.dic, or
+de.aff and de.dic), and Quill checks text in that language with it; th_de_DE.dat (a MyThes thesaurus)
+and hyph_de_DE.dic (Hyphen patterns) work the same way.

@@ -21,6 +21,8 @@
 #include "notes.h"   /* (WP22b) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a: equations */
+#include "ink.h"      /* WP20: freeforms, ink, drawing canvases */
+#include "docx_lang.h"   /* WP31: languages, do not check */
 #include "review.h"
 
 /* ------------------------------------------------------------------ */
@@ -196,7 +198,6 @@ static const char *highlight_name(u32 hl)
    given, gets the character style id (up to 39 bytes). Sizes are in half-points (w:sz), spacing in
    twips, position in half-points, scale in percent (100 is stored as 0, meaning normal). Fonts
    are taken from the ascii slot, falling back to hAnsi and then the theme. Reads up to its END. */
-static char *rpr_lang;                 /* (WP13) reading a style: its w:lang goes here (12 bytes), else NULL */
 static StyleFrame *ppr_frame;          /* (WP13) reading a style: its w:framePr goes here, else NULL */
 static void read_style_frame(Xml *x, StyleFrame *f);
 static void parse_rpr(Xml *x, Ctx *c, RPr *r, char *rstyle)
@@ -209,6 +210,7 @@ static void parse_rpr(Xml *x, Ctx *c, RPr *r, char *rstyle)
     if (x->type != XT_START) continue;
     v = xml_attr(x, "val");
     { int w9 = wp9_read_rpr(x, &r->set, &r->cf); if (w9 == 2) continue; if (w9) { xml_skip(x); continue; } }   /* WP9's (charfx.h) */
+    if (wp31_read_rpr(x, &r->set, &r->cf)) { xml_skip(x); continue; }   /* WP31's (docx_lang.h) */
     if (!strcmp(n, "rStyle") && rstyle && v) { strncpy(rstyle, v, 39); rstyle[39] = 0; }
     else if (!strcmp(n, "b")) set_flag(r, CF_BOLD, onoff(x));
     else if (!strcmp(n, "i")) set_flag(r, CF_ITALIC, onoff(x));
@@ -247,7 +249,6 @@ static void parse_rpr(Xml *x, Ctx *c, RPr *r, char *rstyle)
       r->set |= CM_COLOR; r->cf.color = hexcolor(v);
       r->cf.thcolor = thr_from_word(xml_attr(x, "themeColor"), xml_attr(x, "themeTint"), xml_attr(x, "themeShade"));   /* (WP13) */
     }
-    else if (!strcmp(n, "lang") && rpr_lang && v) { strncpy(rpr_lang, v, 11); rpr_lang[11] = 0; }      /* (WP13: a style's) */
     else if (!strcmp(n, "highlight") && v) { r->set |= CM_HL; r->cf.hl = highlight_rgb(v); }
     else if (!strcmp(n, "rPrChange") && rstyle) { wp5_read_rprchange(x, c); continue; }   /* (WP5: a run's) */
     xml_skip(x);
@@ -298,6 +299,7 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
     else if (!strcmp(n, "keepLines")) { p->set |= PM_PAGINATION; p->pf.keeplines = (u8)onoff(x); }
     else if (!strcmp(n, "widowControl")) { p->set |= PM_PAGINATION; p->pf.nowidow = (u8)!onoff(x); }
     else if (!strcmp(n, "contextualSpacing")) { p->set |= PM_CONTEXT; p->pf.contextual = (u8)onoff(x); }
+    else if (!strcmp(n, "outlineLvl") && v) { p->set |= PM_OUTLINE; p->pf.outlvl = (u8)(atoi(v) >= 0 && atoi(v) < 9 ? atoi(v) + 1 : 0); }   /* (WP11) */
     else if (!strcmp(n, "shd")) {
       const char *fill = xml_attr(x, "fill");
       u32 col = fill ? hexcolor(fill) : COLOR_AUTO;
@@ -380,7 +382,7 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
 /* apply onto dst the paragraph fields p sets (lists are applied separately, by apply_list) */
 static void pf_set(ParaFmt *dst, const PPr *p)
 {
-  pf_apply(dst, p->set & (PM_ALIGN | PM_INDENT | PM_SPACING | PM_LINE | PM_TABS | PM_KEEP | PM_BORDER | PM_SHADE | PM_PAGINATION | PM_CONTEXT), &p->pf);
+  pf_apply(dst, p->set & (PM_ALIGN | PM_INDENT | PM_SPACING | PM_LINE | PM_TABS | PM_KEEP | PM_BORDER | PM_SHADE | PM_PAGINATION | PM_CONTEXT | PM_OUTLINE), &p->pf);
   if (p->set & PM_BREAK) dst->pagebreak = p->pf.pagebreak;
 }
 /* apply onto dst the character look fields r sets */
@@ -767,7 +769,7 @@ static void parse_styles(Ctx *c, const char *xml, size_t n)
           continue;
         }
         else if (!strcmp(x.name, "pPr")) { ppr_frame = &s->sx.frame; parse_ppr(&x, c, &s->p, NULL, NULL); ppr_frame = NULL; continue; }
-        else if (!strcmp(x.name, "rPr")) { rpr_lang = s->sx.lang; parse_rpr(&x, c, &s->r, NULL); rpr_lang = NULL; continue; }
+        else if (!strcmp(x.name, "rPr")) { parse_rpr(&x, c, &s->r, NULL); continue; }
         xml_skip(&x);
       }
       if (!s->name[0]) strcpy(s->name, s->id);
@@ -1246,6 +1248,8 @@ static void dshape_init(DShape *s)
   s->lnfill = -1;
   s->stylefill = s->styleline = COLOR_AUTO;
 }
+/* WP20's (by the hooks, further down) */
+static int wp20_dshape(Xml *x, PCtx *pc, DShape *s), wp20_group_child(Xml *x, PCtx *pc, DShape *g), wp20_drawing_elem(Xml *x);
 /* the picture a blip names, into im (its own data); 0 if there is none to read */
 static int load_blip(Ctx *c, const char *embed, Image *im)
 {
@@ -1370,6 +1374,7 @@ static int dshape_elem(Xml *x, PCtx *pc, DShape *s)
     if (im->kind == OBJ_SHAPE && im->shape == SH_RECT && !s->havefill) im->kind = OBJ_TEXTBOX;
     return 1;
   }
+  else if (wp20_dshape(x, pc, s)) return 1;     /* WP20: a:custGeom, Word's ink, a drawing canvas */
   else if (!strcmp(n, "wgp") || !strcmp(n, "grpSp")) { parse_group(x, pc, s); return 1; }
   return 0;
 }
@@ -1407,6 +1412,7 @@ static void parse_group(Xml *x, PCtx *pc, DShape *g)
     if (x->type == XT_END && x->depth < d0) break;
     if (x->type == XT_END) { dshape_end(x, g); continue; }
     if (x->type != XT_START) continue;
+    if (wp20_group_child(x, pc, g)) continue;     /* WP20: a canvas's background and groups, Word's ink in a group */
     if (!strcmp(n, "wsp") || !strcmp(n, "pic") || !strcmp(n, "grpSp")) {
       /* one object of the group */
       DShape k;
@@ -1528,6 +1534,7 @@ static void parse_drawing(Xml *x, PCtx *pc, const CharFmt *f)
       }
       continue;
     }
+    else if (wp20_drawing_elem(x)) ;                 /* WP20: (notes the name and size; never takes the element) */
     else if (!strcmp(n, "extent") && !cx) { attr_num(x, "cx", &cx); attr_num(x, "cy", &cy); }
     else if (!strcmp(n, "wrapPolygon")) { parse_polygon(x, im); continue; }
     else if (!strncmp(n, "wrap", 4) && !wrapname[0] && strlen(n) < sizeof wrapname) strcpy(wrapname, n);
@@ -3013,6 +3020,178 @@ static int docx_read_elem_ext(Xml *x, PCtx *pc)
   /* WP31: */
   return 0;
 }
+/* ---- WP20 reading (core/ink.h): freeform shapes and ink (a:custGeom), Word's own ink (w14:contentPart and
+   its InkML part, kept as written) and drawing canvases (wpc:wpc, a group whose first object is the
+   canvas's background) */
+static u8 w20_tool;                     /* the pen and drawing order the last shape's name gave (core/ink.h) */
+static u32 w20_order;
+static i32 w20_cx, w20_cy;              /* the drawing's size (wp:extent, EMU) */
+/* in a w:drawing: its name and size noted (never takes the element: 0) */
+static int wp20_drawing_elem(Xml *x)
+{
+  if (!strcmp(x->name, "docPr")) ink_parse_name(xml_attr(x, "name"), &w20_tool, &w20_order);
+  else if (!strcmp(x->name, "extent")) { w20_cx = 0; w20_cy = 0; attr_num(x, "cx", &w20_cx); attr_num(x, "cy", &w20_cy); }
+  return 0;
+}
+/* Word's ink: im gets its w14:contentPart (raw, rl bytes) as written, and is drawn from the traces of
+   the InkML part it names (cx x cy EMU) */
+static void wp20_native(Ctx *c, Image *im, const char *raw, size_t rl, i32 cx, i32 cy)
+{
+  Freeform *f;
+  Xml y;
+  char id[64] = "", path[300] = "";
+  u32 col = 0;
+  int width = 6;
+  img_release(im);
+  im->kind = OBJ_SHAPE; im->shape = SH_FREEFORM; im->fill = COLOR_AUTO;
+  im->lstyle = PB_SINGLE; im->lwidth = 6; im->lcolor = 0;
+  if (!(f = ff_new(cx > 0 ? cx / 635 : 1440, cy > 0 ? cy / 635 : 1440))) return;
+  f->tool = INK_PEN;
+  f->raw = str_ndup(raw, rl);
+  xml_init(&y, raw, rl);
+  if (xml_next(&y) == XT_START) copy_attr(&y, "id", id, sizeof id);
+  xml_free(&y);
+  if (id[0] && c->rels && c->z) {
+    size_t len = 0;
+    char *data;
+    rel_by_id(c->rels, c->rn, id, c->base, path, sizeof path);
+    if (path[0] && (data = (char *)zip_read(c->z, zip_find(c->z, path), &len))) {
+      ff_from_inkml(f, data, len, f->w, f->h, &col, &width);
+      free(data);
+      im->lcolor = col; im->lwidth = (u8)width;
+    }
+    if (path[0]) f->rawpart = str_dup(path);
+  }
+  im->ff = f;
+}
+/* the size a w14:contentPart's own w14:xfrm gives (EMU), and its place */
+static void wp20_part_xfrm(const char *raw, size_t rl, i32 *offx, i32 *offy, i32 *cx, i32 *cy)
+{
+  Xml y;
+  xml_init(&y, raw, rl);
+  while (xml_next(&y) != XT_EOF)
+    if (y.type == XT_START && !strcmp(y.name, "off")) { attr_num(&y, "x", offx); attr_num(&y, "y", offy); }
+    else if (y.type == XT_START && !strcmp(y.name, "ext")) { attr_num(&y, "cx", cx); attr_num(&y, "cy", cy); }
+  xml_free(&y);
+}
+/* an element inside a shape: a:custGeom (a freeform; ink if its name says so), a graphicData of Word's
+   ink, a drawing canvas, a group member's name. 1 if it was read here */
+static int wp20_dshape(Xml *x, PCtx *pc, DShape *s)
+{
+  const char *n = x->name;
+  if (!strcmp(n, "cNvPr")) { ink_parse_name(xml_attr(x, "name"), &w20_tool, &w20_order); return 0; }
+  if (!strcmp(n, "custGeom") && s->insp) {
+    Freeform *f;
+    if (s->im.kind != OBJ_SHAPE) { xml_skip(x); return 1; }      /* (a picture cut to a freeform shows whole) */
+    if ((f = ff_read_custgeom(x, s->extx, s->exty))) {
+      f->tool = w20_tool; f->order = w20_order;
+      if (f->tool == INK_HIGHLIGHTER) f->alpha = 50;
+      ff_unref(s->im.ff);
+      s->im.ff = f; s->im.shape = SH_FREEFORM;
+    }
+    w20_tool = INK_NONE; w20_order = 0;
+    return 1;
+  }
+  if (!strcmp(n, "graphicData")) {
+    const char *u = xml_attr(x, "uri");
+    int d0 = x->depth;
+    if (!u || !strstr(u, "wordprocessingInk")) return 0;
+    while (xml_next(x) != XT_EOF) {
+      if (x->type == XT_END && x->depth < d0) break;
+      if (x->type == XT_START && !strcmp(x->name, "contentPart")) {
+        const char *raw;
+        size_t rl = xml_raw(x, &raw);
+        wp20_native(pc->c, &s->im, raw, rl, w20_cx, w20_cy);
+      }
+    }
+    return 1;
+  }
+  if (!strcmp(n, "wpc")) {
+    Image *g = &s->im;
+    i32 cx = w20_cx > 0 ? (w20_cx + 317) / 635 : 1440, cy = w20_cy > 0 ? (w20_cy + 317) / 635 : 1440;
+    g->canvas = CANVAS_GROUP;
+    parse_group(x, pc, s);
+    if (!g->nkids || g->kids[0].canvas != CANVAS_BG) {
+      /* no background given: an empty one first */
+      Image *nk = (Image *)realloc(g->kids, (g->nkids + 1) * sizeof(Image));
+      if (nk) {
+        g->kids = nk;
+        memmove(nk + 1, nk, g->nkids * sizeof(Image));
+        img_defaults(&nk[0]);
+        nk[0].kind = OBJ_SHAPE; nk[0].canvas = CANVAS_BG; nk[0].fill = COLOR_AUTO; nk[0].lstyle = PB_NONE;
+        g->nkids++;
+      }
+    }
+    if (g->nkids) { g->kids[0].x = g->kids[0].y = 0; g->kids[0].cx = cx; g->kids[0].cy = cy; }
+    g->chw = cx; g->chh = cy;
+    return 1;
+  }
+  return 0;
+}
+/* an element of a group: in a canvas, its background (wpc:bg, wpc:whole) and its groups (wpg:wgp); Word's ink
+   (w14:contentPart) in either, and a picture standing in for it (mc:Fallback) left out. 1 if read here */
+static int wp20_group_child(Xml *x, PCtx *pc, DShape *g)
+{
+  const char *n = x->name;
+  Image *gi = &g->im, *nk;
+  if (!strcmp(n, "Fallback")) { xml_skip(x); return 1; }
+  if (gi->canvas == CANVAS_GROUP && (!strcmp(n, "bg") || !strcmp(n, "whole"))) {
+    DShape t;
+    int d1 = x->depth, bg = n[0] == 'b';
+    Image *b;
+    dshape_init(&t);
+    t.im.kind = OBJ_SHAPE; t.insp = 1;
+    while (xml_next(x) != XT_EOF) {
+      if (x->type == XT_END && x->depth < d1) break;
+      if (x->type == XT_END) { dshape_end(x, &t); t.insp = 1; continue; }
+      if (x->type == XT_START) dshape_elem(x, pc, &t);
+    }
+    if (!gi->nkids || gi->kids[0].canvas != CANVAS_BG) {
+      if (!(nk = (Image *)realloc(gi->kids, (gi->nkids + 1) * sizeof(Image)))) { img_release(&t.im); return 1; }
+      gi->kids = nk;
+      memmove(nk + 1, nk, gi->nkids * sizeof(Image));
+      img_defaults(&nk[0]);
+      nk[0].kind = OBJ_SHAPE; nk[0].canvas = CANVAS_BG; nk[0].fill = COLOR_AUTO; nk[0].lstyle = PB_NONE;
+      gi->nkids++;
+    }
+    b = &gi->kids[0];
+    if (bg) b->fill = t.havefill ? t.im.fill : COLOR_AUTO;
+    else if (t.haveline && t.lnfill != 0) { b->lstyle = t.im.lstyle ? t.im.lstyle : PB_SINGLE; b->lwidth = t.im.lwidth ? t.im.lwidth : 6; b->lcolor = t.im.lcolor; }
+    img_release(&t.im);
+    return 1;
+  }
+  if (gi->canvas == CANVAS_GROUP && !strcmp(n, "wgp")) {
+    DShape k;
+    dshape_init(&k);
+    parse_group(x, pc, &k);
+    dshape_finish(&k);
+    k.im.x = (k.offx - g->choffx) / 635; k.im.y = (k.offy - g->choffy) / 635;
+    k.im.cx = (k.extx + 317) / 635; k.im.cy = (k.exty + 317) / 635;
+    k.im.chw = (k.chextx + 317) / 635; k.im.chh = (k.chexty + 317) / 635;
+    if (!k.im.chw || !k.im.chh) { k.im.chw = k.im.cx; k.im.chh = k.im.cy; }
+    if (!k.im.nkids || !(nk = (Image *)realloc(gi->kids, (gi->nkids + 1) * sizeof(Image)))) { img_release(&k.im); return 1; }
+    gi->kids = nk;
+    gi->kids[gi->nkids++] = k.im;
+    return 1;
+  }
+  if (!strcmp(n, "contentPart")) {
+    const char *raw;
+    size_t rl = xml_raw(x, &raw);
+    i32 ox = 0, oy = 0, ex = 0, ey = 0;
+    Image k;
+    img_defaults(&k);
+    wp20_part_xfrm(raw, rl, &ox, &oy, &ex, &ey);
+    wp20_native(pc->c, &k, raw, rl, ex, ey);
+    k.x = (ox - g->choffx) / 635; k.y = (oy - g->choffy) / 635;
+    k.cx = (ex + 317) / 635; k.cy = (ey + 317) / 635;
+    k.wrap = WRAP_FRONT;
+    if (!k.ff || !(nk = (Image *)realloc(gi->kids, (gi->nkids + 1) * sizeof(Image)))) { img_release(&k); return 1; }
+    gi->kids = nk;
+    gi->kids[gi->nkids++] = k;
+    return 1;
+  }
+  return 0;
+}
 /* WP9: a complex field ending (or reaching its result): enclosed characters (eq \o\ac) become their
    text with the enclosure in its format, the symbol written larger than the text meaning "enlarge
    symbol" (as Word stores the style). 1 if it was one */
@@ -3410,7 +3589,6 @@ Doc *docx_load(const u8 *data, size_t len, unsigned *lost, char *err, size_t err
 /* ------------------------------------------------------------------ */
 /* writing */
 static const char *w_rstyle;           /* the next run's character style (its id), written by w_rpr */
-static const char *w_rlang;            /* (WP13) a style's language, written by w_rpr at the end of its w:rPr */
 static const StyleFrame *w_pframe;     /* (WP13) a style's frame, written by w_ppr_body */
 /* append a w:rPr for f: with full, every field that isn't at its plain value (for styles and
    docDefaults), else only what differs from base (the paragraph style's character format), with
@@ -3436,12 +3614,13 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
     if (f->scale != base->scale) diff |= CM_SCALE;
     if (f->position != base->position) diff |= CM_POSITION;
     diff |= wp9_rpr_diff(f, base);                  /* WP9's */
+    diff |= wp31_rpr_diff(f, base);                 /* WP31's */
   }
   if (w_rstyle) {
     buf_adds(&b, "<w:rStyle w:val=\""); xml_escape(&b, w_rstyle, strlen(w_rstyle)); buf_adds(&b, "\"/>");
     w_rstyle = NULL;
   }
-  if (!diff && !b.len && !(w_rlang && w_rlang[0])) { w_rlang = NULL; return; }
+  if (!diff && !b.len) return;
   if ((diff & CM_FONT) && f->font < d->nfonts && theme_font_ok(d, f->thfont, f->font)) {      /* (WP13) the theme's font */
     const char *cl = f->thfont == THF_MAJOR ? "major" : "minor";
     buf_printf(&b, "<w:rFonts w:asciiTheme=\"%sHAnsi\" w:eastAsiaTheme=\"%sEastAsia\" w:hAnsiTheme=\"%sHAnsi\" w:cstheme=\"%sBidi\"/>", cl, cl, cl, cl);
@@ -3479,6 +3658,7 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
   if ((diff & CM_SMALLCAPS) && (!full || (f->fx & FX_SMALLCAPS))) buf_adds(&b, f->fx & FX_SMALLCAPS ? "<w:smallCaps/>" : "<w:smallCaps w:val=\"0\"/>");
   if ((diff & CM_DSTRIKE) && (!full || (f->fx & FX_DSTRIKE))) buf_adds(&b, f->fx & FX_DSTRIKE ? "<w:dstrike/>" : "<w:dstrike w:val=\"0\"/>");
   wp9_write_rpr(&b, f, base, diff, full, 0);          /* WP9's effects */
+  wp31_write_rpr(&b, f, base, diff, full, 0);         /* WP31's w:noProof */
   if ((diff & CM_SPACING) && (!full || f->spacing)) buf_printf(&b, "<w:spacing w:val=\"%d\"/>", (int)f->spacing);
   if ((diff & CM_SCALE) && (!full || f->scale)) buf_printf(&b, "<w:w w:val=\"%u\"/>", (unsigned)(f->scale ? f->scale : 100));
   if ((diff & CM_POSITION) && (!full || f->position)) buf_printf(&b, "<w:position w:val=\"%d\"/>", (int)f->position);
@@ -3489,8 +3669,7 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
     buf_printf(&b, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"%06lX\"/>", (unsigned long)(f->hl & 0xFFFFFF));
   if ((diff & (CM_SUPER | CM_SUB)) && (!full || (f->flags & (CF_SUPER | CF_SUB))))
     buf_adds(&b, f->flags & CF_SUPER ? "<w:vertAlign w:val=\"superscript\"/>" : f->flags & CF_SUB ? "<w:vertAlign w:val=\"subscript\"/>" : "<w:vertAlign w:val=\"baseline\"/>");
-  if (w_rlang && w_rlang[0]) { buf_adds(&b, "<w:lang w:val=\""); xml_escape(&b, w_rlang, strlen(w_rlang)); buf_adds(&b, "\"/>"); }   /* (WP13) */
-  w_rlang = NULL;
+  wp31_write_rpr(&b, f, base, diff, full, 1);         /* WP31's w:lang */
   wp9_write_rpr(&b, f, base, diff, full, 2);          /* WP9's kept ones */
   if (b.len) { buf_adds(o, "<w:rPr>"); buf_add(o, b.data, b.len); buf_adds(o, "</w:rPr>"); }
   buf_free(&b);
@@ -3577,6 +3756,7 @@ static void w_ppr_body(Buf *b, Doc *d, const ParaFmt *p, const ParaFmt *base, in
   }
   if (full ? p->contextual : p->contextual != base->contextual) buf_adds(b, p->contextual ? "<w:contextualSpacing/>" : "<w:contextualSpacing w:val=\"0\"/>");
   if (full ? p->align != AL_LEFT : p->align != base->align) buf_printf(b, "<w:jc w:val=\"%s\"/>", jc[p->align <= AL_DISTRIBUTE ? p->align : 0]);
+  if (full ? p->outlvl != 0 : p->outlvl != base->outlvl) buf_printf(b, "<w:outlineLvl w:val=\"%d\"/>", p->outlvl >= 1 && p->outlvl <= 9 ? p->outlvl - 1 : 9);   /* (WP11) */
 }
 /* ---- WP5 writing (core/review.h): tracked formatting changes, moves, kept property changes */
 static int w5_revid = 500000;           /* ids of the change elements WP5 writes (clear of w_para_ex's) */
@@ -3992,6 +4172,7 @@ static void w_xfrm(Buf *o, const Image *im, long offx, long offy, long cx, long 
   buf_adds(o, "</a:xfrm>");
 }
 static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tail);
+static int wp20_write_obj(Buf *o, Doc *d, const Image *im, int child, long offx, long offy, u32 *id);   /* (WP20, by the hooks) */
 /* an object's drawing: a picture (pic:pic), shape or text box (wps:wsp) or group (wpg:wgp, or wpg:grpSp in
    one); child: in a group, at offx, offy of its space */
 /* *id counts the drawing ids (every object, and each child of a group, needs its own). Sizes go
@@ -3999,6 +4180,7 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
    is rIdImg plus its media number. */
 static void w_obj(Buf *o, Doc *d, const Image *im, int child, long offx, long offy, u32 *id)
 {
+  if (wp20_write_obj(o, d, im, child, offx, offy, id)) return;    /* WP20: freeforms and ink, drawing canvases */
   long cx = (long)im->cx * 635, cy = (long)im->cy * 635;
   u32 me = ++*id;
   int k;
@@ -4772,7 +4954,6 @@ static char *w_styles(Doc *d, size_t *len)
     if (s->quick) buf_adds(&o, "<w:qFormat/>");
     if (s->x.flags & SXF_LOCKED) buf_adds(&o, "<w:locked/>");
     if (s->x.flags & SXF_PERSONAL) buf_adds(&o, "<w:personal/>");
-    w_rlang = s->x.lang;                                  /* (WP13) its language and frame */
     if (!ch) {
       ParaFmt sp = s->pf, b0 = *bp;
       sp.style = 0; b0.style = 0;
@@ -5010,6 +5191,88 @@ static void wp5_write_settings(Doc *d, Buf *b, int where)
                hide & RVH_INSDEL ? " w:insDel=\"0\"" : "", hide & RVH_FORMAT ? " w:formatting=\"0\"" : "");
   if (d->rvsettings & RVS_NOMOVES) buf_adds(b, "<w:doNotTrackMoves/>");
   if (d->rvsettings & RVS_NOFMT) buf_adds(b, "<w:doNotTrackFormatting/>");
+}
+/* ---- WP20 writing: a freeform (ink named as such) as a wps:wsp with a:custGeom; Word's own ink as it came
+   (while its InkML part is kept); a drawing canvas (in the text, not in a group) as wpc:wpc. 1 if written here */
+static const char W20_GROUP_URI[] = "<a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingGroup\">";
+static const char W20_SHAPE_URI[] = "<a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">";
+/* the graphicData just opened for the object (o ends with it) given another uri; 0 if o doesn't end so */
+static int w20_retag(Buf *o, const char *was, const char *uri)
+{
+  size_t l = strlen(was);
+  if (o->len < l || memcmp(o->data + o->len - l, was, l)) return 0;
+  o->len -= l;
+  buf_printf(o, "<a:graphicData uri=\"%s\">", uri);
+  return 1;
+}
+/* Word's ink as read, its relationship the kept part's (the part not kept: 0) */
+static int w20_native(Buf *o, Doc *d, const Freeform *f, int child)
+{
+  int k = f->rawpart ? keep_find(d, f->rawpart) : -1;
+  const char *raw = f->raw, *p;
+  if (!raw || k < 0 || !d->kept[k].owner || strcmp(d->kept[k].owner, "word/document.xml") || !d->kept[k].relid) return 0;
+  if (!child && !w20_retag(o, W20_SHAPE_URI, "http://schemas.microsoft.com/office/word/2010/wordprocessingInk")) return 0;
+  if (child) buf_adds(o, "<mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\">"
+                         "<mc:Choice xmlns:wpi=\"http://schemas.microsoft.com/office/word/2010/wordprocessingInk\" Requires=\"wpi\">");
+  /* r:id="..." given the kept part's id */
+  if ((p = strstr(raw, ":id=\"")) && strchr(p + 5, '"')) {
+    const char *e = strchr(p + 5, '"');
+    buf_add(o, raw, (size_t)(p + 5 - raw));
+    buf_adds(o, d->kept[k].relid);
+    buf_adds(o, e);
+  } else buf_adds(o, raw);
+  if (child) buf_adds(o, "</mc:Choice></mc:AlternateContent>");
+  return 1;
+}
+static int wp20_write_obj(Buf *o, Doc *d, const Image *im, int child, long offx, long offy, u32 *id)
+{
+  if (im->canvas == CANVAS_GROUP && im->kind == OBJ_GROUP && !child && w20_retag(o, W20_GROUP_URI, "http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas")) {
+    const Image *bg = im->nkids && im->kids[0].canvas == CANVAS_BG ? &im->kids[0] : NULL;
+    int k;
+    long sw = im->chw > 0 ? im->chw : im->cx, sh = im->chh > 0 ? im->chh : im->cy;
+    ++*id;
+    buf_adds(o, "<wpc:wpc xmlns:wpc=\"http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas\"><wpc:bg>");
+    if (!bg || bg->fill == COLOR_AUTO) buf_adds(o, "<a:noFill/>"); else buf_printf(o, "<a:solidFill><a:srgbClr val=\"%06lX\"/></a:solidFill>", (unsigned long)(bg->fill & 0xFFFFFF));
+    buf_adds(o, "</wpc:bg><wpc:whole>");
+    if (bg) w_outline(o, bg); else buf_adds(o, "<a:ln><a:noFill/></a:ln>");
+    buf_adds(o, "</wpc:whole>");
+    /* the objects in it, in the canvas's own EMU (its space stretched over its size) */
+    for (k = bg ? 1 : 0; k < im->nkids; k++) {
+      Image t = im->kids[k];
+      if (!obj_saved(&t)) continue;
+      t.cx = (i32)((long long)t.cx * im->cx / sw); t.cy = (i32)((long long)t.cy * im->cy / sh);
+      w_obj(o, d, &t, t.kind == OBJ_GROUP ? 0 : 1, (long)((long long)im->kids[k].x * im->cx / sw) * 635, (long)((long long)im->kids[k].y * im->cy / sh) * 635, id);
+    }
+    buf_adds(o, "</wpc:wpc>");
+    return 1;
+  }
+  if (im->ff && im->kind == OBJ_SHAPE) {
+    const Freeform *f = im->ff;
+    u32 me = ++*id;
+    char nm[64];
+    const char *name;
+    u32 k;
+    int closed = 0;
+    if (w20_native(o, d, f, child)) return 1;
+    name = ink_name(f, me, nm, sizeof nm);
+    if (!name) { snprintf(nm, sizeof nm, "Freeform %lu", (unsigned long)me); name = nm; }
+    buf_printf(o, "<wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:cNvPr id=\"%lu\" name=\"", (unsigned long)me);
+    xml_escape(o, name, strlen(name));
+    buf_adds(o, "\"/><wps:cNvSpPr/><wps:spPr>");
+    w_xfrm(o, im, offx, offy, (long)im->cx * 635, (long)im->cy * 635);
+    ff_write_custgeom(o, f);
+    for (k = 0; k < f->np; k++) if (f->p[k].closed) closed = 1;
+    if (!closed || f->tool != INK_NONE || im->fill == COLOR_AUTO) buf_adds(o, "<a:noFill/>");
+    else buf_printf(o, "<a:solidFill><a:srgbClr val=\"%06lX\"/></a:solidFill>", (unsigned long)(im->fill & 0xFFFFFF));
+    if (f->tool != INK_NONE && im->lstyle != PB_NONE && im->lwidth) {
+      buf_printf(o, "<a:ln w=\"%ld\" cap=\"rnd\"><a:solidFill><a:srgbClr val=\"%06lX\">", (long)im->lwidth * 1587, (unsigned long)(im->lcolor & 0xFFFFFF));
+      if (f->alpha) buf_printf(o, "<a:alpha val=\"%d\"/>", (int)f->alpha * 1000);
+      buf_adds(o, "</a:srgbClr></a:solidFill><a:round/></a:ln>");
+    } else w_outline(o, im);
+    buf_adds(o, "</wps:spPr><wps:bodyPr/></wps:wsp>");
+    return 1;
+  }
+  return 0;
 }
 /* the kept parts (core/keep.h), then each package's own */
 static void docx_write_parts_ext(Doc *d, DocxOut *o)
@@ -5462,9 +5725,9 @@ static u8 *save_txt(Doc *d, size_t *len) { return txt_save(d, 1, len); }      /*
 static Doc *load_docx(const u8 *b, size_t n, unsigned *lost, char *err, size_t errcap) { return docx_load(b, n, lost, err, errcap); }
 static const DocFormat fmt_docx = { "Word Document", "docx", sniff_zip, load_docx, docx_save, DF_NATIVE };
 static const DocFormat fmt_txt = { "Plain Text", "txt|text|asc", NULL, load_txt, save_txt, DF_TEXT };
-extern const DocFormat fmt_odt, fmt_doc, fmt_rtf, fmt_html, fmt_markdown;
+extern const DocFormat fmt_odt, fmt_fodt, fmt_doc, fmt_rtf, fmt_html, fmt_markdown;     /* (fmt_fodt: WP28b's Flat ODT) */
 extern const DocFormat fmt_dotx, fmt_dotm;      /* (WP23, core/blocks.c) */
-const DocFormat *const doc_formats[] = { &fmt_odt, &fmt_docx, &fmt_doc, &fmt_dotx, &fmt_dotm, &fmt_rtf, &fmt_html, &fmt_markdown, &fmt_txt };
+const DocFormat *const doc_formats[] = { &fmt_odt, &fmt_fodt, &fmt_docx, &fmt_doc, &fmt_dotx, &fmt_dotm, &fmt_rtf, &fmt_html, &fmt_markdown, &fmt_txt };
 const int doc_nformats = (int)(sizeof doc_formats / sizeof doc_formats[0]);
 /* whether path ends in "." and one of exts (ext|ext|...), ignoring case (Amiga names are case-insensitive) */
 static int ext_in(const char *path, const char *exts)

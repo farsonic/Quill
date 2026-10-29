@@ -8,6 +8,7 @@
 #include "../core/blocks.h"
 #include "../core/zip.h"
 #include "../core/keep.h"
+#include "../core/proflang.h"
 
 static char *part13(const u8 *data, size_t n, const char *name, size_t *len)
 {
@@ -208,7 +209,7 @@ static void style_x(void)
   memset(&s, 0, sizeof s);
   strcpy(s.name, "Note Text"); s.type = ST_PARA; s.based = 0; s.quick = 1;
   s.cmask = CM_ITALIC; s.ocf.flags = CF_ITALIC;
-  s.x.priority = 21; s.x.flags = SXF_UNHIDE | SXF_SEMIHIDDEN; strcpy(s.x.lang, "de-DE"); strcpy(s.x.aliases, "NT,Hinweis");
+  s.x.priority = 21; s.x.flags = SXF_UNHIDE | SXF_SEMIHIDDEN; s.cmask |= CM_LANG; s.ocf.lang = plang_find("de-DE"); strcpy(s.x.aliases, "NT,Hinweis");
   s.x.frame.set = 1; s.x.frame.w = 2880; s.x.frame.wrap = 1; s.x.frame.hanchor = 1; s.x.frame.vanchor = 0; s.x.frame.xalign = 3; s.x.frame.hspace = 144;
   s.x.key = 0x0600 | '7';
   k = doc_set_style(d, -1, &s);
@@ -230,7 +231,7 @@ static void style_x(void)
   k = e ? doc_style_by_name(e, "Note Text") : -1;
   c = e ? doc_style_by_name(e, "Note Text Char") : -1;
   ok("styles: read back", k > 0 && c > 0 && e->styles[k].x.priority == 21 && e->styles[k].x.link == c + 1 && e->styles[c].x.link == k + 1 &&
-     (e->styles[k].x.flags & (SXF_UNHIDE | SXF_SEMIHIDDEN)) == (SXF_UNHIDE | SXF_SEMIHIDDEN) && !strcmp(e->styles[k].x.lang, "de-DE") &&
+     (e->styles[k].x.flags & (SXF_UNHIDE | SXF_SEMIHIDDEN)) == (SXF_UNHIDE | SXF_SEMIHIDDEN) && !strcmp(plang_tag(e->styles[k].cf.lang), "de-DE") &&
      !strcmp(e->styles[k].x.aliases, "NT,Hinweis"));
   ok("styles: frame read back", k > 0 && e->styles[k].x.frame.set && e->styles[k].x.frame.w == 2880 && e->styles[k].x.frame.xalign == 3 && e->styles[k].x.frame.hanchor == 1 && e->styles[k].x.frame.hspace == 144);
   ok("styles: shortcut read back", k > 0 && e->styles[k].x.key == (0x0600 | '7'));

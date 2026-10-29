@@ -48,7 +48,7 @@ extern struct Library *MUIMasterBase;
 #define MUIA_Quill_EditStory (QTAG + 19)    /* (notify) a header, footer, footnote or comment double-clicked (SK_ kind),
                                                or Esc while one is edited (0x100); (get) struct QStoryReq * */
 struct QStoryReq { int kind, index; u32 page; };   /* index: the note or comment; page: the page clicked */
-enum { VM_PRINT, VM_WEB, VM_DRAFT, VM_READ };    /* view modes: print layout, web layout, draft, read mode */
+enum { VM_PRINT, VM_WEB, VM_DRAFT, VM_READ, VM_OUTLINE };    /* view modes: print layout, web layout, draft, read mode, (WP11) outline */
 #define MUIM_Quill_Command   (QTAG + 0x100)   /* struct MUIP_Quill_Command: do a CMD_ (below) on the document */
 #define MUIM_Quill_Blink     (QTAG + 0x101)   /* the view's own timer tick (an input handler): the caret blinks, idle work is done */
 #define MUIM_Quill_Relayout  (QTAG + 0x102)   /* the document lays out afresh and is redrawn */

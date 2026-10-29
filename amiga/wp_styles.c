@@ -32,6 +32,7 @@
 #include "../core/doctheme.h"
 #include "../core/blocks.h"
 #include "../core/fonts.h"
+#include "../core/proflang.h"
 
 #undef Label1
 #undef Label2
@@ -236,7 +237,7 @@ static void style_text(const Doc *d, int k, char *out, size_t cap)
     addf(out, cap, b);
   } else { cf_text(d, &s->cf, s->ecmask, b, sizeof b); addf(out, cap, b); }
   if (s->x.frame.set) addf(out, cap, tr("Frame"));
-  if (s->x.lang[0]) { snprintf(b, sizeof b, "%s: %s", tr("Language"), s->x.lang); addf(out, cap, b); }
+  if (s->cf.lang) { snprintf(b, sizeof b, "%s: %s", tr("Language"), plang_tag(s->cf.lang)); addf(out, cap, b); }
   if (s->based != NO_STYLE && s->based < d->nstyles) { shown(d, s->based, n, sizeof n); snprintf(b, sizeof b, "%s: %s", tr("Based on"), n); addf(out, cap, b); }
   if (s->type == ST_PARA && s->next < d->nstyles && s->next != k) { shown(d, s->next, n, sizeof n); snprintf(b, sizeof b, "%s: %s", tr("Following style"), n); addf(out, cap, b); }
   if (s->x.link && style_ok(d, s->x.link - 1)) { shown(d, s->x.link - 1, n, sizeof n); snprintf(b, sizeof b, "%s: %s", tr("Linked"), n); addf(out, cap, b); }
@@ -1241,8 +1242,8 @@ int wp13_style_dialog(int k, int newtype)
     tw_text(f->hspace, b, 0); set(sd_fhd, MUIA_String_Contents, (ULONG)b);
     tw_text(f->vspace, b, 0); set(sd_fvd, MUIA_String_Contents, (ULONG)b);
   }
-  for (i = 0; langs[i] && strcmp(langs[i], s->x.lang); i++) ;
-  set(sd_lang, MUIA_Cycle_Active, s->x.lang[0] && langs[i] ? i + 1 : 0);
+  for (i = 0; langs[i] && !str_ieq(langs[i], plang_tag(s->cf.lang)); i++) ;
+  set(sd_lang, MUIA_Cycle_Active, s->cf.lang && langs[i] ? i + 1 : 0);
   for (i = 1; i <= 20 && key_of(i) != s->x.key; i++) ;
   set(sd_key, MUIA_Cycle_Active, s->x.key && i <= 20 ? i : 0);
   sd_keynow_fill();
@@ -1381,7 +1382,11 @@ static void style_ok_cmd(void)
     }
   }
   i = (int)cyc(sd_lang);
-  if (i > 0 && langs[i - 1]) strcpy(s->x.lang, langs[i - 1]); else s->x.lang[0] = 0;
+  {
+    /* the style's language (WP31's CharFmt.lang, w:lang) */
+    u16 lg = i > 0 && langs[i - 1] ? plang_find(langs[i - 1]) : 0;
+    if (lg != bc->lang) { s->cmask |= CM_LANG; s->ocf.lang = lg; } else s->cmask &= ~(unsigned)CM_LANG;
+  }
   s->x.key = key_of((int)cyc(sd_key));
   if (s->x.key) for (i = 0; i < d->nstyles; i++) if (i != sd_k && style_ok(d, i) && d->styles[i].x.key == s->x.key) d->styles[i].x.key = 0;   /* (a key belongs to one style) */
   if (!DoMethod(wp_view(), MUIM_Quill_Command, CMD_SETSTYLE, (ULONG)&q) || q.k < 0) { beep(); return; }
