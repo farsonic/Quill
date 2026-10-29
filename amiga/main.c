@@ -54,7 +54,7 @@
 #include "../core/table.h"
 #include "../core/tstyle.h"
 
-const char verstag[] = "$VER: Quill 0.14 (26.10.2026) a word processor for the Amiga (MUI)";
+const char verstag[] = "$VER: Quill 0.15 (29.10.2026) a word processor for the Amiga (MUI)";
 
 struct IntuitionBase *IntuitionBase;
 struct GfxBase *GfxBase;
@@ -3328,7 +3328,7 @@ static void command(ULONG id)
   case ID_SAVEAS: save_as(0); break;
   case ID_SAVETXT: save_as(1); break;
   case ID_ABOUT:
-    ask("OK", "\33cQuill 0.14\n\n%s", tr("A word processor for the Amiga.\nReads and writes Word documents (.docx).\n\n"
+    ask("OK", "\33cQuill 0.15\n\n%s", tr("A word processor for the Amiga.\nReads and writes Word documents (.docx).\n\n"
               "Text is measured with the Liberation and Carlito/Caladea fonts\n(SIL Open Font License), so documents break\n"
               "their lines as they do in Word."));
     break;
@@ -4922,7 +4922,7 @@ int main(int argc, char **argv)
   theme_set_dark(pref_dark);
   theme_set_large(pref_large);
   /* what Quill is doing, while it starts */
-  splash_open(pub_screen, "Quill 0.14");
+  splash_open(pub_screen, "Quill 0.15");
   splash_step(2, tr("Adding Quill's fonts drawer"));
   DiskfontBase = OpenLibrary((STRPTR)"diskfont.library", 39);
   add_fonts();
