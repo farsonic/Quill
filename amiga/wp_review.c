@@ -509,22 +509,22 @@ static void open_options(void)
   if (!opwin) {
     const char **mk = tr_list(0, marks), **co = tr_list(1, colors), **li = tr_list(2, lines), **ba = tr_list(3, balloons);
     Object *c = VGroup,
-      Child, ColGroup(4), GroupFrameT(tr("Markup")),
+      Child, QTitleObject(tr("Markup")), Child, ColGroup(4),
         Child, Label1(tr("Insertions")), Child, opins = cyc(mk), Child, Label1(tr("Color")), Child, opinsc = cyc(co),
         Child, Label1(tr("Deletions")), Child, opdel = cyc(mk), Child, Label1(tr("Color")), Child, opdelc = cyc(co),
         Child, Label1(tr("Changed lines")), Child, oplines = cyc(li), Child, Label1(tr("Color")), Child, oplinec = cyc(co),
         Child, Label1(tr("Comments")), Child, HSpace(0), Child, Label1(tr("Color")), Child, opcom = cyc(co),
       End,
-      Child, ColGroup(4), GroupFrameT(tr("Moves")),
+      Child, QTitleObject(tr("Moves")), Child, ColGroup(4),
         Child, Label1(tr("Track moves")), Child, HGroup, Child, opmoves = CheckMark(TRUE), Child, HSpace(0), End, Child, Label1(tr("Color")), Child, opmovc = cyc(co),
         Child, Label1(tr("Moved from")), Child, opmfrom = cyc(mk), Child, Label1(tr("Moved to")), Child, opmto = cyc(mk),
       End,
-      Child, ColGroup(4), GroupFrameT(tr("Formatting")),
+      Child, QTitleObject(tr("Formatting")), Child, ColGroup(4),
         Child, Label1(tr("Track formatting")), Child, HGroup, Child, optrfmt = CheckMark(TRUE), Child, HSpace(0), End,
         Child, Label1(tr("Formatting")), Child, opfmt = cyc(mk),
         Child, HSpace(0), Child, HSpace(0), Child, Label1(tr("Color")), Child, opfmtc = cyc(co),
       End,
-      Child, HGroup, GroupFrameT(tr("Balloons")), Child, Label1(tr("Use balloons")), Child, opbal = cyc(ba), End,
+      Child, QTitleObject(tr("Balloons")), Child, HGroup, Child, Label1(tr("Use balloons")), Child, opbal = cyc(ba), End,
     End;
     if (!(opwin = wp_dialog("Track Changes Options", MAKE_ID('W', '5', 'O', 'P'), c, "_OK", ID_RV_OPTGO))) return;
   }
@@ -590,7 +590,7 @@ static void show_labels(void)
 static void set_mode(int m)
 {
   Doc *d = wp_doc();
-  if (!d) return;
+  if (!d || rv_mode(d) == m) return;
   rv_set_mode(d, m);
   show_labels();
   shown();

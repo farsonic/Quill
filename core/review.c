@@ -311,25 +311,28 @@ static int comment_shown(const Doc *d, int k)
 /* ------------------------------------------------------------------ */
 /* comments: which are in the text (cached on Doc.ver) */
 static const Doc *live_doc; static u32 live_ver, live_serial; static int live_n; static u8 *live_map;
+/* the comments whose start marks are in p, in live_map */
+static void live_para(const Para *p, int nc)
+{
+  const char *f = p->len >= 4 ? (const char *)memchr(p->t, 0xF3, p->len) : NULL;
+  while (f && f + 4 <= p->t + p->len) {
+    if (IS_CSTART(f)) { int n = note_index(f); if (n < nc) live_map[n] = 1; }
+    f = (const char *)memchr(f + 1, 0xF3, (size_t)(p->t + p->len - (f + 1)));
+  }
+}
 static const u8 *live(Doc *d)
 {
-  u32 i, k;
+  u32 i;
   if (live_doc == d && live_ver == d->ver && live_serial == d->serial && live_n == d->ncomments && live_map) return live_map;
   free(live_map);
   live_map = (u8 *)calloc((size_t)d->ncomments + 1, 1);
   live_doc = d; live_ver = d->ver; live_serial = d->serial; live_n = d->ncomments;
   if (!live_map || d->edit.kind) {
     /* (a story edited in the body's place: the body is put aside, so nothing is counted live) */
-    if (live_map && d->edit.kind) for (i = 0; i < d->edit.np; i++) {
-      Para *p = d->edit.p[i];
-      for (k = 0; k + 4 <= p->len; k++) if (IS_CSTART(p->t + k)) { int n = note_index(p->t + k); if (n < d->ncomments) live_map[n] = 1; k += 3; }
-    }
+    if (live_map && d->edit.kind) for (i = 0; i < d->edit.np; i++) live_para(d->edit.p[i], d->ncomments);
     return live_map;
   }
-  for (i = 0; i < d->np; i++) {
-    Para *p = d->p[i];
-    for (k = 0; k + 4 <= p->len; k++) if (IS_CSTART(p->t + k)) { int n = note_index(p->t + k); if (n < d->ncomments) live_map[n] = 1; k += 3; }
-  }
+  for (i = 0; i < d->np; i++) live_para(d->p[i], d->ncomments);
   return live_map;
 }
 int rv_comment_live(Doc *d, int k) { const u8 *m = live(d); return m && k >= 0 && k < d->ncomments && m[k]; }
