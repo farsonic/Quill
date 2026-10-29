@@ -13,7 +13,7 @@
 
 #include "util.h"
 
-enum { IMG_NONE, IMG_PNG, IMG_JPEG };
+enum { IMG_NONE, IMG_PNG, IMG_JPEG, IMG_GIF, IMG_BMP, IMG_ILBM };   /* (WP17: GIF, BMP, ILBM through picfmt.c) */
 
 /* the kind and natural size (pixels) of a picture file; IMG_NONE if it is neither */
 int img_info(const u8 *d, u32 n, u32 *w, u32 *h);

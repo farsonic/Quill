@@ -68,6 +68,9 @@ Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap);
 /* written in the format its name's ending names, else as plain text in Latin-1; clears the modified
    flag on success, 0 on failure */
 int  doc_save_file(Doc *d, const char *path);
+/* while doc_load_file reads a file: its path (NULL otherwise), so a format can find the files it
+   refers to (an HTML or Markdown file's pictures) */
+extern const char *doc_load_path;
 
 /* ---- for the work packages' .docx parts (see core/docx.c's *_ext hooks) */
 /* what docx_save is building: a package's write hook adds its parts with docx_out_part */

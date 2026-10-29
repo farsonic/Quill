@@ -7,6 +7,7 @@
 #include "../core/keep.h"
 #include "../core/xml.h"
 #include "../core/zip.h"
+#include "../core/info.h"
 
 /* whether the .docx in data has part name, with these bytes (want NULL: any) */
 static int has_part(const u8 *data, size_t n, const char *name, const u8 *want, size_t wn)
@@ -42,12 +43,23 @@ static void formats(void)
   ok("formats: .DOCX names Word for saving", (f = doc_format_for_name("RAM:Letter.DOCX", 1)) && !strcmp(f->exts, "docx") && (f->flags & DF_NATIVE));
   ok("formats: .txt reads as text", (f = doc_format_for_name("notes.txt", 0)) && (f->flags & DF_TEXT));
   ok("formats: .doc can be read (refused) but not written", doc_format_for_name("old.doc", 0) && !doc_format_for_name("old.doc", 1));
-  ok("formats: rows without functions are left out", !doc_format_for_name("x.rtf", 0) && !doc_format_for_name("x.odt", 1));
+  {
+    /* (whichever rows WP28a-d have filled in: a row without a load or save is never chosen for it) */
+    int i, good = 1;
+    for (i = 0; i < doc_nformats; i++) {
+      char nm[40];
+      const char *bar = strchr(doc_formats[i]->exts, '|');
+      snprintf(nm, sizeof nm, "x.%.*s", (int)(bar ? (size_t)(bar - doc_formats[i]->exts) : strlen(doc_formats[i]->exts)), doc_formats[i]->exts);
+      if (!doc_formats[i]->load && doc_format_for_name(nm, 0) == doc_formats[i]) good = 0;
+      if (!doc_formats[i]->save && doc_format_for_name(nm, 1) == doc_formats[i]) good = 0;
+    }
+    ok("formats: rows without functions are left out", good);
+  }
   ok("formats: no ending, no format", !doc_format_for_name("README", 0) && !doc_format_for_name("dir.docx/file", 0));
   doc_format_pattern(0, pat, sizeof pat);
-  ok("formats: open pattern", !strcmp(pat, "#?.(docx|doc|txt|text|asc)"));
+  ok("formats: open pattern", !strncmp(pat, "#?.(", 4) && strstr(pat, "docx|doc|") && strstr(pat, "|txt|text|asc)"));
   doc_format_pattern(1, pat, sizeof pat);
-  ok("formats: save pattern", !strcmp(pat, "#?.(docx|txt|text|asc)"));
+  ok("formats: save pattern", !strncmp(pat, "#?.(", 4) && strstr(pat, "docx|") && !strstr(pat, "|doc|") && strstr(pat, "|txt|text|asc)"));
   {
     static const u8 cfb[16] = { 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 };
     Doc *d;
@@ -78,8 +90,9 @@ static void kept_parts(const char *file, int custom)
   if (!a || !orig) { ok(what, 0); free(orig); doc_free(a); return; }
   ok("keep: customXml, its rels and itemProps kept", keep_find(a, "customXml/item1.xml") >= 0 && keep_find(a, "customXml/_rels/item1.xml.rels") >= 0 &&
      keep_find(a, "customXml/itemProps1.xml") >= 0);
-  ok("keep: app.xml kept, thumbnail not", keep_find(a, "docProps/app.xml") >= 0 && keep_find(a, "docProps/thumbnail.jpeg") < 0);
-  if (custom) ok("keep: custom.xml kept", keep_find(a, "docProps/custom.xml") >= 0);
+  /* (WP24 reads app.xml and custom.xml now, core/info.c, and writes them itself) */
+  ok("keep: app.xml read (WP24), thumbnail not kept", keep_find(a, "docProps/app.xml") < 0 && a->info && a->info->napp > 0 && keep_find(a, "docProps/thumbnail.jpeg") < 0);
+  if (custom) ok("keep: custom.xml read (WP24)", keep_find(a, "docProps/custom.xml") < 0 && a->info);   /* (lo.docx's has no properties in it) */
   k = keep_find(a, "customXml/item1.xml");
   ok("keep: the document's relationship, its id clear of Quill's", k >= 0 && a->kept[k].owner && !strcmp(a->kept[k].owner, "word/document.xml") &&
      a->kept[k].relid && (!strncmp(a->kept[k].relid, "rIdK", 4) || !keep_id_reserved(a->kept[k].relid)));
@@ -97,7 +110,7 @@ static void kept_parts(const char *file, int custom)
       free(pb);
     }
     zip_close(&z);
-    ok("keep: every kept part written back byte for byte", same && a->nkept >= 4);
+    ok("keep: every kept part written back byte for byte", same && a->nkept >= 3);
     rels = part_text(data, n, "word/_rels/document.xml.rels");
     prels = part_text(data, n, "_rels/.rels");
     ct = part_text(data, n, "[Content_Types].xml");

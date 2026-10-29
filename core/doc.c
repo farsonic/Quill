@@ -5,8 +5,14 @@
 #include <string.h>
 #include <stdio.h>
 #include "doc.h"
+#include "objfx.h"
 #include "keep.h"
 #include "image.h"
+#include "chart.h"                 /* (WP15a) Image.pack */
+#include "notes.h"   /* (WP22b) */
+#include "info.h"    /* (WP24) */
+#include "math.h"     /* WP14a */
+#include "review.h"
 #include "outline.h"                  /* (WP11) heading_style_level */
 
 /* ------------------------------------------------------------------ */
@@ -81,11 +87,26 @@ static Group *cur_group(Doc *d, Pos where)
   u->open = 1;
   return g;
 }
+/* WP5: an action made while formatting is tracked has ended: where its steps changed only how
+   paragraphs look, the old look is recorded as a tracked formatting change (core/review.h) */
+static void track_group(Doc *d, Group *g)
+{
+  int i;
+  u32 k;
+  for (i = 0; i < g->ns; i++) {
+    Step *s = &g->s[i];
+    if (s->nold != s->nnew || s->p0 + s->nnew > d->np) continue;
+    for (k = 0; k < s->nold; k++) rv_track_para(d, s->old[k], d->p[s->p0 + k]);
+  }
+}
 /* an edit made outside doc_begin/doc_end is a group of its own: closed as soon as the edit is
    done, so the next one starts another */
 static void close_auto(Doc *d)
 {
-  if (!d->undo->depth) d->undo->open = 0;
+  if (!d->undo->depth) {
+    if (d->rvtrack && d->undo->open && d->undo->nu) track_group(d, &d->undo->u[d->undo->nu - 1]);
+    d->undo->open = 0;
+  }
 }
 /* save paragraphs [p0, p0 + n) before they change; returns the step to complete with its nnew */
 static Step *rec(Doc *d, u32 p0, u32 n, Pos where)
@@ -145,6 +166,7 @@ void doc_end(Doc *d, Pos caret)
 {
   Undo *u = d->undo;
   if (u->depth && !--u->depth) {
+    if (u->open && d->rvtrack && u->nu) track_group(d, &u->u[u->nu - 1]);
     if (u->open) u->u[u->nu - 1].after = caret;
     u->open = 0;
   }
@@ -368,7 +390,9 @@ static int cf_eq(const CharFmt *a, const CharFmt *b)
 {
   return a->flags == b->flags && a->font == b->font && a->size == b->size && a->color == b->color && a->hl == b->hl && a->rev == b->rev && a->rid == b->rid &&
          a->cstyle == b->cstyle && a->fx == b->fx && a->ul == b->ul && a->spacing == b->spacing && a->scale == b->scale && a->position == b->position &&
-         a->link == b->link && a->bmark == b->bmark;
+         a->link == b->link && a->bmark == b->bmark &&
+         a->fx2 == b->fx2 && a->ulcolor == b->ulcolor && a->shade == b->shade && a->rx == b->rx &&   /* (WP9's) */
+         a->frev == b->frev && a->move == b->move;       /* (WP5) */
 }
 /* the run covering byte off (past the end: the last run). Points into the paragraph, so it is good
    until the paragraph next changes */
@@ -625,7 +649,8 @@ void cf_apply(CharFmt *c, unsigned mask, const CharFmt *v)
   if (mask & CM_SIZE) c->size = v->size;
   if (mask & CM_COLOR) c->color = v->color;
   if (mask & CM_HL) c->hl = v->hl;
-  if (mask & CM_REV) { c->rev = v->rev; c->rid = v->rid; }
+  if (mask & CM_REV) { c->rev = v->rev; c->rid = v->rid; c->move = v->rev ? v->move : 0; }
+  if (mask & CM_FREV) c->frev = v->frev;       /* (WP5) */
   if (mask & CM_CSTYLE) c->cstyle = v->cstyle;
   if (mask & CM_SMALLCAPS) c->fx = (u8)((c->fx & ~FX_SMALLCAPS) | (v->fx & FX_SMALLCAPS));
   if (mask & CM_DSTRIKE) c->fx = (u8)((c->fx & ~FX_DSTRIKE) | (v->fx & FX_DSTRIKE));
@@ -636,6 +661,11 @@ void cf_apply(CharFmt *c, unsigned mask, const CharFmt *v)
   if (mask & CM_POSITION) c->position = v->position;
   if (mask & CM_LINK) c->link = v->link;
   if (mask & CM_BMARK) c->bmark = v->bmark;
+  /* WP9's: the fx2 bits v->fx2mask names (0: all of them), the underline's colour, shading, kept properties */
+  if (mask & CM_FX2) { u16 m = v->fx2mask ? v->fx2mask : 0xFFFF; c->fx2 = (u16)((c->fx2 & ~m) | (v->fx2 & m)); }
+  if (mask & CM_ULCOLOR) c->ulcolor = v->ulcolor;
+  if (mask & CM_SHADE) c->shade = v->shade;
+  if (mask & CM_RX) c->rx = v->rx;
 }
 /* the CM_ fields mask names set from val on a..b (either order), runs split at the ends; an empty
    paragraph's one run takes it too. One undo step; 0 if the range is empty */
@@ -853,64 +883,11 @@ int doc_track_delete(Doc *d, Pos a, Pos b, int rid)
   doc_end(d, a);
   return any;
 }
-/* one run of doc_resolve: made plain text (an accepted insertion or rejected deletion) or deleted;
-   1 if it was a tracked change at all */
-static int resolve_one(Doc *d, u32 pi, u32 s, u32 e, CharFmt *f, void *arg)
-{
-  int accept = *(int *)arg;
-  Pos a, b;
-  a.para = b.para = pi; a.off = s; b.off = e;
-  if (!f->rev) return 0;
-  if ((f->rev == REV_INS) == (accept != 0)) {
-    CharFmt v = *f;
-    v.rev = REV_NONE; v.rid = 0;
-    doc_format(d, a, b, CM_REV, &v);
-  } else doc_delete(d, a, b);
-  return 1;
-}
-/* see doc.h; through each_run_back, in one undo step */
-int doc_resolve(Doc *d, Pos a, Pos b, int accept)
-{
-  int any;
-  if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
-  a = pos_clamp(d, a); b = pos_clamp(d, b);
-  doc_begin(d, a);
-  any = each_run_back(d, a, b, resolve_one, &accept);
-  doc_end(d, a);
-  return any;
-}
-/* see doc.h. Goes round the document once, wrapping at its ends; in p's own paragraph it looks
-   only after p (forward) or before it (back) until it comes back round. A change over several runs
-   is found one run at a time */
-int doc_next_change(Doc *d, Pos p, int dir, Pos *a, Pos *b)
-{
-  u32 pi = p.para, n;
-  p = pos_clamp(d, p);
-  for (n = 0; n <= d->np; n++) {
-    Para *q = d->p[pi];
-    u32 r;
-    if (dir > 0) {
-      for (r = 0; r < q->nr; r++) {
-        u32 rs = r ? q->r[r - 1].end : 0;
-        if (q->r[r].f.rev && q->r[r].end > rs && (n > 0 || rs >= p.off)) {
-          a->para = b->para = pi; a->off = rs; b->off = q->r[r].end;
-          return 1;
-        }
-      }
-      if (++pi >= d->np) pi = 0;
-    } else {
-      for (r = q->nr; r-- > 0; ) {
-        u32 rs = r ? q->r[r - 1].end : 0;
-        if (q->r[r].f.rev && q->r[r].end > rs && (n > 0 || q->r[r].end <= p.off)) {
-          a->para = b->para = pi; a->off = rs; b->off = q->r[r].end;
-          return 1;
-        }
-      }
-      pi = pi ? pi - 1 : d->np - 1;
-    }
-  }
-  return 0;
-}
+/* see doc.h: WP5's rv_resolve (core/review.c), which also resolves formatting changes */
+int doc_resolve(Doc *d, Pos a, Pos b, int accept) { return rv_resolve(d, a, b, accept, 0); }
+/* see doc.h: WP5's rv_next_change (core/review.c), which finds changes of every kind (a change over
+   several runs is found whole) */
+int doc_next_change(Doc *d, Pos p, int dir, Pos *a, Pos *b) { return rv_next_change(d, p, dir, a, b); }
 /* paragraphs pa..pb in alphabetical order of their text (not in tables): two compared by their
    bytes with ASCII letters folded to lower case, so accented letters sort after z */
 static int para_cmp(const Para *x, const Para *y)
@@ -966,6 +943,7 @@ void pf_apply(ParaFmt *p, unsigned mask, const ParaFmt *v)
   if (mask & PM_SHADE) p->shade = v->shade;
   if (mask & PM_PAGINATION) { p->keeplines = v->keeplines; p->nowidow = v->nowidow; }
   if (mask & PM_CONTEXT) p->contextual = v->contextual;
+  if (mask & PM_PREV) p->prev = v->prev;       /* (WP5) */
   if (mask & PM_OUTLINE) p->outlvl = v->outlvl;                    /* (WP11) */
 }
 /* the PM_ groups mask names set from val on paragraphs pa..pb (either order, pb clamped to the
@@ -1219,17 +1197,18 @@ int doc_comment(Doc *d, Pos a, Pos b, const char *text, const char *author, cons
   doc_end(d, a);
   return k;
 }
-/* see doc.h; a scan of the whole body for the mark's 4 bytes */
+/* see doc.h; a scan of the whole body for the mark's 4 bytes ((char)0xF3: vbcc's memchr compares the
+   byte as a signed char, so a value above 0x7F must be passed as one) */
 int doc_comment_mark(Doc *d, int k, int end, Pos *at)
 {
   char m[8];
   u32 i;
   cmark_utf8(m, k, end);
   for (i = 0; i < d->np; i++) {
-    const char *f = d->p[i]->len >= 4 ? (const char *)memchr(d->p[i]->t, 0xF3, d->p[i]->len) : NULL;
+    const char *f = d->p[i]->len >= 4 ? (const char *)memchr(d->p[i]->t, (char)0xF3, d->p[i]->len) : NULL;
     while (f && f + 4 <= d->p[i]->t + d->p[i]->len) {
       if (!memcmp(f, m, 4)) { at->para = i; at->off = (u32)(f - d->p[i]->t); return 1; }
-      f = (const char *)memchr(f + 1, 0xF3, (size_t)(d->p[i]->t + d->p[i]->len - (f + 1)));
+      f = (const char *)memchr(f + 1, (char)0xF3, (size_t)(d->p[i]->t + d->p[i]->len - (f + 1)));
     }
   }
   return 0;
@@ -1327,12 +1306,15 @@ int img_clone(Image *dst, const Image *src, int own)
   int k;
   *dst = *src;
   dst->text = NULL; dst->kids = NULL; dst->nkids = 0; dst->poly = NULL; dst->npoly = 0;
+  dst->fx.raw = NULL;                         /* WP17 */
+  pack_ref(dst->pack);                       /* (WP15a) a chart's parts: shared */
   if (own) {
     dst->data = NULL; dst->shared = 0;
     if (src->data && (dst->data = (u8 *)malloc(src->len ? src->len : 1))) memcpy(dst->data, src->data, src->len);
     if (src->data && !dst->data) return 0;
   } else dst->shared = src->data != NULL;     /* the file stays with the entry that brought it */
   if (src->text && !(dst->text = story_copy(src->text))) goto oom;
+  if (src->fx.raw && !(dst->fx.raw = str_dup(src->fx.raw))) goto oom;   /* WP17 */
   if (src->npoly) {
     if (!(dst->poly = (i32 *)malloc(src->npoly * 2 * sizeof(i32)))) goto oom;
     memcpy(dst->poly, src->poly, src->npoly * 2 * sizeof(i32));
@@ -1360,6 +1342,8 @@ void img_release(Image *im)
   for (k = 0; k < im->nkids; k++) img_release(&im->kids[k]);
   free(im->kids); im->kids = NULL; im->nkids = 0;
   free(im->poly); im->poly = NULL; im->npoly = 0;
+  free(im->fx.raw); im->fx.raw = NULL;      /* WP17 */
+  pack_unref(im->pack); im->pack = NULL;     /* (WP15a) */
 }
 /* an entry added that the document takes as it is (what it holds is its own) */
 int doc_take_object(Doc *d, Image *im)
@@ -1465,6 +1449,7 @@ int doc_group(Doc *d, const Pos *at, const i32 *box, int n)
   for (i = 0; i < n; i++) {
     if (at[i].para >= d->np || at[i].off + 4 > d->p[at[i].para]->len || !IS_PIC(d->p[at[i].para]->t + at[i].off) ||
         pic_index(d->p[at[i].para]->t + at[i].off) >= d->nimages) return -1;
+    if (OBJ_IS_GRAPHIC(d->images[pic_index(d->p[at[i].para]->t + at[i].off)].kind)) return -1;   /* (WP15a) a chart isn't grouped: a group can't save it */
     if (box[4 * i] < ux0) ux0 = box[4 * i];
     if (box[4 * i + 1] < uy0) uy0 = box[4 * i + 1];
     if (box[4 * i] + box[4 * i + 2] > ux1) ux1 = box[4 * i] + box[4 * i + 2];
@@ -1936,6 +1921,7 @@ struct Fragment {
   Image *imgs; int *imgfrom; int nimgs;   /* pictures copied (data owned), and their indexes in the source */
   char *text; u32 ntext;
   char **links; int nlinks;  /* the source's link targets (CharFmt.link numbers point into them) */
+  struct MathEq **maths; int *mathfrom; int nmaths;   /* WP14a: equations copied, and their indexes in the source */
 };
 /* a fragment and all its copies freed; NULL is fine */
 void fragment_free(Fragment *f)
@@ -1951,6 +1937,8 @@ void fragment_free(Fragment *f)
   free(f->imgs); free(f->imgfrom); free(f->text);
   for (k = 0; k < f->nlinks; k++) free(f->links[k]);
   free(f->links);
+  for (k = 0; k < f->nmaths; k++) math_free(f->maths[k]);     /* WP14a */
+  free(f->maths); free(f->mathfrom);
   free(f);
 }
 /* see doc.h; the fragment owns it, *n its length */
@@ -1975,6 +1963,7 @@ Fragment *doc_fragment(Doc *d, Pos a, Pos b)
     u32 st = i == 0 ? a.off : 0, en = i + 1 == f->np ? b.off : s->len, r, pos = 0;
     ParaFmt pf = s->pf;
     memset(&pf.cell, 0, sizeof pf.cell); memset(&pf.outer, 0, sizeof pf.outer); pf.sect = 0;
+    pf.prev = 0;                                /* (WP5: a tracked change stays behind) */
     if (!(q = para_new(&pf, para_fmt_at(s, st)))) goto oom;
     f->p[i] = q;
     for (r = 0; r < s->nr; r++) {
@@ -1995,6 +1984,23 @@ Fragment *doc_fragment(Doc *d, Pos a, Pos b)
           if (!img_clone(ni, &d->images[n], 1)) goto oom;
           f->imgfrom[f->nimgs] = n;
           f->nimgs++;
+        }
+        k += 3;
+      }
+    /* WP14a: the equations it refers to, copied (each once) */
+    for (k = 0; k + 4 <= q->len; k++)
+      if (IS_MATH(q->t + k)) {
+        int n = math_index(q->t + k), j;
+        for (j = 0; j < f->nmaths && f->mathfrom[j] != n; j++) ;
+        if (n < d->nmaths && j == f->nmaths) {
+          struct MathEq **nm = (struct MathEq **)realloc(f->maths, (f->nmaths + 1) * sizeof *nm);
+          int *nf;
+          if (!nm) goto oom;
+          f->maths = nm;
+          if (!(nf = (int *)realloc(f->mathfrom, (f->nmaths + 1) * sizeof(int)))) goto oom;
+          f->mathfrom = nf;
+          if (!(f->maths[f->nmaths] = math_clone(d->maths[n]))) goto oom;
+          f->mathfrom[f->nmaths++] = n;
         }
         k += 3;
       }
@@ -2051,11 +2057,23 @@ static int paste_runs(Doc *d, Para *q, const Fragment *f, const Para *s, const C
   u32 r, pos = 0;
   for (r = 0; r < s->nr; r++) {
     CharFmt c = paste_cf(d, f, &s->r[r].f, dst, mode, same);
+    c.frev = 0; c.move = 0;                     /* (WP5: pasted text is new, not a tracked change) */
     u32 o = pos, e = s->r[r].end;
     while (o < e) {
       u32 m = o;
-      while (m < e && !((u8)s->t[m] >= 0xF3 && m + 4 <= e && (IS_PIC(s->t + m) || IS_NOTE(s->t + m) || IS_MARK(s->t + m) || IS_ENOTE(s->t + m)))) m++;
+      while (m < e && !((u8)s->t[m] >= 0xF3 && m + 4 <= e && (IS_PIC(s->t + m) || IS_NOTE(s->t + m) || IS_MARK(s->t + m) || IS_ENOTE(s->t + m) || IS_MATH(s->t + m)))) m++;
       if (m > o && !para_append(q, s->t + o, m - o, &c)) return 0;
+      if (m < e && IS_MATH(s->t + m)) {
+        /* WP14a: an equation: the same entry (same document) or a copy of the fragment's */
+        int n = math_index(s->t + m), j;
+        char ref[8];
+        for (j = 0; !same && j < f->nmaths && f->mathfrom[j] != n; j++) ;
+        if (!same && j < f->nmaths) { MathEq *me = math_clone(f->maths[j]); n = me ? doc_add_math(d, me) : -1; }
+        else if (!same) n = -1;
+        if (n >= 0) { math_utf8(ref, n); if (!para_append(q, ref, 4, &c)) return 0; }
+        o = m + 4;
+        continue;
+      }
       if (m < e) {
         if (IS_PIC(s->t + m) && mode != PASTE_TEXT) {
           int n = pic_index(s->t + m), j = frag_has_img(f, n);
@@ -2191,7 +2209,8 @@ int doc_add_style(Doc *d, const Style *s)
 static const unsigned pf_groups[] = { PM_ALIGN, PM_INDENT, PM_SPACING, PM_LINE, PM_TABS, PM_KEEP, PM_LIST, PM_BREAK, PM_BORDER, PM_SHADE,
                                       PM_PAGINATION, PM_CONTEXT, PM_OUTLINE };
 static const unsigned cf_fields[] = { CM_BOLD, CM_ITALIC, CM_UNDERLINE, CM_STRIKE, CM_SUPER, CM_SUB, CM_CAPS, CM_FONT, CM_SIZE, CM_COLOR, CM_HL,
-                                      CM_SMALLCAPS, CM_DSTRIKE, CM_UL, CM_SPACING, CM_SCALE, CM_POSITION, CM_CBORDER };
+                                      CM_SMALLCAPS, CM_DSTRIKE, CM_UL, CM_SPACING, CM_SCALE, CM_POSITION, CM_CBORDER,
+                                      CM_FX2, CM_ULCOLOR, CM_SHADE, CM_RX };
 #define NGROUPS (sizeof pf_groups / sizeof pf_groups[0])
 #define NFIELDS (sizeof cf_fields / sizeof cf_fields[0])
 /* a and b agree in PM_ group g */
@@ -2219,6 +2238,11 @@ static int pf_same(const ParaFmt *a, const ParaFmt *b, unsigned g)
 static int cf_same(const CharFmt *a, const CharFmt *b, unsigned f)
 {
   if (f <= CM_CAPS) return (a->flags & f) == (b->flags & f);
+  /* (WP9's) */
+  if (f == CM_FX2) return a->fx2 == b->fx2;
+  if (f == CM_ULCOLOR) return a->ulcolor == b->ulcolor;
+  if (f == CM_SHADE) return a->shade == b->shade;
+  if (f == CM_RX) return a->rx == b->rx;
   switch (f) {
   case CM_FONT: return a->font == b->font;
   case CM_SIZE: return a->size == b->size;
@@ -2690,6 +2714,10 @@ void doc_free(Doc *d)
   for (i = 0; i < HF_N; i++) { story_free(&d->hdr[i]); story_free(&d->ftr[i]); }
   undo_free(d->undo);
   keep_free(d);
+  notes_free(d);                 /* (WP22b) */
+  info_free(d);                  /* (WP24) */
+  math_doc_free(d);     /* WP14a: equations */
+  rv_free(d);                                   /* (WP5) */
   free(d);
 }
 
@@ -3027,6 +3055,7 @@ int doc_story_begin(Doc *d, int kind, int index, int sect, u32 fpage, u32 fpages
   PageSetup pg = d->page;
   u32 i, n;
   if (e->kind || kind <= SK_NONE || kind > SK_TEXTBOX) return 0;
+  if (kind == SK_TEXTBOX) index = tb_head(d, index);       /* WP18: a linked box's text is its chain's first box's */
   if (kind == SK_TEXTBOX && index >= 0 && index < d->nimages && !d->images[index].text &&
       !(d->images[index].text = (Story *)calloc(1, sizeof(Story)))) return 0;
   if (!(s = doc_story(d, kind, index, sect))) return 0;
@@ -3052,8 +3081,7 @@ int doc_story_begin(Doc *d, int kind, int index, int sect, u32 fpage, u32 fpages
     pg.top = kind == SK_HEADER ? pg.header : pg.footer;
     pg.bottom = pg.top;
   } else if (kind == SK_TEXTBOX) {
-    i32 w = d->images[index].cx - 2 * 144;   /* layout.h's TB_INSET_X each side */
-    if (w < 360) w = 360;
+    i32 w = tb_text_width(&d->images[index], d->images[index].cx, d->images[index].cy);   /* (WP18: its insets, turned text) */
     if (pg.width < w + 1440) pg.width = w + 1440;
     pg.left = (pg.width - w) / 2; pg.right = pg.width - pg.left - w;
   }

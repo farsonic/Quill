@@ -965,3 +965,46 @@ void ttr_dropout(TTBitmap *bm, int thr)
     }
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* (WP14a) outlines for equations: a glyph's box, and its outline as line segments, in font units */
+int ttr_bbox(TTRaster *r, u16 g, i32 *x0, i32 *y0, i32 *x1, i32 *y1)
+{
+  Lines ls;
+  u32 i;
+  int ok;
+  if (!r->fp || !r->upm) return 0;
+  ls.l = (Line *)r->lines; ls.n = 0; ls.cap = r->caplines;
+  ok = glyph_lines(r, g, r->upm, &ls) && ls.n;               /* (26.6 units at upm pixels to the em: font units) */
+  if (ok) {
+    *x0 = *x1 = ls.l[0].x0; *y0 = *y1 = -ls.l[0].y0;
+    for (i = 0; i < ls.n; i++) {
+      const Line *l = &ls.l[i];
+      if (l->x0 < *x0) *x0 = l->x0;
+      if (l->x1 < *x0) *x0 = l->x1;
+      if (l->x0 > *x1) *x1 = l->x0;
+      if (l->x1 > *x1) *x1 = l->x1;
+      if (-l->y0 < *y0) *y0 = -l->y0;
+      if (-l->y1 < *y0) *y0 = -l->y1;
+      if (-l->y0 > *y1) *y1 = -l->y0;
+      if (-l->y1 > *y1) *y1 = -l->y1;
+    }
+  }
+  r->lines = ls.l; r->caplines = ls.cap;
+  return ok;
+}
+int ttr_segments(TTRaster *r, u16 g, i32 *seg, int max)
+{
+  Lines ls;
+  u32 i;
+  int n = -1;
+  if (!r->fp || !r->upm) return -1;
+  ls.l = (Line *)r->lines; ls.n = 0; ls.cap = r->caplines;
+  if (glyph_lines(r, g, r->upm, &ls)) {
+    for (i = 0, n = 0; i < ls.n && n < max; i++, n++) {
+      seg[4 * n] = ls.l[i].x0; seg[4 * n + 1] = -ls.l[i].y0; seg[4 * n + 2] = ls.l[i].x1; seg[4 * n + 3] = -ls.l[i].y1;
+    }
+  }
+  r->lines = ls.l; r->caplines = ls.cap;
+  return n;
+}

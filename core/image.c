@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "image.h"
+#include "picfmt.h"
 #include "zip.h"
 
 /* both formats store numbers big-endian */
@@ -706,6 +707,25 @@ static int jpeg_decode(const u8 *d, u32 n, Scaler *sc)
   return !j.progressive && j.ns == j.nc ? jpeg_stream(&j, start, sc) : jpeg_coefs(&j, start, sc);
 }
 
+/* WP17: GIF, BMP and ILBM decoded whole by picfmt.c, then laid over white into the scaler row by row */
+static int other_decode(const u8 *d, u32 n, Scaler *sc)
+{
+  Rgba im;
+  u8 *row;
+  i32 x, y;
+  if (!picfmt_rgba(d, n, &im)) return 0;
+  if ((u32)im.w != sc->sw || (u32)im.h != sc->sh || !(row = (u8 *)malloc((size_t)im.w * 3))) { pic_rgba_free(&im); return 0; }
+  for (y = 0; y < im.h; y++) {
+    const u8 *s = im.px + (size_t)y * im.w * 4;
+    for (x = 0; x < im.w; x++, s += 4) {
+      int a = s[3];
+      row[x * 3] = (u8)((s[0] * a + 255 * (255 - a)) / 255); row[x * 3 + 1] = (u8)((s[1] * a + 255 * (255 - a)) / 255); row[x * 3 + 2] = (u8)((s[2] * a + 255 * (255 - a)) / 255);
+    }
+    sc_row(sc, row, (u32)y);
+  }
+  free(row); pic_rgba_free(&im);
+  return 1;
+}
 /* ------------------------------------------------------------------ */
 /* reads only the headers, so it is cheap enough to call when a document loads. For JPEG it
    accepts any frame type (even ones img_decode cannot decode); see img_jpeg_components */
@@ -730,7 +750,7 @@ int img_info(const u8 *d, u32 n, u32 *w, u32 *h)
     }
     (void)j;
   }
-  return IMG_NONE;
+  return picfmt_info(d, n, w, h);     /* WP17: GIF, BMP, ILBM */
 }
 /* the component count is 0 when the frame header can't be found */
 int img_jpeg_components(const u8 *d, u32 n, int *decodable)
@@ -751,7 +771,7 @@ u8 *img_decode(const u8 *d, u32 n, u32 ow, u32 oh)
   if (t == IMG_NONE || !ow || !oh || ow > 8000 || oh > 8000) return NULL;
   tw = ow < w ? ow : w; th = oh < h ? oh : h;
   if (!sc_init(&sc, w, h, tw, th)) { sc_free(&sc); return NULL; }
-  ok = t == IMG_PNG ? png_decode(d, n, &sc) : jpeg_decode(d, n, &sc);
+  ok = t == IMG_PNG ? png_decode(d, n, &sc) : t == IMG_JPEG ? jpeg_decode(d, n, &sc) : other_decode(d, n, &sc);
   if (!ok) { sc_free(&sc); return NULL; }
   small = sc_finish(&sc);
   if (tw == ow && th == oh) return small;
