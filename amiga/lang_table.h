@@ -1448,10 +1448,18 @@
 /* ---- begin WP13 (tools/lang/wp13.py) */
 /* ---- end WP13 */
 /* ---- begin WP14a (tools/lang/wp14a.py) */
+  { { "Equation...", "Formel...", "\311quation...", "Ecuaci\363n...", "Equazione..." } },
+  { { "Equation:", "Formel:", "\311quation :", "Ecuaci\363n:", "Equazione:" } },
+  { { "Edit Equation...", "Formel bearbeiten...", "Modifier l'\351quation...", "Editar ecuaci\363n...", "Modifica equazione..." } },
+  { { "Insert an equation, typed in linear format", "Eine Formel im linearen Format eingeben und einf\374gen", "Ins\351rer une \351quation tap\351e au format lin\351aire", "Insertar una ecuaci\363n escrita en formato lineal", "Inserisci un'equazione digitata in formato lineare" } },
+  { { "Type the equation in linear format, for example:", "Geben Sie die Formel im linearen Format ein, zum Beispiel:", "Tapez l'\351quation au format lin\351aire, par exemple :", "Escriba la ecuaci\363n en formato lineal, por ejemplo:", "Digitare l'equazione in formato lineare, ad esempio:" } },
+  { { "x^2+(a+b)/c   \\sqrt(x)   \\sum_(i=1)^n i   \\matrix(a&b@c&d)", NULL, NULL, NULL, NULL } },
 /* ---- end WP14a */
 /* ---- begin WP14b (tools/lang/wp14b.py) */
 /* ---- end WP14b */
 /* ---- begin WP15a (tools/lang/wp15a.py) */
+  { { "Chart", "Diagramm", "Graphique", "Gr\341fico", "Grafico" } },
+  { { "SmartArt", "SmartArt", "SmartArt", "SmartArt", "SmartArt" } },
 /* ---- end WP15a */
 /* ---- begin WP15b (tools/lang/wp15b.py) */
 /* ---- end WP15b */
@@ -1616,10 +1624,16 @@
 /* ---- begin WP27 (tools/lang/wp27.py) */
 /* ---- end WP27 */
 /* ---- begin WP28a (tools/lang/wp28a.py) */
+  { { "Save As Rich Text...", "Als Rich-Text speichern...", "Enregistrer en RTF...", "Guardar como RTF...", "Salva come RTF..." } },
+  { { "Save as Rich Text Format", "Im Rich-Text-Format speichern", "Enregistrer au format RTF", "Guardar en formato RTF", "Salva in formato RTF" } },
 /* ---- end WP28a */
 /* ---- begin WP28b (tools/lang/wp28b.py) */
 /* ---- end WP28b */
 /* ---- begin WP28c (tools/lang/wp28c.py) */
+  { { "Save As Web Page...", "Als Webseite speichern...", "Enregistrer en page Web...", "Guardar como p\341gina web...", "Salva come pagina Web..." } },
+  { { "Save As Markdown...", "Als Markdown speichern...", "Enregistrer en Markdown...", "Guardar como Markdown...", "Salva come Markdown..." } },
+  { { "Save as a web page", "Als Webseite speichern", "Enregistrer comme page Web", "Guardar como p\341gina web", "Salva come pagina Web" } },
+  { { "Save as Markdown", "Als Markdown speichern", "Enregistrer en Markdown", "Guardar como Markdown", "Salva come Markdown" } },
 /* ---- end WP28c */
 /* ---- begin WP28d (tools/lang/wp28d.py) */
 /* ---- end WP28d */

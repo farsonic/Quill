@@ -7,8 +7,10 @@
 #include "doc.h"
 #include "keep.h"
 #include "image.h"
+#include "chart.h"                 /* (WP15a) Image.pack */
 #include "notes.h"   /* (WP22b) */
 #include "info.h"    /* (WP24) */
+#include "math.h"     /* WP14a */
 #include "review.h"
 
 /* ------------------------------------------------------------------ */
@@ -1295,6 +1297,7 @@ int img_clone(Image *dst, const Image *src, int own)
   int k;
   *dst = *src;
   dst->text = NULL; dst->kids = NULL; dst->nkids = 0; dst->poly = NULL; dst->npoly = 0;
+  pack_ref(dst->pack);                       /* (WP15a) a chart's parts: shared */
   if (own) {
     dst->data = NULL; dst->shared = 0;
     if (src->data && (dst->data = (u8 *)malloc(src->len ? src->len : 1))) memcpy(dst->data, src->data, src->len);
@@ -1328,6 +1331,7 @@ void img_release(Image *im)
   for (k = 0; k < im->nkids; k++) img_release(&im->kids[k]);
   free(im->kids); im->kids = NULL; im->nkids = 0;
   free(im->poly); im->poly = NULL; im->npoly = 0;
+  pack_unref(im->pack); im->pack = NULL;     /* (WP15a) */
 }
 /* an entry added that the document takes as it is (what it holds is its own) */
 int doc_take_object(Doc *d, Image *im)
@@ -1433,6 +1437,7 @@ int doc_group(Doc *d, const Pos *at, const i32 *box, int n)
   for (i = 0; i < n; i++) {
     if (at[i].para >= d->np || at[i].off + 4 > d->p[at[i].para]->len || !IS_PIC(d->p[at[i].para]->t + at[i].off) ||
         pic_index(d->p[at[i].para]->t + at[i].off) >= d->nimages) return -1;
+    if (OBJ_IS_GRAPHIC(d->images[pic_index(d->p[at[i].para]->t + at[i].off)].kind)) return -1;   /* (WP15a) a chart isn't grouped: a group can't save it */
     if (box[4 * i] < ux0) ux0 = box[4 * i];
     if (box[4 * i + 1] < uy0) uy0 = box[4 * i + 1];
     if (box[4 * i] + box[4 * i + 2] > ux1) ux1 = box[4 * i] + box[4 * i + 2];
@@ -1904,6 +1909,7 @@ struct Fragment {
   Image *imgs; int *imgfrom; int nimgs;   /* pictures copied (data owned), and their indexes in the source */
   char *text; u32 ntext;
   char **links; int nlinks;  /* the source's link targets (CharFmt.link numbers point into them) */
+  struct MathEq **maths; int *mathfrom; int nmaths;   /* WP14a: equations copied, and their indexes in the source */
 };
 /* a fragment and all its copies freed; NULL is fine */
 void fragment_free(Fragment *f)
@@ -1919,6 +1925,8 @@ void fragment_free(Fragment *f)
   free(f->imgs); free(f->imgfrom); free(f->text);
   for (k = 0; k < f->nlinks; k++) free(f->links[k]);
   free(f->links);
+  for (k = 0; k < f->nmaths; k++) math_free(f->maths[k]);     /* WP14a */
+  free(f->maths); free(f->mathfrom);
   free(f);
 }
 /* see doc.h; the fragment owns it, *n its length */
@@ -1964,6 +1972,23 @@ Fragment *doc_fragment(Doc *d, Pos a, Pos b)
           if (!img_clone(ni, &d->images[n], 1)) goto oom;
           f->imgfrom[f->nimgs] = n;
           f->nimgs++;
+        }
+        k += 3;
+      }
+    /* WP14a: the equations it refers to, copied (each once) */
+    for (k = 0; k + 4 <= q->len; k++)
+      if (IS_MATH(q->t + k)) {
+        int n = math_index(q->t + k), j;
+        for (j = 0; j < f->nmaths && f->mathfrom[j] != n; j++) ;
+        if (n < d->nmaths && j == f->nmaths) {
+          struct MathEq **nm = (struct MathEq **)realloc(f->maths, (f->nmaths + 1) * sizeof *nm);
+          int *nf;
+          if (!nm) goto oom;
+          f->maths = nm;
+          if (!(nf = (int *)realloc(f->mathfrom, (f->nmaths + 1) * sizeof(int)))) goto oom;
+          f->mathfrom = nf;
+          if (!(f->maths[f->nmaths] = math_clone(d->maths[n]))) goto oom;
+          f->mathfrom[f->nmaths++] = n;
         }
         k += 3;
       }
@@ -2024,8 +2049,19 @@ static int paste_runs(Doc *d, Para *q, const Fragment *f, const Para *s, const C
     u32 o = pos, e = s->r[r].end;
     while (o < e) {
       u32 m = o;
-      while (m < e && !((u8)s->t[m] >= 0xF3 && m + 4 <= e && (IS_PIC(s->t + m) || IS_NOTE(s->t + m) || IS_MARK(s->t + m) || IS_ENOTE(s->t + m)))) m++;
+      while (m < e && !((u8)s->t[m] >= 0xF3 && m + 4 <= e && (IS_PIC(s->t + m) || IS_NOTE(s->t + m) || IS_MARK(s->t + m) || IS_ENOTE(s->t + m) || IS_MATH(s->t + m)))) m++;
       if (m > o && !para_append(q, s->t + o, m - o, &c)) return 0;
+      if (m < e && IS_MATH(s->t + m)) {
+        /* WP14a: an equation: the same entry (same document) or a copy of the fragment's */
+        int n = math_index(s->t + m), j;
+        char ref[8];
+        for (j = 0; !same && j < f->nmaths && f->mathfrom[j] != n; j++) ;
+        if (!same && j < f->nmaths) { MathEq *me = math_clone(f->maths[j]); n = me ? doc_add_math(d, me) : -1; }
+        else if (!same) n = -1;
+        if (n >= 0) { math_utf8(ref, n); if (!para_append(q, ref, 4, &c)) return 0; }
+        o = m + 4;
+        continue;
+      }
       if (m < e) {
         if (IS_PIC(s->t + m) && mode != PASTE_TEXT) {
           int n = pic_index(s->t + m), j = frag_has_img(f, n);
@@ -2660,6 +2696,7 @@ void doc_free(Doc *d)
   keep_free(d);
   notes_free(d);                 /* (WP22b) */
   info_free(d);                  /* (WP24) */
+  math_doc_free(d);     /* WP14a: equations */
   rv_free(d);                                   /* (WP5) */
   free(d);
 }

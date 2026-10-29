@@ -1810,6 +1810,7 @@ static void object_done(void)
     if (neg) deg = (3600 - deg) % 3600;
     m.rot = (u16)deg;
   }
+  if (OBJ_IS_GRAPHIC(m.kind)) { m.rot = 0; m.flip = 0; }    /* (WP15a) */
   if (m.wrap != WRAP_INLINE && !m.halign && (m.rot != doc->images[k].rot || m.cx != doc->images[k].cx || m.cy != doc->images[k].cy)) {
     /* turned or sized round its centre */
     Image o = doc->images[k];
@@ -1878,6 +1879,7 @@ static void obj_choice(ULONG id, LONG v)
   case ID_OBJWEIGHTDD: if (v < 0 || v >= 7) return; m.lwidth = ribbon_penwidths[v]; if (m.lstyle == PB_NONE) m.lstyle = PB_SINGLE; break;
   case ID_OBJDASHDD: if (v < 0 || v >= 5) return; m.lstyle = (u8)(v + PB_SINGLE); if (!m.lwidth) m.lwidth = 6; break;
   case ID_OBJROTDD:
+    if (OBJ_IS_GRAPHIC(m.kind)) { DisplayBeep(NULL); return; }      /* (WP15a) charts and SmartArt don't turn */
     if (v == 0) m.rot = (u16)((m.rot + 900) % 3600);
     else if (v == 1) m.rot = (u16)((m.rot + 2700) % 3600);
     else if (v == 2) m.flip ^= 2;

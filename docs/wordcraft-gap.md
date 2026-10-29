@@ -19,7 +19,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Quick Access | 5 | 2 | 0 | 3 | 0 |
 | Title Bar | 1 | 0 | 0 | 1 | 0 |
 | Home | 105 | 72 | 11 | 21 | 1 |
-| Insert | 53 | 26 | 3 | 18 | 6 |
+| Insert | 53 | 27 | 3 | 17 | 6 |
 | Draw | 11 | 0 | 0 | 10 | 1 |
 | Design | 10 | 7 | 2 | 1 | 0 |
 | Layout | 22 | 16 | 3 | 3 | 0 |
@@ -36,19 +36,19 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Picture Format | 14 | 5 | 0 | 9 | 0 |
 | Shape Format | 13 | 3 | 1 | 9 | 0 |
 | Header & Footer | 5 | 5 | 0 | 0 | 0 |
-| Equation | 22 | 0 | 0 | 21 | 1 |
+| Equation | 22 | 1 | 0 | 20 | 1 |
 | Outlining | 13 | 0 | 0 | 13 | 0 |
 | SmartArt Design | 7 | 0 | 0 | 7 | 0 |
 | Chart Design | 5 | 0 | 0 | 5 | 0 |
 | Editing | 41 | 23 | 2 | 16 | 0 |
 | Tools | 7 | 1 | 0 | 6 | 0 |
-| **All** | **531** | **236** | **32** | **232** | **31** |
+| **All** | **531** | **238** | **32** | **230** | **31** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
 | 2.1 File formats | 1 | 5 | 10 | 3 |
-| 2.2 DOCX features | 4 | 17 | 16 | 1 |
-| 2.3 Layout | 9 | 9 | 6 | 0 |
+| 2.2 DOCX features | 6 | 17 | 14 | 1 |
+| 2.3 Layout | 11 | 8 | 5 | 0 |
 | 2.4 Editing | 4 | 11 | 12 | 7 |
 | 2.5 Interface: panes, toolbars and the window | 10 | 2 | 5 | 2 |
 | 2.6 The Options dialog | 1 | 3 | 4 | 1 |
@@ -57,7 +57,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | 2.9 Zotero | 0 | 0 | 0 | 1 |
 | 2.10 Control protocol, MCP, command line, scripting | 0 | 0 | 0 | 1 |
 | 2.11 Network and cloud features (left out on purpose) | 0 | 0 | 0 | 1 |
-| **All** | **27** | **51** | **57** | **17** |
+| **All** | **28** | **52** | **55** | **17** |
 
 ## Work packages
 
@@ -108,8 +108,8 @@ Sizes are for one engineer-agent; "ribbon" counts the ⬜ and 🟨 commands of s
 - **WP22a Pages, sections and columns** (ribbon 5; 4-5 h). Columns window (unequal widths, Left/Right presets, apply from here), balanced columns before a continuous break, per-section line numbers and page borders (README roadmap), page border sides and art-free styles, picture watermarks, Page Setup with gutter, mirror margins, 2 pages per sheet, vertical alignment Justified, hyphenation options (zone, caps, consecutive limit, manual hyphenation). Files: core/doc.h (SectFmt, PageBorder, Watermark), core/layout.c, core/docx.c, core/hyph.c, amiga/main.c (`open_pagesetup()`, `open_watermark()`), new amiga/wp_pages.c.
 - **WP23 Templates, building blocks, inserting files** (ribbon 7; 3-4 h). .dotx/.dotm opened as templates (an untitled document), Save as Template, a personal templates folder on the File page's New list, Templates and Add-ins (attached template), Quick Parts and AutoText (the glossary document, `w:docPart`), Insert › Text from File / Object (another .docx or .txt at the caret). Files: core/template.c, core/docx.c, amiga/backstage.c, new amiga/wp_templates.c.
 - **WP25 Views and windows** (ribbon 7; 3-4 h). New Window on the same document (a shared Doc with a reference count), Split, a Window menu listing open documents (README roadmap), Side to Side page movement, Multiple Pages with a choice of how many, a Zoom window, Read Mode options (column width, page colour sepia/inverse, text size, line spacing). Files: amiga/main.c (`win_new()`, DocWin), amiga/view.c, amiga/panes.c, new amiga/wp_windows.c.
-- **WP28a RTF** (beyond-ribbon 1; 4-5 h). Read and write .rtf: text, character and paragraph formatting, styles, lists, tables, pictures, fields, code pages. Files: new core/rtf.c, a row in WP0's format table.
-- **WP28c HTML and Markdown** (beyond-ribbon 2; 3-4 h). Read and write .html and .md (headings, lists, tables, links, pictures, bold/italic/code). Files: new core/html.c, new core/markdown.c, a row in the format table.
+- **WP28a RTF** (beyond-ribbon 1; 4-5 h). Read and write .rtf: text, character and paragraph formatting, styles, lists, tables, pictures, fields, code pages. Files: new core/rtf.c, a row in WP0's format table. **Done** (§2.1): core/rtf.c, core/codepage.c, core/fmtio.c (shared with WP28c), amiga/wp_rtf.c (File > Save As Rich Text...), tests/test_wp28a.c, tools/lo_formats.sh.
+- **WP28c HTML and Markdown** (beyond-ribbon 2; 3-4 h). Read and write .html and .md (headings, lists, tables, links, pictures, bold/italic/code). Files: new core/html.c, new core/markdown.c, a row in the format table. **Done** (§2.1): core/html.c, core/markdown.c, amiga/wp_html.c (File > Save As Web Page..., Save As Markdown...), tests/test_wp28c.c.
 
 **Priority 3: big or specialised**
 
@@ -295,7 +295,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Dictate (Voice) `tools.dictate` — WordCraft doesn't have it either (cloud speech service)
 - ✅ Editor (Editor) `review.editor` — WordCraft's Editor runs Spelling: Quill `ID_SPELL`
 
-### Insert (53: ✅ 26 · 🟨 3 · ⬜ 18 · ➖ 6)
+### Insert (53: ✅ 27 · 🟨 3 · ⬜ 17 · ➖ 6)
 
 - ✅ Cover Page (Pages) `insert.coverPage` — `ID_COVERDD` (3 designs, remove)
 - ✅ Blank Page (Pages) `insert.blankPage` — `ID_BLANKPAGE`
@@ -344,7 +344,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - 🟨 Date & Time (Text) `insert.dateTime` — `ID_DATE` types today's date as text in one format (`today_text()`); no format choice, no DATE field that updates [WP1]
 - ⬜ Object (Text) `insert.object` — WordCraft's inserts a file's text [WP23]
 - ⬜ Text from File (Text) `insert.textFromFile` [WP23]
-- ⬜ Equation (Symbols) `insert.equation` [WP14a]
+- ✅ Equation (Symbols) `insert.equation` — Insert › Equation (Insert menu, and the Equation button of Insert › Symbols, amiga/wp_math.c): the equation typed in linear format (UnicodeMath subset: a/b, x^2, x_i, √(…), ∑_(i=1)^n▒…, brackets, functions, accents, ■ matrices, █ arrays, □ ▭ ⟡ boxes, "text"; characters outside Latin-1 as \control words), a display equation when the paragraph is empty as in Word; with an equation selected (or "Edit Equation..." on the right-button menu) it is changed. Checked: tests/test_wp14a.c (linear format in and out), emulator screenshot of the dialog [WP14a]
 - ➖ Ink Equation (Symbols) `insert.inkEquation` — WordCraft doesn't have it either
 - 🟨 Symbol (Symbols) `insert.symbol` — `ID_SYMBOLDD`: 17 fixed symbols; no Symbol window with a font's characters or character codes [WP10]
 - 🟨 Nonbreaking Space (Symbols) `text.nbsp` — U+00A0 typed through the keymap (Alt-Space) is kept and doesn't break (layout.c breaks at ' ' only); no command or Ctrl+Shift+Space, not shown as ° with marks [WP10]
@@ -648,9 +648,9 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Next Section (Navigation) `hf.next` — `ID_HFNEXT`
 - ✅ Header from Top (Position) `hf.position` — `ID_PAGESETUPDLG` on the Header & Footer tab (header and footer distances)
 
-### Equation (22: ✅ 0 · 🟨 0 · ⬜ 21 · ➖ 1)
+### Equation (22: ✅ 1 · 🟨 0 · ⬜ 20 · ➖ 1)
 
-- ⬜ Equation (Tools) `insert.equation` — no equations: OMML (`m:oMath`) is neither read nor written (docx.c has no math reader) [WP14a]
+- ✅ Equation (Tools) `insert.equation` — equations read, laid out, drawn and written (see 2.2); Insert › Equation (Insert menu, and the Equation button of Insert › Symbols, amiga/wp_math.c): the equation typed in linear format (UnicodeMath subset: a/b, x^2, x_i, √(…), ∑_(i=1)^n▒…, brackets, functions, accents, ■ matrices, █ arrays, □ ▭ ⟡ boxes, "text"; characters outside Latin-1 as \control words), a display equation when the paragraph is empty as in Word; with an equation selected (or "Edit Equation..." on the right-button menu) it is changed. Checked: tests/test_wp14a.c (linear format in and out), emulator screenshot of the dialog [WP14a]
 - ➖ Ink Equation (Tools) `insert.inkEquation` — WordCraft doesn't have it either
 - ⬜ Unicode (Conversions) `equation.inputFormat` [WP14b]
 - ⬜ LaTeX (Conversions) `equation.inputFormat` [WP14b]
@@ -691,7 +691,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 
 ### SmartArt Design (7: ✅ 0 · 🟨 0 · ⬜ 7 · ➖ 0)
 
-- ⬜ Add Shape (Create Graphic) `smartArt.addShape` — SmartArt isn't read: `report_lost()` warns of "pictures it cannot read" and saving leaves it out [WP15c]
+- ⬜ Add Shape (Create Graphic) `smartArt.addShape` — SmartArt is read, drawn from its saved drawing and kept through a save (WP15a), but not edited [WP15c]
 - ⬜ Promote (Create Graphic) `smartArt.promote` [WP15c]
 - ⬜ Demote (Create Graphic) `smartArt.demote` [WP15c]
 - ⬜ Text Pane (Create Graphic) `smartArt.textPane` [WP15c]
@@ -701,7 +701,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 
 ### Chart Design (5: ✅ 0 · 🟨 0 · ⬜ 5 · ➖ 0)
 
-- ⬜ Change Chart Type (Type) `chart.type` — charts aren't read: `report_lost()` warns and saving leaves them out [WP15b]
+- ⬜ Change Chart Type (Type) `chart.type` — charts are read, drawn from their cached values and kept through a save (WP15a), but not edited [WP15b]
 - ⬜ Edit Data (Data) `chart.editData` [WP15b]
 - ⬜ Chart Title (Chart Layouts) `chart.title` [WP15b]
 - ⬜ Legend (Chart Layouts) `chart.legend` [WP15b]
@@ -771,13 +771,13 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **.docx Strict Open XML (read)** — untested in Quill: it finds the main part by the relationship's name ending (`rel_target(..., "/officeDocument")`, docx.c) and matches elements by local name, so a Strict file may open, but Strict's unit-suffixed measures (`13.90pt`, `50%`) aren't parsed. WordCraft maps the Strict namespaces and units (`xml.rs`, #2329).
 - 🟨 **.dotx / .docm / .dotm** — Quill reads any package with word/document.xml whatever its name, but never writes a template, and drops macros (WordCraft keeps vbaProject on save without running it).
 - ⬜ **.doc Word 97-2003 (read)** — WordCraft has a spec-based reader (crates/docbin: text, formatting, styles, sections, tables, lists, notes, fields, pictures, shapes, RC4/XOR encryption). Quill: none.
-- ⬜ **.rtf read and write** — WordCraft crates/formats/src/rtf (styles, lists, tables, pictures, fields, code pages, tracked changes).
+- ✅ **.rtf read and write** [WP28a] — core/rtf.c (row `fmt_rtf`, sniffed by `{\rtf`; Open/Save As take .rtf, File > Save As Rich Text... saves a copy): text, character and paragraph formatting, styles (\sbasedon, \snext; a file's unused styles aren't made), lists (\listtable/\ls and Word 6's \pn), tables with merged cells (by width, \clmgf/\clmrg, \clvmgf/\clvmrg), borders, shading, row heights, heading rows; PNG/JPEG pictures (hex or \bin, \shppict, shapes' pib), WMF/EMF/bitmaps as a dashed box of their size; headers/footers (default, first, even), footnotes, endnotes, HYPERLINK/PAGE/NUMPAGES/PAGEREF fields (others keep their result), bookmarks, tracked changes (\revtbl, \revised, \deleted), sections with page setup, columns, line numbers, vertical alignment, \info title/author; code pages 437/850/852/866/874/1250-1258/10000 (core/codepage.c), \uN with \uc fallbacks and surrogates. Evidence: tests/test_wp28a.c (a document with all of these round-trips with same_doc and writes the same file twice; Word's and LibreOffice's 7 test .docx files through RTF; RTF that LibreOffice wrote (tests/data/lo-*.rtf) reads as the .docx does); tools/lo_formats.sh: LibreOffice converts what Quill writes to .docx with every paragraph's text, notes, tables and pictures, and LibreOffice renders it as it renders the original .docx (checked by eye with pdftoppm). 🟨 left out: nested tables are flattened into their cell (read and write, LOST_TABLES), shapes/text boxes and comments aren't written, floating pictures are written in line, picture cropping, double-byte code pages without \u (932/936/949/950 text shows as '?').
 - ⬜ **.odt read and write** — WordCraft crates/formats/src/odt.
 - 🟨 **.txt** — Quill opens UTF-8 or Latin-1 and saves Latin-1 only (`ID_SAVETXT`, `save_as(1)`): characters outside Latin-1 are lost. WordCraft detects encodings and writes UTF-8.
-- ⬜ **.html / .htm (read and write)** — WordCraft crates/formats/src/html.
+- ✅ **.html / .htm (read and write)** [WP28c] — core/html.c (row `fmt_html`, by name; File > Save As Web Page... saves a copy): UTF-8 HTML5, paragraph styles as CSS classes (with their names, read back as styles), headings h1-h6, paragraph CSS (alignment, indents, spacing, line spacing, shading, borders, page break), b/i/u/s/sup/sub and spans (font, size, colour, highlight, small caps, caps, spacing), lists nested by level (ul/ol with type and start), tables with colspan/rowspan, column widths, padding, shading and borders (a table style's look is shown and marked data-look="style"), links, bookmarks, pictures as data: URIs (read from data: URIs or files next to the page, `doc_load_path`), footnotes/endnotes in LibreOffice's sdfootnote markup. Reads other programs' HTML too: font tags, center, blockquote, pre, hr, dl, entities, Windows 1252 bytes, `<style>` rules for p/h1-h6/.class. Evidence: tests/test_wp28c.c (round trip with same_doc; Word's and LibreOffice's .docx through HTML; LibreOffice's HTML of them, tests/data/lo-*.html with its picture files); tools/lo_formats.sh (LibreOffice reads what Quill writes: every paragraph, the notes and tables). Left out: headers, footers, sections and page setup (no place in HTML); nothing is fetched from the web.
 - ➖ **.mht / .mhtml** — WordCraft doesn't have it either.
 - ⬜ **Word XML: Flat OPC .xml and Word 2003 XML** — WordCraft reads and writes both through its DOCX code.
-- ⬜ **Markdown .md (read and write)** — WordCraft crates/formats/src/markdown.
+- ✅ **Markdown .md (read and write)** [WP28c] — core/markdown.c (row `fmt_markdown`, by name; File > Save As Markdown... saves a copy): CommonMark blocks (ATX/setext headings, paragraphs, block quotes as Quote, nested bullet/ordered lists with their start numbers, fenced and indented code as Code-style paragraphs, thematic breaks, link reference definitions) and inlines (emphasis by CommonMark's delimiter rules, code spans, links inline/reference/autolinks, images from data: URIs or files, hard breaks, escapes, entities, inline b/i/u/s/sup/sub/code/br), GitHub tables with alignment, strikethrough and footnotes. Writes the same (underline, super/subscript as HTML tags; pictures as data: URIs). Evidence: tests/test_wp28c.c (round trip of text, headings, emphasis, lists, code, tables, pictures, notes; writing twice gives the same file; CommonMark cases); tools/lo_formats.sh: pandoc (-f gfm) reads every paragraph Quill writes. Left out: fonts, sizes, colours, alignment, page layout (Markdown has none).
 - ⬜ **LaTeX .tex (read and write, with math)** — WordCraft crates/formats/src/latex.
 - 🟨 **PDF export** — Quill core/pdf.c: pages as laid out, embedded TrueType/OpenType fonts, URI link annotations. WP29 added: font subsetting (core/pdffont.c: TrueType glyf/loca rebuilt, CFF CharStrings cut in place; the short test documents' PDFs shrink 10-16 times, e.g. tables.docx 415 KB → 30 KB, word.docx 769 KB → 49 KB, wordcraft-long.docx 1.9 MB → 0.88 MB), any character the font has through Type 0 fonts with Identity-H and ToUnicode CMaps (pdffonts: "CID TrueType / CID Type 0C (OT), emb sub uni"; pdftotext extracts Greek and Cyrillic), internal links (`#bookmark` links, PAGEREF cross-references, Quill's own TOC entries to their headings, footnote/endnote references and their numbers back), the outline from the headings (nested, /PageMode /UseOutlines), bookmarks as named destinations, Title/Author/Subject/Keywords (UTF-16 when needed), a page range (Export Options); qpdf --check clean [WP29]. Still missing: tagged PDF (structure tree; not part of WP29).
 - ➖ **PDF import** — WordCraft doesn't have it either.
@@ -811,10 +811,10 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Group shapes and drawing canvas** — groups (`wpg:`), nested, ✅; drawing canvases (`wpc:`) not read (README roadmap).
 - 🟨 **VML (`w:pict`, `v:shape`, `v:textbox`)** — only Word's text watermark is read and written (docx.c line 927); VML pictures, text boxes and shapes are not read (README "Not read yet"). WordCraft reads VML pictures, text boxes, lines, rectangles, ovals and presets.
 - 🟨 **Alt text** — pictures, shapes, text boxes and groups (`descr`) ✅; the decorative mark (`adec:decorative`) ✅ (WP24); `title` and table alt text (`w:tblCaption`, `w:tblDescription`, WP21b) not read.
-- ⬜ **Charts (`c:chart`) and SmartArt (`dgm`)** — not read: `report_lost()` warns of "pictures it cannot read" and saving leaves them out. WordCraft draws charts from their cached data and SmartArt from its stored drawing, and writes both.
+- ✅ **Charts (`c:chart`, `cx:chart`) and SmartArt (`dgm`)** [WP15a] — read and kept: each one's parts (the chart part with its embedded workbook, colour and style parts; SmartArt's data, layout, quick style, colour and drawing parts; and the theme their colours refer to, which Quill writes only with them) stay byte for byte with their relationships and ids through a save (core/chartkeep.c, `ObjPack` on `Image.pack`; copies share them, a copy pasted into another document gets new part names and its .rels follows them); Excel 2016's charts are written back inside `mc:AlternateContent` as Word does. Drawn on screen and in the PDF from their cached values (core/chart.c, Ledger's chart layout: column, bar, line, area in their stacked and 100% forms, pie, doughnut, scatter, bubble, radar, stock, combo, and the chartex histogram, waterfall, funnel, treemap, sunburst, box & whisker; other kinds, such as surface, as a frame with the title) and SmartArt from its saved `dsp:drawing` (core/smartart.c: shapes, fills, outlines, text). In line or floating with any wrap, selected, moved and resized as pictures are; `report_lost()` no longer counts them. Checked: tests/test_wp15a.c (41 checks on tests/data/charts.docx: every part byte for byte through two saves, relationship ids, content types, pasting, deleting) and LibreOffice draws Quill's saved file as it draws the original.
 - ⬜ **OLE objects (`w:object`)** — dropped (WordCraft shows their picture and saves them back whole).
 - 🟨 **Native Word ink (`w14:contentPart`)** — dropped; WordCraft keeps it opaque.
-- ⬜ **Equations (OMML `m:oMath`)** — not read or written; WordCraft reads every ECMA-376 §22.1 element, lays it out (OpenType MATH) and writes it.
+- ✅ **Equations (OMML `m:oMath`)** — WP14a: every ECMA-376 §22.1 element is read into a tree (core/math.c: `m:oMath`, `m:oMathPara` with its justification, fractions bar/skewed/linear/no bar, sub/superscripts and pre-scripts, radicals, n-ary operators with limits, delimiters with separators, functions, accents, bars, group characters, lower and upper limits, matrices with column specs, equation arrays, boxes, border boxes, phantoms, argument sizes, and every property, each kept as absent/on/off), with `m:ctrlPr`, run `w:rPr`, unknown properties and elements (`w:ins` round math...) kept verbatim; written back the same (its m namespace declared on each equation); settings.xml `m:mathPr` kept and used (limits, default justification, small fractions, wrap indent). Laid out TeX-style with Quill's own fonts (core/mathlay.c; math italic, display and text styles, script sizes, TeX spacing) and drawn on screen and in PDFs. Checked: a Word-style sample written from the spec (tests/data/equations.docx, every construct) reads, round trips to identical OMML and a stable document.xml, LibreOffice renders Quill's saved copy exactly as the original, and documents with equations made in Quill open in LibreOffice with them. Left: a display equation too wide for its line isn't broken automatically (only at `m:brk`); block-level `m:oMathPara` outside a paragraph is skipped.
 - 🟨 **Themes, font table, settings, compatibility mode** — theme fonts are read (major/minor), compatibility mode 15 is written; the theme part's colours (`a:clrScheme`) only resolve shape colours, and the document's theme isn't written back as its own; embedded fonts (`w:embedRegular`…) not read.
 - 🟨 **Custom XML, document properties, bibliography sources** — every core property (core.xml), app.xml (company, manager, hyperlink base, statistics; the rest kept verbatim) and custom properties (custom.xml) read and written ✅ (WP24); customXml parts kept verbatim (WP0); bibliography sources: WP3.
 - ⬜ **Section text direction (`w:textDirection`)** — not read.
@@ -852,7 +852,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Page borders** — one kind on all four sides; no art borders, no per-section borders.
 - 🟨 **Watermarks** — text ✅; picture watermarks ⬜.
 - ⬜ **Character effects in layout and drawing** — hidden text (and showing it with marks), outline/shadow/emboss/engrave, enclosed characters, WordArt transforms.
-- ⬜ **Equations, charts, SmartArt drawn on the page** — see 2.2.
+- ✅ **Equations, charts, SmartArt drawn on the page** — charts and SmartArt ✅ [WP15a] (see 2.2); equations ✅ (WP14a: TeX build-up rules with Quill's fonts, glyphs the fonts lack drawn as outlines or from look-alike glyphs, growing delimiters, radicals, braces and arrows drawn; inline equations in the line, display ones on lines of their own as their justification says; on screen from the fonts' outlines, in PDFs as text or outlines).
 - ✅ **Metric-compatible fonts** — Liberation, Carlito, Caladea measured from their TrueType metrics, as WordCraft does (WordCraft also ships its own substitutes for more families).
 
 ### 2.4 Editing
@@ -890,7 +890,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Clipboard** — Quill's own formatted clipboard between Quill documents, text through clipboard.device to other programs (amiga/clip.c). Missing: formatted paste from other programs (WordCraft takes RTF/HTML from the system clipboard), pasting pictures, the Clipboard pane.
 - 🟨 **Format painter** — `ID_BRUSH` one shot; no double-click to keep it on, no Ctrl+Shift+C/V.
 - ⬜ **Spike, Go Back, Extend Selection (F8), column (block) selection, Alt+X** — see the Editing tab.
-- 🟨 **Right-click menus** — Quill (`ID_CTXPICK`): misspelled word, picture/shape/group, text (with table Insert/Delete/Merge/Split/Properties), link. Missing against WordCraft: synonyms, Paste options on the text menu, field menu (Update Field, Edit Field, Toggle Field Codes), table of contents menu (Update, Remove), picture menu's Change Picture, Reset Picture, Insert Caption, table menu's Distribute, AutoFit, Text Direction and Insert Caption, equation menu.
+- 🟨 **Right-click menus** — Quill (`ID_CTXPICK`): misspelled word, picture/shape/group, text (with table Insert/Delete/Merge/Split/Properties), link. Missing against WordCraft: synonyms, Paste options on the text menu, field menu (Update Field, Edit Field, Toggle Field Codes), table of contents menu (Update, Remove), picture menu's Change Picture, Reset Picture, Insert Caption, table menu's Distribute, AutoFit, Text Direction and Insert Caption (the equation menu has Edit Equation... since WP14a).
 
 ### 2.5 Interface: panes, toolbars and the window
 

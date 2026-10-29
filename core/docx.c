@@ -11,8 +11,10 @@
 #include "image.h"
 #include "tstyle.h"
 #include "keep.h"
+#include "chart.h"                 /* (WP15a) charts and SmartArt */
 #include "notes.h"   /* (WP22b) */
 #include "info.h"    /* (WP24) */
+#include "math.h"     /* WP14a: equations */
 #include "review.h"
 
 /* ------------------------------------------------------------------ */
@@ -1224,6 +1226,35 @@ static void parse_polygon(Xml *x, Image *im)
   if (im->npoly > 1 && im->poly[0] == im->poly[2 * im->npoly - 2] && im->poly[1] == im->poly[2 * im->npoly - 1]) im->npoly--;
   if (im->npoly < 3) { free(im->poly); im->poly = NULL; im->npoly = 0; }
 }
+/* (WP15a) a chart (c:chart, Excel 2016's cx:chart) or SmartArt (dgm:relIds) in a drawing's graphicData:
+   its parts kept with the object (core/chart.h), which becomes an OBJ_CHART or OBJ_SMARTART. 1 if it was one */
+static int read_graphic_ref(Xml *x, Ctx *c, Image *im)
+{
+  static int ex;
+  const char *n = x->name;
+  char *ct;
+  size_t ctn = 0;
+  ObjPack *pk;
+  if (!strcmp(n, "graphicData")) { const char *u = xml_attr(x, "uri"); ex = u && strstr(u, "chartex") != NULL; return 0; }
+  if ((strcmp(n, "chart") && strcmp(n, "relIds")) || !c->z || !c->rels) return 0;
+  ct = (char *)zip_read(c->z, zip_find(c->z, "[Content_Types].xml"), &ctn);
+  if (n[0] == 'c') pk = pack_load_chart(c->z, ct, ctn, c->rels, c->rn, c->base, xml_attr(x, "id"), ex, c->clr, c->minor, c->major);
+  else pk = pack_load_smartart(c->z, ct, ctn, c->rels, c->rn, c->base, xml_attr(x, "dm"), xml_attr(x, "lo"), xml_attr(x, "qs"), xml_attr(x, "cs"), c->clr, c->minor);
+  free(ct);
+  if (!pk) return 0;
+  if (pk->font[0]) doc_font(c->d, pk->font);         /* (so the PDF writer finds its font) */
+  {
+    /* the theme its colours refer to, from the main part's relationships (as docx_load found it) */
+    size_t rn = 0;
+    char *drels = (char *)zip_read(c->z, zip_find(c->z, "word/_rels/document.xml.rels"), &rn);
+    pack_set_theme(pk, c->d, c->z, drels, rn, "word/");
+    free(drels);
+  }
+  pack_unref(im->pack);
+  im->pack = pk;
+  im->kind = n[0] == 'c' ? OBJ_CHART : OBJ_SMARTART;
+  return 1;
+}
 /* a w:drawing: a picture, shape, text box or group, in line or floating; its reference goes into the text */
 static void parse_drawing(Xml *x, PCtx *pc, const CharFmt *f)
 {
@@ -1273,6 +1304,7 @@ static void parse_drawing(Xml *x, PCtx *pc, const CharFmt *f)
     else if (!strcmp(n, "wrapPolygon")) { parse_polygon(x, im); continue; }
     else if (!strncmp(n, "wrap", 4) && !wrapname[0] && strlen(n) < sizeof wrapname) strcpy(wrapname, n);
     else if (!strcmp(n, "docPr")) { const char *d = xml_attr(x, "descr"); if (d) { strncpy(im->alt, d, sizeof im->alt - 1); im->alt[sizeof im->alt - 1] = 0; } }
+    else if (read_graphic_ref(x, c, im)) continue;     /* (WP15a) a chart or SmartArt */
     else if (!strcmp(n, "decorative")) { const char *v = xml_attr(x, "val"); im->decorative = (u8)(!v || *v == '1' || *v == 't'); }   /* (WP24) */
     else dshape_elem(x, pc, &s);
   }
@@ -2196,6 +2228,28 @@ static char *part(ZipReader *z, const char *name, size_t *n)
 {
   return (char *)zip_read(z, zip_find(z, name), n);
 }
+/* WP14a: an equation in a paragraph (m:oMath; m:oMathPara for a display one): an entry in Doc.maths
+   and its reference in the text, in the paragraph's format at the size of its first sized run. 1 if
+   x was one (read to its END) */
+static int read_math(Xml *x, PCtx *pc)
+{
+  Ctx *c = pc->c;
+  CharFmt f;
+  MathEq *e;
+  char ref[8];
+  int k;
+  u16 sz;
+  if (strcmp(x->name, "oMath") && strcmp(x->name, "oMathPara")) return 0;
+  if (c->field == 1 || !(e = math_read_omml(x))) return 1;
+  f = pc->pcf;
+  f.rev = pc->rev; f.rid = pc->rid; f.bmark = c->bmark;
+  f.link = c->field == 2 && c->fieldlink ? c->fieldlink : pc->link;
+  if ((sz = math_size(e))) f.size = sz;
+  if ((k = doc_add_math(c->d, e)) < 0) return 1;
+  math_utf8(ref, k);
+  run_text(pc, ref, 4, &f);
+  return 1;
+}
 /* ------------------------------------------------------------------ */
 /* WP5 reading (core/review.h): tracked formatting changes (w:rPrChange, w:pPrChange), moves, property
    changes of tables and sections kept verbatim, comments' threads and Resolve (commentsExtended,
@@ -2533,6 +2587,7 @@ static int docx_read_elem_ext(Xml *x, PCtx *pc)
   /* WP11: */
   /* WP13: */
   /* WP14a: */
+  if (read_math(x, pc)) return 1;
   /* WP15a: */
   /* WP15b: */
   /* WP15c: */
@@ -2574,6 +2629,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
   /* WP11: */
   /* WP13: */
   /* WP14a: */
+  if (!strcmp(x->name, "mathPr")) math_read_mathpr(c->d, x);
   /* WP15a: */
   /* WP15b: */
   /* WP15c: */
@@ -3447,6 +3503,7 @@ static void w_picture(Buf *o, Doc *d, const char *rpr, size_t rl, int k)
   u32 id = ++save_drawing;
   int fl = im->wrap != WRAP_INLINE, i;
   buf_adds(o, "<w:r>"); buf_add(o, rpr, rl);
+  if (pack_save_isex(im)) buf_adds(o, "<mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\"><mc:Choice xmlns:cx1=\"http://schemas.microsoft.com/office/drawing/2015/9/8/chartex\" Requires=\"cx1\">");   /* (WP15a) */
   buf_printf(o, "<w:drawing><wp:%s distT=\"%ld\" distB=\"%ld\" distL=\"%ld\" distR=\"%ld\"", fl ? "anchor" : "inline",
              (long)im->dt * 635, (long)im->db * 635, (long)im->dl * 635, (long)im->dr * 635);
   if (fl) {
@@ -3480,6 +3537,12 @@ static void w_picture(Buf *o, Doc *d, const char *rpr, size_t rl, int k)
   buf_adds(o, im->decorative ? "><a:extLst xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:ext uri=\"{C183D7F6-B498-43B3-948B-1728B52AA6E4}\">"   /* (WP24: decorative) */
               "<adec:decorative xmlns:adec=\"http://schemas.microsoft.com/office/drawing/2017/decorative\" val=\"1\"/></a:ext></a:extLst></wp:docPr>" : "/>");
   buf_adds(o, "<wp:cNvGraphicFramePr/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">");
+  if (im->pack && pack_save_graphic(o, im)) {         /* (WP15a) a chart or SmartArt: its parts' relationships */
+    buf_printf(o, "</a:graphic></wp:%s></w:drawing>", fl ? "anchor" : "inline");
+    if (pack_save_isex(im)) pack_save_fallback(o, im);
+    buf_adds(o, "</w:r>");
+    return;
+  }
   buf_printf(o, "<a:graphicData uri=\"%s\">", im->kind == OBJ_PICTURE ? "http://schemas.openxmlformats.org/drawingml/2006/picture" :
              im->kind == OBJ_GROUP ? "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" : "http://schemas.microsoft.com/office/word/2010/wordprocessingShape");
   w_obj(o, d, im, 0, 0, 0, &save_drawing);
@@ -3498,6 +3561,13 @@ static void w_run(Buf *o, Doc *d, const char *rpr, size_t rl, const char *s, u32
   for (i = 0; i <= n; i++) {
     int field = i + 2 < n + 0 && IS_FIELD(s + i);
     int pic = i + 4 <= n && IS_PIC(s + i), note = i + 4 <= n && IS_NOTE(s + i), mark = i + 4 <= n && IS_MARK(s + i);
+    if (i + 4 <= n && IS_MATH(s + i)) {          /* WP14a: an equation, as OMML (between the runs) */
+      const MathEq *e = doc_math(d, math_index(s + i));
+      if (i > a) { buf_adds(o, "<w:r>"); buf_add(o, rpr, rl); w_text(o, s + a, i - a); buf_adds(o, "</w:r>"); }
+      if (e) math_write_omml(o, e, rpr, rl);
+      i += 3; a = i + 1;
+      continue;
+    }
     if (i < n && !field && !pic && !note && !mark && !(i + 4 <= n && IS_ENOTE(s + i))) continue;
     if (i > a) { buf_adds(o, "<w:r>"); buf_add(o, rpr, rl); w_text(o, s + a, i - a); buf_adds(o, "</w:r>"); }
     if (pic) {
@@ -4257,6 +4327,7 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
   /* WP13: */
   /* WP14a: */
   /* WP15a: */
+  pack_save_parts(d, o);
   /* WP15b: */
   /* WP15c: */
   /* WP16: */
@@ -4294,6 +4365,7 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   /* WP11: */
   /* WP13: */
   /* WP14a: */
+  if (where == 3) math_write_mathpr(d, b);
   /* WP15a: */
   /* WP15b: */
   /* WP15c: */
@@ -4323,6 +4395,7 @@ u8 *docx_save(Doc *d, size_t *len)
   DocxOut ext;
   /* the pictures the text refers to, numbered for the media folder */
   free(save_ml); save_ml = NULL; save_nml = 0; save_drawing = 0;
+  pack_save_begin(d);                    /* (WP15a) charts' and SmartArt's parts: names and ids */
   if (d->nimages) {
     int w, n;
     mark_media(d, d->p, d->np);
@@ -4495,8 +4568,8 @@ u8 *docx_save(Doc *d, size_t *len)
       if (!(x = w_story(d, st, pk >= HF_N, pk < HF_N && d->wm.text[0], &xl))) { ok = 0; break; }
       ok = zip_add(&z, name, x, xl);
       free(x);
-      if (ok && save_nml) {
-        /* a header's pictures: the same media, through its own relationships */
+      if (ok && (save_nml || pack_save_has_rels())) {
+        /* a header's pictures: the same media, through its own relationships (and charts', WP15a) */
         Buf hr;
         int i;
         buf_init(&hr);
@@ -4505,6 +4578,7 @@ u8 *docx_save(Doc *d, size_t *len)
         for (i = 0; i < save_nml; i++)
           buf_printf(&hr, "<Relationship Id=\"rIdImg%d\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image%d.%s\"/>",
                      i + 1, i + 1, save_ml[i].type == IMG_PNG ? "png" : "jpeg");
+        pack_save_rels(&hr);
         buf_adds(&hr, "</Relationships>");
         sprintf(name, "word/_rels/%s%d.xml.rels", pk < HF_N ? "header" : "footer", g * HF_N + pk % HF_N + 1);
         ok = !hr.oom && zip_add(&z, name, hr.data, hr.len);
@@ -4606,6 +4680,7 @@ u8 *txt_save(Doc *d, int latin1, size_t *len)
   {
     u32 i, o = 0;
     for (i = 0; i < n; i++) {
+      if (i + 4 <= n && IS_MATH(t + i)) { i += 3; continue; }     /* WP14a: equations too */
       if (i + 4 <= n && (IS_PIC(t + i) || IS_MARK(t + i) || IS_NOTE(t + i))) { i += 3; continue; }     /* pictures, notes and comment marks are left out */
       t[o++] = t[i] == '\v' ? '\n' : t[i];
     }
@@ -4716,6 +4791,7 @@ void doc_format_pattern(int saving, char *out, size_t cap)
   out[o++] = ')'; out[o] = 0;
 }
 /* the first format whose sniff knows the bytes, else the one the name's ending names, else plain text */
+const char *doc_load_path;
 Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap)
 {
   size_t n;
@@ -4729,7 +4805,9 @@ Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap)
   for (i = 0; i < doc_nformats && !f; i++) if (doc_formats[i]->load && !doc_formats[i]->sniff && ext_in(path, doc_formats[i]->exts)) f = doc_formats[i];
   if (!f) f = &fmt_txt;
   err[0] = 0;
+  doc_load_path = path;
   d = f->load(data, n, lost, err, errcap);
+  doc_load_path = NULL;
   if (!d && !err[0]) snprintf(err, errcap, "Quill couldn't read %s.", path);
   free(data);
   return d;

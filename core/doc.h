@@ -306,6 +306,8 @@ typedef struct {
    holding it), the text wrapping round it, or behind or in front of the text */
 #define MAX_IMAGES 16384
 enum { OBJ_PICTURE, OBJ_SHAPE, OBJ_TEXTBOX, OBJ_GROUP };
+enum { OBJ_CHART = 8, OBJ_SMARTART = 9 };     /* (WP15a) a chart or SmartArt: its parts and model in Image.pack (core/chart.h) */
+#define OBJ_IS_GRAPHIC(k) ((k) == OBJ_CHART || (k) == OBJ_SMARTART)
 enum { WRAP_INLINE, WRAP_SQUARE, WRAP_TIGHT, WRAP_TOPBOTTOM, WRAP_BEHIND, WRAP_FRONT };
 enum { POS_COLUMN, POS_PAGE, POS_MARGIN, POS_PARA };     /* what a float's position is from (x: column, page or margin; y: paragraph, page or margin) */
 enum { PA_NONE, PA_START, PA_CENTER, PA_END };            /* or where it is aligned in that: left/top, centre, right/bottom */
@@ -343,6 +345,8 @@ typedef struct DocImage {
   i32 *poly; u16 npoly;
   i32 z;                    /* floating objects: the order they stack in, higher in front (equal ones in the
                                order their anchors come); Word's relativeHeight */
+  struct ObjPack *pack;     /* (WP15a) a chart's or SmartArt's parts and model (core/chart.h), shared between the
+                               entries copies make (counted); NULL for other objects */
   u8 decorative;            /* (WP24) marked decorative: a screen reader passes over it (Word's adec:decorative) */
 } Image;
 /* an object copied (dst a new entry): its text, objects and outline copied; its picture shared (it
@@ -437,6 +441,10 @@ typedef struct Doc {
   NotePr fnpr, enpr;        /* (WP22b) the document's footnote and endnote options (settings.xml) */
   struct NoteSeps *nseps;   /* (WP22b) the document's own note separators (core/notes.h), NULL: Word's */
   struct DocInfo *info;     /* (WP24) the document's properties (core/info.h), NULL: none read or set */
+  /* WP14a: equations (core/math.h): the entries the text's references name (only ever added to), and
+     settings.xml's m:mathPr kept verbatim */
+  struct MathEq **maths; int nmaths, mathcap;
+  char *mathpr;
   /* WP5 (core/review.h): tracked formatting changes, how changes and comments are shown, the people,
      move names, property changes of tables and sections kept verbatim, tracking formatting now */
   struct FmtRev *frevs; int nfrevs;   /* only added to (undo may bring back runs that refer to any) */
