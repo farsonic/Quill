@@ -14,6 +14,7 @@
 #include "chart.h"                 /* (WP15a) charts and SmartArt */
 #include "notes.h"   /* (WP22b) */
 #include "info.h"    /* (WP24) */
+#include "math.h"     /* WP14a: equations */
 
 /* ------------------------------------------------------------------ */
 /* reading: formatting as found (which fields a pPr or rPr sets) */
@@ -2207,6 +2208,28 @@ static char *part(ZipReader *z, const char *name, size_t *n)
 {
   return (char *)zip_read(z, zip_find(z, name), n);
 }
+/* WP14a: an equation in a paragraph (m:oMath; m:oMathPara for a display one): an entry in Doc.maths
+   and its reference in the text, in the paragraph's format at the size of its first sized run. 1 if
+   x was one (read to its END) */
+static int read_math(Xml *x, PCtx *pc)
+{
+  Ctx *c = pc->c;
+  CharFmt f;
+  MathEq *e;
+  char ref[8];
+  int k;
+  u16 sz;
+  if (strcmp(x->name, "oMath") && strcmp(x->name, "oMathPara")) return 0;
+  if (c->field == 1 || !(e = math_read_omml(x))) return 1;
+  f = pc->pcf;
+  f.rev = pc->rev; f.rid = pc->rid; f.bmark = c->bmark;
+  f.link = c->field == 2 && c->fieldlink ? c->fieldlink : pc->link;
+  if ((sz = math_size(e))) f.size = sz;
+  if ((k = doc_add_math(c->d, e)) < 0) return 1;
+  math_utf8(ref, k);
+  run_text(pc, ref, 4, &f);
+  return 1;
+}
 /* ------------------------------------------------------------------ */
 /* the work packages' reading hooks (WP0). Each package puts the call to its own function on a line
    right after its own marker line; never edit a marker line itself (so two packages' lines don't
@@ -2261,6 +2284,7 @@ static int docx_read_elem_ext(Xml *x, PCtx *pc)
   /* WP11: */
   /* WP13: */
   /* WP14a: */
+  if (read_math(x, pc)) return 1;
   /* WP15a: */
   /* WP15b: */
   /* WP15c: */
@@ -2301,6 +2325,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
   /* WP11: */
   /* WP13: */
   /* WP14a: */
+  if (!strcmp(x->name, "mathPr")) math_read_mathpr(c->d, x);
   /* WP15a: */
   /* WP15b: */
   /* WP15c: */
@@ -3133,6 +3158,13 @@ static void w_run(Buf *o, Doc *d, const char *rpr, size_t rl, const char *s, u32
   for (i = 0; i <= n; i++) {
     int field = i + 2 < n + 0 && IS_FIELD(s + i);
     int pic = i + 4 <= n && IS_PIC(s + i), note = i + 4 <= n && IS_NOTE(s + i), mark = i + 4 <= n && IS_MARK(s + i);
+    if (i + 4 <= n && IS_MATH(s + i)) {          /* WP14a: an equation, as OMML (between the runs) */
+      const MathEq *e = doc_math(d, math_index(s + i));
+      if (i > a) { buf_adds(o, "<w:r>"); buf_add(o, rpr, rl); w_text(o, s + a, i - a); buf_adds(o, "</w:r>"); }
+      if (e) math_write_omml(o, e, rpr, rl);
+      i += 3; a = i + 1;
+      continue;
+    }
     if (i < n && !field && !pic && !note && !mark && !(i + 4 <= n && IS_ENOTE(s + i))) continue;
     if (i > a) { buf_adds(o, "<w:r>"); buf_add(o, rpr, rl); w_text(o, s + a, i - a); buf_adds(o, "</w:r>"); }
     if (pic) {
@@ -3797,6 +3829,7 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   /* WP11: */
   /* WP13: */
   /* WP14a: */
+  if (where == 3) math_write_mathpr(d, b);
   /* WP15a: */
   /* WP15b: */
   /* WP15c: */
@@ -4111,6 +4144,7 @@ u8 *txt_save(Doc *d, int latin1, size_t *len)
   {
     u32 i, o = 0;
     for (i = 0; i < n; i++) {
+      if (i + 4 <= n && IS_MATH(t + i)) { i += 3; continue; }     /* WP14a: equations too */
       if (i + 4 <= n && (IS_PIC(t + i) || IS_MARK(t + i) || IS_NOTE(t + i))) { i += 3; continue; }     /* pictures, notes and comment marks are left out */
       t[o++] = t[i] == '\v' ? '\n' : t[i];
     }

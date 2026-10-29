@@ -428,6 +428,10 @@ typedef struct Doc {
   NotePr fnpr, enpr;        /* (WP22b) the document's footnote and endnote options (settings.xml) */
   struct NoteSeps *nseps;   /* (WP22b) the document's own note separators (core/notes.h), NULL: Word's */
   struct DocInfo *info;     /* (WP24) the document's properties (core/info.h), NULL: none read or set */
+  /* WP14a: equations (core/math.h): the entries the text's references name (only ever added to), and
+     settings.xml's m:mathPr kept verbatim */
+  struct MathEq **maths; int nmaths, mathcap;
+  char *mathpr;
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */

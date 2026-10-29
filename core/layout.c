@@ -7,6 +7,7 @@
 #include "layout.h"
 #include "hyph.h"
 #include "notes.h"   /* (WP22b) */
+#include "math.h"     /* WP14a: equations */
 
 #define DEFAULT_TAB 720                 /* half an inch, as Word */
 
@@ -157,13 +158,19 @@ static int make_boxes(Layout *L, Para *p, Work *w, u32 note, u32 enote)
         j = i + 4; b.kind = BX_ENOTE;
       } else if (i + 3 <= end && IS_FIELD(p->t + i)) {
         j = i + 3; b.kind = BX_FIELD;
+      } else if (i + 4 <= end && IS_MATH(p->t + i)) {        /* WP14a: an equation (nspace: a display one) */
+        const MLay *ml = math_layout(L->fs, L->d, math_index(p->t + i), f);
+        const MathEq *me = doc_math(L->d, math_index(p->t + i));
+        j = i + 4; b.kind = BX_MATH; b.nspace = (u8)(me && me->display);
+        b.w = ml ? ml->w * QFINE : 0;
       } else {
         while (j < end && p->t[j] != ' ' && p->t[j] != '\t' && p->t[j] != '\v' && !(j + 4 <= end && (IS_PIC(p->t + j) || IS_NOTE(p->t + j) || IS_MARK(p->t + j) || IS_ENOTE(p->t + j))) &&
-               !(j + 3 <= end && IS_FIELD(p->t + j)) && j - i < 60000) j++;
+               !(j + 3 <= end && IS_FIELD(p->t + j)) && !(j + 4 <= end && IS_MATH(p->t + j)) && j - i < 60000) j++;
         b.kind = BX_TEXT;
       }
       b.len = (u16)(j - i);
-      if (b.kind == BX_PIC) {
+      if (b.kind == BX_MATH) ;
+      else if (b.kind == BX_PIC) {
         int n = pic_index(p->t + i);
         b.w = n < L->d->nimages ? OBJ_W(&L->d->images[n]) * QFINE : 0;
       } else if (b.kind == BX_FLOAT) {
@@ -295,7 +302,7 @@ static void line_metrics(Layout *L, Para *p, Work *w, Line *ln)
   u32 k;
   i32 asc = 0, h = 0;
   const ParaFmt *pf = &p->pf;
-  i32 picasc = 0;
+  i32 picasc = 0, masc = 0, mdesc = 0;
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     FaceSize *z;
     if (w->b[k].kind == BX_DROP) continue;            /* it hangs down over the lines */
@@ -305,6 +312,12 @@ static void line_metrics(Layout *L, Para *p, Work *w, Line *ln)
       continue;
     }
     if (w->b[k].kind == BX_FLOAT) continue;
+    if (w->b[k].kind == BX_MATH) {                  /* WP14a: an equation's height and depth */
+      const MLay *ml = math_layout(L->fs, L->d, math_index(p->t + w->b[k].off), &w->b[k].f);
+      if (ml && ml->asc > masc) masc = ml->asc;
+      if (ml && ml->desc > mdesc) mdesc = ml->desc;
+      continue;
+    }
     z = lay_face(L, &w->b[k].f);
     if (z) {
       /* raised text: the line's top above it; lowered: room below */
@@ -322,6 +335,9 @@ static void line_metrics(Layout *L, Para *p, Work *w, Line *ln)
   else if (pf->linerule == LS_AUTO && pf->line > 0 && pf->line != 240) h = h * pf->line / 240;
   /* a picture taller than the text: its bottom on the baseline, the line grows (unless exact) */
   if (picasc > asc && pf->linerule != LS_EXACT) { h += picasc - asc; asc = picasc; }
+  /* WP14a: an equation taller or deeper than the text: the line grows (unless exact) */
+  if (masc > asc && pf->linerule != LS_EXACT) { h += masc - asc; asc = masc; }
+  if (mdesc > h - asc && pf->linerule != LS_EXACT) h = asc + mdesc;
   ln->height = h; ln->ascent = asc;
 }
 /* text wrapping round floating objects: while laying out a paragraph placed on a page (sh_on), each
@@ -507,6 +523,12 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
       if (b->kind == BX_FLOAT) { b->x = (i32)x; continue; }                            /* (placed apart from the text) */
       if (b->kind == BX_SPACE) { b->x = (i32)x; x += b->w; word = i + 1; continue; }
       if (b->kind == BX_BREAK) { b->x = (i32)x; i++; brk = 2; break; }     /* a line break ends the line */
+      if (b->kind == BX_MATH) {                 /* WP14a: an equation, as a picture; a display one has a line of its own */
+        if (i > ls && (b->nspace || x + b->w > (u32)room * QFINE)) { brk = 1; break; }
+        b->x = (i32)x; x += b->w; word = i + 1;
+        if (b->nspace) { i++; brk = 2; break; }
+        continue;
+      }
       if (b->kind == BX_PIC) {                  /* a picture: a line may break before and after it */
         if (x + b->w > (u32)room * QFINE && i > ls) { brk = 1; break; }
         b->x = (i32)x; x += b->w; word = i + 1;
@@ -575,6 +597,7 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
         }
         if (nsp) ln.width = room;
       }
+      if (ln.nbox && w.b[ls].kind == BX_MATH && w.b[ls].nspace) shift = math_line_shift(L->d, math_index(p->t + w.b[ls].off), extra);   /* WP14a */
       if (shift > 0) ln.left += shift;      /* centred and right-aligned lines start further in */
     }
     line_metrics(L, p, &w, &ln);
