@@ -30,6 +30,9 @@ typedef struct {
   i16 position;             /* raised (lowered if negative), half-points */
   u16 link;                 /* a hyperlink: Doc.links index + 1 (0: not a link) */
   u16 bmark;                /* in a bookmark: Doc.bmarks index + 1 (0: none) */
+  u16 frev;                 /* WP5: a tracked formatting change (w:rPrChange): Doc.frevs index + 1, 0 none */
+  u8 move;                  /* WP5: a tracked insertion or deletion that is a move (w:moveTo, w:moveFrom):
+                               Doc.rvmoves index + 1 (its name), 0 not a move */
 } CharFmt;
 enum { REV_NONE, REV_INS, REV_DEL };
 enum { FX_SMALLCAPS = 1, FX_DSTRIKE = 2, FX_BORDER = 4 };   /* FX_BORDER: a box round the characters (w:bdr) */
@@ -43,6 +46,7 @@ enum { CM_BOLD = 1, CM_ITALIC = 2, CM_UNDERLINE = 4, CM_STRIKE = 8, CM_SUPER = 1
        CM_LINK = 0x100000,       /* (not in CM_ALL: clearing formatting or painting it keeps links, as in Word) */
        CM_BMARK = 0x200000,      /* (nor this: bookmarks stay where they are) */
        CM_CBORDER = 0x400000,    /* FX_BORDER */
+       CM_FREV = 0x40000000,     /* WP5: frev (not in CM_ALL; CM_REV carries move with rev) */
        CM_LOOK = 0x4FCFFF,       /* how it looks (not its character style nor tracked changes) */
        CM_ALL = 0x4FEFFF };       /* CM_ALL leaves tracked changes alone */
 
@@ -135,6 +139,7 @@ typedef struct {
   u32 shade;                /* the paragraph's fill: 0 none, else HL_ON | 0xRRGGBB */
   Cell cell;                /* the (innermost) table cell it is in */
   Cell outer;               /* a table inside a table cell: the outer table's cell (table 0: not nested) */
+  u16 prev;                 /* WP5: a tracked paragraph formatting change (w:pPrChange): Doc.frevs index + 1, 0 none */
 } ParaFmt;
 /* a paragraph's borders: those with the same borders run together in one box, "between" lines
    separating them */
@@ -144,6 +149,7 @@ enum { LEAD_NONE, LEAD_DOT, LEAD_HYPHEN, LEAD_LINE };
 enum { PM_STYLE = 1, PM_ALIGN = 2, PM_INDENT = 4, PM_SPACING = 8, PM_LINE = 16, PM_TABS = 32, PM_KEEP = 64, PM_LIST = 128,
        PM_BREAK = 256, PM_CELL = 512, PM_SECT = 1024, PM_DROP = 2048,
        PM_BORDER = 0x1000, PM_SHADE = 0x2000, PM_PAGINATION = 0x4000 /* keeplines, nowidow */, PM_CONTEXT = 0x8000,
+       PM_PREV = 0x40000000,     /* WP5: prev (not in PM_ALL) */
        PM_ALL = 0xF1FF };   /* PM_ALL leaves the cell, the section and drop caps alone */
 #define PM_STYLED (PM_ALL & ~PM_STYLE)    /* what a paragraph style can set */
 #define in_table(pf) ((pf)->cell.table != 0)
@@ -354,7 +360,14 @@ void enote_utf8(char *out, int index);   /* an endnote reference: 4 bytes and a 
 /* comments: where one starts and ends is marked in the text with U+F8000 + n and U+FC000 + n for
    Doc.comments[n]. The marks have no width; like pictures they move, copy and undo with the text */
 #define MAX_COMMENTS 16384
-typedef struct { char author[64], initials[12], date[24]; Story text; } Comment;
+typedef struct {
+  char author[64], initials[12], date[24]; Story text;
+  /* WP5: replies and Resolve (commentsExtended, commentsIds, commentsExtensible) */
+  int parent;               /* a reply: Doc.comments index + 1 of the comment it answers (0: it starts a thread) */
+  u8 done;                  /* resolved (w15:done) */
+  u32 durable;              /* its durable id (w16cid), 0 none yet */
+  char dateutc[24];         /* its time in UTC (w16cex:dateUtc), "" unknown */
+} Comment;
 #define IS_CSTART(t) ((u8)(t)[0] == 0xF3 && ((u8)(t)[1] & 0xFC) == 0xB8)
 #define IS_CEND(t) ((u8)(t)[0] == 0xF3 && ((u8)(t)[1] & 0xFC) == 0xBC)
 #define IS_MARK(t) ((u8)(t)[0] == 0xF3 && ((u8)(t)[1] & 0xF8) == 0xB8)       /* either */
@@ -407,6 +420,15 @@ typedef struct Doc {
   StoryEdit edit;           /* a story being edited in the body's place */
   struct KeptPart *kept; int nkept;   /* .docx parts kept verbatim, written back on saving (core/keep.h) */
   /* (work packages: new fields go below, at the end) */
+  /* WP5 (core/review.h): tracked formatting changes, how changes and comments are shown, the people,
+     move names, property changes of tables and sections kept verbatim, tracking formatting now */
+  struct FmtRev *frevs; int nfrevs;   /* only added to (undo may bring back runs that refer to any) */
+  struct RevView *rview;    /* Display for Review and Show Markup (NULL: All Markup, everything shown) */
+  struct Person *people; int npeople;   /* people.xml: authors and how they signed in */
+  char (*rvmoves)[40]; int nrvmoves;    /* moves' names (w:name of their ranges) */
+  struct KeptChange *kchg; int nkchg;   /* w:tblPrChange, w:trPrChange, w:tcPrChange, w:sectPrChange ... */
+  u16 rvtrack;              /* formatting changes are being tracked: Doc.revs index + 1 of their author, 0 not */
+  u8 rvsettings;            /* settings.xml's w:revisionView read (bit 0) */
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */

@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include "layout.h"
 #include "hyph.h"
+#include "review.h"
 
 #define DEFAULT_TAB 720                 /* half an inch, as Word */
 
@@ -129,13 +130,25 @@ static int make_boxes(Layout *L, Para *p, Work *w, u32 note, u32 enote)
   u32 r, start = 0;
   for (r = 0; r < p->nr; r++) {
     u32 end = p->r[r].end, i = start;
-    const CharFmt *f = &p->r[r].f;
+    CharFmt rvf = p->r[r].f;
+    u8 rvm = 0;
+    int rvh = (rvf.rev || rvf.frev) && rv_show_run(L->d, &rvf, &rvm);   /* (WP5: how a tracked change shows) */
+    const CharFmt *f = &rvf;
     FaceSize *z = lay_face(L, f);
     while (i < end) {
       Box b;
       u32 j = i;
       memset(&b, 0, sizeof b);
       b.off = i; b.f = *f;
+      b.rvmark = rvm;
+      if (rvh && !(i + 4 <= end && IS_MARK(p->t + i))) {
+        /* (WP5) text the change hides as shown: no width, up to the next comment mark */
+        while (j < end && !(j + 4 <= end && IS_MARK(p->t + j)) && j - i < 60000) j = (u32)utf8_next(p->t, end, j);
+        b.kind = BX_REVHIDE; b.len = (u16)(j - i); b.f.hl = 0;
+        if (!add_box(w, &b)) return 0;
+        i = j;
+        continue;
+      }
       if (p->t[i] == ' ') {
         while (j < end && p->t[j] == ' ' && j - i < 255) j++;
         b.kind = BX_SPACE; b.nspace = (u8)(j - i);
@@ -1934,7 +1947,8 @@ int lay_update_part(Layout *L, u32 budget)
         if (IS_ENOTE(p->t + k)) { int n = note_index(p->t + k); enotes++; if (n < d->nenotes && !L->enotenum[n]) L->enotenum[n] = enotes; k += 3; }
     for (k = j; k < L->npl && k < j + 64; k++) if (L->pl[k].p == p) { found = k; break; }
     if (found < L->npl && L->pl[found].laid && L->pl[found].ver == p->ver && L->pl[found].avail == avail && !strcmp(L->pl[found].label, label) &&
-        L->pl[found].notebase == notebase && L->pl[found].enotebase == enotebase && L->pl[found].hyph == d->hyphenate && !L->pl[found].shaped) {
+        L->pl[found].notebase == notebase && L->pl[found].enotebase == enotebase && L->pl[found].hyph == d->hyphenate && !L->pl[found].shaped &&
+        L->pl[found].rvsig == rv_sig(d)) {
       npl[i] = L->pl[found];
       memset(&L->pl[found], 0, sizeof(ParaLay));
       j = found + 1;
@@ -1953,6 +1967,7 @@ int lay_update_part(Layout *L, u32 budget)
         continue;
       }
       npl[i].laid = 1;
+      npl[i].rvsig = rv_sig(d);                   /* (WP5) */
       L->laid++;
     }
   }
