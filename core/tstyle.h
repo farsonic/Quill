@@ -18,6 +18,7 @@ typedef struct {
   u32 shade;
   unsigned cmask; CharFmt cf;
   u8 align_set, align;
+  u8 valign_set, valign;    /* WP21b: the cell's vertical alignment */
 } CellLook;
 
 /* the gallery: how many styles, and style i (static, built on first use; NULL out of range) */
@@ -32,5 +33,20 @@ void tstyle_preview(const TableStyle *s, u16 look, int row, int col, int nrows, 
 unsigned tstyle_cmask(Doc *d, int ts);
 /* a built-in style into d (by its index in the gallery): its number, 0 if out of memory */
 int  tstyle_use_builtin(Doc *d, int i);
+
+/* ---- WP21a: the table style editor (New, Modify and Delete Table Style) */
+/* a new style s (k 0; its id made from its name, unique in d and the gallery) or style number k
+   changed to s (its id kept): every table in style k is formatted afresh, one undo step (caret: where
+   the edit is). Its number, 0 if out of room or k isn't a style */
+int  tstyle_define(Doc *d, int k, const TableStyle *s, Pos caret);
+/* style k deleted: tables in it keep how they look but have no style, styles based on it take its
+   base. One undo step; 0 for Table Grid and Table Normal (or no such style) */
+int  tstyle_delete(Doc *d, int k, Pos caret);
+/* how many tables (top-level and nested) are in style k */
+int  tstyle_uses(Doc *d, int k);
+/* a new style's starting point: based on based (0: none), named name, nothing of its own */
+void tstyle_blank(TableStyle *s, const Doc *d, int based, const char *name);
+/* a style being edited (not in d yet) on a cell, over the styles of d it is based on: for its picture */
+void tstyle_preview_in(Doc *d, const TableStyle *s, u16 look, int row, int col, int nrows, int ncols, CellLook *out);
 
 #endif

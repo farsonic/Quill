@@ -2906,6 +2906,7 @@ static void formula_done(void)
 }
 /* the borders' pen (Table Design > Borders) */
 static struct QBorders pen = { TB_ALL, PB_SINGLE, 4, COLOR_AUTO };
+const struct QBorders *wp_pen(void) { return &pen; }      /* WP21a: the Border Painter's pen (wp_tables.h) */
 
 /* ------------------------------------------------------------------ */
 /* Window and Screen: the public screen Quill opens on, and where its window opens */

@@ -31,8 +31,8 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Developer | 11 | 0 | 0 | 11 | 0 |
 | Zotero | 7 | 0 | 0 | 0 | 7 |
 | Help | 4 | 1 | 0 | 0 | 3 |
-| Table Design | 8 | 4 | 0 | 4 | 0 |
-| Table Layout | 33 | 26 | 1 | 6 | 0 |
+| Table Design | 8 | 8 | 0 | 0 | 0 |
+| Table Layout | 33 | 32 | 0 | 1 | 0 |
 | Picture Format | 14 | 14 | 0 | 0 | 0 |
 | Shape Format | 13 | 9 | 0 | 4 | 0 |
 | Header & Footer | 5 | 5 | 0 | 0 | 0 |
@@ -301,10 +301,10 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Blank Page (Pages) `insert.blankPage` — `ID_BLANKPAGE`
 - ✅ Page Break (Pages) `insert.pageBreak` — `ID_PAGEBREAK`
 - ✅ Insert Table (Tables) `insert.table` — `ID_TABLE` (`open_table()`)
-- ⬜ Draw Table (Tables) `table.draw` — README 0.4 "Not yet: drawing tables with the mouse" [WP21b]
+- ✅ Draw Table (Tables) `table.draw` — WP21b: Insert › Tables › Draw Table, Table Layout › Cells, Table › Draw Table (wp_tables2.c `ID_TB_DRAWTABLE`, a mouse tool in view.c; Esc ends it): a box drawn outside tables makes a one-cell table that size, a line across or down cells splits them (core/tbldraw.c `tbl_draw_stroke`, core/table.c `tbl_hsplit`/`tbl_vsplit`; tests/test_wp21b.c "draw table") [WP21b]
 - ✅ Convert Text to Table (Tables) `table.fromText` — `ID_TOTABLE`
-- ⬜ Excel Spreadsheet (Tables) `insert.spreadsheet` — WordCraft's makes a table from CSV text [WP21a]
-- ⬜ Quick Tables (Tables) `table.quick` [WP21a]
+- ✅ Excel Spreadsheet (Tables) `insert.spreadsheet` — WP21a: Insert › Tables › Spreadsheet, Insert › Spreadsheet (CSV)...: a CSV/TSV file as a table (comma, semicolon or tab, quoted fields, Latin-1 or UTF-8, numbers to the right, heading row repeats; core/tblquick.c `tbl_from_csv`, tests "spreadsheet") [WP21a]
+- ✅ Quick Tables (Tables) `table.quick` — WP21a: Insert › Tables › Quick Tables (a window to choose from) and Insert › Quick Tables: Calendar 1-3 (this month; Sunday first; week numbers), Double Table, Matrix, Tabular List, With Subheads 1-2, words in the interface language (core/tblquick.c `tbl_quick`, tests "quick tables") [WP21a]
 - ✅ Pictures (Illustrations) `insert.picture` — `ID_PICTURE` (PNG, JPEG only)
 - ➖ Online Pictures (Illustrations) `insert.onlinePicture` — WordCraft doesn't have it either (online service)
 - ✅ Shapes (Illustrations) `insert.shape` — `ID_SHAPESDD` (24 presets, `SH_` in doc.h)
@@ -560,18 +560,18 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Community Discord (Help) `ui.discord` — network (opens a web page)
 - ➖ Commands (Agents) `ui.dialog commands` — WordCraft's list of command ids for agents/scripts: control protocols left out on purpose
 
-### Table Design (8: ✅ 4 · 🟨 0 · ⬜ 4 · ➖ 0)
+### Table Design (8: ✅ 8 · 🟨 0 · ⬜ 0 · ➖ 0)
 
 - ✅ Table Style Options (Table Style Options) `table.look` — `ID_LK_FIRSTROW` … `ID_LK_BANDCOLS` (6)
 - ✅ Table Styles (Table Styles) `table.style` — `ID_TSTYLEDD`
-- ⬜ New Table Style (Table Styles) `table.newStyle` — README roadmap "a table style editor" [WP21a]
-- ⬜ Modify Table Style (Table Styles) `table.modifyStyle` [WP21a]
-- ⬜ Delete Table Style (Table Styles) `table.deleteStyle` [WP21a]
+- ✅ New Table Style (Table Styles) `table.newStyle` — WP21a: Table Design › Style › New Style, Table › Table Styles: the table style editor (name, based on, every part: whole table, header/total rows, first/last column, odd/even banded rows and columns, the four corner cells; bold, italic, underline, size, colour, shading, borders in any pen, 9-way alignment; a picture of the result); written to styles.xml as a `w:customStyle` table style with its `w:tblStylePr` parts (core/tstyle.c `tstyle_define`, tests "new table style") [WP21a]
+- ✅ Modify Table Style (Table Styles) `table.modifyStyle` — WP21a: the editor on the caret's table's style; every table in it (or in styles based on it) is formatted afresh in one undo step (`tstyle_define`, tests "modify table style") [WP21a]
+- ✅ Delete Table Style (Table Styles) `table.deleteStyle` — WP21a: the caret's table's style deleted after asking; its tables keep their look without a style, styles based on it take its base, it isn't saved (`tstyle_delete`, tests "delete table style") [WP21a]
 - ✅ Shading (Table Styles) `table.shading` — `ID_SHADINGDD`
 - ✅ Borders (Borders) `table.borders` — `ID_TBORDERSDD` with pen `ID_PENSTYLE`/`ID_PENWIDTH`/`ID_PENCOLOR`
-- ⬜ Border Painter (Borders) `table.borderPainter` [WP21a]
+- ✅ Border Painter (Borders) `table.borderPainter` — WP21a: Table Design › Paint › Border Painter, a mouse tool: a click puts the Borders group's pen (style, weight, colour) on the nearest cell edge (both cells' sides), a stroke on every edge along it; Esc ends it (core/tbldraw.c `tbl_paint_stroke`, tests "border painter") [WP21a]
 
-### Table Layout (33: ✅ 26 · 🟨 1 · ⬜ 6 · ➖ 0)
+### Table Layout (33: ✅ 32 · 🟨 0 · ⬜ 1 · ➖ 0)
 
 - ✅ Select Table (Table) `table.selectTable` — `ID_TSELECTDD` (`CMD_TSELECT` 3)
 - ✅ Select Row (Table) `table.selectRow` — `ID_TSELECTDD`
@@ -579,11 +579,11 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Select Cell (Table) `table.selectCell` — `ID_TSELECTDD`
 - ✅ View Gridlines (Table) `table.viewGridlines` — `ID_TGRID`
 - ✅ Properties (Table) `table.properties` — `ID_TPROPS` (`open_tprops()`)
-- ⬜ Alt Text (Table) `table.altText` — no w:tblCaption/w:tblDescription [WP21b]
+- ✅ Alt Text (Table) `table.altText` — WP21b: Table Layout › Cells › Alt Text, Table › Alt Text..., right-button menu: title and description read and written as `w:tblCaption`/`w:tblDescription` (tests "alt text and floating") [WP21b]
 - ⬜ Table Direction (Table) `table.rtl` [WP27]
-- ⬜ Draw Table (Draw) `table.draw` [WP21b]
-- ⬜ Eraser (Draw) `table.eraser` [WP21b]
-- ⬜ Delete Cells (Rows & Columns) `table.deleteCells` — rows, columns or table only (`ID_DELTABLEDD`); no Delete Cells (shift left/up) [WP21b]
+- ✅ Draw Table (Draw) `table.draw` — WP21b: Table Layout › Cells › Draw Table (see Insert) [WP21b]
+- ✅ Eraser (Draw) `table.eraser` — WP21b: Table Layout › Cells › Eraser, Table › Eraser, a mouse tool: the edge between two cells nearest the click goes (the cells merged), an outside edge loses its line (core/tbldraw.c `tbl_erase_stroke`, tests "eraser") [WP21b]
+- ✅ Delete Cells (Rows & Columns) `table.deleteCells` — WP21b: Table Layout › Cells › Delete Cells, Table › Delete Cells..., right-button menu: shift cells left (rows end short, as in Word), shift cells up (empty cells at the bottom), entire row, entire column, on the selected block (core/table.c `tbl_delete_cells`, tests "delete cells") [WP21b]
 - ✅ Delete Rows (Rows & Columns) `table.deleteRow` — `ID_DEL_ROW`
 - ✅ Delete Columns (Rows & Columns) `table.deleteColumn` — `ID_DEL_COL`
 - ✅ Delete Table (Rows & Columns) `table.deleteTable` — `ID_DEL_TABLE`
@@ -599,9 +599,9 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Column Width (Cell Size) `table.columnWidth` — `ID_COLW`
 - ✅ Distribute Rows (Cell Size) `table.distributeRows` — `ID_DISTROWS`
 - ✅ Distribute Columns (Cell Size) `table.distributeColumns` — `ID_DISTCOLS`
-- 🟨 Alignment (Alignment) `table.cellAlign` — `ID_VALIGN0`-`2`: top, centre, bottom only; WordCraft's 9-way grid sets the paragraphs' alignment too [WP21b]
-- ⬜ Text Direction (Alignment) `table.textDirection` — README roadmap "text direction in cells" [WP21b]
-- ✅ Cell Margins (Alignment) `table.cellMargins` — `ID_TPROPS` (table cell margins; no per-cell margins)
+- ✅ Alignment (Alignment) `table.cellAlign` — `ID_VALIGN0`-`2`, and WP21b's 9-way Align list (Table Layout › Cells, Table › Cell Alignment, right-button menu) setting the cells' vertical alignment and their paragraphs' alignment (core/table.c `tbl_cell_align`, tests "cell align"); table styles can set it too (`w:vAlign` in a style's `w:tcPr`) [WP21b]
+- ✅ Text Direction (Alignment) `table.textDirection` — WP21b: Table Layout › Cells › Text Direction, Table › Text Direction, right-button menu: across, turned 90° (`tbRl`) or 270° (`btLr`), read and written; turned text is laid out along the cell (the row growing to fit it, or wrapping in an exact row), drawn turned on the screen (view.c `draw_turned`) and in PDFs (a turned text frame), with the caret across it and clicks finding it (core/layout.c `place_turned`, tests "turned text") [WP21b]
+- ✅ Cell Margins (Alignment) `table.cellMargins` — `ID_TPROPS` (table cell margins), and WP21b's Cell Options (per-cell margins, `w:tcMar`, laid out per cell; tests "cell margins")
 - ✅ Sort (Data) `table.sort` — `ID_TSORT`
 - ✅ Repeat Header Rows (Data) `table.repeatHeader` — `ID_HEADERROW`
 - ✅ Convert to Text (Data) `table.toText` — `ID_TOTEXT`
@@ -791,7 +791,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 
 - 🟨 **Run and paragraph properties, styles, numbering, sections** — Quill reads and writes the common set (core/docx.c). Missing: complex-script properties (`w:rtl`, `w:cs`, `w:szCs`, `w:bCs`) and East Asian font slots (`w:eastAsia`), languages (`w:lang`, none read), every `ST_NumberFormat` beyond decimal/letters/roman (`NF_` in doc.h), indents in characters, more than 8 tab stops a paragraph (`ParaFmt.tabs[8]`), hidden, emboss, imprint, outline, shadow, underline colour, `w:outlineLvl`.
 - 🟨 **Positional tabs (`w:ptab`)** — read as an ordinary tab (docx.c line 1355), not placed by alignment/margin.
-- 🟨 **Tables** — widths, merges, borders, shading, styles with conditional formatting, nested tables (one level), cantSplit, heading rows: ✅. Floating tables (`w:tblpPr`) are placed in the text (README roadmap); row exceptions (`w:tblPrEx`) and right-to-left tables (`w:bidiVisual`) not read; tables in headers and footers come in as their text (README roadmap).
+- 🟨 **Tables** — widths, merges, borders, shading, styles with conditional formatting, nested tables (one level), cantSplit, heading rows: ✅. Floating tables (`w:tblpPr`) ✅ (WP21b: placed where they say, the text wrapping round them, written back), cells' text direction (`w:textDirection`), own margins (`w:tcMar`) and tables' alt text (`w:tblCaption`, `w:tblDescription`) ✅ (WP21b), custom table styles ✅ (WP21a); row exceptions (`w:tblPrEx`) and right-to-left tables (`w:bidiVisual`) not read; tables in headers and footers come in as their text (README roadmap).
 - ✅ **Headers/footers, page borders, line numbers, gutter, mirror margins** — first/even/odd, per section, link to previous: ✅. WP22a: `w:pgMar w:gutter`, `w:rtlGutter`, `w:gutterAtTop`, `w:mirrorMargins`, `w:printTwoOnOne`, `w:bookFoldPrinting`/`w:bookFoldRevPrinting`/`w:bookFoldPrintingSheets`, `w:bordersDoNotSurroundHeader/Footer`; page borders per section and per side (`w:pgBorders` every attribute), read and written (tests/test_wp22a.c).
 - ✅ **Hyphenation settings** — `w:autoHyphenation`, `w:hyphenationZone`, `w:doNotHyphenateCaps`, `w:consecutiveHyphenLimit` read, written and laid out (WP22a: core/pages.c `pages_hyph_zone`, `pages_hyph_allowed`).
 - ✅ **Footnotes, endnotes, comments** — read and written. Note options (`w:footnotePr`/`w:endnotePr`) and the document's own separators and continuation notice read and written (WP22b ✅). Comments' replies, resolved state, durable ids and UTC times, and the people (`commentsExtended`, `commentsIds`, `commentsExtensible`, `people.xml`, each person's own entry kept) ✅ (WP5, core/docx.c `wp5_read_parts()`, `wp5_write_parts()`).
@@ -844,7 +844,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ✅ **Turned text** — WP18: text in shapes and text boxes turns with them, and turns a quarter for vertical text, on the screen (drawn upright into a bitmap of its own and copied turned, amiga/view.c `draw_text_turned`) and in PDFs.
 - ✅ **Line numbering** — start, count by, distance, restart, for each section on its own (WP22a: Apply to in the Line Numbers window).
 - ✅ **Drop caps** — dropped or in the margin, 1-10 lines.
-- 🟨 **Tables across pages** — rows break, heading rows repeat ✅; floating tables ⬜.
+- ✅ **Tables across pages** — rows break, heading rows repeat ✅; floating tables ✅ (WP21b: on the page their anchor is on, the text wrapping round them; core/layout.c `place_float_table`, tests "floating table"; a floating table taller than the page runs on rather than breaking as Word's can).
 - ✅ **Footnotes** — at the foot of the page that refers to them or beneath its text; a long note continues on the next page under the continuation separator (with the document's continuation notice); endnotes at the document's or each section's end; numbering by format, start, restart each section/page (WP22b).
 - ✅ **Tab stops** — left, centre, right, decimal, leaders (at most 8 a paragraph).
 - ✅ **Contextual spacing, line spacing rules (auto/at least/exactly)**.
