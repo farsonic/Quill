@@ -1295,7 +1295,7 @@ static void open_list(struct RData *d, Object *obj, int k)
       const TableStyle *ts = &doc->tstyles[k - 1];
       int dup = !strcmp(ts->id, "TableNormal"), used = 0;
       for (i = 0; i < doc->ntables && !used; i++) if (doc->tables[i].tstyle == k) used = 1;
-      if (!used) continue;                       /* (a file from Word may carry a hundred it doesn't use) */
+      if ((!used && !ts->custom) || ts->gone) continue;   /* (a file from Word may carry a hundred it doesn't use; WP21a: one's own are shown) */
       for (i = 0; i < tstyle_builtin_count() && !dup; i++) if (!strcmp(tstyle_builtin(i)->id, ts->id)) dup = 1;
       if (!dup) { d->tsval[d->tsn] = 1000 + k; d->tsp[d->tsn++] = ts; }
     }

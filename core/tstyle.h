@@ -46,5 +46,7 @@ int  tstyle_delete(Doc *d, int k, Pos caret);
 int  tstyle_uses(Doc *d, int k);
 /* a new style's starting point: based on based (0: none), named name, nothing of its own */
 void tstyle_blank(TableStyle *s, const Doc *d, int based, const char *name);
+/* a style being edited (not in d yet) on a cell, over the styles of d it is based on: for its picture */
+void tstyle_preview_in(Doc *d, const TableStyle *s, u16 look, int row, int col, int nrows, int ncols, CellLook *out);
 
 #endif

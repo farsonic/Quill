@@ -1404,7 +1404,7 @@ int tbl_cell_align(Doc *d, Pos a, Pos b, int valign, int align)
   use_table(d, pos_cmp(a, b) <= 0 ? a.para : b.para);
   return block_change(d, a, b, fn_align, v);
 }
-static void fn_dir(Cell *c, Para *p, const void *arg) { (void)p; c->tdir = (u8)*(const int *)arg; }
+static void fn_dir(Cell *c, Para *p, const void *arg) { c->tdir = (u8)*(const int *)arg; }
 int tbl_cell_dir(Doc *d, Pos a, Pos b, int dir)
 {
   if (dir < TD_HORZ || dir > TD_UP) return 0;
@@ -1416,7 +1416,6 @@ static void fn_mar(Cell *c, Para *p, const void *arg)
 {
   const MarArg *m = (const MarArg *)arg;
   int k;
-  (void)p;
   c->marset = m->set;
   for (k = 0; k < 4; k++) c->mar[k] = (i16)(m->set & (1 << k) ? m->mar[k] : 0);
 }

@@ -239,6 +239,13 @@ static void make_id(const Doc *d, const char *name, char *id, int self)
     if (clash) { char t[48]; sprintf(t, "%.30s%d", base, k++ % 1000); strcpy(id, t); }
   }
 }
+void tstyle_preview_in(Doc *d, const TableStyle *s, u16 look, int row, int col, int nrows, int ncols, CellLook *out)
+{
+  const TableStyle *ch[9];
+  int n = s->based[0] ? chain(d, doc_tstyle(d, s->based), ch) : 0;
+  ch[n++] = s;
+  cell_of(ch, n, look, row, col, 1, nrows, ncols, NULL, out);
+}
 void tstyle_blank(TableStyle *s, const Doc *d, int based, const char *name)
 {
   memset(s, 0, sizeof *s);
