@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "doc.h"
+#include "field.h"
 #include "objfx.h"
 #include "keep.h"
 #include "image.h"
@@ -13,7 +14,9 @@
 #include "info.h"    /* (WP24) */
 #include "wordart.h" /* (WP19) */
 #include "math.h"     /* WP14a */
+#include "ink.h"      /* WP20 */
 #include "review.h"
+#include "outline.h"                  /* (WP11) heading_style_level */
 
 /* ------------------------------------------------------------------ */
 /* undo: a step replaces paragraphs [p0, p0 + nnew) with copies of what was there before the edit
@@ -392,6 +395,7 @@ static int cf_eq(const CharFmt *a, const CharFmt *b)
          a->cstyle == b->cstyle && a->fx == b->fx && a->ul == b->ul && a->spacing == b->spacing && a->scale == b->scale && a->position == b->position &&
          a->link == b->link && a->bmark == b->bmark &&
          a->fx2 == b->fx2 && a->ulcolor == b->ulcolor && a->shade == b->shade && a->rx == b->rx &&   /* (WP9's) */
+         a->lang == b->lang && a->langea == b->langea && a->langbidi == b->langbidi && a->noproof == b->noproof &&   /* (WP31's) */
          a->frev == b->frev && a->move == b->move;       /* (WP5) */
 }
 /* the run covering byte off (past the end: the last run). Points into the paragraph, so it is good
@@ -666,6 +670,9 @@ void cf_apply(CharFmt *c, unsigned mask, const CharFmt *v)
   if (mask & CM_ULCOLOR) c->ulcolor = v->ulcolor;
   if (mask & CM_SHADE) c->shade = v->shade;
   if (mask & CM_RX) c->rx = v->rx;
+  /* WP31's: the language (with w:lang's other two) and "do not check" (proflang.h) */
+  if (mask & 0x04000000U) { c->lang = v->lang; c->langea = v->langea; c->langbidi = v->langbidi; }
+  if (mask & 0x02000000U) c->noproof = v->noproof;
 }
 /* the CM_ fields mask names set from val on a..b (either order), runs split at the ends; an empty
    paragraph's one run takes it too. One undo step; 0 if the range is empty */
@@ -944,6 +951,7 @@ void pf_apply(ParaFmt *p, unsigned mask, const ParaFmt *v)
   if (mask & PM_PAGINATION) { p->keeplines = v->keeplines; p->nowidow = v->nowidow; }
   if (mask & PM_CONTEXT) p->contextual = v->contextual;
   if (mask & PM_PREV) p->prev = v->prev;       /* (WP5) */
+  if (mask & PM_OUTLINE) p->outlvl = v->outlvl;                    /* (WP11) */
 }
 /* the PM_ groups mask names set from val on paragraphs pa..pb (either order, pb clamped to the
    last). One undo step */
@@ -1308,6 +1316,7 @@ int img_clone(Image *dst, const Image *src, int own)
   dst->fx.raw = NULL;                         /* WP17 */
   dst->sig = NULL;                            /* WP19 */
   pack_ref(dst->pack);                       /* (WP15a) a chart's parts: shared */
+  ff_ref(dst->ff);                           /* WP20: a freeform's paths: shared */
   if (own) {
     dst->data = NULL; dst->shared = 0;
     if (src->data && (dst->data = (u8 *)malloc(src->len ? src->len : 1))) memcpy(dst->data, src->data, src->len);
@@ -1346,6 +1355,7 @@ void img_release(Image *im)
   free(im->fx.raw); im->fx.raw = NULL;      /* WP17 */
   sig_free(im->sig); im->sig = NULL;        /* WP19 */
   pack_unref(im->pack); im->pack = NULL;     /* (WP15a) */
+  ff_unref(im->ff); im->ff = NULL;           /* WP20 */
 }
 /* an entry added that the document takes as it is (what it holds is its own) */
 int doc_take_object(Doc *d, Image *im)
@@ -2063,7 +2073,7 @@ static int paste_runs(Doc *d, Para *q, const Fragment *f, const Para *s, const C
     u32 o = pos, e = s->r[r].end;
     while (o < e) {
       u32 m = o;
-      while (m < e && !((u8)s->t[m] >= 0xF3 && m + 4 <= e && (IS_PIC(s->t + m) || IS_NOTE(s->t + m) || IS_MARK(s->t + m) || IS_ENOTE(s->t + m) || IS_MATH(s->t + m)))) m++;
+      while (m < e && !((u8)s->t[m] >= 0xF3 && m + 4 <= e && (IS_PIC(s->t + m) || IS_NOTE(s->t + m) || IS_MARK(s->t + m) || IS_ENOTE(s->t + m) || IS_FMARK(s->t + m) || IS_MATH(s->t + m)))) m++;
       if (m > o && !para_append(q, s->t + o, m - o, &c)) return 0;
       if (m < e && IS_MATH(s->t + m)) {
         /* WP14a: an equation: the same entry (same document) or a copy of the fragment's */
@@ -2090,6 +2100,9 @@ static int paste_runs(Doc *d, Para *q, const Fragment *f, const Para *s, const C
           }
           if (same || j >= 0) { pic_utf8(ref, n); if (!para_append(q, ref, 4, &c)) return 0; }
         }
+        /* a field's marks: kept within the same document (they share its record); from another, the
+           result stays as text */
+        else if (IS_FMARK(s->t + m) && same && mode != PASTE_TEXT && !para_append(q, s->t + m, 4, &c)) return 0;
         m += 4;
       }
       o = m;
@@ -2209,7 +2222,7 @@ int doc_add_style(Doc *d, const Style *s)
 /* ------------------------------------------------------------------ */
 /* styles: what they set themselves, and what that comes to */
 static const unsigned pf_groups[] = { PM_ALIGN, PM_INDENT, PM_SPACING, PM_LINE, PM_TABS, PM_KEEP, PM_LIST, PM_BREAK, PM_BORDER, PM_SHADE,
-                                      PM_PAGINATION, PM_CONTEXT };
+                                      PM_PAGINATION, PM_CONTEXT, PM_OUTLINE };
 static const unsigned cf_fields[] = { CM_BOLD, CM_ITALIC, CM_UNDERLINE, CM_STRIKE, CM_SUPER, CM_SUB, CM_CAPS, CM_FONT, CM_SIZE, CM_COLOR, CM_HL,
                                       CM_SMALLCAPS, CM_DSTRIKE, CM_UL, CM_SPACING, CM_SCALE, CM_POSITION, CM_CBORDER,
                                       CM_FX2, CM_ULCOLOR, CM_SHADE, CM_RX };
@@ -2232,6 +2245,7 @@ static int pf_same(const ParaFmt *a, const ParaFmt *b, unsigned g)
   case PM_SHADE: return a->shade == b->shade;
   case PM_PAGINATION: return a->keeplines == b->keeplines && a->nowidow == b->nowidow;
   case PM_CONTEXT: return a->contextual == b->contextual;
+  case PM_OUTLINE: return a->outlvl == b->outlvl;                  /* (WP11) */
   }
   return 1;
 }
@@ -2292,6 +2306,7 @@ static void style_resolve1(Doc *d, int k, u8 *state)
   if (b != k && style_ok(d, b, s->type) && (style_resolve1(d, b, state), state[b] == 2)) { pf = d->styles[b].pf; cf = d->styles[b].cf; em = d->styles[b].ecmask; }
   else { pf = d->defpf; cf = d->defcf; }
   pf_apply(&pf, s->pmask & PM_STYLED, &s->opf);
+  if (s->type == ST_PARA && !(s->pmask & PM_OUTLINE) && heading_style_level(s->name)) pf.outlvl = (u8)heading_style_level(s->name);   /* (WP11) Word's built-in headings */
   /* numbered by the style without indents of its own: the list level's */
   if ((s->pmask & PM_LIST) && !(s->pmask & PM_INDENT) && pf.list && pf.list <= d->nlists) {
     const ListLevel *lv = &d->lists[pf.list - 1].lvl[pf.level % 9];
@@ -2714,6 +2729,8 @@ void doc_free(Doc *d)
   for (i = 0; i < HF_N; i++) { story_free(&d->hdr[i]); story_free(&d->ftr[i]); }
   undo_free(d->undo);
   keep_free(d);
+  field_free_all(d);
+  free(d->wm.pic);          /* (WP22a) */
   notes_free(d);                 /* (WP22b) */
   info_free(d);                  /* (WP24) */
   math_doc_free(d);     /* WP14a: equations */
@@ -2748,7 +2765,7 @@ Pos pos_left(Doc *d, Pos p)
   if (p.off) {
     const char *t = d->p[p.para]->t;
     p.off = (u32)utf8_prev(t, p.off);
-    while (p.off >= 4 && IS_MARK(t + p.off)) p.off = (u32)utf8_prev(t, p.off);
+    while (p.off >= 4 && (IS_MARK(t + p.off) || IS_FMARK(t + p.off))) p.off = (u32)utf8_prev(t, p.off);
   }
   else if (p.para) { p.para--; p.off = d->p[p.para]->len; }
   return p;
@@ -2760,9 +2777,9 @@ Pos pos_right(Doc *d, Pos p)
   p = pos_clamp(d, p);
   q = d->p[p.para];
   if (p.off < q->len) {
-    while (p.off + 4 <= q->len && IS_MARK(q->t + p.off)) p.off += 4;
+    while (p.off + 4 <= q->len && (IS_MARK(q->t + p.off) || IS_FMARK(q->t + p.off))) p.off += 4;
     if (p.off < q->len) p.off = (u32)utf8_next(q->t, q->len, p.off);
-    while (p.off + 4 <= q->len && IS_MARK(q->t + p.off)) p.off += 4;
+    while (p.off + 4 <= q->len && (IS_MARK(q->t + p.off) || IS_FMARK(q->t + p.off))) p.off += 4;
   }
   else if (p.para + 1 < d->np) { p.para++; p.off = 0; }
   return p;
@@ -3088,6 +3105,7 @@ int doc_story_begin(Doc *d, int kind, int index, int sect, u32 fpage, u32 fpages
   e->p = d->p; e->np = d->np; e->pcap = d->pcap; e->undo = d->undo; e->page = d->page;
   e->wm = (u8)d->wm.text[0]; d->wm.text[0] = 0;
   e->border = d->border.style; d->border.style = PB_NONE;
+  e->wmpic = d->wm.pic; d->wm.pic = NULL;          /* (WP22a) */
   memcpy(e->hdr, d->hdr, sizeof e->hdr); memcpy(e->ftr, d->ftr, sizeof e->ftr);
   memset(d->hdr, 0, sizeof d->hdr); memset(d->ftr, 0, sizeof d->ftr);
   d->p = np; d->np = n; d->pcap = n; d->undo = u; d->page = pg;
@@ -3109,6 +3127,7 @@ int doc_story_end(Doc *d, int keep)
   undo_free(d->undo);
   d->p = e->p; d->np = e->np; d->pcap = e->pcap; d->undo = e->undo; d->page = e->page;
   d->wm.text[0] = (char)e->wm; d->border.style = e->border;
+  d->wm.pic = e->wmpic; e->wmpic = NULL;           /* (WP22a) */
   memcpy(d->hdr, e->hdr, sizeof d->hdr); memcpy(d->ftr, e->ftr, sizeof d->ftr);
   e->kind = SK_NONE; e->p = NULL; e->np = 0; e->undo = NULL;
   s = keep && changed_ ? doc_story(d, kind, e->index, e->sect) : NULL;

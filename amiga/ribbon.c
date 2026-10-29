@@ -27,6 +27,8 @@
 #include "ribbondef.h"
 #include "wp_charpara.h"                /* (WP9, WP10: their items in the Font and Paragraph groups) */
 #include "wphooks.h"
+#include "wp_tables.h"                 /* WP21a/WP21b: Insert > Tables' Draw Table, Quick Tables, Spreadsheet */
+#include "wp_outline.h"                /* WP11: View > Outline (ID_OL_VIEW) */
 
 /* ------------------------------------------------------------------ */
 /* the lists */
@@ -100,13 +102,13 @@ static const char *const papers[] = { "A4  21 x 29.7 cm", "Letter  8.5 x 11 in",
                                       "A6  10.5 x 14.8 cm", "B5  17.6 x 25 cm", "Executive  7.25 x 10.5 in", "Tabloid  11 x 17 in", "More Paper Sizes..." };
 static const char *const breaks[] = { "Page break", "Column break", "Line break (text wrapping)", "Section break: next page",
                                       "Section break: continuous", "Section break: even page", "Section break: odd page" };
-static const char *const columns[] = { "One", "Two", "Three", "Line Between" };
+static const char *const columns[] = { "One", "Two", "Three", "Line Between", "Left", "Right", "More Columns..." };   /* (WP22a: the last three) */
 static const char *const linenums[] = { "None", "Continuous", "Restart Each Page", "Restart Each Section", "Line Numbering Options..." };
-static const char *const hyphens[] = { "None", "Automatic" };
-static const char *const pagealigns[] = { "Top", "Centre", "Bottom" };
+static const char *const hyphens[] = { "None", "Automatic", "Manual...", "Hyphenation Options..." };   /* (WP22a: the last two) */
+static const char *const pagealigns[] = { "Top", "Centre", "Bottom", "Justified" };   /* (WP22a: Justified) */
 static const char *const dropcaps[] = { "None", "Dropped", "In Margin", "Drop Cap Options..." };
 static const char *const watermarks[] = { "No Watermark", "DRAFT", "CONFIDENTIAL", "SAMPLE", "DO NOT COPY", "URGENT", "Custom Watermark..." };
-static const char *const pageborders[] = { "No Border", "Box", "Double Box", "Thick Box", "Dotted Box", "Dashed Box" };
+static const char *const pageborders[] = { "No Border", "Box", "Double Box", "Thick Box", "Dotted Box", "Dashed Box", "Page Borders..." };   /* (WP22a) */
 static const char *const indents[] = { "0 cm", "0.5 cm", "1 cm", "1.5 cm", "2 cm", "2.5 cm", "3 cm", "4 cm" };
 static const char *const spaces[] = { "0 pt", "3 pt", "6 pt", "8 pt", "10 pt", "12 pt", "18 pt", "24 pt" };
 static const char *const zooms[] = { "Page width", "50%", "75%", "100%", "125%", "150%", "200%" };
@@ -385,12 +387,20 @@ static const Item i_pages[] = {
   { K_BUTTON, S_SMALL, IC_BLANKPAGE, 0, "Blank Page", ID_BLANKPAGE, 0, 0, 0, 0, "An empty page at the caret" },
   { K_BUTTON, S_SMALL, IC_BREAKS, 0, "Line Break", ID_LINEBREAK, 0, 0, 0, 0, "A new line in the paragraph (Shift-Return)" } };
 static const Item i_tables[] = { { K_BUTTON, S_LARGE, IC_TABLE, 0, "Table", ID_TABLE, 0, 0, 0, 0, "Insert a table (Amiga-T); in a cell, a table inside it" },
-  { K_BUTTON, S_SMALL, IC_TOTABLE, 0, "Text to Table", ID_TOTABLE, 0, RB_SELECTION, F_NEWCOL, 0, "The selected paragraphs as a table, split at tabs or commas" } };
+  { K_BUTTON, S_SMALL, IC_TOTABLE, 0, "Text to Table", ID_TOTABLE, 0, RB_SELECTION, F_NEWCOL, 0, "The selected paragraphs as a table, split at tabs or commas" },
+  /* WP21a, WP21b (wp_tables.h): */
+  { K_BUTTON, S_SMALL, 0, 0, "Draw Table", WP21_ID_DRAWTABLE, RB_WP(WPI_21B, 1), 0, 0, 0, "Draw a table, or lines that split cells, with the mouse (Esc when done)", NULL, WP21_IC_DRAWTABLE, 0 },
+  { K_BUTTON, S_SMALL, 0, 0, "Quick Tables", WP21_ID_QUICKTABLES, 0, 0, 0, 0, "A ready-made table: calendars, lists, a matrix...", NULL, WP21_IC_QUICK, 0 },
+  { K_BUTTON, S_SMALL, 0, 0, "Spreadsheet", WP21_ID_SPREADSHEET, 0, 0, F_NEWCOL, 0, "A table from a spreadsheet saved as CSV text", NULL, WP21_IC_SHEET, 0 } };
 static const Item i_ill[] = {
   { K_BUTTON, S_LARGE, IC_PICTURE, 0, "Pictures", ID_PICTURE, 0, 0, 0, 0, "A PNG or JPEG picture from a file" },
   { K_DROP, S_LARGE, IC_SHAPES, L_SHAPES, "Shapes", ID_SHAPESDD, 0, 0, 0, 0, "A rectangle, oval, arrow or other shape, in front of the text" },
   { K_BUTTON, S_SMALL, IC_TEXTBOX, 0, "Text Box", ID_TEXTBOX, 0, 0, F_NEWCOL, 0, "A box of text the page's text runs round" },
-  { K_BUTTON, S_SMALL, IC_PICSIZE, 0, "Size", ID_PICSIZE, 0, RB_PICTURE, 0, 0, "The size of the picture by the caret" } };
+  { K_BUTTON, S_SMALL, IC_PICSIZE, 0, "Size", ID_PICSIZE, 0, RB_PICTURE, 0, 0, "The size of the picture by the caret" },
+  { K_BUTTON, S_SMALL, 0, 0, "SmartArt", ID_WP15C_FIRST, 0, 0, 0, 0, "A diagram of lists, steps, cycles or hierarchies from an outline of text", NULL,   /* WP15c (amiga/wp_smartart.c) */
+    "ca F 1 1 6 5 F 9 1 14 5 F 5 10 10 14 ci L 3 5 7 10 L 12 5 8 10" },
+  { K_BUTTON, S_SMALL, 0, 0, "Chart", ID_WP15B_FIRST, 0, 0, F_NEWCOL, 0, "A chart of numbers you type in a small sheet", NULL,                               /* WP15b (amiga/wp_chart.c) */
+    "ca F 3 8 5 14 co F 7 4 9 14 cg F 11 6 13 14 ci L 1 15 15 15 L 1 1 1 15" } };
 static const Item i_link[] = { { K_BUTTON, S_LARGE, IC_LINK, 0, "Link", ID_LINK, 0, 0, 0, 0, "A link to a web page or e-mail address" },
   { K_BUTTON, S_SMALL, IC_BOOKMARK, 0, "Bookmark", ID_BOOKMARK, 0, 0, F_NEWCOL, 0, "A name for the selected text, to go back to or link to" },
   { K_BUTTON, S_SMALL, IC_XREF, 0, "Cross-reference", ID_XREF, 0, 0, 0, 0, "The text of a bookmark or heading, or the page it is on" } };
@@ -402,7 +412,7 @@ static const Item i_hf[] = {
 static const Item i_text[] = { { K_BUTTON, S_LARGE, IC_DATE, 0, "Date", ID_DATE, 0, 0, 0, 0, "Today's date" },
   { K_DROP, S_LARGE, IC_DROPCAP, L_DROPCAP, "Drop Cap", ID_DROPCAPDD, 0, 0, 0, 0, "The paragraph's first letter large, over three lines" } };
 static const Item i_sym[] = {
-  { K_BUTTON, S_SMALL, 0, 0, NULL, ID_WP14A_FIRST, 0, 0, 0, 0, "Insert an equation, typed in linear format", NULL,     /* WP14a (amiga/wp_math.c): Equation */
+  { K_BUTTON, S_SMALL, 0, 0, NULL, ID_WP14B_FIRST, 0, 0, 0, 0, "Insert a new equation (Alt+=); with text selected, the text made an equation", NULL,     /* WP14a's icon; WP14b (amiga/wp_equation.c): a new equation edited in place */
     "ci L 2 3 14 3 L 2 3 1 5 L 5 3 5 13 L 4 13 6 13 L 10 3 10 12 L 10 12 12 13 L 12 13 14 12 ca L 1 15 14 15" },
   { K_DROP, S_LARGE, IC_SYMBOL, L_SYMBOLS, "Symbol", ID_SYMBOLDD, 0, 0, 0, 0, "A symbol" } };
 static const Group insert[] = { { "Pages", G_COLS, i_pages, N(i_pages) }, { "Tables", G_COLS, i_tables, N(i_tables) }, { "Illustrations", G_COLS, i_ill, N(i_ill) },
@@ -471,8 +481,10 @@ static const Group refs[] = { { "Table of Contents", G_COLS, r_toc, N(r_toc) }, 
 /* the Review tab: spelling, comments and tracked changes (several need RB_COMMENTS or
    RB_CHANGES: some comments or changes in the document) */
 static const Item v_proof[] = {
-  { K_BUTTON, S_LARGE, IC_SPELLING, 0, "Spelling", ID_SPELL, 0, 0, 0, 0, "Check the spelling" },
-  { K_BUTTON, S_SMALL, IC_WORDCOUNT, 0, "Word Count", ID_WORDCOUNT, 0, 0, F_NEWCOL, 0, "Words, characters and pages" } };
+  { K_BUTTON, S_LARGE, IC_SPELLING, 0, "Spelling & Grammar", ID_SPELL, 0, 0, 0, 0, "Check the spelling and grammar (F7)" },
+  { K_BUTTON, S_SMALL, 0, 0, "Thesaurus", (UWORD)(ID_WP8_FIRST + 1), 0, 0, F_NEWCOL, 0, "Words with a similar meaning (Shift-F7)", NULL,
+    "ci R 2 2 13 14 L 4 2 4 14 ca L 6 5 11 5 L 6 8 11 8 L 6 11 10 11", 0 },          /* (WP8: wp_proof.c's ID_PR_THES) */
+  { K_BUTTON, S_SMALL, IC_WORDCOUNT, 0, "Word Count", ID_WORDCOUNT, 0, 0, 0, 0, "Words, characters and pages" } };
 static const Item v_comm[] = {
   { K_BUTTON, S_LARGE, IC_COMMENT, 0, "New Comment", ID_COMMENT, 0, 0, 0, 0, "A comment on the selection" },
   { K_BUTTON, S_SMALL, IC_DELETE, 0, "Delete", ID_DELCOMMENT, 0, RB_COMMENTS, F_NEWCOL, 0, "Delete the comment at the caret" },
@@ -494,6 +506,8 @@ static const Item w_views[] = {
   { K_BUTTON, S_LARGE, IC_READ, 0, "Read Mode", ID_VREAD, VM(VM_READ), 0, 0, 0, "Two pages to read, without the tools (Esc returns)" },
   { K_BUTTON, S_LARGE, IC_ONEPAGE, 0, "Print Layout", ID_VPRINT, VM(VM_PRINT), 0, 0, 0, "The pages as they print" },
   { K_BUTTON, S_SMALL, IC_WEB, 0, "Web Layout", ID_VWEB, VM(VM_WEB), 0, F_NEWCOL, 0, "The text the window's width, without pages" },
+  { K_BUTTON, S_SMALL, 0, 0, "Outline", ID_OL_VIEW, VM(VM_OUTLINE), 0, 0, 0, "The document as an outline: headings by level, to rearrange", NULL,
+    "ca E 3 3 1 E 6 8 1 E 9 13 1 ci L 5 3 14 3 L 8 8 14 8 L 11 13 14 13" },
   { K_BUTTON, S_SMALL, IC_DRAFT, 0, "Draft", ID_VDRAFT, VM(VM_DRAFT), 0, 0, 0, "Just the text, without headers, footers or margins" } };
 static const Item w_show[] = {
   { K_BUTTON, S_SMALL, IC_RULER, 0, "Ruler", ID_RULER, RB_RULER, 0, 0, 0, "Show the rulers" },
@@ -1311,7 +1325,7 @@ static void open_list(struct RData *d, Object *obj, int k)
       const TableStyle *ts = &doc->tstyles[k - 1];
       int dup = !strcmp(ts->id, "TableNormal"), used = 0;
       for (i = 0; i < doc->ntables && !used; i++) if (doc->tables[i].tstyle == k) used = 1;
-      if (!used) continue;                       /* (a file from Word may carry a hundred it doesn't use) */
+      if ((!used && !ts->custom) || ts->gone) continue;   /* (a file from Word may carry a hundred it doesn't use; WP21a: one's own are shown) */
       for (i = 0; i < tstyle_builtin_count() && !dup; i++) if (!strcmp(tstyle_builtin(i)->id, ts->id)) dup = 1;
       if (!dup) { d->tsval[d->tsn] = 1000 + k; d->tsp[d->tsn++] = ts; }
     }

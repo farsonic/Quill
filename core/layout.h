@@ -55,6 +55,9 @@ typedef struct {
   struct Layout *lay;         /* (WP22b) the layout it belongs to (its notes' numbers as shown) */
   u8 hidden;                  /* WP9: it has hidden text, laid out shown (1) or left out (0); 2: it has none */
   u32 rvsig;                  /* WP5: how tracked changes were shown when it was laid out (rv_sig) */
+  u16 okey;                   /* (WP11) Outline view: what it was laid out for (OL_ flags, OK_HIDDEN, the indent
+                                 level << 4), 0 not in Outline view */
+  u8 ocut;                    /* (WP11) only its first line shown (OL_FIRST): it has more */
 } ParaLay;
 /* an object's size on the page (turned: the box round it) */
 #define OBJ_W(im) obj_w(im)
@@ -65,7 +68,13 @@ typedef struct { u32 page; i32 x, y, w, h; int img; u32 para; u8 wrap, early; } 
 /* a placed line. y: its top from the page's top; x, w: the column it is in (the text area, a
    section's column, or a table cell's), from the text area's left edge. lnum: the line number shown
    beside it (0: none), its right edge lnd left of x */
-typedef struct { u32 para, line; u32 page; i32 y; i32 x, w; u32 lnum; i32 lnd; } Placed;
+typedef struct { u32 para, line; u32 page; i32 y; i32 x, w; u32 lnum; i32 lnd;
+  /* WP21b: a line of turned text in a table cell (turn: TD_DOWN or TD_UP; 0 across). Then x, w are
+     the band it takes across the page (w its height), y the band's top and tlen its length down the
+     page; the line runs down from y (TD_DOWN) or up from y + tlen (TD_UP), tshift further along it
+     (where the paragraph's alignment puts it in a band longer than the line it was laid out in) */
+  u8 turn; i32 tlen, tshift;
+} Placed;
 /* the line between two columns, x from the text area's left */
 typedef struct { u32 page; i32 x, y0, y1; } ColSep;
 /* a paragraph's border box and shading on one page: the box's edges (twips on the page), which of
@@ -120,6 +129,8 @@ typedef struct Layout {
   u32 laid;                   /* paragraphs laid out afresh by the last update (for tests and timing) */
   struct { u32 key; FaceSize *z; } fcache[64];      /* format -> metrics (font substitution is slow) */
   int nfcache;
+  /* WP22a: the pages as laid out (core/pages.c's pages_eff: gutter, mirror margins, two to a sheet) */
+  PageSetup *epg; u32 nepg;
   /* (WP22b) */
   NoteNum *fnn, *enn;         /* each footnote's and endnote's number as shown */
   NoteCut *ncut; u32 nncut, ncutcap;   /* footnotes split across pages */
@@ -128,9 +139,32 @@ typedef struct Layout {
   i32 sepw;                   /* the line lay_notes or lay_endnotes last gave: its length (twips), 0 none */
   u8 notesep_cont;            /* ... and it is a continuation separator (the text area's width) */
   u8 showhidden;              /* WP9: hidden text laid out (formatting marks shown), else it takes no room (and the PDF leaves it out) */
+  /* WP21b: floating tables, each a box on a page the text wraps round (x, y from the page's top left;
+     the text dl, dr, dt, db away) */
+  struct TblFloat { u32 page; i32 x, y, w, h, dl, dr, dt, db; } *tfl; u32 ntfl, tflcap;
+  /* (WP11) Outline view: OL_ flags (0: not Outline view; then also set webw for the window's width).
+     Paragraphs are indented by their outline level (body text under its heading), their own indents,
+     spacing, borders, page breaks and floating objects left out; ohid[i] (nohid of them; NULL: none,
+     the caller's) hides paragraph i: one empty line of no height. oplain: the look all text takes with
+     OL_PLAIN (Show Text Formatting off) */
+  u8 outline;
+  u8 *ohid; u32 nohid;
+  CharFmt oplain;
+  u16 ocur;                   /* (the paragraph being laid out's okey) */
+  /* (WP25) lines this many per cent of their height (Read Mode's wider line spacing); 0: as they are.
+     Changing it needs the paragraphs laid out afresh (ParaLay.laid 0) */
+  u16 linepct;
 } Layout;
+enum { OL_ON = 1, OL_PLAIN = 2, OL_FIRST = 4 };      /* (WP11) Layout.outline: on, without text formatting, body text's first line only */
+#define OK_HIDDEN 8                                 /* (WP11) ParaLay.okey: hidden */
+#define OL_GUTTER 400                               /* (WP11) Outline view: room left of the text for the outline symbols, twips */
+#define OL_STEP 360                                 /*        and the indent of each outline level */
 /* WP9: a box of hidden text that takes no room in L */
 #define LAY_HIDDEN(L, b) (((b)->f.fx2 & FX2_HIDDEN) && !(L)->showhidden)
+/* WP21b: whether the caret lay_caret placed last is on turned text (TD_), and then the band's width:
+   the caret is drawn across, x to x + lay_caret_w at y */
+extern int lay_caret_turn;
+extern i32 lay_caret_w;
 
 /* a header or footer laid out for one page (its page fields filled in) */
 typedef struct { Para *p; ParaLay pl; i32 y; } FPara;     /* y: the top of its first line from the page top */
@@ -160,7 +194,9 @@ int  lay_endnotes(Layout *L, u32 page, Furn *f, i32 *sepy);
 u32  lay_note_number(ParaLay *pl, u32 box);
 void lay_note_label(ParaLay *pl, u32 box, char *out);
 void lay_roman(u32 n, char *out);    /* lower case: i, ii, iii, iv...; out at least 16 bytes */
-/* what a BX_FIELD box shows on a page: its number, or the number of pages (a story being edited: those it was opened with) */
+/* what a BX_FIELD box shows on a page: its number, or the number of pages (a story being edited: those it was opened with);
+   a field showing its code (WP1, core/field.h): the code. out: LAY_FIELD_TEXT bytes */
+#define LAY_FIELD_TEXT 160
 void lay_field_text(Layout *L, const Para *p, const Box *b, u32 page, char *out);    /* page from 0 */
 void lay_free(Layout *L);           /* L and everything it holds (not its Doc or FontSet) */
 /* bring the layout up to date with the document; 0 if out of memory (the layout then stays usable,
