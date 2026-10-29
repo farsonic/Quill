@@ -286,6 +286,9 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
 
 - **PDF:** **Export** writes the pages as laid out, with the fonts embedded (Windows-1252 text: Western European languages and the usual typographic characters).
 - **Plain text:** opened as UTF-8 or Latin-1 (Amiga text). **Save As Text** writes Latin-1.
+- **RTF (.rtf):** opened and saved (**Save As**, or **File > Save As Rich Text...** for a copy) with styles, character and paragraph formatting, lists, tables with merged cells, pictures (PNG and JPEG; older metafile pictures show as an empty box of their size), headers and footers, footnotes and endnotes, links, bookmarks, page-number fields, sections and page setup, and tracked changes. Text in the single-byte Windows, DOS and Mac code pages and in Unicode. Shapes, text boxes and comments are left out when saving.
+- **Web pages (.html, .htm):** opened and saved (**File > Save As Web Page...** for a copy) with headings, styles as CSS, paragraph and character formatting, lists, tables with merged cells, links, bookmarks and footnotes. Pictures are saved inside the page (data: URIs) and read from there or from files next to the page; nothing is fetched from the web. Headers, footers and page setup have no place in a web page.
+- **Markdown (.md):** opened and saved (**File > Save As Markdown...** for a copy): CommonMark with GitHub's tables, strikethrough and footnotes. Headings, bold, italic, code, links, pictures, lists, block quotes and code blocks (in a Code style) come and go; fonts, colours and layout don't exist in Markdown.
 
 ### Layout like Word's
 
