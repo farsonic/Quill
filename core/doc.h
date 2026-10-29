@@ -44,6 +44,17 @@ typedef struct {
   u16 frev;                 /* WP5: a tracked formatting change (w:rPrChange): Doc.frevs index + 1, 0 none */
   u8 move;                  /* WP5: a tracked insertion or deletion that is a move (w:moveTo, w:moveFrom):
                                Doc.rvmoves index + 1 (its name), 0 not a move */
+  /* WP27 right-to-left and East Asian text (core/intl.h): */
+  u8 rtl;                   /* w:rtl: a right-to-left run (its digits and neutrals go right to left, complex script look) */
+  u8 cs;                    /* CS_ bits: w:cs, and w:bCs / w:iCs when they differ from w:b / w:i */
+  u8 fontcs, fontea;        /* w:rFonts w:cs, w:eastAsia: Doc.fonts index + 1; 0 the run's own font */
+  u16 sizecs;               /* w:szCs, half-points; 0 the run's size */
+  u8 em;                    /* w:em: an emphasis mark (EM_) */
+  u8 eal;                   /* w:eastAsianLayout: EAL_ bits and the brackets (two lines in one, horizontal in vertical) */
+  u16 ealid;                /* its w:id */
+  u16 ruby;                 /* the base text of a phonetic guide (w:ruby): Doc.rubies index + 1; 0 none */
+  u8 hint;                  /* w:rFonts w:hint: HINT_ (which font neutral characters take) */
+  u8 intl_mask;             /* (only in a value given to cf_apply: which WP27 fields CM_CS and CM_EA change, IM_; 0 all) */
 } CharFmt;
 enum { REV_NONE, REV_INS, REV_DEL };
 enum { FX_SMALLCAPS = 1, FX_DSTRIKE = 2, FX_BORDER = 4 };   /* FX_BORDER: a box round the characters (w:bdr) */
@@ -72,8 +83,8 @@ enum { CM_BOLD = 1, CM_ITALIC = 2, CM_UNDERLINE = 4, CM_STRIKE = 8, CM_SUPER = 1
        CM_LINK = 0x100000,       /* (not in CM_ALL: clearing formatting or painting it keeps links, as in Word) */
        CM_BMARK = 0x200000,      /* (nor this: bookmarks stay where they are) */
        CM_CBORDER = 0x400000,    /* FX_BORDER */
-       CM_LOOK = 0x764FCFFF,     /* how it looks (not its character style nor tracked changes; WP9's and WP31's bits too) */
-       CM_ALL = 0x764FEFFF };     /* CM_ALL leaves tracked changes alone */
+       CM_LOOK = 0x77CFCFFF,     /* how it looks (not its character style nor tracked changes; WP9's, WP31's and WP27's bits too) */
+       CM_ALL = 0x77CFEFFF };     /* CM_ALL leaves tracked changes alone */
 #define CM_FREV 0x08000000U        /* WP5: CharFmt.frev (not in CM_ALL; CM_REV carries move with rev) */
 
 enum { AL_LEFT, AL_CENTER, AL_RIGHT, AL_JUSTIFY, AL_DISTRIBUTE };   /* AL_DISTRIBUTE (WP10): every line spread out, the last too (w:jc distribute) */
@@ -132,6 +143,7 @@ typedef struct {
   i32 dl, dr, dt, db;
   char caption[128];        /* w:tblCaption (UTF-8) */
   char descr[256];          /* w:tblDescription (UTF-8) */
+  u8 bidivisual;            /* (WP27) a right-to-left table (w:bidiVisual): its columns from the right */
 } Table;
 enum { TA_TEXT, TA_MARGIN, TA_PAGE };
 
@@ -190,6 +202,9 @@ typedef struct {
   Cell outer;               /* a table inside a table cell: the outer table's cell (table 0: not nested) */
   u16 prev;                 /* WP5: a tracked paragraph formatting change (w:pPrChange): Doc.frevs index + 1, 0 none */
   u8 outlvl;                /* (WP11) its outline level: 1-9, 0 body text (w:outlineLvl 0-8, 9); "heading N" styles have N */
+  u8 bidi;                  /* (WP27) a right-to-left paragraph (w:bidi): its indents and alignment from the right */
+  u8 asian;                 /* (WP27) Asian typography: AS_ bits, 0 Word's defaults (core/intl.h) */
+  u8 talign;                /* (WP27) w:textAlignment: TXA_ (0 auto) */
 } ParaFmt;
 /* a paragraph's borders: those with the same borders run together in one box, "between" lines
    separating them */
@@ -201,7 +216,7 @@ enum { PM_STYLE = 1, PM_ALIGN = 2, PM_INDENT = 4, PM_SPACING = 8, PM_LINE = 16, 
        PM_BORDER = 0x1000, PM_SHADE = 0x2000, PM_PAGINATION = 0x4000 /* keeplines, nowidow */, PM_CONTEXT = 0x8000,
        PM_OUTLINE = 0x100000,    /* (WP11) outlvl */
        PM_PREV = 0x40000000,     /* WP5: prev (not in PM_ALL) */
-       PM_ALL = 0x10F1FF };   /* PM_ALL leaves the cell, the section and drop caps alone */
+       PM_ALL = 0x70F1FF };   /* PM_ALL leaves the cell, the section and drop caps alone (WP27's PM_BIDI, PM_ASIAN in it) */
 #define PM_STYLED (PM_ALL & ~PM_STYLE)    /* what a paragraph style can set */
 #define in_table(pf) ((pf)->cell.table != 0)
 #define is_nested(pf) ((pf)->outer.table != 0)
@@ -333,6 +348,11 @@ typedef struct {
   PageBorder pb;            /* (pbown) its own page border (style PB_NONE and no sides: none) */
   u8 rtlgutter;             /* w:rtlGutter: the gutter on the right */
   NotePr fnpr, enpr;        /* (WP22b) its own footnote and endnote options (w:footnotePr, w:endnotePr) */
+  /* WP27 (core/intl.h): */
+  u8 bidi;                  /* a right-to-left section (w:bidi): its columns from the right */
+  u8 tdir;                  /* w:textDirection: STD_ (horizontal, tbRl vertical...) */
+  u8 grid;                  /* w:docGrid w:type: GRID_ */
+  i32 linepitch, charspace; /* its w:linePitch (twips) and w:charSpace (Word's units: 4096ths of a point more than the size) */
 } SectFmt;
 /* s set to a section with no settings of its own: one column from a new page, 720 twips between
    columns, no line numbers */
@@ -592,6 +612,10 @@ typedef struct Doc {
   struct Field *fields; int nfields;
   u8 fieldcodes;
   struct FieldInfo *finfo;
+  /* WP27 (core/intl.h): phonetic guides (only added to), the last section's own grid and direction are
+     in its SectFmt as the others; East Asian line breaking settings of settings.xml */
+  struct Ruby *rubies; int nrubies;
+  struct IntlSettings *intl;
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */

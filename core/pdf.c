@@ -430,6 +430,7 @@ static void pdf_math(Pdf *p, Buf *b, const char *t, const CharFmt *f, i32 x, i32
   free(seg);
 }
 /* one line: its list label and boxes; lx: the line's left edge, base: its baseline (PDF y) */
+#include "pdf_intl.h"      /* WP27: right-to-left and shaped text, two lines in one, phonetic guides, emphasis marks */
 static void pdf_line(Pdf *p, Buf *b, ParaLay *pl, u32 line, i32 lx, i32 base)
 {
   Line *ln = &pl->lines[line];
@@ -437,7 +438,7 @@ static void pdf_line(Pdf *p, Buf *b, ParaLay *pl, u32 line, i32 lx, i32 base)
   if (line == 0 && pl->label[0]) {
     CharFmt f = pl->p->r[0].f;
     f.flags &= (u8)~(CF_UNDERLINE | CF_STRIKE);
-    text(p, b, &f, pl->label, (u32)strlen(pl->label), lx, base, pl->labelw);
+    text(p, b, &f, pl->label, (u32)strlen(pl->label), lx + ln->labelx, base, pl->labelw);   /* (WP27: right to left on the right) */
   }
   /* highlighting behind the text first (trailing spaces left out); character shading under it (WP9) */
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
@@ -470,7 +471,8 @@ static void pdf_line(Pdf *p, Buf *b, ParaLay *pl, u32 line, i32 lx, i32 base)
       i32 size = bx->f.size * 10;
       link_area(p, LK_URI, bx->f.link, lx + bx->x, base - size / 4, lx + bx->x + bx->w, base + size * 9 / 10);
     }
-    if (bx->kind == BX_TEXT) {
+    if (wp27_pdf_box(p, b, pl, bx, lx, base)) ;          /* (WP27) */
+    else if (bx->kind == BX_TEXT) {
       FaceSize *z = bx->nspace ? lay_face(p->L, &bx->f) : NULL;
       i32 hw = z ? (i32)((fonts_text(z, "-", 1) + QFINE / 2) / QFINE) : 0;
       text(p, b, &bx->f, pl->p->t + bx->off, bx->len, lx + bx->x, base, bx->w - hw);
@@ -532,6 +534,7 @@ static void pdf_line(Pdf *p, Buf *b, ParaLay *pl, u32 line, i32 lx, i32 base)
       deco_line(b, bx->f.ul, lx + bx->x, base + bx->f.position * 10 - size / 9, bx->w, size);
     }
   }
+  wp27_pdf_marks(p, b, pl, ln, lx, base);                  /* (WP27: phonetic guides, emphasis marks) */
 }
 /* Word draws the watermark half transparent: half way to white */
 static u32 wm_colour(u32 c)
@@ -944,7 +947,9 @@ static void page_content(Pdf *p, u32 page, Buf *b)
       /* WP21b: turned text in a table cell, drawn through a turned frame (the line laid out across) */
       if (pc->turn == TD_DOWN) buf_printf(b, "q 0 -1 1 0 %ld %ld cm\n", (long)(pg->left + pc->x + ln->height), (long)(H - pc->y - pc->tshift));
       else buf_printf(b, "q 0 1 -1 0 %ld %ld cm\n", (long)(pg->left + pc->x), (long)(H - pc->y - pc->tlen + pc->tshift));
+      wp27_vert = pc->turn == TD_DOWN;              /* (WP27: East Asian characters upright in vertical text) */
       pdf_line(p, b, pl, pc->line, ln->left, -ln->ascent);
+      wp27_vert = 0;
       buf_adds(b, "Q\n");
       continue;
     }

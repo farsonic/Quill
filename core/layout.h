@@ -28,6 +28,9 @@ typedef struct {
   i32 x, w;                   /* from the line's start (its indent), after alignment */
   CharFmt f;
   u8 rvmark;                  /* WP5: a tracked change as shown (a bar beside its line: RVK_ kind + 1), 0 none */
+  u8 lvl;                     /* (WP27) its bidirectional embedding level: odd right to left */
+  u8 brk;                     /* (WP27) a line may break before it (East Asian text) */
+  u8 vis;                     /* (WP27) its glyphs differ from its text (right to left, shaped, numerals): lay_visual */
 } Box;
 
 typedef struct {
@@ -36,6 +39,7 @@ typedef struct {
   i32 left;                   /* indent of the line from the text area's left edge */
   i32 width;                  /* of the text, trailing spaces left out */
   i32 height, ascent;         /* line box and baseline below its top */
+  i32 labelx;                 /* (WP27) where the list label goes from the line's left (right to left: on the right) */
 } Line;
 
 typedef struct {
@@ -58,6 +62,8 @@ typedef struct {
   u16 okey;                   /* (WP11) Outline view: what it was laid out for (OL_ flags, OK_HIDDEN, the indent
                                  level << 4), 0 not in Outline view */
   u8 ocut;                    /* (WP11) only its first line shown (OL_FIRST): it has more */
+  u8 rtl;                     /* (WP27) its paragraph embedding level: 1 right to left */
+  u32 isig;                   /* (WP27) what its layout depended on besides the paragraph (grid, numerals) */
 } ParaLay;
 /* an object's size on the page (turned: the box round it) */
 #define OBJ_W(im) obj_w(im)
@@ -219,6 +225,14 @@ Pos  lay_line_end(Layout *L, Pos p);
 /* the metrics of a box's format (super/subscript at two thirds size) */
 FaceSize *lay_face(Layout *L, const CharFmt *f);
 i32  lay_text_x(Layout *L, const Box *b, const char *t, u32 off);   /* x within a box of byte off */
+/* (WP27) box b's text as shown, left to right: right-to-left text reversed and mirrored, Arabic shaped,
+   digits as the Numeral option says, invisible controls left out: UTF-8 into out (cap bytes), its length;
+   0 if the box shows its text as it is (t + b->off, b->len) */
+u32  lay_visual(Layout *L, const Box *b, const char *t, char *out, u32 cap);
+/* (WP27) the format a phonetic guide over box b is drawn in: its size (half the base's unless set), its
+   font if that has the guide's characters, else one that has */
+struct Ruby;
+void lay_ruby_look(Layout *L, const Box *b, const struct Ruby *r, CharFmt *rf);
 /* a text box's (or shape's) text laid out inside it, cx wide (0: its own width): y from its top, the
    lines' x from its left (in FPara.pl lines' left); 0 if it has none */
 int  lay_textbox(Layout *L, const Image *im, i32 cx, Furn *f);

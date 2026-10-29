@@ -21,6 +21,8 @@
 #include "math.h"     /* WP14a: equations */
 #include "ink.h"      /* WP20: freeforms, ink, drawing canvases */
 #include "docx_lang.h"   /* WP31: languages, do not check */
+#include "docx_intl.h"   /* WP27: right-to-left and East Asian text */
+#include "intl.h"
 #include "review.h"
 
 /* ------------------------------------------------------------------ */
@@ -206,6 +208,7 @@ static void parse_rpr(Xml *x, Ctx *c, RPr *r, char *rstyle)
     v = xml_attr(x, "val");
     { int w9 = wp9_read_rpr(x, &r->set, &r->cf); if (w9 == 2) continue; if (w9) { xml_skip(x); continue; } }   /* WP9's (charfx.h) */
     if (wp31_read_rpr(x, &r->set, &r->cf)) { xml_skip(x); continue; }   /* WP31's (docx_lang.h) */
+    if (wp27_read_rpr(x, c->d, &r->set, &r->cf)) { xml_skip(x); continue; }   /* WP27's (docx_intl.h; w:rFonts goes on below) */
     if (!strcmp(n, "rStyle") && rstyle && v) { strncpy(rstyle, v, 39); rstyle[39] = 0; }
     else if (!strcmp(n, "b")) set_flag(r, CF_BOLD, onoff(x));
     else if (!strcmp(n, "i")) set_flag(r, CF_ITALIC, onoff(x));
@@ -259,6 +262,7 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
     if (x->type == XT_END && x->depth < d0) break;
     if (x->type != XT_START) continue;
     v = xml_attr(x, "val");
+    if (wp27_read_ppr(x, &p->set, &p->pf)) { xml_skip(x); continue; }   /* WP27's (docx_intl.h) */
     if (!strcmp(n, "pStyle") && pstyle && v) { strncpy(pstyle, v, 39); pstyle[39] = 0; }
     else if (!strcmp(n, "jc") && v) {
       p->set |= PM_ALIGN;
@@ -368,7 +372,8 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
 /* apply onto dst the paragraph fields p sets (lists are applied separately, by apply_list) */
 static void pf_set(ParaFmt *dst, const PPr *p)
 {
-  pf_apply(dst, p->set & (PM_ALIGN | PM_INDENT | PM_SPACING | PM_LINE | PM_TABS | PM_KEEP | PM_BORDER | PM_SHADE | PM_PAGINATION | PM_CONTEXT | PM_OUTLINE), &p->pf);
+  pf_apply(dst, p->set & (PM_ALIGN | PM_INDENT | PM_SPACING | PM_LINE | PM_TABS | PM_KEEP | PM_BORDER | PM_SHADE | PM_PAGINATION | PM_CONTEXT | PM_OUTLINE |
+                          PM_BIDI | PM_ASIAN), &p->pf);     /* (WP27's) */
   if (p->set & PM_BREAK) dst->pagebreak = p->pf.pagebreak;
 }
 /* apply onto dst the character look fields r sets */
@@ -599,6 +604,7 @@ static void parse_tblpr(Xml *x, unsigned *set, TBorder *b, i32 *marl, i32 *marr,
     }
     if (!strcmp(n, "tblStyle") && tstyle) copy_attr(x, "val", tstyle, 40);
     if (t) read_tblpr_wp21(x, n, t);                 /* WP21b: floating, alternative text */
+    if (t && !strcmp(n, "bidiVisual")) t->bidivisual = (u8)onoff(x);     /* (WP27: a right-to-left table) */
     xml_skip(x);
   }
 }
@@ -1701,6 +1707,7 @@ static void fld_simple(Xml *x, PCtx *pc)
    paragraph. Complex fields (fldChar begin/separate/end) are followed across runs in c->field: the
    code is collected and left out, and the result kept, except that a PAGE or NUMPAGES field
    becomes Quill's placeholder instead. A page or column break splits the paragraph in two. */
+static void wp27_ruby(Xml *x, PCtx *pc);     /* (WP27, below) */
 static void parse_run(Xml *x, PCtx *pc)
 {
   Ctx *c = pc->c;
@@ -1766,6 +1773,7 @@ static void parse_run(Xml *x, PCtx *pc)
       else run_text(pc, " ", 1, &f);
     }
     else if (!strcmp(n, "drawing")) { parse_drawing(x, pc, &f); continue; }
+    else if (!strcmp(n, "ruby")) { wp27_ruby(x, pc); continue; }      /* (WP27: a phonetic guide) */
     else if (!strcmp(n, "Fallback")) { xml_skip(x); continue; }        /* mc:AlternateContent: the drawing (Choice), not its VML copy */
     else if (!strcmp(n, "AlternateContent") || !strcmp(n, "Choice")) continue;
     else if (!strcmp(n, "pict") && c->story && parse_watermark(x, c)) continue;
@@ -1813,6 +1821,83 @@ static void parse_run(Xml *x, PCtx *pc)
   }
 }
 static void parse_table(Xml *x, PCtx *pc);
+/* ---- WP27: phonetic guides (w:ruby inside a run: its base's runs carry the guide's number in
+   CharFmt.ruby, the guide text kept as read), w:dir and w:bdo (an embedding or override: Unicode's
+   controls round the text) */
+static void parse_children(Xml *x, PCtx *pc);
+static void wp27_ruby(Xml *x, PCtx *pc)
+{
+  Ctx *c = pc->c;
+  int d0 = x->depth;
+  u16 k = 0, old = pc->pcf.ruby;
+  i32 v;
+  Ruby r;
+  memset(&r, 0, sizeof r);
+  while (xml_next(x) != XT_EOF) {
+    const char *n = x->name;
+    if (x->type == XT_END && x->depth < d0) break;
+    if (x->type != XT_START) continue;
+    if (!strcmp(n, "rubyPr")) continue;                   /* (its children come next) */
+    if (!strcmp(n, "rubyAlign")) {
+      static const char *const al[RA_N] = { "center", "distributeLetter", "distributeSpace", "left", "right", "rightVertical" };
+      const char *a = xml_attr(x, "val");
+      int q;
+      for (q = 0; q < RA_N && !(a && !strcmp(a, al[q])); q++) ;
+      r.align = (u8)(q < RA_N ? q : RA_CENTER);
+    }
+    else if (!strcmp(n, "hps") && attr_num(x, "val", &v) && v > 0 && v < 3277) r.hps = (u16)v;
+    else if (!strcmp(n, "hpsRaise") && attr_num(x, "val", &v) && v >= 0 && v < 3277) r.raise = (u16)v;
+    else if (!strcmp(n, "hpsBaseText") && attr_num(x, "val", &v) && v > 0 && v < 3277) r.hpsbase = (u16)v;
+    else if (!strcmp(n, "lid")) copy_attr(x, "val", r.lid, sizeof r.lid);
+    else if (!strcmp(n, "rt")) {
+      /* the guide: its runs kept as written, its text and font noted */
+      const char *st;
+      size_t len = xml_raw(x, &st), a, b;
+      Xml y;
+      for (a = 0; a < len && st[a] != '>'; a++) ;
+      for (b = len; b > a && st[b - 1] != '<'; b--) ;
+      if (a < len && b > a + 1 && st[a - 1] != '/') r.rtraw = str_ndup(st + a + 1, b - 1 - (a + 1));
+      xml_init(&y, st, len);
+      while (xml_next(&y) != XT_EOF) {
+        if (y.type == XT_START && !strcmp(y.name, "rFonts") && !r.font[0]) copy_attr(&y, "ascii", r.font, sizeof r.font);
+        if (y.type == XT_START && !strcmp(y.name, "t")) {
+          while (xml_next(&y) == XT_TEXT) {
+            size_t have = strlen(r.text), add = y.text.len < sizeof r.text - 1 - have ? y.text.len : sizeof r.text - 1 - have;
+            memcpy(r.text + have, y.text.data, add); r.text[have + add] = 0;
+          }
+        }
+      }
+      xml_free(&y);
+      r.rtsrc = str_dup(r.text);
+      continue;
+    }
+    else if (!strcmp(n, "rubyBase")) {
+      if (!k) k = intl_add_ruby(c->d, &r);
+      pc->pcf.ruby = k;
+      parse_children(x, pc);
+      pc->pcf.ruby = old;
+      continue;
+    }
+    xml_skip(x);
+  }
+  if (!k) { free(r.rtraw); free(r.rtsrc); }
+}
+/* w:dir (an embedding) or w:bdo (an override), right to left or left to right, round its contents */
+static int wp27_dir(Xml *x, PCtx *pc)
+{
+  const char *v = xml_attr(x, "val");
+  int rtl = v && !strcmp(v, "rtl"), bdo = x->name[0] == 'b';
+  char t[4];
+  Para *p = cur(pc);
+  CharFmt f;
+  if (!p) return 0;
+  f = p->r[p->nr - 1].f;
+  t[utf8_put(t, bdo ? (rtl ? 0x202E : 0x202D) : (rtl ? 0x202B : 0x202A))] = 0;
+  para_append(p, t, strlen(t), &f);
+  parse_children(x, pc);
+  if ((p = cur(pc))) { f = p->r[p->nr - 1].f; t[utf8_put(t, 0x202C)] = 0; para_append(p, t, strlen(t), &f); }
+  return 1;
+}
 /* the children of a paragraph, or of something inside one that keeps its contents */
 static void parse_children(Xml *x, PCtx *pc)
 {
@@ -1876,6 +1961,7 @@ static void parse_children(Xml *x, PCtx *pc)
       if (c->bmark && (!id || !strcmp(id, c->bmid))) c->bmark = 0;
       continue;
     }
+    if ((!strcmp(n, "bdo") || !strcmp(n, "dir")) && wp27_dir(x, pc)) continue;     /* (WP27: an embedding or override) */
     if (!strcmp(n, "smartTag") || !strcmp(n, "sdt") || !strcmp(n, "sdtContent") ||
         !strcmp(n, "fldSimple") || !strcmp(n, "customXml") || !strcmp(n, "bdo") || !strcmp(n, "dir")) {
       parse_children(x, pc);
@@ -2150,6 +2236,7 @@ static void parse_sect(Xml *x, Ctx *c, SectFmt *sf, int body)
     if (x->type != XT_START) continue;
     v = xml_attr(x, "val");
     if (pages_read_sect(x, c->d, sf, pg, body)) continue;        /* (WP22a: columns, borders, margins with the gutter, vAlign) */
+    if (wp27_read_sect(x, sf)) continue;                          /* (WP27: direction, text direction, the document grid) */
     if (!strcmp(x->name, "type") && v)
       sf->start = (u8)(!strcmp(v, "continuous") ? SB_CONT : !strcmp(v, "evenPage") ? SB_EVEN : !strcmp(v, "oddPage") ? SB_ODD : SB_NEXT);
     else if (!strcmp(x->name, "cols")) {
@@ -3176,6 +3263,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
   /* WP23: */
   /* WP24: */
   /* WP27: */
+  wp27_read_setting(c->d, x);
   /* WP31: */
 }
 
@@ -3515,27 +3603,22 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
     if (f->position != base->position) diff |= CM_POSITION;
     diff |= wp9_rpr_diff(f, base);                  /* WP9's */
     diff |= wp31_rpr_diff(f, base);                 /* WP31's */
+    diff |= wp27_rpr_diff(f, base);                 /* WP27's */
   }
   if (w_rstyle) {
     buf_adds(&b, "<w:rStyle w:val=\""); xml_escape(&b, w_rstyle, strlen(w_rstyle)); buf_adds(&b, "\"/>");
     w_rstyle = NULL;
   }
   if (!diff && !b.len) return;
-  if ((diff & CM_FONT) && f->font < d->nfonts) {
-    buf_adds(&b, "<w:rFonts w:ascii=\""); xml_escape(&b, d->fonts[f->font], strlen(d->fonts[f->font]));
-    buf_adds(&b, "\" w:hAnsi=\""); xml_escape(&b, d->fonts[f->font], strlen(d->fonts[f->font]));
-    buf_adds(&b, "\" w:cs=\""); xml_escape(&b, d->fonts[f->font], strlen(d->fonts[f->font]));
-    buf_adds(&b, "\"/>");
-  }
-  if (diff & CM_BOLD) buf_adds(&b, f->flags & CF_BOLD ? "<w:b/><w:bCs/>" : "<w:b w:val=\"0\"/><w:bCs w:val=\"0\"/>");
-  if (diff & CM_ITALIC) buf_adds(&b, f->flags & CF_ITALIC ? "<w:i/><w:iCs/>" : "<w:i w:val=\"0\"/><w:iCs w:val=\"0\"/>");
+  wp27_write_rfonts(&b, d, f, base, diff, full);      /* (WP27: with the complex script and East Asian fonts) */
+  wp27_write_bi(&b, f, diff);                         /* (WP27: w:b, w:bCs, w:i, w:iCs) */
   if ((diff & CM_CAPS) && (!full || (f->flags & CF_CAPS))) buf_adds(&b, f->flags & CF_CAPS ? "<w:caps/>" : "<w:caps w:val=\"0\"/>");
   if ((diff & CM_STRIKE) && (!full || (f->flags & CF_STRIKE))) buf_adds(&b, f->flags & CF_STRIKE ? "<w:strike/>" : "<w:strike w:val=\"0\"/>");
   if ((diff & CM_COLOR) && (!full || f->color != COLOR_AUTO)) {
     if (f->color == COLOR_AUTO) buf_adds(&b, "<w:color w:val=\"auto\"/>");
     else buf_printf(&b, "<w:color w:val=\"%06lX\"/>", (unsigned long)(f->color & 0xFFFFFF));
   }
-  if (diff & CM_SIZE) buf_printf(&b, "<w:sz w:val=\"%u\"/><w:szCs w:val=\"%u\"/>", (unsigned)f->size, (unsigned)f->size);
+  wp27_write_sz(&b, f, diff);                         /* (WP27: w:sz, w:szCs) */
   if ((diff & CM_HL) && (highlight_name(f->hl) || !full))
     buf_printf(&b, "<w:highlight w:val=\"%s\"/>", highlight_name(f->hl) ? highlight_name(f->hl) : "none");
   if ((diff & CM_UNDERLINE) && (!full || (f->flags & CF_UNDERLINE))) {
@@ -3562,7 +3645,9 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
     buf_printf(&b, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"%06lX\"/>", (unsigned long)(f->hl & 0xFFFFFF));
   if ((diff & (CM_SUPER | CM_SUB)) && (!full || (f->flags & (CF_SUPER | CF_SUB))))
     buf_adds(&b, f->flags & CF_SUPER ? "<w:vertAlign w:val=\"superscript\"/>" : f->flags & CF_SUB ? "<w:vertAlign w:val=\"subscript\"/>" : "<w:vertAlign w:val=\"baseline\"/>");
+  wp27_write_rpr(&b, f, base, full, 0);               /* WP27's w:rtl, w:cs, w:em */
   wp31_write_rpr(&b, f, base, diff, full, 1);         /* WP31's w:lang */
+  wp27_write_rpr(&b, f, base, full, 1);               /* WP27's w:eastAsianLayout */
   wp9_write_rpr(&b, f, base, diff, full, 2);          /* WP9's kept ones */
   if (b.len) { buf_adds(o, "<w:rPr>"); buf_add(o, b.data, b.len); buf_adds(o, "</w:rPr>"); }
   buf_free(&b);
@@ -3612,6 +3697,7 @@ static void w_ppr_body(Buf *b, Doc *d, const ParaFmt *p, const ParaFmt *base, in
     if (!p->tabs[0]) for (k = 0; k < 8 && base->tabs[k]; k++) buf_printf(b, "<w:tab w:val=\"clear\" w:pos=\"%ld\"/>", (long)base->tabs[k]);
     buf_adds(b, "</w:tabs>");
   }
+  wp27_write_ppr(b, p, base, full, 0);          /* (WP27: Asian typography, w:bidi, w:snapToGrid) */
   if (full || p->before != base->before || p->after != base->after || p->line != base->line || p->linerule != base->linerule)
     buf_printf(b, "<w:spacing w:before=\"%ld\" w:after=\"%ld\" w:line=\"%ld\" w:lineRule=\"%s\"/>", (long)p->before, (long)p->after,
                (long)p->line, p->linerule == LS_EXACT ? "exact" : p->linerule == LS_ATLEAST ? "atLeast" : "auto");
@@ -3622,6 +3708,7 @@ static void w_ppr_body(Buf *b, Doc *d, const ParaFmt *p, const ParaFmt *base, in
   }
   if (full ? p->contextual : p->contextual != base->contextual) buf_adds(b, p->contextual ? "<w:contextualSpacing/>" : "<w:contextualSpacing w:val=\"0\"/>");
   if (full ? p->align != AL_LEFT : p->align != base->align) buf_printf(b, "<w:jc w:val=\"%s\"/>", jc[p->align <= AL_DISTRIBUTE ? p->align : 0]);
+  wp27_write_ppr(b, p, base, full, 1);          /* (WP27: w:textAlignment) */
   if (full ? p->outlvl != 0 : p->outlvl != base->outlvl) buf_printf(b, "<w:outlineLvl w:val=\"%d\"/>", p->outlvl >= 1 && p->outlvl <= 9 ? p->outlvl - 1 : 9);   /* (WP11) */
 }
 /* ---- WP5 writing (core/review.h): tracked formatting changes, moves, kept property changes */
@@ -3893,6 +3980,7 @@ static void w_tbl_start(Buf *o, Doc *d, const Table *t)
     buf_adds(o, "<w:tblStyle w:val=\""); xml_escape(o, id, strlen(id)); buf_adds(o, "\"/>");
   }
   write_tblppr_wp21(o, t);                           /* WP21b: a floating table's place */
+  if (t->bidivisual) buf_adds(o, "<w:bidiVisual/>");  /* (WP27) */
   buf_printf(o, "<w:tblW w:w=\"%ld\" w:type=\"dxa\"/>", (long)sum);
   if (t->jc && t->jc < 3) buf_printf(o, "<w:jc w:val=\"%s\"/>", jc[t->jc]);
   buf_printf(o, "<w:tblInd w:w=\"%ld\" w:type=\"dxa\"/><w:tblLayout w:type=\"%s\"/><w:tblCellMar>", (long)t->indent, t->autofit ? "autofit" : "fixed");
@@ -4361,6 +4449,28 @@ static void w_link(Buf *o, Doc *d, u16 link, int open)
     buf_adds(o, "\">");
   }
 }
+/* (WP27) a phonetic guide's start: the run holding it (rpr: its base's w:rPr), its properties and guide
+   text (as read while unchanged), up to w:rubyBase */
+static void wp27_ruby_open(Buf *o, Doc *d, const CharFmt *f, const char *rpr, size_t rl)
+{
+  static const char *const al[RA_N] = { "center", "distributeLetter", "distributeSpace", "left", "right", "rightVertical" };
+  const Ruby *r = intl_ruby(d, f->ruby);
+  unsigned base = r->hpsbase ? r->hpsbase : f->size, hps = r->hps ? r->hps : (base + 1) / 2, raise = r->raise ? r->raise : (base > 3 ? base - 3 : 0);
+  buf_adds(o, "<w:r>"); buf_add(o, rpr, rl);
+  buf_printf(o, "<w:ruby><w:rubyPr><w:rubyAlign w:val=\"%s\"/><w:hps w:val=\"%u\"/><w:hpsRaise w:val=\"%u\"/><w:hpsBaseText w:val=\"%u\"/><w:lid w:val=\"",
+             al[r->align < RA_N ? r->align : 0], hps, raise, base);
+  xml_escape(o, r->lid[0] ? r->lid : "ja-JP", strlen(r->lid[0] ? r->lid : "ja-JP"));
+  buf_adds(o, "\"/></w:rubyPr><w:rt>");
+  if (r->rtraw && r->rtsrc && !strcmp(r->rtsrc, r->text)) buf_adds(o, r->rtraw);
+  else {
+    buf_adds(o, "<w:r><w:rPr>");
+    if (r->font[0]) { buf_adds(o, "<w:rFonts w:ascii=\""); xml_escape(o, r->font, strlen(r->font)); buf_adds(o, "\" w:eastAsia=\""); xml_escape(o, r->font, strlen(r->font)); buf_adds(o, "\" w:hAnsi=\""); xml_escape(o, r->font, strlen(r->font)); buf_adds(o, "\"/>"); }
+    buf_printf(o, "<w:sz w:val=\"%u\"/><w:szCs w:val=\"%u\"/></w:rPr><w:t xml:space=\"preserve\">", hps, hps);
+    xml_escape(o, r->text, strlen(r->text));
+    buf_adds(o, "</w:t></w:r>");
+  }
+  buf_adds(o, "</w:rt><w:rubyBase>");
+}
 static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tail)
 {
   const Style *st = &d->styles[p->pf.style < d->nstyles ? p->pf.style : 0];
@@ -4439,8 +4549,12 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
         buf_adds(o, ">");
         w_deleted = f->rev == REV_DEL;
       }
+      if (f->ruby && intl_ruby(d, f->ruby) && (k == 0 || p->r[k - 1].f.ruby != f->ruby || p->r[k - 1].f.rev != f->rev))
+        wp27_ruby_open(o, d, f, r.data ? r.data : "", r.len);        /* (WP27: a phonetic guide over the runs) */
       if (!wp9_write_enclosed(o, f, r.data ? r.data : "", r.len, p->t + start, p->r[k].end - start))    /* (WP9: enclosed characters, as a field) */
         w_run(o, d, r.data ? r.data : "", r.len, p->t + start, p->r[k].end - start);
+      if (f->ruby && intl_ruby(d, f->ruby) && (k + 1 >= p->nr || p->r[k + 1].f.ruby != f->ruby || p->r[k + 1].f.rev != f->rev))
+        buf_adds(o, "</w:rubyBase></w:ruby></w:r>");                 /* (WP27) */
       if (f->rev) { buf_printf(o, "</w:%s>", wp5_rev_tag(f)); w_deleted = 0; }
       buf_free(&r);
     }
@@ -4706,7 +4820,9 @@ static void w_sectpr(Buf *o, Doc *d, const SectFmt *s, int g, int last)
   pages_write_cols(o, s);                           /* (WP22a: columns of their own widths) */
   pages_write_valign(o, s);                         /* (WP22a: and Justified) */
   if (sect_titlepg(d, s, last)) buf_adds(o, "<w:titlePg/>");
+  wp27_write_sect(o, s, 0);                         /* (WP27: w:textDirection, w:bidi) */
   pages_write_sect_tail(o, s);                      /* (WP22a) */
+  wp27_write_sect(o, s, 1);                         /* (WP27: w:docGrid) */
   wp5_kept(o, d, RK_SECT, 0, 0, 0, last || !s || s < d->sects || s >= d->sects + d->nsects ? 0 : (int)(s - d->sects) + 1);   /* (WP5: its w:sectPrChange) */
   buf_adds(o, "</w:sectPr>");
 }
@@ -5164,6 +5280,7 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   /* WP23: */
   /* WP24: */
   /* WP27: */
+  wp27_write_settings(d, b, where);
   /* WP31: */
 }
 
