@@ -1477,7 +1477,7 @@ static void draw_page(struct Data *d, Object *obj, struct RastPort *rp, u32 k, L
       if (w < 2 ? !lay_furniture(L, k0, w, &f) : w == 2 ? !lay_notes(L, k0, &f, &sepy) : !lay_endnotes(L, k0, &f, &sepy)) continue;
       if (w >= 2 && sepy >= 0) {
         SetAPen(rp, d->pen_text);
-        Move(rp, pl + tx(d, d->pg->left), pt + tx(d, sepy)); Draw(rp, pl + tx(d, d->pg->left + 2880), pt + tx(d, sepy));
+        Move(rp, pl + tx(d, d->pg->left), pt + tx(d, sepy)); Draw(rp, pl + tx(d, d->pg->left + L->sepw), pt + tx(d, sepy));   /* (WP22b: L->sepw) */
       }
       for (j = 0; j < f.n; j++) {
         Placed fp;

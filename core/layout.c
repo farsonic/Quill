@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include "layout.h"
 #include "hyph.h"
+#include "notes.h"   /* (WP22b) */
 
 #define DEFAULT_TAB 720                 /* half an inch, as Word */
 
@@ -31,6 +32,7 @@ void lay_free(Layout *L)
   if (!L) return;
   for (i = 0; i < L->npl; i++) pl_free(&L->pl[i]);
   free(L->pl); free(L->placed); free(L->page_first); free(L->page_end); free(L->cells); free(L->notenum); free(L->pn); free(L->enotenum); free(L->en); free(L->seps); free(L->psec); free(L->floats); free(L->early); free(L->pbox); free(L->pinfo);
+  free(L->fnn); free(L->enn); free(L->ncut); free(L->enseps);      /* (WP22b) */
   free(L);
 }
 /* the metrics of f's font, style and size, through a small cache (fonts_size substitutes fonts, which
@@ -123,6 +125,7 @@ static int add_line(Work *w, const Line *l)
   w->l[w->nl++] = *l;
   return 1;
 }
+static void note_text(Layout *L, int end, int n, u32 counted, char *out);   /* (WP22b) */
 /* the boxes of a paragraph, widths in fine units (x unset) */
 static int make_boxes(Layout *L, Para *p, Work *w, u32 note, u32 enote)
 {
@@ -171,8 +174,7 @@ static int make_boxes(Layout *L, Para *p, Work *w, u32 note, u32 enote)
         FaceSize *nz;
         b.f.flags = (u8)((b.f.flags & ~CF_SUB) | CF_SUPER);
         nz = lay_face(L, &b.f);
-        if (b.kind == BX_NOTE) sprintf(num, "%lu", (unsigned long)++note);
-        else lay_roman(++enote, num);
+        note_text(L, b.kind == BX_ENOTE, note_index(p->t + i), b.kind == BX_NOTE ? ++note : ++enote, num);   /* (WP22b) */
         b.w = nz ? (i32)fonts_text(nz, num, (u32)strlen(num)) : 0;
       } else if (b.kind == BX_FIELD) {
         char num[16];
@@ -442,6 +444,7 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
   pl_free(pl);
   pl->p = p; pl->ver = p->ver; pl->avail = avail; pl->notebase = notebase; pl->enotebase = enotebase; pl->hyph = L->d->hyphenate;
   pl->shaped = 0;
+  pl->lay = L;                      /* (WP22b) */
   strncpy(pl->label, label, sizeof pl->label - 1); pl->label[sizeof pl->label - 1] = 0;
   pl->labelw = 0;
   if (label[0]) {
@@ -762,6 +765,7 @@ static void finish_page(Layout *L, Flow *fl)
   for (k = fl->cellfirst; k < L->ncells; k++) if (L->cells[k].page == fl->page) L->cells[k].y += shift;
   for (k = fl->sepfirst; k < L->nseps; k++) if (L->seps[k].page == fl->page) { L->seps[k].y0 += shift; L->seps[k].y1 += shift; }
   for (k = 0; k < L->nen; k++) if (L->en[k].page == fl->page) L->en[k].y += shift;
+  for (k = 0; k < L->nenseps; k++) if (L->enseps[k].page == fl->page) L->enseps[k].y += shift;   /* (WP22b) */
   for (k = 0; k < L->nfloats; k++) if (L->floats[k].page == fl->page && L->d->images[L->floats[k].img].vrel == POS_PARA) L->floats[k].y += shift;
 }
 /* on to the top of the next page: the page just filled gets its column lines and vertical
@@ -1300,8 +1304,19 @@ void lay_roman(u32 n, char *out)
 void lay_note_label(ParaLay *pl, u32 box, char *out)
 {
   u32 n = lay_note_number(pl, box);
-  if (box < pl->nboxes && pl->boxes[box].kind == BX_ENOTE) lay_roman(n, out);
+  int end = box < pl->nboxes && pl->boxes[box].kind == BX_ENOTE;
+  if (pl->lay && box < pl->nboxes) { note_text(pl->lay, end, note_index(pl->p->t + pl->boxes[box].off), n, out); return; }   /* (WP22b) */
+  if (end) lay_roman(n, out);
   else sprintf(out, "%lu", (unsigned long)n);
+}
+/* (WP22b) note n's number as shown (end: an endnote's): as numbered for the Footnote and Endnote window's
+   options, else counted (1, 2, 3 / i, ii, iii) */
+static void note_text(Layout *L, int end, int n, u32 counted, char *out)
+{
+  NoteNum *nn = end ? L->enn : L->fnn;
+  if (nn && n >= 0 && n < (end ? L->d->nenotes : L->d->nnotes) && nn[n].lab) { notes_label(nn[n].fmt, nn[n].lab, out); return; }
+  if (end) lay_roman(counted, out);
+  else sprintf(out, "%lu", (unsigned long)counted);
 }
 /* footnote n's paragraphs laid out (end: endnote n's), its number before the first; *total: their height */
 static int lay_note_ex(Layout *L, const PageSetup *pg, int n, int end, Furn *f, i32 *total)
@@ -1323,8 +1338,7 @@ static int lay_note_ex(Layout *L, const PageSetup *pg, int n, int end, Furn *f, 
       char num[16];
       u32 r, start = 0;
       nf.flags = (u8)((nf.flags & ~CF_SUB) | CF_SUPER);
-      if (end) lay_roman(L->enotenum ? L->enotenum[n] : (u32)n + 1, num);
-      else sprintf(num, "%lu", (unsigned long)(L->notenum ? L->notenum[n] : (u32)n + 1));
+      note_text(L, end, n, end ? (L->enotenum ? L->enotenum[n] : (u32)n + 1) : (L->notenum ? L->notenum[n] : (u32)n + 1), num);   /* (WP22b) */
       if (!(fp->p = para_new(&src->pf, &src->r[0].f))) break;
       para_append(fp->p, num, (u32)strlen(num), &nf);
       para_append(fp->p, " ", 1, &src->r[0].f);
@@ -1340,8 +1354,33 @@ static int lay_note_ex(Layout *L, const PageSetup *pg, int n, int end, Furn *f, 
 }
 /* footnote n laid out (see lay_note_ex) */
 static int lay_note(Layout *L, const PageSetup *pg, int n, Furn *f, i32 *total) { return lay_note_ex(L, pg, n, 0, f, total); }
+static int lay_story(Layout *L, const PageSetup *pg, Story *st, u32 page, u32 pages, Furn *f, i32 *total);
+#define NOTE_SEP 240                     /* the gap above the notes, with the short line in it */
+/* (WP22b) separator which of footnotes (end: endnotes) as it is drawn: its line (NSF_, 0 none), and its
+   words laid out into f (the page's text width) with *h their height (0 and f empty: none) */
+static int sep_story(Layout *L, const PageSetup *pg, int end, int which, Furn *f, i32 *h)
+{
+  const Story *t;
+  int flags = notes_sep(L->d, end, which, &t);
+  memset(f, 0, sizeof *f); *h = 0;
+  if (t && !lay_story(L, pg, (Story *)t, 0, 1, f, h)) { lay_furniture_free(f); *h = 0; }
+  return flags;
+}
+/* (WP22b) f's paragraphs moved to the end of out, dy added to their y (f left empty); 0 if out of memory */
+static int furn_append(Furn *out, Furn *f, i32 dy)
+{
+  FPara *nf;
+  u32 k;
+  if (!f->n) return 1;
+  if (!(nf = (FPara *)realloc(out->f, (out->n + f->n) * sizeof(FPara)))) { lay_furniture_free(f); return 0; }
+  out->f = nf;
+  for (k = 0; k < f->n; k++) { f->f[k].y += dy; out->f[out->n++] = f->f[k]; }
+  free(f->f); f->f = NULL; f->n = 0;
+  free(f->fb); f->fb = NULL; f->nfb = 0;
+  return 1;
+}
 /* see layout.h: the endnote paragraphs pagination put on this page, each laid out and moved into
-   place. Free out with lay_furniture_free */
+   place, after the separator's words if it has some (WP22b). Free out with lay_furniture_free */
 int lay_endnotes(Layout *L, u32 page, Furn *out, i32 *sepy)
 {
   u32 i;
@@ -1349,7 +1388,23 @@ int lay_endnotes(Layout *L, u32 page, Furn *out, i32 *sepy)
   Furn f;
   memset(out, 0, sizeof *out);
   memset(&f, 0, sizeof f);
-  *sepy = L->nen && L->ensep_page == page ? L->ensep_y : -1;
+  *sepy = -1; L->sepw = 0; L->notesep_cont = 0;
+  /* (WP22b) the line above them (each section's endnotes have one; a page they go on to, the continuation separator) */
+  for (i = 0; i < L->nenseps; i++) {
+    const PageSetup *pg = lay_page(L, page);
+    Furn t;
+    i32 th;
+    int flags;
+    if (L->enseps[i].page != page) continue;
+    flags = sep_story(L, pg, 1, L->enseps[i].cont ? NSEP_CONT : NSEP_SEP, &t, &th);
+    if (*sepy < 0 && flags) {
+      *sepy = L->enseps[i].y;
+      L->notesep_cont = (u8)(L->enseps[i].cont || (flags & NSF_LONG));
+      L->sepw = L->notesep_cont ? pg->width - pg->left - pg->right : 2880;
+    }
+    if (t.n && !furn_append(out, &t, L->enseps[i].y + NOTE_SEP / 2)) break;
+    lay_furniture_free(&t);
+  }
   for (i = 0; i < L->nen; i++) {
     FPara *nf;
     i32 h;
@@ -1364,7 +1419,7 @@ int lay_endnotes(Layout *L, u32 page, Furn *out, i32 *sepy)
     out->n++;
   }
   lay_furniture_free(&f);
-  return out->n > 0;
+  return out->n > 0 || *sepy >= 0;
 }
 /* the height footnote n takes at the foot of the page being filled (L->pg); laid out to measure it,
    then thrown away */
@@ -1376,32 +1431,139 @@ static i32 note_height(Layout *L, int n)
   lay_furniture_free(&f);
   return h;
 }
-#define NOTE_SEP 240                     /* the gap above the notes, with the short line in it */
-/* see layout.h: the page's footnotes one after another, the last ending at the bottom margin, the
-   short line NOTE_SEP / 2 above the first. Free out with lay_furniture_free */
+/* (WP22b) footnote n's lines (laid out at the foot of the page being filled): each one's height, a
+   paragraph's space before and after counted in its first and last line; how many (at most max) */
+#define NOTE_MAXL 400
+static u32 note_lines(Layout *L, int n, i32 *hs, u32 max)
+{
+  Furn f;
+  i32 h;
+  u32 j, k, c = 0;
+  if (lay_note(L, L->pg, n, &f, &h))
+    for (j = 0; j < f.n; j++)
+      for (k = 0; k < f.f[j].pl.nlines && c < max; k++) {
+        i32 v = f.f[j].pl.lines[k].height;
+        if (k == 0) v += f.f[j].p->pf.before;
+        if (k + 1 == f.f[j].pl.nlines) v += f.f[j].p->pf.after;
+        hs[c++] = v;
+      }
+  lay_furniture_free(&f);
+  return c;
+}
+/* (WP22b) the lines of footnote n a page shows (all of them unless it is split over pages): 1 if a
+   part, *l0..*l1 */
+static int note_cut(Layout *L, u32 page, u32 n, u32 *l0, u32 *l1)
+{
+  u32 i;
+  for (i = 0; i < L->nncut; i++) if (L->ncut[i].page == page && L->ncut[i].note == n) { *l0 = L->ncut[i].l0; *l1 = L->ncut[i].l1; return 1; }
+  return 0;
+}
+static int add_cut(Layout *L, u32 page, u32 n, u32 l0, u32 l1)
+{
+  if (L->nncut >= L->ncutcap) {
+    u32 nc = L->ncutcap ? L->ncutcap * 2 : 8;
+    NoteCut *a = (NoteCut *)realloc(L->ncut, nc * sizeof(NoteCut));
+    if (!a) return 0;
+    L->ncut = a; L->ncutcap = nc;
+  }
+  L->ncut[L->nncut].page = page; L->ncut[L->nncut].note = n; L->ncut[L->nncut].l0 = l0; L->ncut[L->nncut].l1 = l1;
+  L->nncut++;
+  return 1;
+}
+/* (WP22b) only lines l0..l1 of the note's paragraphs f kept (counting lines across them), stacked
+   from 0 again; *h their height */
+static void furn_lines(Furn *f, u32 l0, u32 l1, i32 *h)
+{
+  u32 j, g = 0, keep = 0;
+  i32 y = 0;
+  for (j = 0; j < f->n; j++) {
+    FPara *fp = &f->f[j];
+    u32 n = fp->pl.nlines, a = g, b = g + n, s, e;
+    g += n;
+    s = a > l0 ? a : l0; e = b < l1 ? b : l1;
+    if (s >= e) { pl_free(&fp->pl); para_free(fp->p); fp->p = NULL; continue; }
+    if (s > a) memmove(fp->pl.lines, fp->pl.lines + (s - a), (e - s) * sizeof(Line));
+    fp->pl.nlines = e - s;
+    {
+      i32 before = s == a ? fp->p->pf.before : 0, after = e == b ? fp->p->pf.after : 0;
+      u32 k;
+      fp->y = y + before;
+      y += before + after;
+      for (k = 0; k < fp->pl.nlines; k++) y += fp->pl.lines[k].height;
+    }
+    f->f[keep++] = *fp;
+  }
+  f->n = keep;
+  *h = y;
+}
+/* see layout.h: the page's footnotes one after another, the last ending at the bottom margin (or,
+   placed beneath the text, starting under its last line), the separator's gap NOTE_SEP above the
+   first with its line halfway; a footnote continued from the page before has the continuation
+   separator instead, one going on overleaf the continuation notice under it (WP22b). Free out with
+   lay_furniture_free */
 int lay_notes(Layout *L, u32 page, Furn *out, i32 *sepy)
 {
   u32 i, n = 0;
-  i32 y, total = 0;
+  i32 y, total = 0, sh = 0, nh = 0;
+  int cont = 0, cut = 0, flags, first = 1;
+  const PageSetup *pg = lay_page(L, page);
+  NotePr np;
+  Furn st, nt;
   memset(out, 0, sizeof *out);
+  *sepy = -1; L->sepw = 0; L->notesep_cont = 0;
   for (i = 0; i < L->npn; i++) if (L->pn[i].page == page) n++;
   if (!n) return 0;
-  /* each note's paragraphs, one after another, ending at the bottom margin */
+  /* each note's paragraphs (or the part of it on this page), one after another */
   for (i = 0; i < L->npn; i++) {
     Furn f;
     i32 h;
-    u32 k;
-    FPara *nf;
-    if (L->pn[i].page != page || !lay_note(L, lay_page(L, page), (int)L->pn[i].note, &f, &h)) continue;
-    if (!(nf = (FPara *)realloc(out->f, (out->n + f.n) * sizeof(FPara)))) { lay_furniture_free(&f); break; }
-    out->f = nf;
-    for (k = 0; k < f.n; k++) { f.f[k].y += total; out->f[out->n++] = f.f[k]; }
-    free(f.f);
+    u32 l0 = 0, l1 = 0xFFFFFFFFUL;
+    if (L->pn[i].page != page || !lay_note(L, pg, (int)L->pn[i].note, &f, &h)) continue;
+    if (note_cut(L, page, L->pn[i].note, &l0, &l1)) {
+      u32 j, all = 0;
+      for (j = 0; j < f.n; j++) all += f.f[j].pl.nlines;
+      if (first && l0 > 0) cont = 1;
+      if (l1 < all) cut = 1;
+      furn_lines(&f, l0, l1, &h);
+    }
+    first = 0;
+    if (!furn_append(out, &f, total)) break;
     total += h;
   }
-  y = lay_page(L, page)->height - lay_page(L, page)->bottom - total;
+  /* the separator over them (its words, if it has some), the notice under them */
+  flags = sep_story(L, pg, 0, cont ? NSEP_CONT : NSEP_SEP, &st, &sh);
+  memset(&nt, 0, sizeof nt);
+  if (cut) sep_story(L, pg, 0, NSEP_NOTICE, &nt, &nh);
+  notes_eff(L->d, page < L->npages && L->pinfo ? L->pinfo[page].sec : NULL, 0, &np);
+  if (np.pos == NPOS_BENEATHTEXT) {
+    /* just under the page's last line of text */
+    u32 a, b, k;
+    i32 tb = pg->top;
+    lay_page_lines(L, page, &a, &b);
+    for (k = a; k < b; k++)
+      if (L->placed[k].page == page) {
+        i32 e = L->placed[k].y + L->pl[L->placed[k].para].lines[L->placed[k].line].height;
+        if (e > tb) tb = e;
+      }
+    y = tb + NOTE_SEP + sh;
+    if (y + total + nh > pg->height - pg->bottom) y = pg->height - pg->bottom - total - nh;
+  } else y = pg->height - pg->bottom - total - nh;
   for (i = 0; i < out->n; i++) out->f[i].y += y;
-  *sepy = y - NOTE_SEP / 2;
+  if (st.n) {
+    /* the separator's words first, in the gap's lower part */
+    Furn rest = *out;
+    memset(out, 0, sizeof *out);
+    furn_append(out, &st, y - sh);
+    furn_append(out, &rest, 0);
+    free(rest.f);
+  }
+  if (nt.n) furn_append(out, &nt, y + total);
+  lay_furniture_free(&st); lay_furniture_free(&nt);
+  if (flags) {
+    *sepy = y - sh - NOTE_SEP / 2;
+    L->notesep_cont = (u8)(cont || (flags & NSF_LONG));
+    L->sepw = L->notesep_cont ? pg->width - pg->left - pg->right : 2880;
+  }
   return out->n > 0;
 }
 /* the most room any header (footer) of a section takes, from the page edge (laid out with made-up
@@ -1585,6 +1747,148 @@ static int add_pboxes(Layout *L, u32 pi, i32 topx, i32 botx, int gprev, int gnex
 }
 /* the width between a page's side margins */
 static i32 page_body(const PageSetup *pg) { return pg->width - pg->left - pg->right; }
+/* (WP22b) footnotes while paginating: the room kept at the foot of the page being filled, and a long
+   footnote going on overleaf (its lines from cl0 on still to place) */
+typedef struct {
+  u32 respage; i32 reserve;       /* the page the notes' room is kept on, and how much */
+  int cn; u32 cl0, cnl;           /* the footnote being continued (-1 none), its next line, its lines */
+  i32 sep, sepc, notice;          /* room for the separator (its gap and words), the continuation separator, the notice */
+  i32 hs[NOTE_MAXL];              /* the continued footnote's lines' heights */
+} NoteFlow;
+static void nflow_init(Layout *L, NoteFlow *nf)
+{
+  Furn f;
+  i32 h;
+  memset(nf, 0, sizeof *nf);
+  nf->cn = -1;
+  nf->sep = NOTE_SEP; nf->sepc = NOTE_SEP;
+  if (!L->d->nnotes || L->webw > 0) return;
+  sep_story(L, L->pg, 0, NSEP_SEP, &f, &h); nf->sep += h; lay_furniture_free(&f);
+  sep_story(L, L->pg, 0, NSEP_CONT, &f, &h); nf->sepc += h; lay_furniture_free(&f);
+  sep_story(L, L->pg, 0, NSEP_NOTICE, &f, &h); nf->notice = h; lay_furniture_free(&f);
+}
+/* a new page (area: its text area's height): the footnote going on from the page before takes the
+   foot of it, as much as fits leaving half an inch for the text (full: all of it), at least one line */
+static void nflow_page(Layout *L, NoteFlow *nf, u32 page, i32 area, int full)
+{
+  i32 room, acc = 0;
+  u32 l1;
+  nf->respage = page; nf->reserve = 0;
+  if (nf->cn < 0) return;
+  room = (full ? area : area - 720) - nf->sepc;
+  for (l1 = nf->cl0; l1 < nf->cnl && acc + nf->hs[l1] <= room; l1++) acc += nf->hs[l1];
+  if (l1 < nf->cnl) {
+    /* more to come: room for the notice too */
+    while (l1 > nf->cl0 && acc + nf->notice > room) acc -= nf->hs[--l1];
+  }
+  if (l1 == nf->cl0) acc += nf->hs[l1++];
+  if (!add_cut(L, page, (u32)nf->cn, nf->cl0, l1)) L->oom = 1;
+  nf->reserve = nf->sepc + acc + (l1 < nf->cnl ? nf->notice : 0);
+  nf->cl0 = l1;
+  if (l1 >= nf->cnl) nf->cn = -1;
+}
+/* the room line k of pl needs for its footnotes on the page (with the separator if it is the first) */
+static i32 nflow_line(Layout *L, NoteFlow *nf, ParaLay *pl, u32 k)
+{
+  u32 b;
+  i32 extra = 0;
+  for (b = pl->lines[k].box0; b < pl->lines[k].box0 + pl->lines[k].nbox; b++)
+    if (pl->boxes[b].kind == BX_NOTE) extra += note_height(L, note_index(pl->p->t + pl->boxes[b].off));
+  if (extra && !nf->reserve) extra += nf->sep;
+  return extra;
+}
+/* line k of pl doesn't fit with all its footnotes: if the line and the first lines of its last
+   footnote fit (room: what is left under the line), that note is split, the rest going overleaf
+   under the continuation separator; *extra the room it takes now. 1 if split */
+static int nflow_split(Layout *L, NoteFlow *nf, ParaLay *pl, u32 k, u32 page, i32 room, i32 *extra)
+{
+  u32 b, l1, cnt;
+  int last = -1;
+  i32 others = 0, acc = 0, sep = nf->reserve ? 0 : nf->sep;
+  if (nf->cn >= 0 || room <= 0) return 0;
+  for (b = pl->lines[k].box0; b < pl->lines[k].box0 + pl->lines[k].nbox; b++)
+    if (pl->boxes[b].kind == BX_NOTE) {
+      if (last >= 0) others += note_height(L, last);
+      last = note_index(pl->p->t + pl->boxes[b].off);
+    }
+  if (last < 0 || last >= L->d->nnotes) return 0;
+  room -= sep + others + nf->notice;
+  cnt = note_lines(L, last, nf->hs, NOTE_MAXL);
+  for (l1 = 0; l1 < cnt && acc + nf->hs[l1] <= room; l1++) acc += nf->hs[l1];
+  if (l1 == 0 || l1 >= cnt) return 0;
+  if (!add_cut(L, page, (u32)last, 0, l1)) { L->oom = 1; return 0; }
+  nf->cn = last; nf->cl0 = l1; nf->cnl = cnt;
+  *extra = sep + others + acc + nf->notice;
+  return 1;
+}
+/* the endnotes referred to in paragraphs a..b-1 not placed yet (done: those placed), in the order they
+   are referred to, after the text so far: the separator's gap first (on a new page if there is no
+   room), each paragraph on the next page when it doesn't fit there, a page they go on to starting with
+   the continuation separator. resv: the room kept for footnotes on page respage. 0 if out of memory */
+static int add_ensep(Layout *L, u32 page, i32 y, int cont)
+{
+  if (L->nenseps >= L->ensepcap) {
+    u32 nc = L->ensepcap ? L->ensepcap * 2 : 8;
+    NoteSepAt *a = (NoteSepAt *)realloc(L->enseps, nc * sizeof(NoteSepAt));
+    if (!a) return 0;
+    L->enseps = a; L->ensepcap = nc;
+  }
+  L->enseps[L->nenseps].page = page; L->enseps[L->nenseps].y = y; L->enseps[L->nenseps].cont = (u8)cont;
+  if (!L->nenseps) { L->ensep_page = page; L->ensep_y = y; }
+  L->nenseps++;
+  return 1;
+}
+static int place_enotes(Layout *L, Flow *fl, u8 *done, u32 a, u32 b, i32 resv, u32 respage)
+{
+  Doc *d = L->d;
+  u32 i, k;
+  int any = 0;
+  i32 sh = 0, ch = 0;
+  if (!d->nenotes || !done) return 1;
+  for (i = a; i < b && i < d->np; i++) {
+    Para *p = d->p[i];
+    for (k = 0; k + 4 <= p->len; k++) {
+      int n;
+      Furn f;
+      i32 h;
+      u32 j;
+      if (!IS_ENOTE(p->t + k)) continue;
+      n = note_index(p->t + k); k += 3;
+      if (n >= d->nenotes || done[n]) continue;
+      done[n] = 1;
+      if (!any) {
+        Furn t;
+        sep_story(L, L->pg, 1, NSEP_SEP, &t, &sh); lay_furniture_free(&t);
+        sep_story(L, L->pg, 1, NSEP_CONT, &t, &ch); lay_furniture_free(&t);
+        fl->y += NOTE_SEP + sh;
+        if (fl->y + 480 > fl->bottom - (fl->page == respage ? resv : 0)) { new_page(L, fl); fl->y += NOTE_SEP + sh; }
+        if (!add_ensep(L, fl->page, fl->y - sh - NOTE_SEP / 2, 0)) return 0;
+        any = 1;
+      }
+      if (!lay_note_ex(L, L->pg, n, 1, &f, &h)) continue;
+      for (j = 0; j < f.n; j++) {
+        i32 ph = f.f[j].p->pf.before + f.f[j].p->pf.after, q;
+        for (q = 0; q < (i32)f.f[j].pl.nlines; q++) ph += f.f[j].pl.lines[q].height;
+        if (fl->y + ph > fl->bottom - (fl->page == respage ? resv : 0) && fl->y > fl->top) {
+          new_page(L, fl);
+          fl->y += NOTE_SEP + ch;
+          if (!add_ensep(L, fl->page, fl->y - ch - NOTE_SEP / 2, 1)) { lay_furniture_free(&f); return 0; }
+        }
+        if (L->nen >= L->encap) {
+          u32 nc = L->encap ? L->encap * 2 : 16;
+          void *ne = realloc(L->en, nc * sizeof L->en[0]);
+          if (!ne) { lay_furniture_free(&f); return 0; }
+          L->en = ne; L->encap = nc;
+        }
+        L->en[L->nen].note = (u32)n; L->en[L->nen].para = j; L->en[L->nen].page = fl->page; L->en[L->nen].y = fl->y + f.f[j].p->pf.before;
+        L->nen++;
+        fl->y += ph;
+      }
+      lay_furniture_free(&f);
+    }
+  }
+  return 1;
+}
 /* place the laid out lines on pages and in columns: sections and their page setups, page and column
    breaks, tables, floating objects, keeping with the next, keeping lines together, widows and orphans,
    room for footnotes, paragraph borders, line numbers, then the endnotes. Stops at the first
@@ -1595,9 +1899,12 @@ static int paginate(Layout *L)
   Doc *d = L->d;
   Flow fl;
   u32 pi, k, npages;
-  i32 body, reserve = 0;
-  u32 respage = 0;
+  i32 body;
   int web = L->webw > 0;
+  NoteFlow nf;                           /* (WP22b) footnotes' room, a long one going on overleaf */
+  static u8 *edone; static u32 edcap;    /* (WP22b) endnotes placed already */
+  u32 secfirst = 0;                      /* the section's first paragraph */
+  int endsect;                           /* endnotes at each section's end */
   memset(&fl, 0, sizeof fl);
   L->oom = 0;
   fl.last = L->lastfirst == 0;
@@ -1610,6 +1917,11 @@ static int paginate(Layout *L)
   flow_cols(&fl, fl.sec, body, web);
   if (!page_set(L, &fl)) return 0;
   L->nplaced = 0; L->ncells = 0; L->nseps = 0; L->npn = 0; L->complete = 1; L->nfloats = 0; L->npbox = 0;
+  L->nen = 0; L->nenseps = 0; L->nncut = 0;              /* (WP22b) */
+  nflow_init(L, &nf);
+  { NotePr ep; notes_eff(d, NULL, 1, &ep); endsect = ep.pos == NPOS_SECTEND && !web; }
+  if ((u32)d->nenotes > edcap) { u8 *e = (u8 *)realloc(edone, (size_t)d->nenotes); if (e) { edone = e; edcap = (u32)d->nenotes; } }
+  if (edone && edcap) memset(edone, 0, edcap);
   for (k = 0; k < L->nearly; k++) {
     const FloatBox *e = &L->early[k];
     if (e->img >= d->nimages || !add_float(L, e->page, e->x, e->y, e->img, e->para)) continue;
@@ -1630,6 +1942,13 @@ static int paginate(Layout *L)
       const PageSetup *npg = web ? L->pg : sect_page(d, s, last);
       int same = !memcmp(npg, L->pg, sizeof *npg);
       end_region(L, &fl);
+      if (endsect) {
+        /* (WP22b) the section's endnotes after its text */
+        if (fl.maxy > fl.y) fl.y = fl.maxy;
+        if (!place_enotes(L, &fl, (u32)d->nenotes <= edcap ? edone : NULL, secfirst, pi, nf.reserve, nf.respage)) return 0;
+        fl.maxy = fl.y;
+      }
+      secfirst = pi;
       if (!web) {
         if (s->start == SB_CONT && same) {
           fl.y = fl.maxy;
@@ -1690,29 +2009,27 @@ static int paginate(Layout *L)
     pl->placed0 = L->nplaced;
     for (k = 0; k < pl->nlines; k++) {
       i32 h = pl->lines[k].height, extra = 0;
+      int over;
       if (d->nnotes && !web) {
-        /* the footnotes this line refers to must fit at the bottom of the same page */
-        u32 b;
-        if (respage != fl.page) { reserve = 0; respage = fl.page; }
-        for (b = pl->lines[k].box0; b < pl->lines[k].box0 + pl->lines[k].nbox; b++)
-          if (pl->boxes[b].kind == BX_NOTE) extra += note_height(L, note_index(pl->p->t + pl->boxes[b].off));
-        if (extra && !reserve) extra += NOTE_SEP;
+        /* the footnotes this line refers to must fit at the bottom of the same page (WP22b: a page
+           starts with the rest of a long one from the page before) */
+        if (nf.respage != fl.page) nflow_page(L, &nf, fl.page, fl.bottom - fl.top, 0);
+        extra = nflow_line(L, &nf, pl, k);
       }
-      if (fl.y + h > fl.bottom - reserve - extra && !fl.at_top) {
-        int pagewise = fl.col + 1 >= fl.ncols;
-        if (pagewise) reserve = 0, respage = fl.page + 1;
-        if (extra) {                     /* the separator again on the new page */
-          u32 b;
-          extra = pagewise || !reserve ? NOTE_SEP : 0;
-          for (b = pl->lines[k].box0; b < pl->lines[k].box0 + pl->lines[k].nbox; b++)
-            if (pl->boxes[b].kind == BX_NOTE) extra += note_height(L, note_index(pl->p->t + pl->boxes[b].off));
-        }
+      over = fl.y + h > fl.bottom - nf.reserve - extra;
+      if (over && extra && nflow_split(L, &nf, pl, k, fl.page, fl.bottom - nf.reserve - fl.y - h, &extra)) over = 0;   /* (WP22b: a long footnote split) */
+      if (over && !fl.at_top) {
         /* widow control: never leave a paragraph's last line alone at the top of a page */
         if (!pf->nowidow && k + 1 == pl->nlines && k >= 2 && L->nplaced > pl->placed0 && L->placed[L->nplaced - 1].page == fl.page) {
           L->nplaced--; k--; h = pl->lines[k].height;
           if (fl.sec && fl.sec->linenum != LN_NONE && !web && fl.lnum) fl.lnum--;     /* (counted, shown or not) */
         }
         flow_next(L, &fl);
+        if (d->nnotes && !web) {         /* the separator again on the new page */
+          if (nf.respage != fl.page) nflow_page(L, &nf, fl.page, fl.bottom - fl.top, 0);
+          extra = nflow_line(L, &nf, pl, k);
+          if (extra && fl.y + h > fl.bottom - nf.reserve - extra) nflow_split(L, &nf, pl, k, fl.page, fl.bottom - nf.reserve - fl.y - h, &extra);
+        }
       }
       if (!add_placed(L, pi, k, fl.page, fl.y, fl.colx, fl.colw)) return 0;
       if (fl.sec && fl.sec->linenum != LN_NONE && !web) {
@@ -1720,7 +2037,7 @@ static int paginate(Layout *L)
         if (shown % (fl.sec->lnby ? fl.sec->lnby : 1) == 0) { L->placed[L->nplaced - 1].lnum = shown; L->placed[L->nplaced - 1].lnd = lnd; }
       }
       fl.y += h; fl.at_top = 0;
-      reserve += extra;
+      nf.reserve += extra;
     }
     if (boxed(pf) && !web) {
       i32 botx = gnext ? 0 : bextra(pf, PE_BOTTOM);
@@ -1732,37 +2049,12 @@ static int paginate(Layout *L)
   }
   end_region(L, &fl);
   if (fl.maxy > fl.y) fl.y = fl.maxy;
-  /* the endnotes after the text, in the order of their numbers (once all of it is laid out) */
-  L->nen = 0;
-  if (L->complete && d->nenotes && L->enotenum) {
-    u32 num, cap = 0;
-    fl.y += NOTE_SEP;
-    if (fl.y + 480 > fl.bottom) { new_page(L, &fl); fl.y += NOTE_SEP; }
-    L->ensep_page = fl.page; L->ensep_y = fl.y - NOTE_SEP / 2;
-    for (num = 1; num <= (u32)d->nenotes; num++) {
-      int n;
-      Furn f;
-      i32 h;
-      for (n = 0; n < d->nenotes && L->enotenum[n] != num; n++) ;
-      if (n == d->nenotes) break;
-      if (!lay_note_ex(L, L->pg, n, 1, &f, &h)) continue;
-      for (k = 0; k < f.n; k++) {
-        i32 ph = f.f[k].p->pf.before + f.f[k].p->pf.after, j;
-        for (j = 0; j < (i32)f.f[k].pl.nlines; j++) ph += f.f[k].pl.lines[j].height;
-        if (fl.y + ph > fl.bottom && fl.y > fl.top) new_page(L, &fl);
-        if (L->nen >= cap) {
-          u32 nc = cap ? cap * 2 : 16;
-          void *ne = realloc(L->en, nc * sizeof L->en[0]);
-          if (!ne) { lay_furniture_free(&f); return 0; }
-          L->en = ne; cap = nc;
-        }
-        L->en[L->nen].note = (u32)n; L->en[L->nen].para = k; L->en[L->nen].page = fl.page; L->en[L->nen].y = fl.y + f.f[k].p->pf.before;
-        L->nen++;
-        fl.y += ph;
-      }
-      lay_furniture_free(&f);
-    }
-  }
+  /* (WP22b) the rest of a long footnote on pages of its own */
+  if (d->nnotes && !web && L->complete)
+    while (nf.cn >= 0) { if (nf.respage == fl.page) new_page(L, &fl); nflow_page(L, &nf, fl.page, fl.bottom - fl.top, 1); }
+  /* the endnotes after the text, in the order they are referred to (once all of it is laid out): all
+     of them, or (at each section's end) the last section's */
+  if (L->complete && d->nenotes && L->enotenum && !place_enotes(L, &fl, (u32)d->nenotes <= edcap ? edone : NULL, endsect ? secfirst : 0, d->np, nf.reserve, nf.respage)) return 0;
   fl.nofinish = !L->complete;
   finish_page(L, &fl);
   /* early floats whose anchors didn't come (gone, or not laid out yet) */
@@ -1785,17 +2077,28 @@ static int paginate(Layout *L)
     if (k + 1 > L->page_end[pg]) L->page_end[pg] = k + 1;
   }
   for (k = 0; k < npages; k++) if (L->page_end[k] < L->page_first[k]) L->page_end[k] = L->page_first[k];
-  /* the footnotes each page shows: those its lines refer to, in order */
+  /* the footnotes each page shows: those its lines refer to, in order (WP22b: after the rest of one
+     continued from the page before) */
   L->npn = 0;
-  if (d->nnotes && L->webw <= 0)
-    for (k = 0; k < L->nplaced; k++) {
-      Placed *pc = &L->placed[k];
-      ParaLay *pl = &L->pl[pc->para];
-      Line *ln = &pl->lines[pc->line];
+  if (d->nnotes && L->webw <= 0) {
+    u32 c = 0;                           /* the next continuation (L->ncut, in page order) */
+    for (k = 0; k <= L->nplaced; k++) {
+      Placed *pc = k < L->nplaced ? &L->placed[k] : NULL;
+      ParaLay *pl = pc ? &L->pl[pc->para] : NULL;
+      Line *ln = pc ? &pl->lines[pc->line] : NULL;
       u32 b, q;
-      for (b = ln->box0; b < ln->box0 + ln->nbox; b++) {
-        u32 n;
-        if (pl->boxes[b].kind != BX_NOTE) continue;
+      for (b = ln ? ln->box0 : 0; !ln || b < ln->box0 + ln->nbox; b++) {
+        u32 n = 0, pg = pc ? pc->page : 0xFFFFFFFFUL;
+        if (ln && pl->boxes[b].kind != BX_NOTE) continue;
+        /* continuations due on this page (or any left at the end) come first */
+        while (c < L->nncut && (L->ncut[c].l0 == 0 || L->ncut[c].page <= pg)) {
+          if (L->ncut[c].l0 > 0) {
+            if (L->npn >= L->pncap) { u32 nc = L->pncap ? L->pncap * 2 : 32; void *np2 = realloc(L->pn, nc * sizeof(L->pn[0])); if (!np2) return 0; L->pn = np2; L->pncap = nc; }
+            L->pn[L->npn].page = L->ncut[c].page; L->pn[L->npn].note = L->ncut[c].note; L->npn++;
+          }
+          c++;
+        }
+        if (!ln) break;
         n = (u32)note_index(pl->p->t + pl->boxes[b].off);
         for (q = 0; q < L->npn; q++) if (L->pn[q].page == pc->page && L->pn[q].note == n) break;
         if (q < L->npn) continue;
@@ -1808,6 +2111,17 @@ static int paginate(Layout *L)
         L->pn[L->npn].page = pc->page; L->pn[L->npn].note = n; L->npn++;
       }
     }
+    /* footnotes numbered afresh on each page */
+    if (L->fnn) {
+      u32 cnt = 0, pg = 0xFFFFFFFFUL, l0, l1;
+      for (k = 0; k < L->npn; k++) {
+        u32 n = L->pn[k].note;
+        if (n >= (u32)d->nnotes || !L->fnn[n].perpage || (note_cut(L, L->pn[k].page, n, &l0, &l1) && l0 > 0)) continue;
+        if (L->pn[k].page != pg) { pg = L->pn[k].page; cnt = 0; }
+        L->fnn[n].lab = L->fnn[n].start + cnt++;
+      }
+    }
+  }
   return 1;
 }
 /* see layout.h; an empty range for a page that doesn't exist */
@@ -1882,6 +2196,31 @@ static i32 sect_width(const SectFmt *s, i32 body, int web)
   flow_cols(&fl, s, body, web);
   return fl.colw;
 }
+/* (WP22b) the notes paragraph i refers to numbered as their section's options say (*fc, *ec: the
+   footnotes and endnotes counted so far, started again where the options say). Footnotes counted per
+   page get their numbers once pagination knows the pages */
+static void number_notes(Layout *L, u32 i, u32 *fc, u32 *ec)
+{
+  Doc *d = L->d;
+  Para *p = d->p[i];
+  NotePr fp, ep;
+  u32 k;
+  const SectFmt *sec = i < L->npsec ? L->psec[i] : NULL;
+  notes_eff(d, sec, 0, &fp); notes_eff(d, sec, 1, &ep);
+  if (i > 0 && d->p[i - 1]->pf.sect) { if (fp.restart == NRS_SECTION) *fc = 0; if (ep.restart == NRS_SECTION) *ec = 0; }
+  for (k = 0; k + 4 <= p->len; k++) {
+    int n, end;
+    NoteNum *nn;
+    const NotePr *np;
+    if (IS_NOTE(p->t + k)) end = 0; else if (IS_ENOTE(p->t + k)) end = 1; else continue;
+    n = note_index(p->t + k); k += 3;
+    nn = end ? L->enn : L->fnn; np = end ? &ep : &fp;
+    if (!nn || n >= (end ? d->nenotes : d->nnotes) || nn[n].lab) continue;
+    if (end) ++*ec; else ++*fc;
+    nn[n].lab = np->start + (end ? *ec : *fc) - 1; if (!nn[n].lab) nn[n].lab = 1;
+    nn[n].fmt = np->fmt; nn[n].start = np->start; nn[n].perpage = (u8)(np->restart == NRS_PAGE);
+  }
+}
 /* see layout.h. Old paragraph layouts are matched to the document's paragraphs by pointer (looking at
    most 64 ahead, as edits are local) and kept if the version, width, label, note numbers and
    hyphenation are the same and they didn't go round floating objects. Notes are numbered here too.
@@ -1893,7 +2232,7 @@ int lay_update_part(Layout *L, u32 budget)
   u32 i, j = 0, *cnt = NULL;
   char label[32];
   int stopped = 0, oom = 0;
-  u32 notes = 0, enotes = 0;
+  u32 notes = 0, enotes = 0, fshown = 0, eshown = 0;
   L->laid = 0;
   if (!(npl = (ParaLay *)calloc(d->np ? d->np : 1, sizeof(ParaLay)))) return 0;
   if (d->nlists && !(cnt = (u32 *)calloc((size_t)d->nlists * 9, sizeof(u32)))) { free(npl); return 0; }
@@ -1902,6 +2241,9 @@ int lay_update_part(Layout *L, u32 budget)
   if (d->nnotes && !(L->notenum = (u32 *)calloc((size_t)d->nnotes, sizeof(u32)))) { free(npl); free(cnt); return 0; }
   free(L->enotenum); L->enotenum = NULL;
   if (d->nenotes && !(L->enotenum = (u32 *)calloc((size_t)d->nenotes, sizeof(u32)))) { free(npl); free(cnt); return 0; }
+  free(L->fnn); free(L->enn);                     /* (WP22b) their numbers as shown */
+  L->fnn = d->nnotes ? (NoteNum *)calloc((size_t)d->nnotes, sizeof(NoteNum)) : NULL;
+  L->enn = d->nenotes ? (NoteNum *)calloc((size_t)d->nenotes, sizeof(NoteNum)) : NULL;
   /* each paragraph's section (the format is on the paragraph that ends it) */
   {
     static SectFmt def;
@@ -1932,6 +2274,7 @@ int lay_update_part(Layout *L, u32 budget)
     if (d->nenotes)
       for (k = 0; k + 4 <= p->len; k++)
         if (IS_ENOTE(p->t + k)) { int n = note_index(p->t + k); enotes++; if (n < d->nenotes && !L->enotenum[n]) L->enotenum[n] = enotes; k += 3; }
+    if (d->nnotes || d->nenotes) number_notes(L, i, &fshown, &eshown);   /* (WP22b) */
     for (k = j; k < L->npl && k < j + 64; k++) if (L->pl[k].p == p) { found = k; break; }
     if (found < L->npl && L->pl[found].laid && L->pl[found].ver == p->ver && L->pl[found].avail == avail && !strcmp(L->pl[found].label, label) &&
         L->pl[found].notebase == notebase && L->pl[found].enotebase == enotebase && L->pl[found].hyph == d->hyphenate && !L->pl[found].shaped) {

@@ -715,7 +715,7 @@ static void page_content(Pdf *p, u32 page, Buf *b)
       i32 sepy = -1;
       if (w < 2 ? !lay_furniture(L, page, w, &f) : w == 2 ? !lay_notes(L, page, &f, &sepy) : !lay_endnotes(L, page, &f, &sepy)) continue;
       if (w >= 2) note_marks(p, &f, page, w == 3, H, pg->left);
-      if (w >= 2 && sepy >= 0) buf_printf(b, "0 0 0 RG 10 w %ld %ld m %ld %ld l S\n", (long)pg->left, (long)(H - sepy), (long)(pg->left + 2880), (long)(H - sepy));
+      if (w >= 2 && sepy >= 0) buf_printf(b, "0 0 0 RG 10 w %ld %ld m %ld %ld l S\n", (long)pg->left, (long)(H - sepy), (long)(pg->left + L->sepw), (long)(H - sepy));   /* (WP22b: L->sepw) */
       for (j = 0; j < f.n; j++) {
         i32 y = f.f[j].y;
         for (k = 0; k < f.f[j].pl.nlines; k++) {

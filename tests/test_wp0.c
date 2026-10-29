@@ -7,6 +7,7 @@
 #include "../core/keep.h"
 #include "../core/xml.h"
 #include "../core/zip.h"
+#include "../core/info.h"
 
 /* whether the .docx in data has part name, with these bytes (want NULL: any) */
 static int has_part(const u8 *data, size_t n, const char *name, const u8 *want, size_t wn)
@@ -89,8 +90,9 @@ static void kept_parts(const char *file, int custom)
   if (!a || !orig) { ok(what, 0); free(orig); doc_free(a); return; }
   ok("keep: customXml, its rels and itemProps kept", keep_find(a, "customXml/item1.xml") >= 0 && keep_find(a, "customXml/_rels/item1.xml.rels") >= 0 &&
      keep_find(a, "customXml/itemProps1.xml") >= 0);
-  ok("keep: app.xml kept, thumbnail not", keep_find(a, "docProps/app.xml") >= 0 && keep_find(a, "docProps/thumbnail.jpeg") < 0);
-  if (custom) ok("keep: custom.xml kept", keep_find(a, "docProps/custom.xml") >= 0);
+  /* (WP24 reads app.xml and custom.xml now, core/info.c, and writes them itself) */
+  ok("keep: app.xml read (WP24), thumbnail not kept", keep_find(a, "docProps/app.xml") < 0 && a->info && a->info->napp > 0 && keep_find(a, "docProps/thumbnail.jpeg") < 0);
+  if (custom) ok("keep: custom.xml read (WP24)", keep_find(a, "docProps/custom.xml") < 0 && a->info);   /* (lo.docx's has no properties in it) */
   k = keep_find(a, "customXml/item1.xml");
   ok("keep: the document's relationship, its id clear of Quill's", k >= 0 && a->kept[k].owner && !strcmp(a->kept[k].owner, "word/document.xml") &&
      a->kept[k].relid && (!strncmp(a->kept[k].relid, "rIdK", 4) || !keep_id_reserved(a->kept[k].relid)));
@@ -108,7 +110,7 @@ static void kept_parts(const char *file, int custom)
       free(pb);
     }
     zip_close(&z);
-    ok("keep: every kept part written back byte for byte", same && a->nkept >= 4);
+    ok("keep: every kept part written back byte for byte", same && a->nkept >= 3);
     rels = part_text(data, n, "word/_rels/document.xml.rels");
     prels = part_text(data, n, "_rels/.rels");
     ct = part_text(data, n, "[Content_Types].xml");

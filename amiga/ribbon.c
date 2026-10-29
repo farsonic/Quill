@@ -22,6 +22,7 @@
 #include "theme.h"
 #include "lang.h"
 #include "ids.h"
+#include "wp_info.h"   /* (WP24) */
 #include "../core/tstyle.h"
 #include "ribbondef.h"
 #include "wphooks.h"
@@ -215,8 +216,10 @@ static const Item g_clip[] = {
 };
 /* Save, Undo and Redo: not a group on a tab but the quick access buttons at the right end of the
    tab strip, always in reach and taking no room from the tabs' tools (see qa below) */
-#define NQA 3
+#define NQA 4
 static const Item g_undo[NQA] = {
+  { K_BUTTON, S_SMALL, 0, 0, "AutoSave", ID_INFO_AUTOSAVE, RB_WP(WPI_24, WP24S_AUTOSAVE), 0, 0, 0,          /* (WP24, wp_info.h) */
+    "AutoSave: a saved document is saved again by itself after a pause in typing", NULL, WP24_AUTOSAVE_ICON },
   { K_BUTTON, S_SMALL, IC_SAVE, 0, "Save", ID_SAVE, 0, 0, 0, 0, "Save (Amiga-S)" },
   { K_BUTTON, S_SMALL, IC_UNDO, 0, "Undo", ID_UNDO, 0, RB_CANUNDO, 0, 0, "Undo (Amiga-Z)" },
   { K_BUTTON, S_SMALL, IC_REDO, 0, "Redo", ID_REDO, 0, RB_CANREDO, 0, 0, "Redo (Amiga-Y)" },
@@ -1188,8 +1191,9 @@ static void draw_tabs(struct RData *d, Object *obj)
     RBox *b = &d->qa[t];
     int en = item_enabled(d, &g_undo[t]);
     if (b->x0 < 0) continue;
+    if (item_on(d, &g_undo[t])) theme_fill(rp, b->x0, b->y0 + 1, b->x1, b->y1 - 1, tpen(T_CHECKED));     /* (WP24: AutoSave on) */
     if (d->hot == 200 + t && en) theme_fill(rp, b->x0, b->y0 + 1, b->x1, b->y1 - 1, tpen(T_HOVER));
-    theme_icon(rp, g_undo[t].icon, b->x0 + 3, b->y0 + (b->y1 - b->y0 + 1 - 16) / 2, 16, !en);
+    item_icon(rp, &g_undo[t], b->x0 + 3, b->y0 + (b->y1 - b->y0 + 1 - 16) / 2, 16, !en);
   }
 }
 /* the whole ribbon, laid out afresh: tabs, items, then each group's caption and the line after it */

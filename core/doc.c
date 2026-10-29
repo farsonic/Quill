@@ -7,6 +7,8 @@
 #include "doc.h"
 #include "keep.h"
 #include "image.h"
+#include "notes.h"   /* (WP22b) */
+#include "info.h"    /* (WP24) */
 
 /* ------------------------------------------------------------------ */
 /* undo: a step replaces paragraphs [p0, p0 + nnew) with copies of what was there before the edit
@@ -2686,6 +2688,8 @@ void doc_free(Doc *d)
   for (i = 0; i < HF_N; i++) { story_free(&d->hdr[i]); story_free(&d->ftr[i]); }
   undo_free(d->undo);
   keep_free(d);
+  notes_free(d);                 /* (WP22b) */
+  info_free(d);                  /* (WP24) */
   free(d);
 }
 
