@@ -11,6 +11,7 @@
 Doc *wp9_mini_docx(const char *body, const char *styles);      /* (test_wp9.c) */
 char *wp9_saved_xml(Doc *d, const char *part);
 char *wp9_pdf_streams(const u8 *pdf, size_t n);
+int wp9_count(const char *s, const char *sub);
 
 static Doc *paras(const char *const *t, int n)
 {
@@ -138,7 +139,7 @@ static void hyphens(void)
       size_t len;
       u8 *pdf = pdf_export(L, &len);
       char *st = pdf ? wp9_pdf_streams(pdf, len) : NULL;
-      ok("hyphens: the PDF shows the hyphen at the break only", st && strstr(st, "(extra)") && strstr(st, "(-)") && strstr(st, "(ordinarily)"));
+      ok("hyphens: the PDF shows the hyphen at the break only (four pieces: two words, the hyphen, the rest)", st && wp9_count(st, " Tj") == 4);
       free(st); free(pdf);
     }
     lay_free(L);

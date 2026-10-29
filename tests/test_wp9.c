@@ -189,6 +189,14 @@ char *wp9_pdf_streams(const u8 *pdf, size_t n)
   buf_addc(&o, 0);
   return buf_take(&o);
 }
+/* how many times sub is in s (0 for NULL) */
+int wp9_count(const char *s, const char *sub)
+{
+  int n = 0;
+  size_t l = strlen(sub);
+  while (s && (s = strstr(s, sub))) { n++; s += l; }
+  return n;
+}
 static void hidden_layout(void)
 {
   Doc *d = doc_new();
@@ -212,9 +220,17 @@ static void hidden_layout(void)
   pdf = pdf_export(L, &n);
   {
     char *st = pdf ? wp9_pdf_streams(pdf, n) : NULL;
-    ok("hidden text: left out of the PDF, the layout as it was after", st && strstr(st, "(Shown)") && !strstr(st, "secretword") && L->showhidden == 1 &&
-       L->pl[0].lines[0].width == w1);
+    int with = wp9_count(st, " Tj"), without;
+    free(st); free(pdf);
+    ok("hidden text: the layout as it was after the PDF", L->showhidden == 1 && L->pl[0].lines[0].width == w1);
+    /* the same text not hidden: one more piece of text shown */
+    memset(&v, 0, sizeof v); v.fx2mask = FX2_HIDDEN;
+    doc_format(d, P(0, 0), P(0, 22), CM_FX2, &v);
+    pdf = pdf_export(L, &n); st = pdf ? wp9_pdf_streams(pdf, n) : NULL;
+    without = wp9_count(st, " Tj");
+    ok("hidden text: left out of the PDF", with == 2 && without == 3);
     free(st);
+    doc_undo(d, &c);
   }
   free(pdf);
   /* the effects in the PDF */

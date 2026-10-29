@@ -12,6 +12,8 @@
 #include "tstyle.h"
 #include "keep.h"
 #include "charfx.h"
+#include "notes.h"   /* (WP22b) */
+#include "info.h"    /* (WP24) */
 
 /* ------------------------------------------------------------------ */
 /* reading: formatting as found (which fields a pPr or rPr sets) */
@@ -1259,6 +1261,7 @@ static void parse_drawing(Xml *x, PCtx *pc, const CharFmt *f)
     else if (!strcmp(n, "wrapPolygon")) { parse_polygon(x, im); continue; }
     else if (!strncmp(n, "wrap", 4) && !wrapname[0] && strlen(n) < sizeof wrapname) strcpy(wrapname, n);
     else if (!strcmp(n, "docPr")) { const char *d = xml_attr(x, "descr"); if (d) { strncpy(im->alt, d, sizeof im->alt - 1); im->alt[sizeof im->alt - 1] = 0; } }
+    else if (!strcmp(n, "decorative")) { const char *v = xml_attr(x, "val"); im->decorative = (u8)(!v || *v == '1' || *v == 't'); }   /* (WP24) */
     else dshape_elem(x, pc, &s);
   }
   /* the wrap: none (behind or in front, as behindDoc says), square, tight, through or top and bottom */
@@ -1843,6 +1846,7 @@ static void parse_sect(Xml *x, Ctx *c, SectFmt *sf, int body)
         strncpy(dst, id, 31); dst[31] = 0;
       }
     } else if (!strcmp(x->name, "titlePg")) { if (body) c->d->titlepg = (u8)onoff(x); else sf->titlepg = (u8)onoff(x); }
+    else if (!strcmp(x->name, "footnotePr") || !strcmp(x->name, "endnotePr")) { notes_read_pr(x, x->name[0] == 'e' ? &sf->enpr : &sf->fnpr); continue; }   /* (WP22b) */
     xml_skip(x);
   }
   /* margins that leave no room are not believed */
@@ -1941,6 +1945,35 @@ static int comment_by_id(Ctx *c, i32 id)
   for (k = 0; k < c->ncm; k++) if (c->cmid[k] == id) return k;
   return -1;
 }
+/* (WP22b) a separator note (type: separator, continuationSeparator or continuationNotice) of footnotes.xml
+   (end: endnotes.xml), the START just read: which line it holds and its paragraphs, kept for drawing
+   and writing back (core/notes.h) */
+static void read_note_sep(Ctx *c, Xml *x, const char *type, int end)
+{
+  int which = !strcmp(type, "separator") ? NSEP_SEP : !strcmp(type, "continuationSeparator") ? NSEP_CONT : !strcmp(type, "continuationNotice") ? NSEP_NOTICE : -1;
+  int flags = 0;
+  const char *raw;
+  size_t n = xml_raw(x, &raw);
+  Xml y;
+  PCtx pc;
+  Story st;
+  if (which < 0 || !n) return;
+  xml_init(&y, raw, n);
+  while (xml_next(&y) != XT_EOF)
+    if (y.type == XT_START) { if (!strcmp(y.name, "separator")) flags |= NSF_LINE; else if (!strcmp(y.name, "continuationSeparator")) flags |= NSF_LONG; }
+  xml_free(&y);
+  memset(&pc, 0, sizeof pc);
+  pc.c = c; pc.tstyle = -1;
+  xml_init(&y, raw, n);
+  while (xml_next(&y) != XT_EOF) {
+    if (y.type != XT_START) continue;
+    if (!strcmp(y.name, "p")) { Para *p = parse_para(&y, &pc); if (p) emit(&pc, p); }
+    else if (strcmp(y.name, "footnote") && strcmp(y.name, "endnote")) xml_skip(&y);
+  }
+  xml_free(&y);
+  st.p = pc.out; st.np = pc.nout;
+  notes_sep_set(c->d, end, which, flags, &st);
+}
 /* footnotes.xml: each note's paragraphs (the separators are left out), before the text refers to them.
    With end set, endnotes.xml the same way. Each note's w:id is recorded so the references in the
    text can find its index in the Doc. */
@@ -1958,7 +1991,8 @@ static void parse_footnotes(Ctx *c, const char *xml, size_t n, int end)
     PCtx pc;
     if (x.type != XT_START || strcmp(x.name, end ? "endnote" : "footnote")) continue;
     t = xml_attr(&x, "type");
-    if ((t && strcmp(t, "normal")) || !attr_num(&x, "id", &id) || (k = end ? doc_add_endnote(c->d) : doc_add_note(c->d)) < 0) { xml_skip(&x); continue; }
+    if (t && strcmp(t, "normal")) { read_note_sep(c, &x, t, end); continue; }       /* (WP22b: the document's separators) */
+    if (!attr_num(&x, "id", &id) || (k = end ? doc_add_endnote(c->d) : doc_add_note(c->d)) < 0) { xml_skip(&x); continue; }
     if (*cnt >= cap) {
       int nc = cap ? cap * 2 : 32;
       i32 *a = (i32 *)realloc(*ids, nc * sizeof(i32));
@@ -2235,6 +2269,12 @@ static int wp9_enclose_field(PCtx *pc, const CharFmt *f)
   c->instr[0] = 0;
   return 1;
 }
+/* (WP22b) settings.xml's w:footnotePr and w:endnotePr: the document's note options */
+static void read_notes_setting(Ctx *c, Xml *x)
+{
+  if (!strcmp(x->name, "footnotePr")) notes_read_pr(x, &c->d->fnpr);
+  else if (!strcmp(x->name, "endnotePr")) notes_read_pr(x, &c->d->enpr);
+}
 /* each start tag of word/settings.xml, after Quill's own (compatibility mode, odd and even headers,
    automatic hyphenation) have been looked at */
 static void docx_read_setting_ext(Ctx *c, Xml *x)
@@ -2263,6 +2303,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
   /* WP21b: */
   /* WP22a: */
   /* WP22b: */
+  read_notes_setting(c, x);
   /* WP23: */
   /* WP24: */
   /* WP27: */
@@ -2380,6 +2421,27 @@ static void keep_rels(Doc *d, ZipReader *z, const char *ct, size_t ctn, const ch
   }
   xml_free(&x);
 }
+/* (WP24) the document's properties: core.xml, app.xml and custom.xml (core/info.h), no longer kept whole */
+static void read_info_parts(Doc *d, ZipReader *z, const char *pkgrels, size_t pn)
+{
+  static const char *const types[3] = { "/core-properties", "/extended-properties", "/custom-properties" };
+  int k;
+  if (!pkgrels) return;
+  for (k = 0; k < 3; k++) {
+    char path[300] = "", rels[340];
+    char *xml;
+    size_t n;
+    const char *sl;
+    rel_target(pkgrels, pn, types[k], "", path, sizeof path);
+    if (!path[0] || !(xml = part(z, path, &n))) continue;
+    if (k == 0) info_read_core(d, xml, n); else if (k == 1) info_read_app(d, xml, n); else info_read_custom(d, xml, n);
+    free(xml);
+    keep_remove(d, path);
+    sl = strrchr(path, '/');
+    snprintf(rels, sizeof rels, "%.*s_rels/%s.rels", sl ? (int)(sl - path + 1) : 0, path, sl ? sl + 1 : path);
+    keep_remove(d, rels);
+  }
+}
 /* after everything Quill reads has been read: the parts kept verbatim, then the packages' own parts.
    docrels: the main part's relationships (base its folder, "word/") */
 static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_t rn, const char *base, const char *mainpart)
@@ -2414,6 +2476,7 @@ static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_
   /* WP22b: */
   /* WP23: */
   /* WP24: */
+  read_info_parts(c->d, z, pkgrels, pn);
   /* WP27: */
   /* WP31: */
   free(ct); free(pkgrels);
@@ -3046,7 +3109,9 @@ static void w_picture(Buf *o, Doc *d, const char *rpr, size_t rl, int k)
   buf_printf(o, "<wp:docPr id=\"%lu\" name=\"%s %lu\"", (unsigned long)id, im->kind == OBJ_PICTURE ? "Picture" : im->kind == OBJ_TEXTBOX ? "Text Box" : im->kind == OBJ_GROUP ? "Group" : "Shape",
              (unsigned long)id);
   if (im->alt[0]) { buf_adds(o, " descr=\""); xml_escape(o, im->alt, strlen(im->alt)); buf_adds(o, "\""); }
-  buf_adds(o, "/><wp:cNvGraphicFramePr/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">");
+  buf_adds(o, im->decorative ? "><a:extLst xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:ext uri=\"{C183D7F6-B498-43B3-948B-1728B52AA6E4}\">"   /* (WP24: decorative) */
+              "<adec:decorative xmlns:adec=\"http://schemas.microsoft.com/office/drawing/2017/decorative\" val=\"1\"/></a:ext></a:extLst></wp:docPr>" : "/>");
+  buf_adds(o, "<wp:cNvGraphicFramePr/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">");
   buf_printf(o, "<a:graphicData uri=\"%s\">", im->kind == OBJ_PICTURE ? "http://schemas.openxmlformats.org/drawingml/2006/picture" :
              im->kind == OBJ_GROUP ? "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" : "http://schemas.microsoft.com/office/word/2010/wordprocessingShape");
   w_obj(o, d, im, 0, 0, 0, &save_drawing);
@@ -3308,6 +3373,51 @@ static char *w_story(Doc *d, const Story *st, int footer, int wm, size_t *len)
   return buf_take(&o);
 }
 static const char *const hf_type[HF_N] = { "default", "first", "even" };
+/* (WP22b) the id the continuation notice gets in footnotes.xml (end: endnotes.xml): the one after the
+   notes', 0 if the document has no notice of its own */
+static int notice_id(Doc *d, int end)
+{
+  int k, top = 0, n = end ? d->nenotes : d->nnotes, *ids = end ? save_enotes : save_notes;
+  if (!ids || !notes_sep_own(d, end, NSEP_NOTICE)) return 0;
+  for (k = 0; k < n; k++) if (ids[k] > top) top = ids[k];
+  return top + 1;
+}
+/* (WP22b) the separator notes at the start of footnotes.xml (end: endnotes.xml): the document's own
+   paragraphs with the line they hold, else Word's */
+static void w_note_seps(Buf *o, Doc *d, int end)
+{
+  static const char *const types[NSEP_N] = { "separator", "continuationSeparator", "continuationNotice" };
+  const char *el = end ? "endnote" : "footnote";
+  int w;
+  for (w = 0; w < NSEP_N; w++) {
+    int flags = notes_sep(d, end, w, NULL), id = w == NSEP_SEP ? -1 : w == NSEP_CONT ? 0 : notice_id(d, end);
+    const Story *st = d->nseps && d->nseps->have[end][w] ? &d->nseps->text[end][w] : NULL;
+    const char *pre = flags & NSF_LINE ? "<w:r><w:separator/></w:r>" : flags & NSF_LONG ? "<w:r><w:continuationSeparator/></w:r>" : NULL;
+    u32 i;
+    if (w == NSEP_NOTICE && !id) continue;
+    buf_printf(o, "<w:%s w:type=\"%s\" w:id=\"%d\">", el, types[w], id);
+    if (st && st->np) for (i = 0; i < st->np; i++) w_para_ex(o, d, st->p[i], i ? NULL : pre, NULL);
+    else {
+      buf_adds(o, "<w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr>");
+      if (pre) buf_adds(o, pre);
+      buf_adds(o, "</w:p>");
+    }
+    buf_printf(o, "</w:%s>", el);
+  }
+}
+/* (WP22b) settings.xml's w:footnotePr and w:endnotePr: the document's options and the special notes' ids */
+static void w_notes_settings(Buf *st, Doc *d)
+{
+  int e;
+  for (e = 0; e < 2; e++) {
+    char inner[200];
+    int nid = notice_id(d, e);
+    const char *el = e ? "endnote" : "footnote";
+    snprintf(inner, sizeof inner, "<w:%s w:id=\"-1\"/><w:%s w:id=\"0\"/>", el, el);
+    if (nid) snprintf(inner + strlen(inner), sizeof inner - strlen(inner), "<w:%s w:id=\"%d\"/>", el, nid);
+    notes_write_pr(st, e ? &d->enpr : &d->fnpr, e, e ? "endnotePr" : "footnotePr", (e ? save_enotes : save_notes) ? inner : NULL);
+  }
+}
 /* footnotes.xml: Word's two separator notes (ids -1 and 0), then each footnote that is referred to,
    under the id save_notes gave it, its first paragraph opened by the number (footnoteRef) and a
    space. Malloc'd, *len its size; NULL if out of memory. */
@@ -3318,9 +3428,8 @@ static char *w_footnotes(Doc *d, size_t *len)
   u32 i;
   buf_init(&o);
   buf_adds(&o, XMLHDR);
-  buf_adds(&o, "<w:footnotes "); buf_adds(&o, WNS);
-  buf_adds(&o, "><w:footnote w:type=\"separator\" w:id=\"-1\"><w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:separator/></w:r></w:p></w:footnote>"
-               "<w:footnote w:type=\"continuationSeparator\" w:id=\"0\"><w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>");
+  buf_adds(&o, "<w:footnotes "); buf_adds(&o, WNS); buf_adds(&o, ">");
+  w_note_seps(&o, d, 0);                 /* (WP22b: the separators, the document's own or Word's) */
   for (k = 0; k < d->nnotes; k++) {
     if (!save_notes[k]) continue;
     buf_printf(&o, "<w:footnote w:id=\"%d\">", save_notes[k]);
@@ -3342,9 +3451,8 @@ static char *w_endnotes(Doc *d, size_t *len)
   u32 i;
   buf_init(&o);
   buf_adds(&o, XMLHDR);
-  buf_adds(&o, "<w:endnotes "); buf_adds(&o, WNS);
-  buf_adds(&o, "><w:endnote w:type=\"separator\" w:id=\"-1\"><w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:separator/></w:r></w:p></w:endnote>"
-               "<w:endnote w:type=\"continuationSeparator\" w:id=\"0\"><w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:continuationSeparator/></w:r></w:p></w:endnote>");
+  buf_adds(&o, "<w:endnotes "); buf_adds(&o, WNS); buf_adds(&o, ">");
+  w_note_seps(&o, d, 1);                 /* (WP22b) */
   for (k = 0; k < d->nenotes; k++) {
     if (!save_enotes[k]) continue;
     buf_printf(&o, "<w:endnote w:id=\"%d\">", save_enotes[k]);
@@ -3419,6 +3527,7 @@ static void w_sectpr(Buf *o, Doc *d, const SectFmt *s, int g, int last)
   if (!set_used(d, g)) g = 0;
   for (k = 0; k < HF_N; k++) if (part_written(d, g, k)) buf_printf(o, "<w:headerReference w:type=\"%s\" r:id=\"rIdH%lu\"/>", hf_type[k], (unsigned long)(g * HF_N + k));
   for (k = 0; k < HF_N; k++) if (part_written(d, g, HF_N + k)) buf_printf(o, "<w:footerReference w:type=\"%s\" r:id=\"rIdF%lu\"/>", hf_type[k], (unsigned long)(g * HF_N + k));
+  notes_write_pr(o, &s->fnpr, 0, "footnotePr", NULL); notes_write_pr(o, &s->enpr, 1, "endnotePr", NULL);   /* (WP22b) */
   if (s->start != SB_NEXT) buf_printf(o, "<w:type w:val=\"%s\"/>", types[s->start & 3]);
   buf_printf(o, "<w:pgSz w:w=\"%ld\" w:h=\"%ld\"%s/>", (long)pg->width, (long)pg->height,
              pg->width > pg->height ? " w:orient=\"landscape\"" : "");
@@ -3612,6 +3721,22 @@ int docx_out_part(DocxOut *o, const char *name, const char *ctype, const char *o
   }
   return 1;
 }
+/* (WP24) docProps/app.xml and (with custom properties) docProps/custom.xml */
+static void write_info_parts(Doc *d, DocxOut *o)
+{
+  size_t n;
+  char *x;
+  if ((x = info_app_xml(d, &n))) {
+    docx_out_part(o, "docProps/app.xml", "application/vnd.openxmlformats-officedocument.extended-properties+xml", "",
+                  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", "rIdApp", x, n);
+    free(x);
+  } else o->oom = 1;
+  if ((x = info_custom_xml(d, &n))) {
+    docx_out_part(o, "docProps/custom.xml", "application/vnd.openxmlformats-officedocument.custom-properties+xml", "",
+                  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties", "rIdCustom", x, n);
+    free(x);
+  }
+}
 /* the kept parts (core/keep.h), then each package's own */
 static void docx_write_parts_ext(Doc *d, DocxOut *o)
 {
@@ -3645,6 +3770,7 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
   /* WP22b: */
   /* WP23: */
   /* WP24: */
+  write_info_parts(d, o);
   /* WP27: */
   /* WP31: */
 }
@@ -3779,13 +3905,7 @@ u8 *docx_save(Doc *d, size_t *len)
   if (save_nml) buf_adds(&ct, "<Default Extension=\"png\" ContentType=\"image/png\"/><Default Extension=\"jpeg\" ContentType=\"image/jpeg\"/>");
   buf_add(&ct, ext.ct.data, ext.ct.len);
   buf_adds(&ct, "<Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/></Types>");
-  buf_adds(&core, XMLHDR);
-  buf_adds(&core, "<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" "
-                  "xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:dcterms=\"http://purl.org/dc/terms/\" "
-                  "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
-  if (d->title[0]) { buf_adds(&core, "<dc:title>"); xml_escape(&core, d->title, strlen(d->title)); buf_adds(&core, "</dc:title>"); }
-  if (d->author[0]) { buf_adds(&core, "<dc:creator>"); xml_escape(&core, d->author, strlen(d->author)); buf_adds(&core, "</dc:creator>"); }
-  buf_adds(&core, "</cp:coreProperties>");
+  info_write_core(d, &core);             /* (WP24: every core property, core/info.h) */
   zip_begin(&z);
   ok = zip_add(&z, "[Content_Types].xml", ct.data, ct.len);
   {
@@ -3857,8 +3977,7 @@ u8 *docx_save(Doc *d, size_t *len)
     if (d->hyphenate) buf_adds(&st, "<w:autoHyphenation/>");
     docx_write_settings_ext(d, &st, 2);
     if (d->evenodd) buf_adds(&st, "<w:evenAndOddHeaders/>");
-    if (save_notes) buf_adds(&st, "<w:footnotePr><w:footnote w:id=\"-1\"/><w:footnote w:id=\"0\"/></w:footnotePr>");
-    if (save_enotes) buf_adds(&st, "<w:endnotePr><w:endnote w:id=\"-1\"/><w:endnote w:id=\"0\"/></w:endnotePr>");
+    w_notes_settings(&st, d);           /* (WP22b: w:footnotePr, w:endnotePr) */
     buf_adds(&st, "<w:compat><w:compatSetting w:name=\"compatibilityMode\" w:uri=\"http://schemas.microsoft.com/office/word\" w:val=\"15\"/></w:compat>");
     docx_write_settings_ext(d, &st, 3);
     buf_adds(&st, "</w:settings>");

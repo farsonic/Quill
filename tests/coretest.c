@@ -821,7 +821,7 @@ static void more_fonts(void)
     }
     L = lay_new(d, &fs2); lay_update(L);
     pdf = pdf_export(L, &n);
-    ok("otf: a PDF embeds it as OpenType", pdf && !memcmp(pdf, "%PDF-1.6", 8) && memmem(pdf, n, "/FontFile3", 10) && memmem(pdf, n, "/Subtype /OpenType", 18) && memmem(pdf, n, "/Subtype /Type1 /BaseFont /Inter", 32));
+    ok("otf: a PDF embeds it as OpenType", pdf && !memcmp(pdf, "%PDF-1.6", 8) && memmem(pdf, n, "/FontFile3", 10) && memmem(pdf, n, "/Subtype /OpenType", 18) && memmem(pdf, n, "/Subtype /CIDFontType0 /BaseFont /", 34) && memmem(pdf, n, "+Inter", 6));
     free(pdf); lay_free(L); doc_free(d);
   }
   {
