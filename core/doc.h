@@ -30,9 +30,31 @@ typedef struct {
   i16 position;             /* raised (lowered if negative), half-points */
   u16 link;                 /* a hyperlink: Doc.links index + 1 (0: not a link) */
   u16 bmark;                /* in a bookmark: Doc.bmarks index + 1 (0: none) */
+  /* (work packages: new fields go below, at the end) */
+  /* WP9 character formatting: */
+  u16 fx2;                  /* FX2_ effects and the enclosure (FX2_ENCLOSE bits) */
+  u16 fx2mask;              /* (only in a value given to cf_apply: which fx2 bits CM_FX2 changes; 0 all of them) */
+  u32 ulcolor;              /* the underline's colour: 0 the text's, else HL_ON | 0xRRGGBB */
+  u32 shade;                /* character shading (w:shd, kept apart from the highlight): 0 none, else HL_ON | 0xRRGGBB */
+  u16 rx;                   /* run properties kept verbatim (w14 text effects, w:effect): charfx.h rx_text(rx), 0 none */
 } CharFmt;
 enum { REV_NONE, REV_INS, REV_DEL };
 enum { FX_SMALLCAPS = 1, FX_DSTRIKE = 2, FX_BORDER = 4 };   /* FX_BORDER: a box round the characters (w:bdr) */
+/* WP9: CharFmt.fx2. Hidden text (w:vanish: shown with formatting marks, else left out of the layout
+   and the PDF), outline (hollow letters), shadow, emboss and engrave (w:imprint), and enclosed
+   characters (Word's eq \o\ac field: a circle, square, triangle or diamond round them, the symbol
+   enlarged or the text shrunk) */
+enum { FX2_HIDDEN = 1, FX2_OUTLINE = 2, FX2_SHADOW = 4, FX2_EMBOSS = 8, FX2_ENGRAVE = 16,
+       FX2_ENCLOSE = 0xE0,       /* the enclosure's shape: (fx2 & FX2_ENCLOSE) >> 5, EN_ */
+       FX2_ENLARGE = 0x100 };    /* with an enclosure: the symbol enlarged (else the text shrunk) */
+enum { EN_NONE, EN_CIRCLE, EN_SQUARE, EN_TRIANGLE, EN_DIAMOND };
+#define FX2_RELIEF (FX2_OUTLINE | FX2_SHADOW | FX2_EMBOSS | FX2_ENGRAVE)
+#define ENCLOSURE(f) (((f)->fx2 & FX2_ENCLOSE) >> 5)
+/* WP9's CM_ bits (CM_FX2 is the bit the CF_ flags leave unused); in CM_LOOK and CM_ALL */
+#define CM_FX2     0x80U
+#define CM_ULCOLOR 0x40000000U
+#define CM_SHADE   0x20000000U
+#define CM_RX      0x10000000U
 enum { UL_SINGLE, UL_DOUBLE, UL_THICK, UL_DOTTED, UL_DASHED, UL_WAVE, UL_WORDS, UL_N };
 #define HL_ON 0x01000000UL
 /* which fields a formatting change touches */
@@ -43,10 +65,10 @@ enum { CM_BOLD = 1, CM_ITALIC = 2, CM_UNDERLINE = 4, CM_STRIKE = 8, CM_SUPER = 1
        CM_LINK = 0x100000,       /* (not in CM_ALL: clearing formatting or painting it keeps links, as in Word) */
        CM_BMARK = 0x200000,      /* (nor this: bookmarks stay where they are) */
        CM_CBORDER = 0x400000,    /* FX_BORDER */
-       CM_LOOK = 0x4FCFFF,       /* how it looks (not its character style nor tracked changes) */
-       CM_ALL = 0x4FEFFF };       /* CM_ALL leaves tracked changes alone */
+       CM_LOOK = 0x704FCFFF,     /* how it looks (not its character style nor tracked changes; WP9's bits too) */
+       CM_ALL = 0x704FEFFF };     /* CM_ALL leaves tracked changes alone */
 
-enum { AL_LEFT, AL_CENTER, AL_RIGHT, AL_JUSTIFY };
+enum { AL_LEFT, AL_CENTER, AL_RIGHT, AL_JUSTIFY, AL_DISTRIBUTE };   /* AL_DISTRIBUTE (WP10): every line spread out, the last too (w:jc distribute) */
 enum { LS_AUTO, LS_ATLEAST, LS_EXACT };    /* line spacing rule: line is 240ths of a line, or twips */
 /* table cells: a table is a run of paragraphs with the same table number; a cell is a run with
    the same row and column. So positions, editing and undo work in tables as anywhere else. */
@@ -157,7 +179,8 @@ int same_cell(const ParaFmt *a, const ParaFmt *b);
 const Cell *cell_in(const ParaFmt *pf, u16 t);
 
 /* lists: a definition per list (a .docx w:num with its abstract numbering resolved) */
-enum { NF_BULLET, NF_DECIMAL, NF_LOWER_LETTER, NF_UPPER_LETTER, NF_LOWER_ROMAN, NF_UPPER_ROMAN, NF_NONE };
+enum { NF_BULLET, NF_DECIMAL, NF_LOWER_LETTER, NF_UPPER_LETTER, NF_LOWER_ROMAN, NF_UPPER_ROMAN, NF_NONE,
+       NF_DECIMAL_ZERO, NF_ORDINAL, NF_CARDINAL_TEXT, NF_ORDINAL_TEXT };   /* (WP10: 01 02; 1st 2nd; One Two; First Second) */
 typedef struct {
   u8 fmt;
   u16 start;
