@@ -632,7 +632,17 @@ static void index_columns(Doc *d, u32 a, u32 b, int cols)
     pb.sect = (u16)kb;
     if (kb) doc_para_format(d, a - 1, a - 1, PM_SECT, &pb);
   }
-  if (b + 1 < d->np && after.start != SB_CONT) {
+  if (b + 1 == d->np) {
+    /* at the document's end: an empty paragraph after it ends the last section, continuous, so the
+       index's columns are balanced at its section break as in Word */
+    Para *np = para_new(&d->styles[0].pf, &d->styles[0].cf);
+    Pos w;
+    int ka;
+    after.start = SB_CONT; after.cols = 1;
+    w.para = b + 1; w.off = 0;
+    if (np && (ka = doc_add_sect(d, &after))) { np->pf.sect = (u16)ka; doc_replace(d, b + 1, 0, &np, 1, w); }
+    else para_free(np);
+  } else if (after.start != SB_CONT) {
     u32 e = doc_sect_end(d, b + 1);
     int ka;
     ParaFmt pa;

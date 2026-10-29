@@ -245,17 +245,26 @@ u32 ri_moved_from = 0xFFFFFFFFUL;
 long ri_moved_by;
 long ri_page(Doc *d, Layout *L, Pos p)
 {
-  u32 page;
-  i32 x, y, h;
+  u32 i;
+  long page = -1;
+  const ParaLay *pl;
   if (!L || p.para >= d->np) return -1;
   if (L->npl != d->np) {
     /* (a block field after this one was just made afresh: the layout's paragraphs after it moved) */
     if (p.para >= ri_moved_from) { long q = (long)p.para - ri_moved_by; if (q < 0) return -1; p.para = (u32)q; }
   }
   if (p.para >= L->npl || !L->pl[p.para].laid) return -1;
-  if (p.off > L->pl[p.para].p->len) p.off = L->pl[p.para].p->len;
-  lay_caret(L, p, &page, &x, &y, &h);
-  return (long)page;
+  /* the placed line holding it (not lay_caret: the layout's paragraphs may have been replaced since,
+     and only its own lines and pages are still good) */
+  pl = &L->pl[p.para];
+  for (i = 0; i < L->nplaced; i++) {
+    const Placed *pc = &L->placed[i];
+    if (pc->para != p.para || pc->line >= pl->nlines) continue;
+    if (page < 0) page = (long)pc->page;
+    if (p.off >= pl->lines[pc->line].start) page = (long)pc->page;
+    else break;
+  }
+  return page;
 }
 static void roman_s(char *o, u32 n, int upper)
 {
@@ -384,9 +393,9 @@ int refs_style(Doc *d, int kind, int level)
   case RS_TOC: s.pf.left = (level - 1) * 220; s.pf.after = 100; tab_right(&s.pf, w - s.pf.left, LEAD_DOT); break;
   case RS_TOF: tab_right(&s.pf, w, LEAD_DOT); break;
   case RS_INDEX: s.pf.left = 220 * level; s.pf.first = -220; break;
-  case RS_INDEXHEAD: s.cf.flags |= CF_BOLD; s.pf.before = 120; s.pf.after = 60; break;
+  case RS_INDEXHEAD: s.cf.flags |= CF_BOLD; s.pf.before = 120; s.pf.after = 60; s.pf.keepnext = 1; break;
   case RS_TOA: s.pf.left = 220; s.pf.first = -220; tab_right(&s.pf, w - 220, LEAD_DOT); break;
-  case RS_TOAHEAD: s.cf.flags |= CF_BOLD; s.pf.before = 120; break;
+  case RS_TOAHEAD: s.cf.flags |= CF_BOLD; s.pf.before = 120; s.pf.keepnext = 1; break;
   case RS_CAPTION: s.cf.flags |= CF_ITALIC; s.cf.size = 18; s.cf.color = 0x44546A; s.pf.after = 200; break;
   }
   s.pf.style = (u8)d->nstyles;
@@ -890,7 +899,7 @@ static u32 find_in(const Para *q, const char *what, u32 from, int whole)
 }
 /* the code given, after the first occurrence in each paragraph (not in block fields; not where the
    same code follows already); how many */
-static int mark_all_code(Doc *d, const char *what, const char *code, int every)
+static int mark_all_code(Doc *d, const char *what, const char *code, int every, const char *avoid)
 {
   u8 *mask = ri_block_mask(d);
   long pi;
@@ -905,7 +914,7 @@ static int mark_all_code(Doc *d, const char *what, const char *code, int every)
     if (mask && mask[pi]) continue;
     while ((o = find_in(q, what, from, 1)) < q->len && nh < 64) {
       u32 after = o + (u32)strlen(what);
-      int dup = 0;
+      int dup = avoid && avoid[0] && o + strlen(avoid) <= q->len && !memcmp(q->t + o, avoid, strlen(avoid));   /* (part of the long citation) */
       if (after + 4 <= q->len && IS_FSTART(q->t + after)) {
         int k = fmark_index(q->t + after);
         if (k < d->nfields && !strcmp(d->fields[k].code, code)) dup = 1;
@@ -930,7 +939,7 @@ int refs_mark_all(Doc *d, const char *what, const char *main, const char *sub, c
   if (!what || !what[0] || !main || !main[0]) return 0;
   refs_quote(main, 1, mq, sizeof mq);
   xe_code(mq, sub, xref, bm, bold, italic, code, sizeof code);
-  return mark_all_code(d, what, code, 0);
+  return mark_all_code(d, what, code, 0, NULL);
 }
 /* a cell's or paragraph's text without marks */
 static void cell_text(Doc *c, u32 pi, char *out, size_t cap)
@@ -972,7 +981,7 @@ int refs_automark(Doc *d, Doc *conc)
     if (!entry[0]) refs_quote(what, 1, eq, sizeof eq);
     else refs_quote(entry, 0, eq, sizeof eq);          /* (its colons make levels) */
     snprintf(code, sizeof code, " XE \"%s\" ", eq);
-    n += mark_all_code(d, what, code, 0);
+    n += mark_all_code(d, what, code, 0, NULL);
   }
   return n;
 }
@@ -1002,8 +1011,8 @@ int refs_mark_all_citations(Doc *d, const char *longc, const char *shortc, int c
   int n = 0;
   ta_code(longc, shortc, cat, lcode, sizeof lcode);
   ta_code(NULL, shortc && shortc[0] ? shortc : longc, cat, scode, sizeof scode);
-  if (longc && longc[0]) n += mark_all_code(d, longc, scode, 1);
-  if (shortc && shortc[0] && (!longc || strcmp(shortc, longc))) n += mark_all_code(d, shortc, scode, 1);
+  if (longc && longc[0]) n += mark_all_code(d, longc, scode, 1, NULL);
+  if (shortc && shortc[0] && (!longc || strcmp(shortc, longc))) n += mark_all_code(d, shortc, scode, 1, longc);
   if (longc && longc[0] && n) {
     /* the first occurrence's mark carries the long citation */
     u32 pi, o;
@@ -1233,7 +1242,7 @@ int refs_insert_xref(Doc *d, Pos *at, int type, const RefTarget *t, int kind, in
   case XK_ABOVEBELOW: snprintf(code, sizeof code, " REF %s \\p %s", name, link ? "\\h " : ""); break;
   case XK_NOTENUM: snprintf(code, sizeof code, " NOTEREF %s %s%s", name, link ? "\\h " : "", above ? "\\p " : ""); break;
   case XK_NOTEFMT: snprintf(code, sizeof code, " NOTEREF %s \\f %s%s", name, link ? "\\h " : "", above ? "\\p " : ""); break;
-  default: snprintf(code, sizeof code, " REF %s %s%s", name, link ? "\\h " : "", above ? "\\p " : ""); break;
+  default: snprintf(code, sizeof code, " REF %s %s", name, link ? "\\h " : ""); break;     /* (above/below: a field of its own after it, as Word does) */
   }
   *at = pos_clamp(d, *at);
   f = *para_fmt_before(d->p[at->para], at->off);
@@ -1244,6 +1253,11 @@ int refs_insert_xref(Doc *d, Pos *at, int type, const RefTarget *t, int kind, in
     const FieldEnv *fe;
     env_or(e, &own, &fe);
     k = field_insert(d, at, code, fe, &f);
+    if (k >= 0 && above && (kind == XK_TEXT || kind == XK_CAPTION || kind == XK_LABELNUM || kind == XK_CAPTEXT)) {
+      snprintf(code, sizeof code, " REF %s \\p %s", name, link ? "\\h " : "");
+      doc_insert(d, at, " ", 1, &f);
+      field_insert(d, at, code, fe, &f);
+    }
   }
   doc_end(d, *at);
   return k;
