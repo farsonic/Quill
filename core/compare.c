@@ -16,8 +16,27 @@
 #include "compare.h"
 #include "image.h"
 #include "math.h"
+#include "field.h"
+#include "review.h"
 
-int (*compare_fmt_hook)(Doc *d, int rid, const CharFmt *old, CharFmt *now);
+/* WP5's tracked formatting changes (core/review.h): the old look recorded once for a stretch of runs
+   that had the same one */
+static Doc *fr_doc; static int fr_rid; static u16 fr_num; static CharFmt fr_old; static int fr_n;
+static int fmt_rv(Doc *d, int rid, const CharFmt *old, CharFmt *now)
+{
+  CharFmt o;
+  memset(&o, 0, sizeof o);
+  o = *old;
+  o.rev = 0; o.rid = 0; o.frev = 0; o.move = 0; o.link = 0; o.bmark = 0; o.perm = 0;
+  if (!(fr_doc == d && fr_rid == rid && fr_n == d->nfrevs && !memcmp(&o, &fr_old, sizeof o))) {
+    int n = rv_add_fmt(d, rid, 0, &o, NULL, NULL, 0);
+    if (!n) return 0;
+    fr_doc = d; fr_rid = rid; fr_num = (u16)n; fr_old = o; fr_n = d->nfrevs;
+  }
+  now->frev = fr_num;
+  return 1;
+}
+int (*compare_fmt_hook)(Doc *d, int rid, const CharFmt *old, CharFmt *now) = fmt_rv;
 
 void compare_defaults(CompareOpts *o)
 {
@@ -129,7 +148,7 @@ static int tokenize(Side *s, const CompareOpts *o, int accepted)
         memset(&t, 0, sizeof t);
         t.para = pi; t.off = off; t.rev = rev; t.rid = rid;
         if (c >= 0xF0000) {
-          t.kind = IS_MARK(p->t + off) ? TK_MARK : TK_OBJ;
+          t.kind = IS_MARK(p->t + off) || IS_FMARK(p->t + off) ? TK_MARK : TK_OBJ;     /* (comment and field marks are carried along) */
           t.hash = obj_hash(s->d, p->t + off);
         } else if (c >= 0xE000 && c <= 0xE002) {
           t.kind = TK_FIELD;
@@ -456,6 +475,7 @@ typedef struct {
   Para **out; u32 nout, cap;
   Para *cur;
   int oom, changes, lastmark;
+  int accepted;             /* Compare: both as they read with their changes accepted */
 } Build;
 
 /* one of o's formats made r's: fonts, character styles and links found again by name */
@@ -468,7 +488,7 @@ static CharFmt o_fmt(Build *b, const CharFmt *src)
     f.cstyle = (u8)(k > 0 && b->r->styles[k].type == ST_CHAR ? k : 0);
   }
   f.link = (u16)(src->link ? doc_link(b->r, doc_link_url(b->o, src->link)) : 0);
-  f.bmark = 0; f.perm = 0;
+  f.bmark = 0; f.perm = 0; f.frev = 0; f.move = 0;
   return f;
 }
 static int same_look(Build *b, const CharFmt *of, const CharFmt *rf)
@@ -645,6 +665,7 @@ static void emit_r(Build *b, const Side *R, const Tok *t, int rev, int rid, cons
       if (re <= k) continue;
       f = p->r[i].f;
       if (rev >= 0) { f.rev = (u8)rev; f.rid = (u16)rid; }
+      if (b->accepted) { f.frev = 0; f.move = 0; }     /* (the revised document's own changes accepted) */
       if (ot && rev == 0 && b->opt->formatting) {
         /* the same text: its look then and now (by the character at the same place, or the first) */
         const Para *op = O->p[ot->para];
@@ -695,7 +716,7 @@ static int merge_story(Doc *o, Doc *r, const CompareOpts *opt, Para **op, u32 on
   if (!*rnp) return 0;                              /* (nothing to build on) */
   O.d = o; O.p = op; O.np = onp;
   R.d = r; R.p = *rp; R.np = *rnp;
-  b.o = o; b.r = r; b.opt = opt; b.label = label;
+  b.o = o; b.r = r; b.opt = opt; b.label = label; b.accepted = accepted;
   if (!tokenize(&O, opt, accepted) || !tokenize(&R, opt, accepted)) goto done;
   align(&O, &R, &s);
   if (s.oom) goto done;
@@ -779,6 +800,7 @@ static int run(Doc *o, Doc *r, const CompareOpts *opt, int accepted)
   int label, n, total = 0, i, rnotes = r->nnotes, renotes = r->nenotes;
   u32 np;
   doc_story_end(o, 1); doc_story_end(r, 1);
+  fr_doc = NULL;
   label = doc_add_rev(r, opt->author[0] ? opt->author : "Author", opt->date);
   np = r->np;
   if ((n = merge_story(o, r, opt, o->p, o->np, &r->p, &np, accepted, label)) < 0) return -1;

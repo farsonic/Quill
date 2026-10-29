@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include "testutil.h"
 #include "../core/compare.h"
+#include "../core/review.h"
 
 static Doc *mk(const char *text)
 {
@@ -86,6 +87,7 @@ static void basic(void)
 
 static void options(void)
 {
+  int (*saved_hook)(Doc *, int, const CharFmt *, CharFmt *) = compare_fmt_hook;
   CompareOpts o;
   Doc *a, *b;
   compare_defaults(&o);
@@ -117,8 +119,23 @@ static void options(void)
     doc_format(b, P(0, 6), P(0, 11), CM_BOLD, &bold);
     doc_clear_undo(b);
     doc_compare(a, b, &o);
-    ok("compare: a formatting change shown (old look deleted, new inserted)", marked(b, REV_DEL, NULL, "words") && marked(b, REV_INS, NULL, "words") &&
-       settles(b, "Plain words here.", "Plain words here."));
+    {
+      CharFmt *f = para_fmt_at(b->p[0], 7);
+      const FmtRev *fr = rv_fmt(b, f->frev);
+      Doc *c;
+      ok("compare: a formatting change tracked (WP5's w:rPrChange)", fr && !(fr->ocf.flags & CF_BOLD) && (f->flags & CF_BOLD) &&
+         !strcmp(b->revs[fr->rid].author, "Author") && marked(b, REV_DEL, NULL, "") && para_fmt_at(b->p[0], 2)->frev == 0);
+      c = docx_again(b, NULL);
+      ok("compare: and kept through .docx", c && para_fmt_at(c->p[0], 7)->frev && rv_fmt(c, para_fmt_at(c->p[0], 7)->frev));
+      doc_free(c);
+      compare_fmt_hook = NULL;
+      doc_free(b); b = mk("Plain words here.");
+      doc_format(b, P(0, 6), P(0, 11), CM_BOLD, &bold);
+      doc_compare(a, b, &o);
+      ok("compare: without it, old look deleted and new inserted", marked(b, REV_DEL, NULL, "words") && marked(b, REV_INS, NULL, "words") &&
+         settles(b, "Plain words here.", "Plain words here."));
+      compare_fmt_hook = saved_hook;
+    }
     doc_free(a); doc_free(b);
     a = mk("Plain words here."); b = mk("Plain words here.");
     doc_format(b, P(0, 6), P(0, 11), CM_BOLD, &bold);
