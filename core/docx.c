@@ -12,6 +12,7 @@
 #include "image.h"
 #include "tstyle.h"
 #include "keep.h"
+#include "merge.h"           /* (WP4) */
 #include "field.h"
 #include "objfx.h"
 #include "chart.h"                 /* (WP15a) charts and SmartArt */
@@ -2972,6 +2973,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
   /* WP2: */
   /* WP3: */
   /* WP4: */
+  merge_read_setting(c->d, x);
   /* WP5: */
   wp5_read_setting(c, x);
   /* WP7: */
@@ -3147,6 +3149,7 @@ static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_
   /* WP2: */
   /* WP3: */
   /* WP4: */
+  merge_read_parts(c->d, z);
   /* WP5: */
   wp5_read_parts(c, z, docrels, rn, base);
   /* WP7: */
@@ -4836,6 +4839,7 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
   /* WP2: */
   /* WP3: */
   /* WP4: */
+  merge_write_parts(d, o);
   /* WP5: */
   wp5_write_parts(d, o);
   /* WP7: */
@@ -4877,6 +4881,7 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   /* WP2: */
   /* WP3: */
   /* WP4: */
+  merge_write_settings(d, b, where);
   /* WP5: */
   wp5_write_settings(d, b, where);
   /* WP7: */

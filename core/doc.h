@@ -589,6 +589,8 @@ typedef struct Doc {
   struct Field *fields; int nfields;
   u8 fieldcodes;
   struct FieldInfo *finfo;
+  /* WP4 mail merge (core/merge.h): the main document's settings and its recipients, NULL: not one */
+  struct MergeInfo *merge;
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */
