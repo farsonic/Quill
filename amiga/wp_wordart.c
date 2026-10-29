@@ -640,9 +640,7 @@ static void ctxmenu(Object *menu, const WpCtx *c)
 }
 static void cleanup(void)
 {
-  int i;
   wp19_flush();
-  (void)i;
   if (cellcls) { MUI_DeleteCustomClass(cellcls); cellcls = NULL; }
 }
 
