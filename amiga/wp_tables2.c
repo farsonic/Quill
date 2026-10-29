@@ -102,7 +102,7 @@ static void open_delcells(void)
   if (!dcwin) {
     how[0] = tr("Shift cells left"); how[1] = tr("Shift cells up"); how[2] = tr("Delete entire row"); how[3] = tr("Delete entire column"); how[4] = NULL;
     dcwin = wp_dialog("Delete Cells", MAKE_ID('W','2','D','C'), VGroup,
-      Child, dcradio = CycleObject, MUIA_Cycle_Entries, (ULONG)how, MUIA_CycleChain, 1, End,
+      Child, dcradio = CycleObject, MUIA_Cycle_Entries, (ULONG)how, MUIA_CycleChain, 1, MUIA_FixWidthTxt, (ULONG)"MMMMMMMMMMMMMMMMMMMMMM", End,
     End, "_OK", ID_TB_DELCELLS_OK);
     if (!dcwin) return;
   }

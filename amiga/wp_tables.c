@@ -431,7 +431,8 @@ static void open_quick(void)
     names[QT_N] = NULL;
     qtwin = wp_dialog("Quick Tables", MAKE_ID('W','2','Q','T'), VGroup,
       Child, QTitleObject(tr("Built-In")),
-      Child, qtradio = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_SourceArray, (ULONG)names, End, MUIA_CycleChain, 1, End,
+      Child, qtradio = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_SourceArray, (ULONG)names, End, MUIA_CycleChain, 1,
+        MUIA_FixWidthTxt, (ULONG)"MMMMMMMMMMMMMMMMMMMM", MUIA_FixHeightTxt, (ULONG)"\n\n\n\n\n\n\n\n", End,
     End, "_Insert", ID_TA_QUICKOK);
     if (!qtwin) return;
     /* a double-click inserts it too */
