@@ -5,6 +5,8 @@
 #include <string.h>
 #include <stdio.h>
 #include "doc.h"
+#include "field.h"
+#include "objfx.h"
 #include "keep.h"
 #include "image.h"
 #include "chart.h"                 /* (WP15a) Image.pack */
@@ -1304,6 +1306,7 @@ int img_clone(Image *dst, const Image *src, int own)
   int k;
   *dst = *src;
   dst->text = NULL; dst->kids = NULL; dst->nkids = 0; dst->poly = NULL; dst->npoly = 0;
+  dst->fx.raw = NULL;                         /* WP17 */
   pack_ref(dst->pack);                       /* (WP15a) a chart's parts: shared */
   ff_ref(dst->ff);                           /* WP20: a freeform's paths: shared */
   if (own) {
@@ -1312,6 +1315,7 @@ int img_clone(Image *dst, const Image *src, int own)
     if (src->data && !dst->data) return 0;
   } else dst->shared = src->data != NULL;     /* the file stays with the entry that brought it */
   if (src->text && !(dst->text = story_copy(src->text))) goto oom;
+  if (src->fx.raw && !(dst->fx.raw = str_dup(src->fx.raw))) goto oom;   /* WP17 */
   if (src->npoly) {
     if (!(dst->poly = (i32 *)malloc(src->npoly * 2 * sizeof(i32)))) goto oom;
     memcpy(dst->poly, src->poly, src->npoly * 2 * sizeof(i32));
@@ -1339,6 +1343,7 @@ void img_release(Image *im)
   for (k = 0; k < im->nkids; k++) img_release(&im->kids[k]);
   free(im->kids); im->kids = NULL; im->nkids = 0;
   free(im->poly); im->poly = NULL; im->npoly = 0;
+  free(im->fx.raw); im->fx.raw = NULL;      /* WP17 */
   pack_unref(im->pack); im->pack = NULL;     /* (WP15a) */
   ff_unref(im->ff); im->ff = NULL;           /* WP20 */
 }
@@ -2058,7 +2063,7 @@ static int paste_runs(Doc *d, Para *q, const Fragment *f, const Para *s, const C
     u32 o = pos, e = s->r[r].end;
     while (o < e) {
       u32 m = o;
-      while (m < e && !((u8)s->t[m] >= 0xF3 && m + 4 <= e && (IS_PIC(s->t + m) || IS_NOTE(s->t + m) || IS_MARK(s->t + m) || IS_ENOTE(s->t + m) || IS_MATH(s->t + m)))) m++;
+      while (m < e && !((u8)s->t[m] >= 0xF3 && m + 4 <= e && (IS_PIC(s->t + m) || IS_NOTE(s->t + m) || IS_MARK(s->t + m) || IS_ENOTE(s->t + m) || IS_FMARK(s->t + m) || IS_MATH(s->t + m)))) m++;
       if (m > o && !para_append(q, s->t + o, m - o, &c)) return 0;
       if (m < e && IS_MATH(s->t + m)) {
         /* WP14a: an equation: the same entry (same document) or a copy of the fragment's */
@@ -2085,6 +2090,9 @@ static int paste_runs(Doc *d, Para *q, const Fragment *f, const Para *s, const C
           }
           if (same || j >= 0) { pic_utf8(ref, n); if (!para_append(q, ref, 4, &c)) return 0; }
         }
+        /* a field's marks: kept within the same document (they share its record); from another, the
+           result stays as text */
+        else if (IS_FMARK(s->t + m) && same && mode != PASTE_TEXT && !para_append(q, s->t + m, 4, &c)) return 0;
         m += 4;
       }
       o = m;
@@ -2709,6 +2717,8 @@ void doc_free(Doc *d)
   for (i = 0; i < HF_N; i++) { story_free(&d->hdr[i]); story_free(&d->ftr[i]); }
   undo_free(d->undo);
   keep_free(d);
+  field_free_all(d);
+  free(d->wm.pic);          /* (WP22a) */
   notes_free(d);                 /* (WP22b) */
   info_free(d);                  /* (WP24) */
   math_doc_free(d);     /* WP14a: equations */
@@ -2743,7 +2753,7 @@ Pos pos_left(Doc *d, Pos p)
   if (p.off) {
     const char *t = d->p[p.para]->t;
     p.off = (u32)utf8_prev(t, p.off);
-    while (p.off >= 4 && IS_MARK(t + p.off)) p.off = (u32)utf8_prev(t, p.off);
+    while (p.off >= 4 && (IS_MARK(t + p.off) || IS_FMARK(t + p.off))) p.off = (u32)utf8_prev(t, p.off);
   }
   else if (p.para) { p.para--; p.off = d->p[p.para]->len; }
   return p;
@@ -2755,9 +2765,9 @@ Pos pos_right(Doc *d, Pos p)
   p = pos_clamp(d, p);
   q = d->p[p.para];
   if (p.off < q->len) {
-    while (p.off + 4 <= q->len && IS_MARK(q->t + p.off)) p.off += 4;
+    while (p.off + 4 <= q->len && (IS_MARK(q->t + p.off) || IS_FMARK(q->t + p.off))) p.off += 4;
     if (p.off < q->len) p.off = (u32)utf8_next(q->t, q->len, p.off);
-    while (p.off + 4 <= q->len && IS_MARK(q->t + p.off)) p.off += 4;
+    while (p.off + 4 <= q->len && (IS_MARK(q->t + p.off) || IS_FMARK(q->t + p.off))) p.off += 4;
   }
   else if (p.para + 1 < d->np) { p.para++; p.off = 0; }
   return p;
@@ -3050,6 +3060,7 @@ int doc_story_begin(Doc *d, int kind, int index, int sect, u32 fpage, u32 fpages
   PageSetup pg = d->page;
   u32 i, n;
   if (e->kind || kind <= SK_NONE || kind > SK_TEXTBOX) return 0;
+  if (kind == SK_TEXTBOX) index = tb_head(d, index);       /* WP18: a linked box's text is its chain's first box's */
   if (kind == SK_TEXTBOX && index >= 0 && index < d->nimages && !d->images[index].text &&
       !(d->images[index].text = (Story *)calloc(1, sizeof(Story)))) return 0;
   if (!(s = doc_story(d, kind, index, sect))) return 0;
@@ -3075,14 +3086,14 @@ int doc_story_begin(Doc *d, int kind, int index, int sect, u32 fpage, u32 fpages
     pg.top = kind == SK_HEADER ? pg.header : pg.footer;
     pg.bottom = pg.top;
   } else if (kind == SK_TEXTBOX) {
-    i32 w = d->images[index].cx - 2 * 144;   /* layout.h's TB_INSET_X each side */
-    if (w < 360) w = 360;
+    i32 w = tb_text_width(&d->images[index], d->images[index].cx, d->images[index].cy);   /* (WP18: its insets, turned text) */
     if (pg.width < w + 1440) pg.width = w + 1440;
     pg.left = (pg.width - w) / 2; pg.right = pg.width - pg.left - w;
   }
   e->p = d->p; e->np = d->np; e->pcap = d->pcap; e->undo = d->undo; e->page = d->page;
   e->wm = (u8)d->wm.text[0]; d->wm.text[0] = 0;
   e->border = d->border.style; d->border.style = PB_NONE;
+  e->wmpic = d->wm.pic; d->wm.pic = NULL;          /* (WP22a) */
   memcpy(e->hdr, d->hdr, sizeof e->hdr); memcpy(e->ftr, d->ftr, sizeof e->ftr);
   memset(d->hdr, 0, sizeof d->hdr); memset(d->ftr, 0, sizeof d->ftr);
   d->p = np; d->np = n; d->pcap = n; d->undo = u; d->page = pg;
@@ -3104,6 +3115,7 @@ int doc_story_end(Doc *d, int keep)
   undo_free(d->undo);
   d->p = e->p; d->np = e->np; d->pcap = e->pcap; d->undo = e->undo; d->page = e->page;
   d->wm.text[0] = (char)e->wm; d->border.style = e->border;
+  d->wm.pic = e->wmpic; e->wmpic = NULL;           /* (WP22a) */
   memcpy(d->hdr, e->hdr, sizeof d->hdr); memcpy(d->ftr, e->ftr, sizeof d->ftr);
   e->kind = SK_NONE; e->p = NULL; e->np = 0; e->undo = NULL;
   s = keep && changed_ ? doc_story(d, kind, e->index, e->sect) : NULL;

@@ -5,12 +5,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include "docx.h"
+#include "pages.h"
 #include "toc.h"
 #include "xml.h"
 #include "zip.h"
 #include "image.h"
 #include "tstyle.h"
 #include "keep.h"
+#include "field.h"
+#include "objfx.h"
 #include "chart.h"                 /* (WP15a) charts and SmartArt */
 #include "charfx.h"
 #include "notes.h"   /* (WP22b) */
@@ -49,7 +52,7 @@ typedef struct {
   int depth;                        /* nesting of tables (recursion guard) */
   int compat;                       /* Word's compatibility mode: 15 for Word 2013 and later */
   int story;                        /* reading a header or footer: page fields become FIELD_ characters */
-  char instr[600]; int fieldkind;   /* the code of the complex field being read; 1 PAGE, 2 NUMPAGES */
+  char instr[600]; int fieldkind;   /* the code of the (outermost) field being read, for WP9's enclosures; its result left out (fld_state) */
   u16 fieldlink;                    /* a HYPERLINK field's link number: its result's runs are the link */
   u16 bmark; char bmid[16];         /* the bookmark being read (its runs get it) and its w:id; 0: none */
   char hdrid[HF_N][32], ftrid[HF_N][32];   /* the section's header and footer relationships */
@@ -63,6 +66,7 @@ typedef struct {
   i32 *fnid; int *fnidx; int nfn;   /* footnotes: their ids in the file and indexes in Doc.notes */
   i32 *enid; int *enidx; int nen;   /* endnotes the same */
   i32 *cmid; int *cmidx; u8 *cmopen; int ncm;   /* comments the same; whether their range has started */
+  struct FldRead *fr;               /* WP1: the complex fields open (fld_char) */
   /* (work packages: new fields go below, at the end) */
   u16 eqsym;                        /* WP9: an enclosure's field code: the size its symbol is written in (0: none yet) */
   /* WP5: a w:rPrChange or w:pPrChange just read, waiting for its run or paragraph; the move being read */
@@ -104,33 +108,7 @@ static int hyperlink_field(const char *instr, char *out, size_t cap)
   if (anchor[0] && strlen(out) + strlen(anchor) + 2 < cap) { strcat(out, "#"); strcat(out, anchor); }
   return out[0] != 0;
 }
-/* a REF or PAGEREF field's bookmark (into name): 1 for REF (its result, the bookmark's text, is kept
-   as text linked to the bookmark), 2 for PAGEREF (the page it is on), 0 for other fields */
-static int ref_field(const char *instr, char *name, size_t cap)
-{
-  const char *s = instr, *q;
-  int kind;
-  name[0] = 0;
-  while (*s == ' ') s++;
-  if (!strncmp(s, "PAGEREF", 7) && s[7] == ' ') { kind = 2; s += 7; }
-  else if (!strncmp(s, "REF", 3) && s[3] == ' ') { kind = 1; s += 3; }
-  else return 0;
-  while (*s == ' ') s++;
-  if (*s == '"') { s++; q = strchr(s, '"'); if (!q) return 0; }
-  else { q = s; while (*q && *q != ' ' && *q != '\\') q++; }
-  if (q == s) return 0;
-  snprintf(name, cap, "%.*s", (int)(q - s), s);
-  return kind;
-}
-/* what a field code means to Quill: 1 for PAGE (the page number), 2 for NUMPAGES or SECTIONPAGES
-   (the page count), 0 for anything else, whose result text is kept as it is */
-static int field_kind(const char *instr)
-{
-  while (*instr == ' ') instr++;
-  if (!strncmp(instr, "PAGE", 4) && (instr[4] == ' ' || instr[4] == 0 || instr[4] == '\\')) return 1;
-  if (!strncmp(instr, "NUMPAGES", 8) || !strncmp(instr, "SECTIONPAGES", 12)) return 2;
-  return 0;
-}
+/* (REF, PAGEREF and the page fields: core/field.c field_kind, read by fld_decide below) */
 
 /* a WordprocessingML on/off property such as <w:b/>: on when it has no val at all, off for
    "0", "false", "off" or "none" */
@@ -950,6 +928,9 @@ static int parse_watermark(Xml *x, Ctx *c)
 {
   int d0 = x->depth, is = 0;
   Watermark w;
+  char rid[64] = "";
+  i32 wpt = 0;
+  int washout = 0, opaque = 1;
   memset(&w, 0, sizeof w);
   w.color = 0xC0C0C0; w.horizontal = 1;
   while (xml_next(x) != XT_EOF) {
@@ -957,10 +938,25 @@ static int parse_watermark(Xml *x, Ctx *c)
     if (x->type != XT_START) continue;
     if (!strcmp(x->name, "shape")) {
       const char *id = xml_attr(x, "id"), *st = xml_attr(x, "style"), *fc = xml_attr(x, "fillcolor");
-      if (id && strstr(id, "WaterMark")) is = 1;
+      if (id && (strstr(id, "WaterMark") || strstr(id, "Watermark"))) is = 1;
       if (st && strstr(st, "rotation:315")) w.horizontal = 0;
+      if (st && strstr(st, "width:")) {                 /* (WP22a: a picture's size, twips; no floating point) */
+        const char *q = strstr(st, "width:") + 6;
+        i32 whole = 0, frac = 0, div = 1;
+        while (*q >= '0' && *q <= '9') whole = whole * 10 + (*q++ - '0');
+        if (*q == '.') { q++; while (*q >= '0' && *q <= '9' && div < 1000) { frac = frac * 10 + (*q++ - '0'); div *= 10; } }
+        wpt = whole * 20 + frac * 20 / div;
+      }
       if (fc && fc[0] == '#') w.color = hexcolor(fc + 1) == COLOR_AUTO ? 0xC0C0C0 : hexcolor(fc + 1);
       else if (fc && !strncmp(fc, "gray", 4)) w.color = 0x808080;
+    } else if (!strcmp(x->name, "imagedata")) {
+      /* (WP22a) a picture watermark: its picture, and whether it is washed out */
+      const char *r = xml_attr(x, "id"), *g = xml_attr(x, "gain");
+      if (r) { strncpy(rid, r, sizeof rid - 1); rid[sizeof rid - 1] = 0; }
+      if (g && strtol(g, NULL, 10) > 0 && strtol(g, NULL, 10) < 40000) washout = 1;
+    } else if (!strcmp(x->name, "fill")) {
+      const char *op = xml_attr(x, "opacity");
+      if (op && (op[0] == '.' || (op[0] == '0' && op[1] == '.') || (op[strlen(op) - 1] == 'f' && strtol(op, NULL, 10) < 65000))) opaque = 0;
     } else if (!strcmp(x->name, "textpath")) {
       const char *str = xml_attr(x, "string"), *st = xml_attr(x, "style"), *ff;
       if (str) { strncpy(w.text, str, sizeof w.text - 1); w.text[sizeof w.text - 1] = 0; }
@@ -974,7 +970,29 @@ static int parse_watermark(Xml *x, Ctx *c)
     }
   }
   if (!is) { c->lost |= LOST_PICTURES; return 1; }
-  if (w.text[0] && !c->d->wm.text[0]) c->d->wm = w;
+  w.opaque = (u8)opaque;
+  if (w.text[0] && !c->d->wm.text[0] && !c->d->wm.pic) c->d->wm = w;
+  else if (rid[0] && !c->d->wm.text[0] && !c->d->wm.pic && c->rels && c->z) {
+    char path[300];
+    size_t len = 0;
+    u8 *data;
+    rel_by_id(c->rels, c->rn, rid, c->base, path, sizeof path);
+    if (path[0] && (data = (u8 *)zip_read(c->z, zip_find(c->z, path), &len))) {
+      if (pages_wm_picture(c->d, data, (u32)len)) {
+        PageSetup *pg = &c->d->page;
+        i32 x0, y0, fw, fh;
+        c->d->wm.washout = (u8)washout;
+        /* its scale: as it fits the text area (auto), else its size against its natural one */
+        c->d->wm.scale = 0;
+        pages_wm_box(c->d, pg, &x0, &y0, &fw, &fh);
+        if (wpt > 0 && (wpt * 50 < fw * 49 || wpt * 50 > fw * 51) && c->d->wm.pw) {
+          long sc = (long)wpt * 100 / ((long)c->d->wm.pw * 15);
+          c->d->wm.scale = (u16)(sc < 1 ? 1 : sc > 2000 ? 2000 : sc);
+        }
+      } else c->lost |= LOST_PICTURES;
+      free(data);
+    } else c->lost |= LOST_PICTURES;
+  }
   return 1;
 }
 /* a DrawingML colour element (srgbClr, schemeClr, sysClr, prstClr) with its shade, tint and luminance changes */
@@ -1053,6 +1071,7 @@ typedef struct {
   u32 stylefill, styleline;
   char embed[40];
   i32 offx, offy, extx, exty, choffx, choffy, chextx, chexty;   /* its a:xfrm (EMU) */
+  ObjRead ox;                       /* WP17/WP18: adjustments, fills, effects, text settings (objdocx.c) */
 } DShape;
 /* a shape being read starts as a picture with Image's defaults, no wrap distances left and right,
    and its fill and line still to come from its style */
@@ -1082,6 +1101,48 @@ static int load_blip(Ctx *c, const char *embed, Image *im)
   return 1;
 }
 static void parse_group(Xml *x, PCtx *pc, DShape *g);
+/* WP17/WP18 (objdocx.c): a DrawingML colour for objfx_read; and what was read finished off: a shape's
+   picture fill loaded, a picture's unchanged original (a14:imgLayer) loaded in its place when Quill
+   can read it (its a14 effects then drawn by Quill), else the a14 extension kept as it was with the
+   part it names (Word's HD Photo), when the picture is in the document's own text */
+static u32 objfx_colour(void *x, void *c) { return dml_color((Xml *)x, (Ctx *)c); }
+static void objfx_docx_finish(Ctx *c, DShape *s)
+{
+  Image *im = &s->im;
+  int layer = objfx_read_finish(im, &s->ox);
+  if (im->kind != OBJ_PICTURE && im->kind != OBJ_GROUP && im->fx.filltype == FT_PIC && !im->data && !load_blip(c, s->embed, im)) im->fx.filltype = FT_SOLID;
+  if (!s->ox.raw) return;
+  if (layer && im->kind == OBJ_PICTURE && !im->data && load_blip(c, s->ox.layer, im)) {
+    ObjFx *f = &im->fx, *a = &s->ox.a14;
+    f->art = a->art; f->sharp = a->sharp; f->temp = a->temp; f->sat = a->sat;
+    if (a->bright || a->contrast) { f->bright = a->bright; f->contrast = a->contrast; }
+    if (a->bgkey) { f->bgkey = 1; f->bgtol = a->bgtol; f->bgcolor = objfx_corner_colour(im); }
+    free(s->ox.raw); s->ox.raw = NULL;
+    return;
+  }
+  if (layer && c->rels && c->z && strstr(c->rels, "styles.xml")) {
+    char path[300];
+    size_t len = 0;
+    u8 *data;
+    rel_by_id(c->rels, c->rn, s->ox.layer, c->base, path, sizeof path);
+    if (path[0] && (data = (u8 *)zip_read(c->z, zip_find(c->z, path), &len))) {
+      int k = keep_find(c->d, path);
+      if (k < 0) k = keep_add(c->d, path, "image/vnd.ms-photo", "word/document.xml", "http://schemas.microsoft.com/office/2007/relationships/hdphoto", s->ox.layer, data, len);
+      free(data);
+      if (k >= 0 && strcmp(c->d->kept[k].relid, s->ox.layer)) {
+        /* the part kept under another id: the extension names that one */
+        char *e = strstr(s->ox.raw, s->ox.layer), *nr;
+        size_t ol = strlen(s->ox.layer), nl = strlen(c->d->kept[k].relid), rl = strlen(s->ox.raw);
+        if (e && (nr = (char *)malloc(rl - ol + nl + 1))) {
+          memcpy(nr, s->ox.raw, (size_t)(e - s->ox.raw)); memcpy(nr + (e - s->ox.raw), c->d->kept[k].relid, nl); strcpy(nr + (e - s->ox.raw) + nl, e + ol);
+          free(s->ox.raw); s->ox.raw = nr;
+        }
+      }
+      if (k >= 0) { im->fx.raw = s->ox.raw; s->ox.raw = NULL; return; }
+    }
+  }
+  free(s->ox.raw); s->ox.raw = NULL;      /* (its part couldn't be kept: the picture shows as it is) */
+}
 /* one element inside a shape (or the drawing round it): 1 if its contents were read here too */
 static int dshape_elem(Xml *x, PCtx *pc, DShape *s)
 {
@@ -1090,6 +1151,7 @@ static int dshape_elem(Xml *x, PCtx *pc, DShape *s)
   Image *im = &s->im;
   i32 v;
   int k;
+  if (objfx_read(x, im, &s->ox, objfx_colour, c)) return 1;     /* WP17/WP18 */
   if (!strcmp(n, "blip") && !s->embed[0]) copy_attr(x, "embed", s->embed, sizeof s->embed);
   else if (!strcmp(n, "srcRect")) {
     if (attr_num(x, "l", &v)) im->crop[0] = v;
@@ -1156,6 +1218,7 @@ static int dshape_elem(Xml *x, PCtx *pc, DShape *s)
 static void dshape_end(Xml *x, DShape *s)
 {
   const char *n = x->name;
+  objfx_read_end(x, &s->im, &s->ox);       /* WP17 */
   if (!strcmp(n, "ln")) s->inln = 0;
   else if (!strcmp(n, "spPr")) s->insp = 0;
   else if (!strcmp(n, "style")) s->instyle = 0;
@@ -1200,7 +1263,8 @@ static void parse_group(Xml *x, PCtx *pc, DShape *g)
           if (x->type == XT_START) dshape_elem(x, pc, &k);
         }
       dshape_finish(&k);
-      if (k.im.kind == OBJ_PICTURE && !load_blip(pc->c, k.embed, &k.im)) { img_release(&k.im); pc->c->lost |= LOST_PICTURES; continue; }
+      objfx_docx_finish(pc->c, &k);         /* WP17/WP18 */
+      if (k.im.kind == OBJ_PICTURE && !k.im.data && !load_blip(pc->c, k.embed, &k.im)) { img_release(&k.im); pc->c->lost |= LOST_PICTURES; continue; }
       k.im.x = (k.offx - g->choffx) / 635; k.im.y = (k.offy - g->choffy) / 635;
       k.im.cx = (k.extx + 317) / 635; k.im.cy = (k.exty + 317) / 635;
       if (k.im.kind == OBJ_GROUP) { k.im.chw = (k.chextx + 317) / 635; k.im.chh = (k.chexty + 317) / 635; }
@@ -1309,7 +1373,7 @@ static void parse_drawing(Xml *x, PCtx *pc, const CharFmt *f)
     else if (!strcmp(n, "extent") && !cx) { attr_num(x, "cx", &cx); attr_num(x, "cy", &cy); }
     else if (!strcmp(n, "wrapPolygon")) { parse_polygon(x, im); continue; }
     else if (!strncmp(n, "wrap", 4) && !wrapname[0] && strlen(n) < sizeof wrapname) strcpy(wrapname, n);
-    else if (!strcmp(n, "docPr")) { const char *d = xml_attr(x, "descr"); if (d) { strncpy(im->alt, d, sizeof im->alt - 1); im->alt[sizeof im->alt - 1] = 0; } }
+    else if (!strcmp(n, "docPr")) { const char *d = xml_attr(x, "descr"); if (d) { strncpy(im->alt, d, sizeof im->alt - 1); im->alt[sizeof im->alt - 1] = 0; } objfx_read_docpr(x, im); }
     else if (read_graphic_ref(x, c, im)) continue;     /* (WP15a) a chart or SmartArt */
     else if (!strcmp(n, "decorative")) { const char *v = xml_attr(x, "val"); im->decorative = (u8)(!v || *v == '1' || *v == 't'); }   /* (WP24) */
     else dshape_elem(x, pc, &s);
@@ -1322,12 +1386,221 @@ static void parse_drawing(Xml *x, PCtx *pc, const CharFmt *f)
   dshape_finish(&s);
   im->cx = (cx + 317) / 635; im->cy = (cy + 317) / 635;
   if (im->kind == OBJ_GROUP && (!im->chw || !im->chh)) { im->chw = im->cx; im->chh = im->cy; }
-  if (im->kind == OBJ_PICTURE && !load_blip(c, s.embed, im)) k = -1;
+  objfx_docx_finish(c, &s);                 /* WP17/WP18 */
+  if (im->kind == OBJ_PICTURE && !im->data && !load_blip(c, s.embed, im)) k = -1;
   else if (im->kind == OBJ_GROUP && !im->nkids) k = -1;
   else k = doc_take_object(c->d, im);           /* the entry takes what was read as it is */
   if (k < 0) img_release(im);
   if (k >= 0) { char t[8]; pic_utf8(t, k); run_text(pc, t, 4, f); }
   else c->lost |= LOST_PICTURES;
+}
+/* ---- WP1: fields (core/field.h). Complex fields (w:fldChar begin, code in w:instrText, separate,
+   result, end) may nest, and may sit in another's code; each one in the text gets its marks round its
+   result and a record with its code. A page field's result is Quill's placeholder (a bare one for a
+   plain PAGE or NUMPAGES, as before), a HYPERLINK's, REF's or PAGEREF's result is linked, and the
+   table of contents (Quill's own, core/toc.h) keeps only its code */
+typedef struct {
+  Buf code, res;                    /* its code; in another's code, its result too */
+  int state;                        /* 1 in the code, 2 in the result */
+  int incode;                       /* inside its parent's code */
+  int k;                            /* its record (-1: no marks) */
+  int skip;                         /* its result is left out (a placeholder stands for it) */
+  u16 link;                         /* its result's link (HYPERLINK, REF, PAGEREF), 0 none */
+  u8 locked, dirty;
+  char *ffdata;
+} FldOpen;
+#define FLD_DEPTH 16
+typedef struct FldRead { FldOpen f[FLD_DEPTH]; int n; } FldRead;
+/* c->field, fieldkind and fieldlink as the rest of the reader sees them: in a code (1) or a result (2);
+   a result left out; the link of the innermost linking field */
+static void fld_state(Ctx *c)
+{
+  FldRead *r = c->fr;
+  int i;
+  c->field = 0; c->fieldkind = 0; c->fieldlink = 0;
+  if (!r || !r->n) return;
+  c->field = (r->f[r->n - 1].state == 1 || r->f[r->n - 1].incode) ? 1 : 2;
+  c->fieldkind = r->f[r->n - 1].skip;
+  for (i = r->n; i-- > 0;) if (!r->f[i].incode && r->f[i].link) { c->fieldlink = r->f[i].link; break; }
+}
+static int fld_on(const char *v) { return v && (!strcmp(v, "true") || !strcmp(v, "1") || !strcmp(v, "on")); }
+/* the code of the field read is complete (at its separator, or its end if it has none): what Quill
+   does with it, its start mark (and placeholder) into the text with f's formatting */
+static void fld_decide(PCtx *pc, FldOpen *o, const CharFmt *f)
+{
+  Ctx *c = pc->c;
+  const char *code = o->code.data ? o->code.data : "";
+  int kind = field_kind(code);
+  char arg[512], url[520], m[8];
+  CharFmt mf = *f;
+  mf.link = c->fieldlink ? c->fieldlink : pc->link;
+  o->k = -1;
+  if (kind == FC_TOC && !field_switch(code, 'c', 0, NULL, 0) && !field_switch(code, 'a', 0, NULL, 0) && !field_switch(code, 'f', 0, NULL, 0)) {
+    /* Quill's table of contents: its paragraphs are the result; the code is kept for writing it back */
+    FieldInfo *fi = field_info(c->d);
+    if (fi && !fi->toccode) fi->toccode = str_dup(code);
+    return;
+  }
+  if (kind == FC_HYPERLINK) {
+    if (hyperlink_field(code, url, sizeof url)) o->link = (u16)doc_link(c->d, url);
+  } else if ((kind == FC_REF || kind == FK_PAGEREF) && field_arg(code, 0, arg, sizeof arg)) {
+    snprintf(url, sizeof url, "#%s", arg);
+    o->link = (u16)doc_link(c->d, url);
+  }
+  if (field_is_bare(code)) {
+    /* as Quill always read them: a placeholder, or a link */
+    if (kind != FC_HYPERLINK) {
+      CharFmt pf = mf;
+      pf.link = o->link;
+      run_text(pc, kind == FK_PAGE ? FIELD_PAGE : kind == FK_NUMPAGES ? FIELD_PAGES : FIELD_PAGEREF, 3, &pf);
+      o->skip = 1;
+    }
+    return;
+  }
+  snprintf(c->instr, sizeof c->instr, "%s", code);
+  if (wp9_enclose_field(pc, f)) { o->skip = 1; return; }          /* (WP9: enclosed characters, its own model) */
+  if ((o->k = field_new(c->d, code, o->locked)) < 0) return;      /* (too many: the result stays as text) */
+  c->d->fields[o->k].dirty = o->dirty;
+  c->d->fields[o->k].ffdata = o->ffdata; o->ffdata = NULL;
+  fmark_utf8(m, o->k, 0);
+  run_text(pc, m, 4, &mf);
+  if (kind >= FK_PAGE && kind <= FK_PAGEREF) {
+    CharFmt pf = mf;
+    pf.link = o->link;
+    run_text(pc, kind == FK_PAGEREF ? FIELD_PAGEREF : (kind == FK_NUMPAGES || kind == FK_SECTIONPAGES) ? FIELD_PAGES : FIELD_PAGE, 3, &pf);
+    o->skip = 1;
+  }
+}
+/* a w:fldChar (x at its START; read to its end here): a field begins, its result starts, or it ends */
+static void fld_char(Xml *x, PCtx *pc, CharFmt *f)
+{
+  Ctx *c = pc->c;
+  FldRead *r = c->fr;
+  const char *t = xml_attr(x, "fldCharType");
+  if (!r && !(r = c->fr = (FldRead *)calloc(1, sizeof(FldRead)))) { xml_skip(x); return; }
+  if (t && !strcmp(t, "begin")) {
+    FldOpen *o;
+    const char *raw;
+    size_t n;
+    int lk = fld_on(xml_attr(x, "fldLock")), dt = fld_on(xml_attr(x, "dirty")), pend = x->pending_end;
+    if (r->n >= FLD_DEPTH) { xml_skip(x); return; }
+    o = &r->f[r->n];
+    memset(o, 0, sizeof *o);
+    buf_init(&o->code); buf_init(&o->res);
+    o->state = 1; o->k = -1;
+    o->incode = r->n > 0 && (r->f[r->n - 1].state == 1 || r->f[r->n - 1].incode);
+    o->locked = (u8)lk; o->dirty = (u8)dt;
+    if (!o->incode) c->eqsym = 0;
+    n = xml_raw(x, &raw);
+    if (!pend && n) {
+      /* its children (a form field's w:ffData...), kept as they are */
+      const char *in = memchr(raw, '>', n), *end = NULL, *q;
+      for (q = raw + 1; q + 1 < raw + n && !end; q++) {
+        const char *nm = q + 2, *gt, *colon;
+        if (q[0] != '<' || q[1] != '/' || !(gt = memchr(nm, '>', (size_t)(raw + n - nm)))) continue;
+        if ((colon = memchr(nm, ':', (size_t)(gt - nm)))) nm = colon + 1;
+        if (gt - nm == 7 && !strncmp(nm, "fldChar", 7)) end = q;       /* its closing tag */
+      }
+      if (in && end && end > in + 1) o->ffdata = str_ndup(in + 1, (size_t)(end - in - 1));
+    }
+    r->n++;
+  } else if (t && !strcmp(t, "separate") && r->n) {
+    FldOpen *o = &r->f[r->n - 1];
+    xml_skip(x);
+    if (o->state == 1) {
+      o->state = 2;
+      if (!o->incode) { fld_state(c); fld_decide(pc, o, f); }
+    }
+  } else if (t && !strcmp(t, "end") && r->n) {
+    FldOpen *o = &r->f[r->n - 1];
+    int nosep = o->state == 1;
+    xml_skip(x);
+    if (o->incode) {
+      /* a field in another's code: kept there, with its result */
+      FldOpen *par = &r->f[r->n - 2];
+      buf_addc(&par->code, FLD_OPEN);
+      if (o->code.data) buf_adds(&par->code, o->code.data);
+      buf_addc(&par->code, FLD_SEP);
+      if (o->res.data) buf_adds(&par->code, o->res.data);
+      buf_addc(&par->code, FLD_CLOSE);
+    } else {
+      if (nosep) { fld_state(c); fld_decide(pc, o, f); }
+      if (o->k >= 0) {
+        char m[8];
+        CharFmt mf = *f;
+        if (nosep) c->d->fields[o->k].nosep = 1;
+        r->n--; fld_state(c); r->n++;
+        mf.link = c->fieldlink ? c->fieldlink : pc->link;
+        fmark_utf8(m, o->k, 1);
+        run_text(pc, m, 4, &mf);
+      }
+    }
+    buf_free(&o->code); buf_free(&o->res); free(o->ffdata);
+    r->n--;
+  } else xml_skip(x);
+  fld_state(c);
+  f->link = c->field == 2 && c->fieldlink ? c->fieldlink : pc->link;
+}
+/* text of the code being read (w:instrText), or of a result inside a code (w:t): 1 if it was taken */
+static int fld_text(Xml *x, Ctx *c, const char *n, const CharFmt *f)
+{
+  FldRead *r = c->fr;
+  FldOpen *o;
+  int d1;
+  if (!r || !r->n) return 0;
+  o = &r->f[r->n - 1];
+  if (o->state == 1 && (!strcmp(n, "instrText") || !strcmp(n, "delInstrText"))) {
+    d1 = x->depth;
+    while (xml_next(x) != XT_EOF) {
+      if (x->type == XT_END && x->depth < d1) break;
+      if (x->type == XT_TEXT) {
+        buf_add(&o->code, x->text.data, x->text.len);
+        if (!o->incode && wp9_symbol_run(x->text.data, x->text.len)) c->eqsym = f->size;   /* (WP9) */
+      }
+    }
+    return 1;
+  }
+  if (o->state == 2 && o->incode && (!strcmp(n, "t") || !strcmp(n, "delText"))) {
+    d1 = x->depth;
+    while (xml_next(x) != XT_EOF) {
+      if (x->type == XT_END && x->depth < d1) break;
+      if (x->type == XT_TEXT) buf_add(&o->res, x->text.data, x->text.len);
+    }
+    return 1;
+  }
+  return 0;
+}
+/* a w:fldSimple (x at its START; read to its END): the same as a complex field, its result the runs inside */
+static void fld_simple(Xml *x, PCtx *pc)
+{
+  Ctx *c = pc->c;
+  const char *in = xml_attr(x, "instr");
+  Para *p = cur(pc);
+  FldOpen o;
+  CharFmt f;
+  u16 ol = pc->link;
+  if (!in || !p) { parse_children(x, pc); return; }
+  memset(&o, 0, sizeof o);
+  buf_init(&o.code); buf_init(&o.res);
+  buf_adds(&o.code, in);
+  o.locked = (u8)fld_on(xml_attr(x, "fldLock")); o.dirty = (u8)fld_on(xml_attr(x, "dirty"));
+  f = p->r[p->nr - 1].f;
+  f.bmark = c->bmark;
+  fld_decide(pc, &o, &f);
+  if (o.skip) xml_skip(x);
+  else {
+    if (o.link) pc->link = o.link;
+    parse_children(x, pc);
+    pc->link = ol;
+  }
+  if (o.k >= 0 && (p = cur(pc))) {
+    char m[8];
+    f = p->r[p->nr - 1].f;
+    f.link = pc->link;
+    fmark_utf8(m, o.k, 1);
+    run_text(pc, m, 4, &f);
+  }
+  buf_free(&o.code); buf_free(&o.res); free(o.ffdata);
 }
 /* a w:r: its rPr (on top of the paragraph style's character format and any character style), then
    its text, tabs, breaks, drawings, note and comment references and symbols into the current
@@ -1366,43 +1639,8 @@ static void parse_run(Xml *x, PCtx *pc)
       wp5_run_change(pc, &f);                      /* (WP5: its w:rPrChange) */
       continue;
     }
-    if (!strcmp(n, "fldChar")) {
-      const char *t = xml_attr(x, "fldCharType");
-      if (t && !strcmp(t, "begin")) { c->field = 1; c->instr[0] = 0; c->fieldkind = 0; c->fieldlink = 0; c->eqsym = 0; }
-      else if (t && !strcmp(t, "separate")) {
-        char url[512];
-        c->field = 2;
-        /* a HYPERLINK field: what it shows is the link */
-        if (hyperlink_field(c->instr, url, sizeof url)) { c->fieldlink = (u16)doc_link(c->d, url); f.link = c->fieldlink; }
-        else {
-          /* a cross-reference: REF's result is the bookmark's text, linked to it; PAGEREF becomes
-             the page-of-a-bookmark placeholder (linked to it, which names it), its result left out */
-          char bm[200];
-          int rk = ref_field(c->instr, bm, sizeof bm);
-          if (rk) {
-            snprintf(url, sizeof url, "#%s", bm);
-            c->fieldlink = (u16)doc_link(c->d, url);
-            f.link = c->fieldlink;
-            if (rk == 2) { c->fieldkind = 3; run_text(pc, FIELD_PAGEREF, 3, &f); }
-          }
-        }
-        /* a page number field becomes its placeholder; its result is left out */
-        if (!c->fieldkind && (c->fieldkind = field_kind(c->instr))) run_text(pc, c->fieldkind == 1 ? FIELD_PAGE : FIELD_PAGES, 3, &f);
-        if (!c->fieldkind && wp9_enclose_field(pc, &f)) c->fieldkind = 4;     /* (WP9: enclosed characters; the result left out) */
-      }
-      else if (t && !strcmp(t, "end")) {
-        if (c->field == 1) wp9_enclose_field(pc, &f);    /* (WP9: enclosed characters, written with no result as Word does) */
-        c->field = 0; c->fieldkind = 0; c->fieldlink = 0; f.link = pc->link; }
-    }
-    else if (c->field == 1 && !strcmp(n, "instrText")) {
-      int d1 = x->depth;
-      while (xml_next(x) != XT_EOF) {
-        if (x->type == XT_END && x->depth < d1) break;
-        if (x->type == XT_TEXT) { size_t l = strlen(c->instr); snprintf(c->instr + l, sizeof c->instr - l, "%.*s", (int)x->text.len, x->text.data);
-                                  if (wp9_symbol_run(x->text.data, x->text.len)) c->eqsym = f.size; }   /* (WP9) */
-      }
-      continue;
-    }
+    if (!strcmp(n, "fldChar")) { fld_char(x, pc, &f); continue; }      /* WP1: fields */
+    else if (fld_text(x, c, n, &f)) continue;
     else if (c->field == 1) ;                                  /* field code: left out */
     else if (c->field == 2 && c->fieldkind) ;                  /* a page number's result: the placeholder stands for it */
     else if (!strcmp(n, "t") || (!strcmp(n, "delText") && pc->rev == REV_DEL)) {
@@ -1500,28 +1738,7 @@ static void parse_children(Xml *x, PCtx *pc)
       continue;
     }
     if (!strcmp(n, "r")) { parse_run(x, pc); continue; }
-    if (!strcmp(n, "fldSimple")) {
-      const char *in = xml_attr(x, "instr");
-      int k = in ? field_kind(in) : 0;
-      if (k) { Para *p = cur(pc); if (p) { CharFmt lf = p->r[p->nr - 1].f; para_append(p, k == 1 ? FIELD_PAGE : FIELD_PAGES, 3, &lf); } xml_skip(x); continue; }
-      if (in) {
-        /* a simple cross-reference: PAGEREF's placeholder, or REF's text linked to its bookmark */
-        char bm[200], url[210];
-        int rk = ref_field(in, bm, sizeof bm);
-        if (rk) {
-          u16 ol = pc->link;
-          snprintf(url, sizeof url, "#%s", bm);
-          pc->link = (u16)doc_link(pc->c->d, url);
-          if (rk == 2) {
-            Para *p = cur(pc);
-            if (p) { CharFmt f = p->r[p->nr - 1].f; f.link = pc->link; f.bmark = pc->c->bmark; para_append(p, FIELD_PAGEREF, 3, &f); }
-            xml_skip(x);
-          } else parse_children(x, pc);
-          pc->link = ol;
-          continue;
-        }
-      }
-    }
+    if (!strcmp(n, "fldSimple")) { fld_simple(x, pc); continue; }      /* WP1: fields */
     if ((!strcmp(n, "moveTo") || !strcmp(n, "moveFrom")) && wp5_read_move(x, pc)) continue;   /* (WP5: moves) */
     if (!strcmp(n, "ins") || !strcmp(n, "del") || !strcmp(n, "moveTo") || !strcmp(n, "moveFrom")) {
       /* tracked changes: the runs inside are inserted or deleted, by someone, at some time */
@@ -1836,6 +2053,7 @@ static void parse_sect(Xml *x, Ctx *c, SectFmt *sf, int body)
     if (x->type == XT_END && x->depth < d0) break;
     if (x->type != XT_START) continue;
     v = xml_attr(x, "val");
+    if (pages_read_sect(x, c->d, sf, pg, body)) continue;        /* (WP22a: columns, borders, margins with the gutter, vAlign) */
     if (!strcmp(x->name, "type") && v)
       sf->start = (u8)(!strcmp(v, "continuous") ? SB_CONT : !strcmp(v, "evenPage") ? SB_EVEN : !strcmp(v, "oddPage") ? SB_ODD : SB_NEXT);
     else if (!strcmp(x->name, "cols")) {
@@ -2238,6 +2456,21 @@ static void rel_target(const char *rels, size_t n, const char *typesuffix, const
 static char *part(ZipReader *z, const char *name, size_t *n)
 {
   return (char *)zip_read(z, zip_find(z, name), n);
+}
+/* WP1: settings.xml's w:updateFields; after reading, fields a damaged file left open (the document's
+   properties fields show are WP24's, core/info.h) */
+static void read_field_setting(Ctx *c, Xml *x)
+{
+  if (!strcmp(x->name, "updateFields")) { FieldInfo *fi = field_info(c->d); if (fi) fi->updatefields = (u8)onoff(x); }
+}
+static void read_field_parts(Ctx *c, ZipReader *z)
+{
+  int i;
+  (void)z;
+  if (c->fr) {                          /* (fields a damaged file left open) */
+    for (i = 0; i < c->fr->n; i++) { buf_free(&c->fr->f[i].code); buf_free(&c->fr->f[i].res); free(c->fr->f[i].ffdata); }
+    free(c->fr); c->fr = NULL;
+  }
 }
 /* WP14a: an equation in a paragraph (m:oMath; m:oMathPara for a display one): an entry in Doc.maths
    and its reference in the text, in the paragraph's format at the size of its first sized run. 1 if
@@ -2817,6 +3050,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
 {
   (void)c; (void)x;
   /* WP1: */
+  read_field_setting(c, x);
   /* WP2: */
   /* WP3: */
   /* WP4: */
@@ -2840,6 +3074,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
   /* WP21a: */
   /* WP21b: */
   /* WP22a: */
+  pages_read_setting(c->d, x);
   /* WP22b: */
   read_notes_setting(c, x);
   /* WP23: */
@@ -2990,6 +3225,7 @@ static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_
   keep_rels(c->d, z, ct, ctn, docrels, rn, base, "word/document.xml");
   (void)mainpart;
   /* WP1: */
+  read_field_parts(c, z);
   /* WP2: */
   /* WP3: */
   /* WP4: */
@@ -3012,6 +3248,7 @@ static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_
   /* WP21a: */
   /* WP21b: */
   /* WP22a: */
+  pages_read_done(c->d);
   /* WP22b: */
   /* WP23: */
   /* WP24: */
@@ -3413,17 +3650,34 @@ static const char *const WNS = "xmlns:w=\"http://schemas.openxmlformats.org/word
    sharing a file share its number), and a counter for drawing ids */
 /* the pictures saved, each file once (by its data), numbered for the media folder */
 static u32 save_drawing;                 /* drawings so far (their ids) */
-typedef struct { const u8 *data; u32 len; u8 type; } Media;
+typedef struct { const u8 *data; u32 len; u8 type; const u8 *src; u32 key; u8 *own; } Media;   /* (WP17: src, key, own) */
 static Media *save_ml; static int save_nml;
 /* the media number (1-based) of a picture's data in save_ml, matched by pointer so entries that
-   share one file share it; 0 if it isn't there */
-static int media_find(const Image *im)
+   share one file share it; 0 if it isn't there. WP17: and by objfx_media_key (a file made afresh:
+   an ILBM as PNG, effects drawn in); media_find_orig: its unchanged file's, 0 if none is needed */
+static int media_find_key(const u8 *src, u32 key)
 {
   int k;
-  if (!im->data) return 0;
-  for (k = 0; k < save_nml; k++) if (save_ml[k].data == im->data) return k + 1;
+  if (!src) return 0;
+  for (k = 0; k < save_nml; k++) if (save_ml[k].src == src && save_ml[k].key == key) return k + 1;
   return 0;
 }
+static int media_find(const Image *im) { return media_find_key(im->data, objfx_media_key(im)); }
+static int media_find_orig(const Image *im) { return objfx_media_key(im) > 1 ? media_find_key(im->data, objfx_orig_key(im)) : 0; }
+static void media_put(const Image *im, u32 key)
+{
+  Media *nm;
+  u8 *own = NULL, type = im->type;
+  u32 len = im->len;
+  if (media_find_key(im->data, key)) return;
+  if (key && !(own = objfx_media_bytes(im, key, &len, &type))) return;
+  if (!(nm = (Media *)realloc(save_ml, (save_nml + 1) * sizeof(Media)))) { free(own); return; }
+  save_ml = nm;
+  save_ml[save_nml].data = own ? own : im->data; save_ml[save_nml].len = len; save_ml[save_nml].type = type;
+  save_ml[save_nml].src = im->data; save_ml[save_nml].key = key; save_ml[save_nml].own = own;
+  save_nml++;
+}
+static void media_clear(void) { int k; for (k = 0; k < save_nml; k++) free(save_ml[k].own); free(save_ml); save_ml = NULL; save_nml = 0; }
 /* add a picture's data to save_ml unless it's already there (a group adds each of its pictures);
    if memory runs out the picture is simply left out of the file */
 static void media_add(const Image *im)
@@ -3431,11 +3685,10 @@ static void media_add(const Image *im)
   Media *nm;
   int k;
   if (im->kind == OBJ_GROUP) { for (k = 0; k < im->nkids; k++) media_add(&im->kids[k]); return; }
-  if (im->kind != OBJ_PICTURE || !im->data || media_find(im)) return;
-  if (!(nm = (Media *)realloc(save_ml, (save_nml + 1) * sizeof(Media)))) return;
-  save_ml = nm;
-  save_ml[save_nml].data = im->data; save_ml[save_nml].len = im->len; save_ml[save_nml].type = im->type;
-  save_nml++;
+  (void)nm;
+  if (!im->data || (im->kind != OBJ_PICTURE && im->fx.filltype != FT_PIC)) return;     /* (WP18: a shape's picture fill too) */
+  media_put(im, objfx_media_key(im));
+  if (objfx_media_key(im) > 1) media_put(im, objfx_orig_key(im));     /* (WP17: the unchanged picture, for a14:imgLayer) */
 }
 /* an object can be saved: it isn't a picture whose file is missing */
 static int obj_saved(const Image *im) { return im->kind != OBJ_PICTURE || media_find(im) > 0; }
@@ -3672,13 +3925,15 @@ static void w_obj(Buf *o, Doc *d, const Image *im, int child, long offx, long of
     int m = media_find(im);
     buf_printf(o, "<pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
                   "<pic:nvPicPr><pic:cNvPr id=\"%lu\" name=\"image%d\"/><pic:cNvPicPr/></pic:nvPicPr>"
-                  "<pic:blipFill><a:blip r:embed=\"rIdImg%d\"/>", (unsigned long)me, m, m);
+                  "<pic:blipFill><a:blip r:embed=\"rIdImg%d\"", (unsigned long)me, m, m);
+    objfx_write_blip(o, im, media_find_orig(im));     /* WP17: its adjustments */
     if (im->crop[0] || im->crop[1] || im->crop[2] || im->crop[3])
       buf_printf(o, "<a:srcRect l=\"%ld\" t=\"%ld\" r=\"%ld\" b=\"%ld\"/>", (long)im->crop[0], (long)im->crop[1], (long)im->crop[2], (long)im->crop[3]);
     buf_adds(o, "<a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr>");
     w_xfrm(o, im, offx, offy, cx, cy);
-    buf_adds(o, "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>");
+    objfx_write_geom(o, im, im->shape < SH_N ? prst_names[im->shape] : NULL);    /* WP17: a picture style's shape */
     if (im->lstyle != PB_NONE && im->lwidth) w_outline(o, im);
+    objfx_write_effects(o, im);
     buf_adds(o, "</pic:spPr></pic:pic>");
   } else if (im->kind == OBJ_GROUP) {
     if (child) buf_printf(o, "<wpg:grpSp><wpg:cNvPr id=\"%lu\" name=\"Group %lu\"/><wpg:cNvGrpSpPr/><wpg:grpSpPr>", (unsigned long)me, (unsigned long)me);
@@ -3693,17 +3948,20 @@ static void w_obj(Buf *o, Doc *d, const Image *im, int child, long offx, long of
     if (child) buf_printf(o, "<wps:cNvPr id=\"%lu\" name=\"Shape %lu\"/>", (unsigned long)me, (unsigned long)me);
     buf_adds(o, im->kind == OBJ_TEXTBOX ? "<wps:cNvSpPr txBox=\"1\"/><wps:spPr>" : "<wps:cNvSpPr/><wps:spPr>");
     w_xfrm(o, im, offx, offy, cx, cy);
-    buf_printf(o, "<a:prstGeom prst=\"%s\"><a:avLst/></a:prstGeom>", prst_names[im->shape < SH_N ? im->shape : 0]);
-    if (im->fill == COLOR_AUTO) buf_adds(o, "<a:noFill/>"); else buf_printf(o, "<a:solidFill><a:srgbClr val=\"%06lX\"/></a:solidFill>", (unsigned long)(im->fill & 0xFFFFFF));
-    w_outline(o, im);
+    objfx_write_geom(o, im, im->shape < SH_N ? prst_names[im->shape] : NULL);    /* WP18: more shapes, icons */
+    objfx_write_fill(o, im, media_find(im));     /* WP18: gradients, picture fills */
+    if (!objfx_write_line(o, im)) w_outline(o, im);     /* (an icon's strokes) */
+    objfx_write_effects(o, im);
     buf_adds(o, "</wps:spPr>");
-    if (im->text && im->text->np) {
+    if (im->text && im->text->np && !objfx_linked_follower(im)) {
       u32 i;
-      buf_adds(o, "<wps:txbx><w:txbxContent>");
+      objfx_write_txbx(o, im);     /* WP18: a chain's first box (id) */
+      buf_adds(o, "<w:txbxContent>");
       for (i = 0; i < im->text->np; i++) w_para_ex(o, d, im->text->p[i], NULL, NULL);
       buf_adds(o, "</w:txbxContent></wps:txbx>");
-    }
-    buf_adds(o, "<wps:bodyPr rot=\"0\" vert=\"horz\" wrap=\"square\" lIns=\"91440\" tIns=\"45720\" rIns=\"91440\" bIns=\"45720\" anchor=\"t\"><a:noAutofit/></wps:bodyPr></wps:wsp>");
+    } else if (objfx_linked_follower(im)) objfx_write_linked(o, im);
+    objfx_write_bodypr(o, im);     /* WP18: text direction, anchoring, insets */
+    buf_adds(o, "</wps:wsp>");
   }
 }
 /* a picture, shape or text box (Doc image k) as a run: in line (wp:inline) or floating (wp:anchor),
@@ -3746,8 +4004,13 @@ static void w_picture(Buf *o, Doc *d, const char *rpr, size_t rl, int k)
     default: buf_adds(o, "<wp:wrapNone/>");
     }
   }
-  buf_printf(o, "<wp:docPr id=\"%lu\" name=\"%s %lu\"", (unsigned long)id, im->kind == OBJ_PICTURE ? "Picture" : im->kind == OBJ_TEXTBOX ? "Text Box" : im->kind == OBJ_GROUP ? "Group" : "Shape",
-             (unsigned long)id);
+  {
+    char nb[80];
+    const char *icn = objfx_docpr_name(im, nb, sizeof nb);    /* WP18: an icon's name says which */
+    if (icn) { buf_printf(o, "<wp:docPr id=\"%lu\" name=\"", (unsigned long)id); xml_escape(o, icn, strlen(icn)); buf_adds(o, "\""); }
+    else buf_printf(o, "<wp:docPr id=\"%lu\" name=\"%s %lu\"", (unsigned long)id, im->kind == OBJ_PICTURE ? "Picture" : im->kind == OBJ_TEXTBOX ? "Text Box" : im->kind == OBJ_GROUP ? "Group" : "Shape",
+                    (unsigned long)id);
+  }
   if (im->alt[0]) { buf_adds(o, " descr=\""); xml_escape(o, im->alt, strlen(im->alt)); buf_adds(o, "\""); }
   buf_adds(o, im->decorative ? "><a:extLst xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:ext uri=\"{C183D7F6-B498-43B3-948B-1728B52AA6E4}\">"   /* (WP24: decorative) */
               "<adec:decorative xmlns:adec=\"http://schemas.microsoft.com/office/drawing/2017/decorative\" val=\"1\"/></a:ext></a:extLst></wp:docPr>" : "/>");
@@ -3763,6 +4026,94 @@ static void w_picture(Buf *o, Doc *d, const char *rpr, size_t rl, int k)
   w_obj(o, d, im, 0, 0, 0, &save_drawing);
   buf_printf(o, "</a:graphicData></a:graphic></wp:%s></w:drawing></w:r>", fl ? "anchor" : "inline");
 }
+/* ---- WP1: fields written as complex fields (core/field.h). The fields open while writing (their
+   start mark written, not their end), so a placeholder in a page field's result is written as its
+   number and links inside a HYPERLINK, REF or PAGEREF field's result are left to the field; marks whose
+   partner is missing or crossed (field_orphans) are left out so the file's fields nest */
+static struct { int k, kind; } w_fopen[64];
+static int w_nfopen;
+static const char **w_forph; static u32 w_nforph;
+static void w_fld_prepare(Doc *d)
+{
+  free((void *)w_forph);
+  w_forph = field_orphans(d, &w_nforph);
+  w_nfopen = 0;
+}
+/* the links of the text being written are the field's own */
+static int w_fld_nolink(void)
+{
+  int i;
+  for (i = 0; i < w_nfopen; i++) if (w_fopen[i].kind == FC_HYPERLINK || w_fopen[i].kind == FC_REF || w_fopen[i].kind == FK_PAGEREF) return 1;
+  return 0;
+}
+static void w_fldchar(Buf *o, const char *rpr, size_t rl, const char *type)
+{
+  buf_adds(o, "<w:r>"); buf_add(o, rpr, rl);
+  buf_printf(o, "<w:fldChar w:fldCharType=\"%s\"/></w:r>", type);
+}
+/* a code's runs: its text as w:instrText, a field nested in it as a complex field of its own */
+static void w_instr(Buf *o, const char *rpr, size_t rl, const char *code)
+{
+  while (*code) {
+    const char *e = code;
+    while (*e && *e != FLD_OPEN) e++;
+    if (e > code) {
+      buf_adds(o, "<w:r>"); buf_add(o, rpr, rl);
+      buf_adds(o, w_deleted ? "<w:delInstrText xml:space=\"preserve\">" : "<w:instrText xml:space=\"preserve\">");
+      xml_escape(o, code, (size_t)(e - code));
+      buf_adds(o, w_deleted ? "</w:delInstrText></w:r>" : "</w:instrText></w:r>");
+    }
+    if (!*e) break;
+    {
+      /* FLD_OPEN code FLD_SEP result FLD_CLOSE, the code itself perhaps holding others */
+      const char *q = e + 1, *sep = NULL, *end;
+      int depth = 0;
+      char *inner;
+      for (; *q; q++) {
+        if (*q == FLD_OPEN) depth++;
+        else if (*q == FLD_CLOSE) { if (!depth) break; depth--; }
+        else if (*q == FLD_SEP && !depth && !sep) sep = q;
+      }
+      end = q;
+      if (!sep) sep = end;
+      w_fldchar(o, rpr, rl, "begin");
+      if ((inner = str_ndup(e + 1, (size_t)(sep - e - 1)))) { w_instr(o, rpr, rl, inner); free(inner); }
+      w_fldchar(o, rpr, rl, "separate");
+      if (end > sep + 1) {
+        buf_adds(o, "<w:r>"); buf_add(o, rpr, rl);
+        buf_adds(o, w_deleted ? "<w:delText xml:space=\"preserve\">" : "<w:t xml:space=\"preserve\">");
+        xml_escape(o, sep + 1, (size_t)(end - sep - 1));
+        buf_adds(o, w_deleted ? "</w:delText></w:r>" : "</w:t></w:r>");
+      }
+      w_fldchar(o, rpr, rl, "end");
+      code = *end ? end + 1 : end;
+    }
+  }
+}
+/* a field's mark at t (n bytes of run text left from it): its begin, code and separator, or its end */
+static void w_fld_mark(Buf *o, Doc *d, const char *rpr, size_t rl, const char *t, u32 n)
+{
+  int k = fmark_index(t);
+  const Field *f = field_get(d, k);
+  if (!f || (w_forph && field_is_orphan(w_forph, w_nforph, t))) return;
+  if (IS_FEND(t)) {
+    if (w_nfopen) w_nfopen--;
+    w_fldchar(o, rpr, rl, "end");
+    return;
+  }
+  buf_adds(o, "<w:r>"); buf_add(o, rpr, rl);
+  buf_adds(o, "<w:fldChar w:fldCharType=\"begin\"");
+  if (f->locked) buf_adds(o, " w:fldLock=\"true\"");
+  if (f->dirty) buf_adds(o, " w:dirty=\"true\"");
+  if (f->ffdata) { buf_adds(o, ">"); buf_adds(o, f->ffdata); buf_adds(o, "</w:fldChar></w:r>"); }
+  else buf_adds(o, "/></w:r>");
+  w_instr(o, rpr, rl, f->code);
+  /* a field that never had a result (XE, TC) is written without a separator while it still has none */
+  if (!(f->nosep && n >= 8 && IS_FEND(t + 4) && fmark_index(t + 4) == k)) w_fldchar(o, rpr, rl, "separate");
+  if (w_nfopen < 64) { w_fopen[w_nfopen].k = k; w_fopen[w_nfopen].kind = field_kind(f->code); w_nfopen++; }
+}
+/* the field the text being written is the result of is a page field: its placeholders are its number */
+static int w_fld_page(void) { return w_nfopen && w_fopen[w_nfopen - 1].kind >= FK_PAGE && w_fopen[w_nfopen - 1].kind <= FK_PAGEREF; }
 /* runs of text in one format (rpr: its w:rPr, rl bytes), split wherever a 4-byte reference
    appears: pictures become drawings, notes footnote or endnote references, comment marks their
    range elements, and the page number and page count placeholders fldSimple fields (with "1" as
@@ -3776,6 +4127,7 @@ static void w_run(Buf *o, Doc *d, const char *rpr, size_t rl, const char *s, u32
   for (i = 0; i <= n; i++) {
     int field = i + 2 < n + 0 && IS_FIELD(s + i);
     int pic = i + 4 <= n && IS_PIC(s + i), note = i + 4 <= n && IS_NOTE(s + i), mark = i + 4 <= n && IS_MARK(s + i);
+    int fmark = i + 4 <= n && IS_FMARK(s + i);
     if (i + 4 <= n && IS_MATH(s + i)) {          /* WP14a: an equation, as OMML (between the runs) */
       const MathEq *e = doc_math(d, math_index(s + i));
       if (i > a) { buf_adds(o, "<w:r>"); buf_add(o, rpr, rl); w_text(o, s + a, i - a); buf_adds(o, "</w:r>"); }
@@ -3783,8 +4135,9 @@ static void w_run(Buf *o, Doc *d, const char *rpr, size_t rl, const char *s, u32
       i += 3; a = i + 1;
       continue;
     }
-    if (i < n && !field && !pic && !note && !mark && !(i + 4 <= n && IS_ENOTE(s + i))) continue;
+    if (i < n && !field && !pic && !note && !mark && !fmark && !(i + 4 <= n && IS_ENOTE(s + i))) continue;
     if (i > a) { buf_adds(o, "<w:r>"); buf_add(o, rpr, rl); w_text(o, s + a, i - a); buf_adds(o, "</w:r>"); }
+    if (fmark) { w_fld_mark(o, d, rpr, rl, s + i, n - i); i += 3; a = i + 1; continue; }     /* WP1 */
     if (pic) {
       int k = pic_index(s + i);
       if (k < d->nimages && obj_saved(&d->images[k])) w_picture(o, d, rpr, rl, k);
@@ -3815,7 +4168,14 @@ static void w_run(Buf *o, Doc *d, const char *rpr, size_t rl, const char *s, u32
       i += 3; a = i + 1;
       continue;
     }
-    if (field && (u8)s[i + 2] == 0x82) {
+    if (field && w_fld_page()) {
+      /* the result of a page field written by its marks: the number it shows */
+      const char *u = doc_link_url(d, w_runlink), *bm = u[0] == '#' ? u + 1 : u;
+      int pg = (u8)s[i + 2] == 0x82 && docx_pageref && bm[0] ? docx_pageref(docx_pageref_ctx, bm) : 0;
+      buf_adds(o, "<w:r>"); buf_add(o, rpr, rl);
+      buf_printf(o, "<w:t>%d</w:t></w:r>", pg > 0 ? pg : 1);
+      i += 2;
+    } else if (field && (u8)s[i + 2] == 0x82) {
       /* the page a bookmark is on: PAGEREF, with the page it is on now if the caller can say */
       const char *u = doc_link_url(d, w_runlink), *bm = u[0] == '#' ? u + 1 : u;
       int pg = docx_pageref && bm[0] ? docx_pageref(docx_pageref_ctx, bm) : 0;
@@ -3932,7 +4292,7 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
     if (p->r[k].end > start) {
       Buf r;
       const CharFmt *f = &p->r[k].f;
-      if (f->link != link) { w_link(o, d, link, 0); w_link(o, d, f->link, 1); link = f->link; }
+      { u16 fl = w_fld_nolink() ? 0 : f->link; if (fl != link) { w_link(o, d, link, 0); w_link(o, d, fl, 1); link = fl; } }   /* (WP1: a field's own links) */
       if (w_inbody) w_bmark_to(o, d, f->bmark);
       w_runlink = f->link;
       buf_init(&r);
@@ -3976,6 +4336,7 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
 static void w_watermark(Buf *o, Doc *d)
 {
   static int shapes = 1025;
+  if (d->wm.pic) { pages_write_wm_picture(o, d); return; }     /* (WP22a: a picture) */
   i32 body = d->page.width - d->page.left - d->page.right;
   long n = (long)strlen(d->wm.text), wpt, hpt;
   char col[8];
@@ -3996,7 +4357,8 @@ static void w_watermark(Buf *o, Doc *d)
   buf_printf(o, "<v:shape id=\"PowerPlusWaterMarkObject%d\" o:spid=\"_x0000_s%d\" type=\"#_x0000_t136\" style=\"position:absolute;margin-left:0;margin-top:0;"
                 "width:%ldpt;height:%ldpt;%sz-index:-251654144;mso-position-horizontal:center;mso-position-horizontal-relative:margin;"
                 "mso-position-vertical:center;mso-position-vertical-relative:margin\" o:allowincell=\"f\" fillcolor=\"#%s\" stroked=\"f\">"
-                "<v:fill opacity=\".5\"/><v:textpath style=\"font-family:&quot;", shapes, shapes, wpt, hpt, d->wm.horizontal ? "" : "rotation:315;", col);
+                "%s<v:textpath style=\"font-family:&quot;", shapes, shapes, wpt, hpt, d->wm.horizontal ? "" : "rotation:315;", col,
+                d->wm.opaque ? "" : "<v:fill opacity=\".5\"/>");
   shapes++;
   xml_escape(o, font, strlen(font));
   buf_adds(o, "&quot;;font-size:1pt\" string=\"");
@@ -4189,7 +4551,7 @@ static int part_written(Doc *d, int g, int k)
   if (!set_used(d, g)) return 0;
   tp = g ? d->sects[g - 1].titlepg : d->titlepg;
   if (set_story(d, g, k)->np || save_slot[k]) return 1;
-  return k < HF_N && d->wm.text[0] && (k == HF_DEFAULT || (k == HF_FIRST && tp) || (k == HF_EVEN && d->evenodd));
+  return k < HF_N && pages_wm_on(d) && (k == HF_DEFAULT || (k == HF_FIRST && tp) || (k == HF_EVEN && d->evenodd));
 }
 /* a section's w:sectPr: g its headers' and footers' set; last: the last section (whose page setup and
    first page are the document's) */
@@ -4198,8 +4560,6 @@ static void w_sectpr(Buf *o, Doc *d, const SectFmt *s, int g, int last)
   const PageSetup *pg = sect_page(d, s, last);
   static const char *const types[4] = { "nextPage", "continuous", "evenPage", "oddPage" };
   static const char *const restart[4] = { "newPage", "newPage", "newSection", "continuous" };
-  static const char *const pbs[6] = { "none", "single", "double", "thick", "dotted", "dashed" };
-  static const char *const va[3] = { "top", "center", "bottom" };
   int k;
   buf_adds(o, "<w:sectPr>");
   if (!set_used(d, g)) g = 0;
@@ -4209,18 +4569,8 @@ static void w_sectpr(Buf *o, Doc *d, const SectFmt *s, int g, int last)
   if (s->start != SB_NEXT) buf_printf(o, "<w:type w:val=\"%s\"/>", types[s->start & 3]);
   buf_printf(o, "<w:pgSz w:w=\"%ld\" w:h=\"%ld\"%s/>", (long)pg->width, (long)pg->height,
              pg->width > pg->height ? " w:orient=\"landscape\"" : "");
-  buf_printf(o, "<w:pgMar w:top=\"%ld\" w:right=\"%ld\" w:bottom=\"%ld\" w:left=\"%ld\" w:header=\"%ld\" w:footer=\"%ld\" w:gutter=\"0\"/>",
-             (long)pg->top, (long)pg->right, (long)pg->bottom, (long)pg->left, (long)pg->header, (long)pg->footer);
-  if (d->border.style != PB_NONE) {
-    static const char *const sides[4] = { "top", "left", "bottom", "right" };
-    char col[8];
-    long sp = d->border.space / 20;
-    if (d->border.color == COLOR_AUTO) strcpy(col, "auto"); else sprintf(col, "%06lX", (unsigned long)(d->border.color & 0xFFFFFF));
-    buf_printf(o, "<w:pgBorders w:offsetFrom=\"%s\">", d->border.frompage ? "page" : "text");
-    for (k = 0; k < 4; k++)
-      buf_printf(o, "<w:%s w:val=\"%s\" w:sz=\"%u\" w:space=\"%ld\" w:color=\"%s\"/>", sides[k], pbs[d->border.style % 6], (unsigned)d->border.width, sp > 31 ? 31L : sp, col);
-    buf_adds(o, "</w:pgBorders>");
-  }
+  pages_write_pgmar(o, pg);                         /* (WP22a: with the gutter) */
+  pages_write_pgborders(o, d, s, last);             /* (WP22a: the section's, each side its own) */
   if (s->linenum != LN_NONE) {
     buf_printf(o, "<w:lnNumType w:countBy=\"%u\" w:distance=\"%ld\" w:restart=\"%s\"", (unsigned)s->lnby, (long)s->lndist, restart[s->linenum & 3]);
     if (s->lnstart > 1) buf_printf(o, " w:start=\"%u\"", (unsigned)(s->lnstart - 1));
@@ -4232,11 +4582,23 @@ static void w_sectpr(Buf *o, Doc *d, const SectFmt *s, int g, int last)
     if (d->pgstart > 1) buf_printf(o, " w:start=\"%u\"", (unsigned)d->pgstart);
     buf_adds(o, "/>");
   }
-  buf_printf(o, "<w:cols w:num=\"%u\" w:space=\"%ld\"%s/>", (unsigned)s->cols, (long)s->colgap, s->colline && s->cols > 1 ? " w:sep=\"1\"" : "");
-  if (s->valign != VA_TOP) buf_printf(o, "<w:vAlign w:val=\"%s\"/>", va[s->valign % 3]);
+  pages_write_cols(o, s);                           /* (WP22a: columns of their own widths) */
+  pages_write_valign(o, s);                         /* (WP22a: and Justified) */
   if (sect_titlepg(d, s, last)) buf_adds(o, "<w:titlePg/>");
+  pages_write_sect_tail(o, s);                      /* (WP22a) */
   wp5_kept(o, d, RK_SECT, 0, 0, 0, last || !s || s < d->sects || s >= d->sects + d->nsects ? 0 : (int)(s - d->sects) + 1);   /* (WP5: its w:sectPrChange) */
   buf_adds(o, "</w:sectPr>");
+}
+/* the runs that open a table of contents: Word's TOC field, with the code it was read with (WP1) */
+static const char *w_toc_lead(Doc *d)
+{
+  static Buf b;
+  const char *code = d->finfo && d->finfo->toccode ? d->finfo->toccode : " TOC \\o \"1-3\" \\h \\z \\u ";
+  buf_free(&b);
+  buf_adds(&b, "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\">");
+  xml_escape(&b, code, strlen(code));
+  buf_adds(&b, "</w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>");
+  return b.data ? b.data : "";
 }
 /* document.xml: the body's paragraphs with the tables round them, a table of contents wrapped in a
    TOC field, and the last section's w:sectPr. Malloc'd, *len its size; NULL if out of memory. */
@@ -4254,7 +4616,7 @@ static char *w_document(Doc *d, size_t *len)
     /* a table of contents: Word's TOC field round its entries, so Word can update it */
     int toc = toc_para(d, d->p[i]), first = toc && !(i > 0 && toc_para(d, d->p[i - 1])), last = toc && !(i + 1 < d->np && toc_para(d, d->p[i + 1]));
     w_table_open(&o, d, i);
-    w_para_ex(&o, d, d->p[i], first ? "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> TOC \\o \"1-3\" \\h \\z \\u </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>" : NULL,
+    w_para_ex(&o, d, d->p[i], first ? w_toc_lead(d) : NULL,
               last ? "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>" : NULL);
     w_table_close(&o, d, i);
   }
@@ -4635,6 +4997,7 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
   /* WP21a: */
   /* WP21b: */
   /* WP22a: */
+  { const char *ct = NULL, *nm = pages_wm_part(d, &ct); if (nm[0]) docx_out_part(o, nm, ct, NULL, NULL, NULL, d->wm.pic, d->wm.piclen); }
   /* WP22b: */
   /* WP23: */
   /* WP24: */
@@ -4646,7 +5009,8 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
    (w:writeProtection, w:view, w:zoom ...), 1 after w:displayBackgroundShape and before
    w:defaultTabStop (w:trackRevisions, w:documentProtection ...), 2 after w:autoHyphenation (hyphenation
    zone and limits; w:evenAndOddHeaders comes after), 3 after w:compat (w:docVars, w:rsids, m:mathPr,
-   w:attachedTemplate, w:mailMerge ...) */
+   w:attachedTemplate, w:mailMerge ...), 4 after w:evenAndOddHeaders and before w:footnotePr (w:bookFoldPrinting,
+   w:printTwoOnOne ...; WP22a added it) */
 static void docx_write_settings_ext(Doc *d, Buf *b, int where)
 {
   (void)d; (void)b; (void)where;
@@ -4674,6 +5038,7 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   /* WP21a: */
   /* WP21b: */
   /* WP22a: */
+  pages_write_settings(d, b, where);
   /* WP22b: */
   /* WP23: */
   /* WP24: */
@@ -4691,7 +5056,7 @@ u8 *docx_save(Doc *d, size_t *len)
   u8 *out;
   DocxOut ext;
   /* the pictures the text refers to, numbered for the media folder */
-  free(save_ml); save_ml = NULL; save_nml = 0; save_drawing = 0;
+  media_clear(); save_drawing = 0;
   pack_save_begin(d);                    /* (WP15a) charts' and SmartArt's parts: names and ids */
   if (d->nimages) {
     int w, n;
@@ -4746,6 +5111,7 @@ u8 *docx_save(Doc *d, size_t *len)
         if (IS_CSTART(d->p[i]->t + k)) { int m = note_index(d->p[i]->t + k); if (m < d->ncomments && !save_comments[m]) save_comments[m] = ++nn; k += 3; }
     if (!nn) { free(save_comments); save_comments = NULL; }
   }
+  w_fld_prepare(d);                     /* WP1: fields whose marks don't pair up are left out */
   if (!(docxml = w_document(d, &dl))) return NULL;
   if (!(stxml = w_styles(d, &sl))) { free(docxml); return NULL; }
   if (d->nlists && !(numxml = w_numbering(d, &nl))) { free(docxml); free(stxml); return NULL; }
@@ -4773,7 +5139,8 @@ u8 *docx_save(Doc *d, size_t *len)
   if (save_notes) buf_adds(&ct, "<Override PartName=\"/word/footnotes.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml\"/>");
   if (save_enotes) buf_adds(&ct, "<Override PartName=\"/word/endnotes.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml\"/>");
   if (save_comments) buf_adds(&ct, "<Override PartName=\"/word/comments.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml\"/>");
-  if (save_nml) buf_adds(&ct, "<Default Extension=\"png\" ContentType=\"image/png\"/><Default Extension=\"jpeg\" ContentType=\"image/jpeg\"/>");
+  if (save_nml) buf_adds(&ct, "<Default Extension=\"png\" ContentType=\"image/png\"/><Default Extension=\"jpeg\" ContentType=\"image/jpeg\"/>"
+                             "<Default Extension=\"gif\" ContentType=\"image/gif\"/><Default Extension=\"bmp\" ContentType=\"image/bmp\"/>");     /* (WP17: gif, bmp) */
   buf_add(&ct, ext.ct.data, ext.ct.len);
   buf_adds(&ct, "<Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/></Types>");
   info_write_core(d, &core);             /* (WP24: every core property, core/info.h) */
@@ -4820,7 +5187,7 @@ u8 *docx_save(Doc *d, size_t *len)
       int k;
       for (k = 0; k < save_nml; k++)
         buf_printf(&wr, "<Relationship Id=\"rIdImg%d\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image%d.%s\"/>",
-                   k + 1, k + 1, save_ml[k].type == IMG_PNG ? "png" : "jpeg");
+                   k + 1, k + 1, objfx_ext(save_ml[k].type));
     }
     buf_add(&wr, ext.docrels.data, ext.docrels.len);
     buf_adds(&wr, "</Relationships>");
@@ -4843,11 +5210,14 @@ u8 *docx_save(Doc *d, size_t *len)
       "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">");
     docx_write_settings_ext(d, &st, 0);
     if (d->pagecolor) buf_adds(&st, "<w:displayBackgroundShape/>");
+    pages_write_settings(d, &st, 10);             /* (WP22a: mirror margins, gutter at top...: first after it, as the schema orders them) */
     docx_write_settings_ext(d, &st, 1);
     buf_adds(&st, "<w:defaultTabStop w:val=\"720\"/>");
     if (d->hyphenate) buf_adds(&st, "<w:autoHyphenation/>");
     docx_write_settings_ext(d, &st, 2);
     if (d->evenodd) buf_adds(&st, "<w:evenAndOddHeaders/>");
+    docx_write_settings_ext(d, &st, 4);
+    if (d->finfo && d->finfo->updatefields) buf_adds(&st, "<w:updateFields w:val=\"true\"/>");     /* (WP1) */
     w_notes_settings(&st, d);           /* (WP22b: w:footnotePr, w:endnotePr) */
     buf_adds(&st, "<w:compat><w:compatSetting w:name=\"compatibilityMode\" w:uri=\"http://schemas.microsoft.com/office/word\" w:val=\"15\"/></w:compat>");
     docx_write_settings_ext(d, &st, 3);
@@ -4862,11 +5232,11 @@ u8 *docx_save(Doc *d, size_t *len)
       if (!part_written(d, g, pk)) continue;
       st = set_story(d, g, pk);
       sprintf(name, "word/%s%d.xml", pk < HF_N ? "header" : "footer", g * HF_N + pk % HF_N + 1);
-      if (!(x = w_story(d, st, pk >= HF_N, pk < HF_N && d->wm.text[0], &xl))) { ok = 0; break; }
+      if (!(x = w_story(d, st, pk >= HF_N, pk < HF_N && pages_wm_on(d), &xl))) { ok = 0; break; }
       ok = zip_add(&z, name, x, xl);
       free(x);
-      if (ok && (save_nml || pack_save_has_rels())) {
-        /* a header's pictures: the same media, through its own relationships (and charts', WP15a) */
+      if (ok && (save_nml || pack_save_has_rels() || (pk < HF_N && d->wm.pic))) {
+        /* a header's pictures: the same media, through its own relationships (and charts', WP15a; the picture watermark's, WP22a) */
         Buf hr;
         int i;
         buf_init(&hr);
@@ -4874,7 +5244,10 @@ u8 *docx_save(Doc *d, size_t *len)
         buf_adds(&hr, "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">");
         for (i = 0; i < save_nml; i++)
           buf_printf(&hr, "<Relationship Id=\"rIdImg%d\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image%d.%s\"/>",
-                     i + 1, i + 1, save_ml[i].type == IMG_PNG ? "png" : "jpeg");
+                     i + 1, i + 1, objfx_ext(save_ml[i].type));
+        if (pk < HF_N && d->wm.pic)
+          buf_printf(&hr, "<Relationship Id=\"" PAGES_WM_RELID "\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"%s\"/>",
+                     pages_wm_part(d, NULL) + 5);
         pack_save_rels(&hr);
         buf_adds(&hr, "</Relationships>");
         sprintf(name, "word/_rels/%s%d.xml.rels", pk < HF_N ? "header" : "footer", g * HF_N + pk % HF_N + 1);
@@ -4902,7 +5275,7 @@ u8 *docx_save(Doc *d, size_t *len)
     }
     for (k = 0; k < save_nml && ok; k++) {
       char name[40];
-      sprintf(name, "word/media/image%d.%s", k + 1, save_ml[k].type == IMG_PNG ? "png" : "jpeg");
+      sprintf(name, "word/media/image%d.%s", k + 1, objfx_ext(save_ml[k].type));
       ok = zip_add(&z, name, save_ml[k].data, save_ml[k].len);
     }
   }
@@ -4918,7 +5291,7 @@ u8 *docx_save(Doc *d, size_t *len)
   }
   ok = ok && zip_finish(&z) && !ct.oom && !core.oom;
   free(docxml); free(stxml); free(numxml); buf_free(&ct); buf_free(&core);
-  free(save_ml); save_ml = NULL; save_nml = 0;
+  media_clear();
   free(save_notes); save_notes = NULL;
   free(save_comments); save_comments = NULL;
   free(save_enotes); save_enotes = NULL;
@@ -5106,6 +5479,7 @@ Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap)
   d = f->load(data, n, lost, err, errcap);
   doc_load_path = NULL;
   if (!d && !err[0]) snprintf(err, errcap, "Quill couldn't read %s.", path);
+  if (d) field_set_filename(d, path);   /* (WP1: FILENAME) */
   free(data);
   return d;
 }
@@ -5115,7 +5489,9 @@ int doc_save_file(Doc *d, const char *path)
 {
   size_t n;
   const DocFormat *f = doc_format_for_name(path, 1);
-  u8 *data = (f ? f : &fmt_txt)->save(d, &n);
+  u8 *data;
+  field_set_filename(d, path);          /* (WP1: FILENAME) */
+  data = (f ? f : &fmt_txt)->save(d, &n);
   int ok;
   if (!data) return 0;
   ok = file_write(path, data, n);

@@ -120,6 +120,8 @@ typedef struct Layout {
   u32 laid;                   /* paragraphs laid out afresh by the last update (for tests and timing) */
   struct { u32 key; FaceSize *z; } fcache[64];      /* format -> metrics (font substitution is slow) */
   int nfcache;
+  /* WP22a: the pages as laid out (core/pages.c's pages_eff: gutter, mirror margins, two to a sheet) */
+  PageSetup *epg; u32 nepg;
   /* (WP22b) */
   NoteNum *fnn, *enn;         /* each footnote's and endnote's number as shown */
   NoteCut *ncut; u32 nncut, ncutcap;   /* footnotes split across pages */
@@ -160,7 +162,9 @@ int  lay_endnotes(Layout *L, u32 page, Furn *f, i32 *sepy);
 u32  lay_note_number(ParaLay *pl, u32 box);
 void lay_note_label(ParaLay *pl, u32 box, char *out);
 void lay_roman(u32 n, char *out);    /* lower case: i, ii, iii, iv...; out at least 16 bytes */
-/* what a BX_FIELD box shows on a page: its number, or the number of pages (a story being edited: those it was opened with) */
+/* what a BX_FIELD box shows on a page: its number, or the number of pages (a story being edited: those it was opened with);
+   a field showing its code (WP1, core/field.h): the code. out: LAY_FIELD_TEXT bytes */
+#define LAY_FIELD_TEXT 160
 void lay_field_text(Layout *L, const Para *p, const Box *b, u32 page, char *out);    /* page from 0 */
 void lay_free(Layout *L);           /* L and everything it holds (not its Doc or FontSet) */
 /* bring the layout up to date with the document; 0 if out of memory (the layout then stays usable,
@@ -193,7 +197,7 @@ int  lay_textbox(Layout *L, const Image *im, i32 cx, Furn *f);
 u32  shape_points(int shape, i32 w, i32 h, i32 *xy, u32 max, int *closed);
 /* SH_ARROW's head at the line's end (w, h): three points, for an outline lw twips wide */
 void shape_arrowhead(i32 w, i32 h, i32 lw, i32 *xy);
-#define SHAPE_MAXPTS 72
+#define SHAPE_MAXPTS 128                /* (WP18: 72 before more shapes came) */
 /* an object's outline in its box (twips, turned): its wrap outline, a shape's own, or the box; how many
    points (at most max), 0 if none */
 int  obj_outline(const Image *im, i32 *xy, int max);
