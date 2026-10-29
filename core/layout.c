@@ -1768,14 +1768,14 @@ static void nflow_init(Layout *L, NoteFlow *nf)
   sep_story(L, L->pg, 0, NSEP_NOTICE, &f, &h); nf->notice = h; lay_furniture_free(&f);
 }
 /* a new page (area: its text area's height): the footnote going on from the page before takes the
-   foot of it, as much as fits in two thirds of it (full: all of it), at least one line */
+   foot of it, as much as fits leaving half an inch for the text (full: all of it), at least one line */
 static void nflow_page(Layout *L, NoteFlow *nf, u32 page, i32 area, int full)
 {
   i32 room, acc = 0;
   u32 l1;
   nf->respage = page; nf->reserve = 0;
   if (nf->cn < 0) return;
-  room = (full ? area : area * 2 / 3) - nf->sepc;
+  room = (full ? area : area - 720) - nf->sepc;
   for (l1 = nf->cl0; l1 < nf->cnl && acc + nf->hs[l1] <= room; l1++) acc += nf->hs[l1];
   if (l1 < nf->cnl) {
     /* more to come: room for the notice too */
@@ -2009,14 +2009,16 @@ static int paginate(Layout *L)
     pl->placed0 = L->nplaced;
     for (k = 0; k < pl->nlines; k++) {
       i32 h = pl->lines[k].height, extra = 0;
+      int over;
       if (d->nnotes && !web) {
         /* the footnotes this line refers to must fit at the bottom of the same page (WP22b: a page
            starts with the rest of a long one from the page before) */
         if (nf.respage != fl.page) nflow_page(L, &nf, fl.page, fl.bottom - fl.top, 0);
         extra = nflow_line(L, &nf, pl, k);
       }
-      if (fl.y + h > fl.bottom - nf.reserve - extra && !fl.at_top &&
-          !(extra && nflow_split(L, &nf, pl, k, fl.page, fl.bottom - nf.reserve - fl.y - h, &extra))) {   /* (WP22b: or split it) */
+      over = fl.y + h > fl.bottom - nf.reserve - extra;
+      if (over && extra && nflow_split(L, &nf, pl, k, fl.page, fl.bottom - nf.reserve - fl.y - h, &extra)) over = 0;   /* (WP22b: a long footnote split) */
+      if (over && !fl.at_top) {
         /* widow control: never leave a paragraph's last line alone at the top of a page */
         if (!pf->nowidow && k + 1 == pl->nlines && k >= 2 && L->nplaced > pl->placed0 && L->placed[L->nplaced - 1].page == fl.page) {
           L->nplaced--; k--; h = pl->lines[k].height;
@@ -2026,6 +2028,7 @@ static int paginate(Layout *L)
         if (d->nnotes && !web) {         /* the separator again on the new page */
           if (nf.respage != fl.page) nflow_page(L, &nf, fl.page, fl.bottom - fl.top, 0);
           extra = nflow_line(L, &nf, pl, k);
+          if (extra && fl.y + h > fl.bottom - nf.reserve - extra) nflow_split(L, &nf, pl, k, fl.page, fl.bottom - nf.reserve - fl.y - h, &extra);
         }
       }
       if (!add_placed(L, pi, k, fl.page, fl.y, fl.colx, fl.colw)) return 0;
