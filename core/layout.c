@@ -968,6 +968,12 @@ static void justify_page(Layout *L, Flow *fl, i32 shift)
       for (i = 0; i < gaps && at[i] <= b->y0 + 1; i++) m = i + 1;
       b->y0 += (i32)((long long)shift * m / gaps); b->y1 += (i32)((long long)shift * m / gaps); b->ybetween += (i32)((long long)shift * m / gaps);
     }
+    for (k = 0; k < L->nen; k++) {
+      u32 m = 0;
+      if (L->en[k].page != fl->page) continue;
+      for (i = 0; i < gaps && at[i] <= L->en[k].y; i++) m = i + 1;
+      L->en[k].y += (i32)((long long)shift * m / gaps);
+    }
     for (k = 0; k < L->nfloats; k++) {
       FloatBox *f = &L->floats[k];
       u32 m = 0;
