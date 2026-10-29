@@ -67,6 +67,7 @@ extern struct WBStartup *_WBenchMsg;
 #include "theme.h"
 #include "splash.h"
 #include "sysfonts.h"
+#include "wphooks.h"
 
 static struct NewMenu menus[] = {
   { NM_TITLE, (STRPTR)"File", 0, 0, 0, 0 },
@@ -236,6 +237,7 @@ static struct NewMenu menus[] = {
   { NM_ITEM, (STRPTR)"Page Setup...", 0, 0, 0, (APTR)ID_PAGESETUPDLG },
   { NM_END, 0, 0, 0, 0, 0 }
 };
+static struct NewMenu *menubar = menus;   /* menus with the work packages' items (wp_menus, in main()) */
 
 static Object *app, *win, *view, *findwin, *findstr, *ruler, *vruler, *navgrp, *ribbon, *statusbar;
 static Object *tablewin, *rowsl, *colsl, *strip, *backstage, *workarea, *pages;
@@ -471,17 +473,21 @@ static int ask(const char *gadgets, const char *fmt, const char *arg)
   return (int)MUI_Request(app, win, 0, (STRPTR)"Quill", (STRPTR)tr(gadgets), (STRPTR)tr(fmt), arg);
 }
 /* the ASL file requester, starting in path's drawer with its file name; path is replaced by the
-   choice. 1 if a file was chosen, 0 if cancelled (or no name given) */
-static int file_request(int save, const char *titletext, char *path, size_t cap)
+   choice. docs: a document's, with a pattern of the files Quill can read (or write), from
+   core/docx.c's table of formats; pattern: another pattern (NULL none). 1 if a file was chosen, 0
+   if cancelled (or no name given) */
+static int file_request_pat(int save, const char *titletext, char *path, size_t cap, int docs, const char *pattern)
 {
   struct FileRequester *fr;
-  char dir[400], file[108];
+  char dir[400], file[108], pat[160];
   int ok = 0;
+  if (docs) { doc_format_pattern(save, pat, sizeof pat); pattern = pat; }
   strncpy(dir, path, sizeof dir - 1); dir[sizeof dir - 1] = 0;
   *PathPart((STRPTR)dir) = 0;
   strncpy(file, path[0] ? (const char *)FilePart((STRPTR)path) : "", sizeof file - 1); file[sizeof file - 1] = 0;
   if (!(fr = (struct FileRequester *)MUI_AllocAslRequestTags(ASL_FileRequest, ASLFR_TitleText, (ULONG)tr(titletext),
-        ASLFR_DoSaveMode, save, ASLFR_InitialDrawer, (ULONG)dir, ASLFR_InitialFile, (ULONG)file, TAG_DONE))) return 0;
+        ASLFR_DoSaveMode, save, ASLFR_InitialDrawer, (ULONG)dir, ASLFR_InitialFile, (ULONG)file,
+        ASLFR_DoPatterns, pattern != NULL, ASLFR_InitialPattern, (ULONG)(pattern ? pattern : "#?"), TAG_DONE))) return 0;
   if (MUI_AslRequestTags(fr, ASLFR_Window, 0, TAG_DONE)) {
     strncpy(path, (const char *)fr->fr_Drawer, cap - 1); path[cap - 1] = 0;
     ok = AddPart((STRPTR)path, fr->fr_File, cap) && fr->fr_File[0];
@@ -489,6 +495,9 @@ static int file_request(int save, const char *titletext, char *path, size_t cap)
   MUI_FreeAslRequest(fr);
   return ok;
 }
+static int file_request(int save, const char *titletext, char *path, size_t cap, int docs) { return file_request_pat(save, titletext, path, cap, docs, NULL); }
+/* (wphooks.h) */
+int wp_file_request(int save, const char *title, char *path, size_t cap, const char *pattern) { return file_request_pat(save, title, path, cap, 0, pattern); }
 /* the document written to path (.docx or text, by its name: doc_save_file decides). On success the
    document counts as saved and joins the recent list: 1; a failure is reported and returns 0 */
 /* (while saving: a cross-reference's page, from the layout, so Word shows the right one) */
@@ -517,7 +526,7 @@ static int save_as(int text)
   char path[512];
   strcpy(path, docpath);
   if (text) { char *dot = strrchr(path, '.'); if (dot && dot > (char *)FilePart((STRPTR)path)) strcpy(dot, ".txt"); }
-  if (!file_request(1, text ? "Save as plain text" : "Save the document", path, sizeof path)) return 0;
+  if (!file_request(1, text ? "Save as plain text" : "Save the document", path, sizeof path, 1)) return 0;
   if (!text && !strchr((const char *)FilePart((STRPTR)path), '.')) strcat(path, ".docx");
   { BPTR l = Lock((STRPTR)path, ACCESS_READ);
     if (l) { UnLock(l); if (ask("Replace|Cancel", "%s exists.\nReplace it?", path) != 1) return 0; } }
@@ -526,11 +535,12 @@ static int save_as(int text)
   set_title();
   return 1;
 }
-/* Save: to the document's own path if it is a .docx, else through Save As. 1 if saved */
+/* Save: to the document's own path if its format keeps everything (.docx: DF_NATIVE in core/docx.c's
+   table of formats), else through Save As. 1 if saved */
 static int save(void)
 {
-  size_t n = strlen(docpath);
-  if (!docpath[0] || n < 5 || !str_ieq(docpath + n - 5, ".docx")) return save_as(0);   /* text files are saved as .docx */
+  const DocFormat *f = docpath[0] ? doc_format_for_name(docpath, 1) : NULL;
+  if (!f || !(f->flags & DF_NATIVE)) return save_as(0);   /* text files are saved as .docx */
   return save_to(docpath);
 }
 /* 1: go ahead (saved or discarded), 0: cancelled */
@@ -775,7 +785,7 @@ static void export_pdf(const char *given)
     strcpy(path, docpath[0] ? docpath : "Untitled.docx");
     dot = strrchr(path, '.');
     if (dot && dot > (char *)FilePart((STRPTR)path)) strcpy(dot, ".pdf"); else strcat(path, ".pdf");
-    if (!file_request(1, "Export as PDF", path, sizeof path)) return;
+    if (!file_request(1, "Export as PDF", path, sizeof path, 0)) return;
   }
   set(app, MUIA_Application_Sleep, TRUE);
   get(view, MUIA_Quill_Layout, &L);
@@ -890,7 +900,7 @@ static int story_open(int kind, int index, int sect, u32 page)
   sv.caret = doc_start(doc); sv.scroll = 0; sv.label = label;
   story_bits();
   DoMethod(view, MUIM_Quill_Command, CMD_STORY, (ULONG)&sv);
-  set(ribbon, MUIA_Ribbon_Tab, kind == SK_HEADER || kind == SK_FOOTER ? 12 : 13);
+  set(ribbon, MUIA_Ribbon_Tab, kind == SK_HEADER || kind == SK_FOOTER ? TAB_HEADFOOT : TAB_EDITTEXT);
   set(win, MUIA_Window_ActiveObject, (ULONG)view);
   rebuild_nav(1);
   return 1;
@@ -906,7 +916,7 @@ static void story_close(int keep)
   story_bits();
   DoMethod(view, MUIM_Quill_Command, CMD_STORY, (ULONG)&sv);
   if (doc->dirty) set(view, MUIA_Quill_Changed, TRUE);
-  set(ribbon, MUIA_Ribbon_Tab, story.tab >= 12 ? 1 : story.tab);
+  set(ribbon, MUIA_Ribbon_Tab, story.tab == TAB_HEADFOOT || story.tab == TAB_EDITTEXT ? TAB_HOME : story.tab);
   rebuild_nav(1);
 }
 /* the header (footer) of page page, or the caret's page */
@@ -970,7 +980,7 @@ static void insert_picture(void)
   size_t n;
   u8 *data;
   int k;
-  if (!file_request(0, "Insert a picture (PNG or JPEG)", picpath, sizeof picpath)) return;
+  if (!file_request(0, "Insert a picture (PNG or JPEG)", picpath, sizeof picpath, 0)) return;
   set(app, MUIA_Application_Sleep, TRUE);
   data = file_read(picpath, &n);
   k = data ? doc_add_image(doc, data, (u32)n, 0, 0) : -1;       /* takes the data */
@@ -1463,6 +1473,19 @@ static Object *dialog(const char *title, ULONG wid, Object *contents, const char
   DoMethod(ok, MUIM_Notify, MUIA_Pressed, FALSE, (ULONG)app, 2, MUIM_Application_ReturnID, id);
   return w;
 }
+/* for the work packages (wphooks.h): the application, the current window's objects and document,
+   and the helpers above */
+Object *wp_app(void) { return app; }
+Object *wp_win(void) { return win; }
+Object *wp_view(void) { return view; }
+Object *wp_ribbon(void) { return ribbon; }
+Doc *wp_doc(void) { return doc; }
+Pos *wp_caret(void) { return caret_pos(); }
+int wp_ask(const char *gadgets, const char *fmt, const char *arg) { return ask(gadgets, fmt, arg); }
+Object *wp_dialog(const char *title, ULONG wid, Object *contents, const char *oklabel, ULONG okid) { return dialog(title, wid, contents, oklabel, okid); }
+void wp_latin1_utf8(const char *latin1, char *utf8, size_t cap) { latin1_utf8(latin1, utf8, cap); }
+void wp_story_close(void) { if (doc->edit.kind) story_close(1); }
+void wp_refresh(void) { DoMethod(view, MUIM_Quill_Command, CMD_REFRESH, 0); }
 static Object *splitwin, *splitcols, *splitrows;
 /* Split Cells, for the caret's cell (a merged cell offers the number of cells it covers) */
 static void open_split(void)
@@ -3083,6 +3106,8 @@ static int story_ends(ULONG id)
    become a MUIM_Quill_Command for the view (view.c does the editing, undo and redraw); the rest
    open dialogs or act on files and windows. main()'s loop hands the ribbon's lists and the File
    page to ribbon_choice and backstage_command instead; ARexx comes here too */
+static int wp_focus_kept;                /* a work package's command opened a window that keeps the keyboard */
+static int wp_started;                   /* wp_init done (so wp_cleanup at the end) */
 static void command(ULONG id)
 {
   static const ULONG simple[][2] = {
@@ -3095,6 +3120,8 @@ static void command(ULONG id)
     { ID_TGRID, CMD_TGRID }, { ID_SPLITTABLE, CMD_SPLITTABLE }, { ID_DISTROWS, CMD_DISTROWS }, { ID_DISTCOLS, CMD_DISTCOLS },
   };
   size_t i;
+  /* the work packages' blocks (ids.h): to the package's own wpN_command (wphooks.h) */
+  if (id >= ID_WP_FIRST && id <= ID_WP_LAST) { wp_focus_kept = wp_run(id, WPV_NONE) == WPR_KEEPFOCUS; return; }
   for (i = 0; i < sizeof simple / sizeof simple[0]; i++) if (simple[i][0] == id) { DoMethod(view, MUIM_Quill_Command, simple[i][1], 0); return; }
   switch (id) {
   case ID_LEFT: case ID_CENTER: case ID_RIGHT: case ID_JUSTIFY: DoMethod(view, MUIM_Quill_Command, CMD_ALIGN, id - ID_LEFT); break;
@@ -3181,7 +3208,8 @@ static void command(ULONG id)
     /* a ribbon list's entry chosen from the right-button menu (the view keeps which) */
     ULONG p = 0;
     get(view, MUIA_Quill_CtxPick, &p);
-    obj_choice(p >> 8, (LONG)(p & 0xFF));
+    if ((p >> 8) >= ID_WP_FIRST && (p >> 8) <= ID_WP_LAST) wp_focus_kept = wp_run(p >> 8, (LONG)(p & 0xFF)) == WPR_KEEPFOCUS;   /* (WP_CTX_LIST) */
+    else obj_choice(p >> 8, (LONG)(p & 0xFF));
     break; }
   case ID_COMMENT: open_comment(); break;
   case ID_TRACK: {
@@ -3304,7 +3332,7 @@ static void command(ULONG id)
   case ID_CLOSE: break;                                   /* (the input loop closes the window) */
   case ID_NEXTWIN: win_next(); break;
   case ID_OPEN:
-    { char path[512]; strcpy(path, docpath); if (file_request(0, "Open a document", path, sizeof path)) open_path(path); }
+    { char path[512]; strcpy(path, docpath); if (file_request(0, "Open a document", path, sizeof path, 1)) open_path(path); }
     break;
   case ID_SAVE: save(); break;
   case ID_SAVEAS: save_as(0); break;
@@ -3770,6 +3798,7 @@ static void ribbon_choice(ULONG id)
 {
   LONG v = 0;
   get(ribbon, MUIA_Ribbon_Value, &v);
+  if (id >= ID_WP_FIRST && id <= ID_WP_LAST) { wp_focus_kept = wp_run(id, v) == WPR_KEEPFOCUS; return; }   /* a work package's list */
   ribbon_pick(id, v);
 }
 
@@ -4540,7 +4569,7 @@ static int win_new(Doc *d, const char *path)
   if (curwin >= 0 && win_now(box)) { box[0] += 24; box[1] += 20; has_box = 1; }
   else if (pref_win != WIN_FILL && win_box[2] > 0) { memcpy(box, win_box, sizeof box); has_box = 1; }
   if (curwin >= 0) win_save(&wins[curwin]);
-  menus_obj = MUI_MakeObject(MUIO_MenustripNM, (ULONG)menus, 0);
+  menus_obj = MUI_MakeObject(MUIO_MenustripNM, (ULONG)menubar, 0);
   {
     /* the settings every window shares (units, author, spelling...) come from the current one; the
        very first window's were set up by main() in its slot */
@@ -4847,8 +4876,9 @@ int main(int argc, char **argv)
   sysfonts_scan(&fonts, scan_step);
   splash_step(6, tr("Preparing"));
   if (!view_class() || !ruler_class() || !ribbon_class() || !nav_class() || !status_class() || !flatscroll_class() || !backstage_class()) goto done;
-  for (i = 0; menus[i].nm_Type != NM_END; i++)      /* the menus in the language chosen */
-    if (menus[i].nm_Label && menus[i].nm_Label != NM_BARLABEL) menus[i].nm_Label = (STRPTR)tr((const char *)menus[i].nm_Label);
+  menubar = wp_menus(menus);                        /* the work packages' items added (wphooks.h) */
+  for (i = 0; menubar[i].nm_Type != NM_END; i++)    /* the menus in the language chosen */
+    if (menubar[i].nm_Label && menubar[i].nm_Label != NM_BARLABEL) menubar[i].nm_Label = (STRPTR)tr((const char *)menubar[i].nm_Label);
   load_recent();
   splash_step(8, tr("Loading the spelling dictionary"));
   load_spelling();
@@ -4872,6 +4902,7 @@ int main(int argc, char **argv)
     printf("Quill: the window could not be made (MUI classes missing?)\n");
     goto done;
   }
+  wp_init(); wp_started = 1;             /* the work packages' own setting up (wphooks.h) */
   if (start[0]) {
     static char what[300];
     snprintf(what, sizeof what, tr("Opening %s"), (const char *)FilePart((STRPTR)start));
@@ -4898,6 +4929,7 @@ int main(int argc, char **argv)
      (ID_WINACT + slot, ID_WINCLOSE + slot: see win_new) */
   for (;;) {
     ULONG id = DoMethod(app, MUIM_Application_NewInput, (ULONG)&sigs), a = 0;
+    wp_focus_kept = 0;
     if (qlog && id) { fprintf(qlog, "return id %lu\n", (unsigned long)id); fflush(qlog); }
     /* another document window clicked into: its document is the one worked on now */
     if (id >= ID_WINACT && id < ID_WINACT + MAXWIN) { win_switch((int)(id - ID_WINACT)); id = 0; }
@@ -4918,7 +4950,7 @@ int main(int argc, char **argv)
              id == ID_COLUMNSDD || id == ID_LINENUMDD || id == ID_HYPHENDD || id == ID_PAGEALIGNDD || id == ID_DROPCAPDD || id == ID_WATERMARKDD || id == ID_BORDERDD ||
              id == ID_TSTYLEDD || id == ID_PENSTYLE || id == ID_PENWIDTH || id == ID_PENCOLOR || id == ID_TBORDERSDD || id == ID_TSELECTDD ||
              id == ID_AUTOFITDD || id == ID_ROWH || id == ID_COLW || (id >= ID_SHAPESDD && id <= ID_OBJROTDD && id != ID_TEXTBOX) ||
-             (id >= ID_PASTESPECDD && id <= ID_PSPACINGDD) || (id >= ID_PASTEDD && id <= ID_FINDDD) || (id >= ID_FORWARDDD && id <= ID_COVERDD) || (id >= ID_THEMEDD && id <= ID_PAGECOLORDD) || id == ID_UNDERLINEDD) ribbon_choice(id);
+             (id >= ID_PASTESPECDD && id <= ID_PSPACINGDD) || (id >= ID_PASTEDD && id <= ID_FINDDD) || (id >= ID_FORWARDDD && id <= ID_COVERDD) || (id >= ID_THEMEDD && id <= ID_PAGECOLORDD) || id == ID_UNDERLINEDD || wp_is_list(id)) ribbon_choice(id);
     else if (id == ID_TITLE) set_title();
     else if (id == ID_OUTLINECHG) rebuild_nav(0);
     else if (id) {
@@ -4929,7 +4961,7 @@ int main(int argc, char **argv)
     /* the keyboard back to the page after a command, except those that open a window whose gadgets
        should have it (Find, Tabs, Spelling, the table and object windows...) */
     if (id && id != ID_TITLE && id != ID_OUTLINECHG && id != ID_FIND && id != ID_TABLE && id != ID_HEADFOOT && id != ID_PICSIZE && id != ID_NOTE && id != ID_ENDNOTE && id != ID_FINDGO && id != ID_FINDPREV && id != ID_REPLACE1 && id != ID_REPLACEALL && (id < ID_TABS || id > ID_TABPICK) && id != ID_COMMENT && id != ID_SPELL && id != ID_SPPICK && (id < ID_SPCHANGE || id > ID_SPADD) &&
-        id != ID_SPLIT && id != ID_TPROPS && (id < ID_OBJLAYOUT || id > ID_OBJEDIT || id == ID_OBJGO) && id != ID_OBJWRAPDD && id != ID_TSORT && id != ID_TOTEXT && id != ID_TOTABLE && id != ID_FORMULA && id != ID_FORMULAGO && id != ID_LINK) set(win, MUIA_Window_ActiveObject, (ULONG)view);
+        id != ID_SPLIT && id != ID_TPROPS && (id < ID_OBJLAYOUT || id > ID_OBJEDIT || id == ID_OBJGO) && id != ID_OBJWRAPDD && id != ID_TSORT && id != ID_TOTEXT && id != ID_TOTABLE && id != ID_FORMULA && id != ID_FORMULAGO && id != ID_LINK && !wp_focus_kept) set(win, MUIA_Window_ActiveObject, (ULONG)view);
     /* the scroll bar's knob kept the view's height (it changes when the window is resized) */
     {
       LONG h = _mheight(view);
@@ -4950,6 +4982,7 @@ done:
   if (curwin < 0 && doc) doc_free(doc);
   doc = NULL;
   if (app) MUI_DisposeObject(app);
+  if (wp_started) wp_cleanup();
   view_class_free();
   ruler_class_free();
   ribbon_class_free();

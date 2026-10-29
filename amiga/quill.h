@@ -17,6 +17,7 @@
 #include <libraries/mui.h>
 #include "../core/docx.h"
 #include "../core/layout.h"
+#include "ids.h"                       /* (WP_NPKG, for MUIP_Ribbon_State.wpon) */
 
 extern struct Library *MUIMasterBase;
 
@@ -278,6 +279,7 @@ struct MUIP_Ribbon_State {
   ULONG on2;                /* RBIT(RB_... - 32) */
   i32 rowh, colw;           /* the caret's table row: its height (Cell.rowh), its cell's width (twips) */
   u32 stylesig;             /* the styles as they look (changes when any does: the gallery is drawn again) */
+  ULONG wpon[WP_NPKG];      /* each work package's own 32 state bits (RB_WP, ribbondef.h), from its wpN_state() */
 };
 /* the ribbon class: made on first call (NULL if MUI couldn't), freed at the end */
 struct MUI_CustomClass *ribbon_class(void);

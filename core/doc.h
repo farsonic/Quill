@@ -405,6 +405,8 @@ typedef struct Doc {
   ParaFmt defpf; CharFmt defcf;   /* the document's defaults, under every style */
   u32 serial;               /* this document's own number (fragments know where they came from) */
   StoryEdit edit;           /* a story being edited in the body's place */
+  struct KeptPart *kept; int nkept;   /* .docx parts kept verbatim, written back on saving (core/keep.h) */
+  /* (work packages: new fields go below, at the end) */
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */

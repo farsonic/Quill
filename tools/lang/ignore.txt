@@ -1,0 +1,3 @@
+# tools/lang/ignore.txt - string literals in the Amiga source that are not interface words (one a line,
+# as the C source means them), for tools/langcheck.py
+Quill

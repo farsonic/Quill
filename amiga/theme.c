@@ -975,13 +975,19 @@ void theme_icon_pen(struct RastPort *rp, int icon, LONG x, LONG y, LONG size, LO
    becomes the disabled grey */
 void theme_icon(struct RastPort *rp, int icon, LONG x, LONG y, LONG size, int dim)
 {
+  if (icon <= IC_NONE || icon >= IC_N) return;
+  theme_icon_src(rp, icons[icon], x, y, size, dim);
+}
+/* (see theme.h) an icon from its drawing commands, as in icons[] (the work packages' own icons) */
+void theme_icon_src(struct RastPort *rp, const char *src, LONG x, LONG y, LONG size, int dim)
+{
   const char *p;
   LONG pen = mono >= 0 ? mono : tpen(dim ? T_DISABLED : T_ICON);
 #define SC(v) ((v) * size / 16)
-  if (icon <= IC_NONE || icon >= IC_N) return;
+  if (!src) return;
   SetDrMd(rp, JAM1);
   SetAPen(rp, pen);
-  for (p = icons[icon]; *p; ) {
+  for (p = src; *p; ) {
     char c = *p++;
     LONG a, b, e, f;
     switch (c) {

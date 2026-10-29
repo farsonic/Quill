@@ -23,6 +23,7 @@ typedef struct {
   Buf text;                         /* XT_TEXT */
   int pending_end;                  /* <x/>: an END follows the START */
   int depth;                        /* open elements: up by one after a START, down after an END */
+  size_t tok;                       /* where the last start tag began in s (its '<') */
 } Xml;
 
 /* start parsing s[0..n); s must stay valid while the parser is used. xml_free releases its buffers. */
@@ -32,6 +33,10 @@ int  xml_next(Xml *x);              /* the next token's type (also in x->type); 
 const char *xml_attr(Xml *x, const char *name);   /* by local name; NULL if absent */
 /* skip to the END that closes the START just read */
 void xml_skip(Xml *x);
+/* call right after a START: the whole element as it is written in the input, from its '<' to the end
+   of its closing tag (*start points into the input, the length is returned), skipped as xml_skip
+   does. For keeping an element Quill doesn't model verbatim, to write back unchanged */
+size_t xml_raw(Xml *x, const char **start);
 /* append to out the XML text s with &, <, > and " escaped */
 void xml_escape(Buf *out, const char *s, size_t n);
 

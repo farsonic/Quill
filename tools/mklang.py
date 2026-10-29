@@ -5,6 +5,10 @@
 # German, French, Spanish and Italian (UTF-8, C escapes such as \n and \33c allowed; None: as the
 # English). The translations must fit in Latin-1, the Amiga's character set.
 #   python3 tools/mklang.py
+#
+# The work packages (docs/wordcraft-gap.md) keep their words in files of their own, tools/lang/wp<n>.py
+# (each with a W list like the one below); their rows go into lang_table.h after the rows here, each
+# package's between its own begin and end markers, so branches that add words merge cleanly.
 import os, re, sys
 
 W = [
@@ -1345,6 +1349,14 @@ W = [
 ("Set as Default", "Als Standard festlegen", "Définir par défaut", "Establecer como predeterminado", "Imposta come predefinito"),
 ("New documents start with this look", "Neue Dokumente beginnen mit diesem Aussehen", "Les nouveaux documents prennent cette apparence", "Los documentos nuevos empiezan con este aspecto", "I nuovi documenti iniziano con questo aspetto"),
 
+# ---- WP0: the work packages' tabs (empty, and so hidden, until a package fills them)
+("Draw", "Zeichnen", "Dessin", "Dibujar", "Disegno"),
+("Mailings", "Sendungen", "Publipostage", "Correspondencia", "Lettere"),
+("Developer", "Entwicklertools", "Développeur", "Programador", "Sviluppo"),
+("Equation", "Formel", "Équation", "Ecuación", "Equazione"),
+("Chart Design", "Diagrammentwurf", "Création de graphique", "Diseño de gráfico", "Progettazione grafico"),
+("SmartArt Design", "SmartArt-Entwurf", "Création SmartArt", "Diseño de SmartArt", "Progettazione SmartArt"),
+("Outlining", "Gliederung", "Mode Plan", "Esquema", "Struttura"),
 ]
 
 def c_unescape(s):
@@ -1375,24 +1387,48 @@ def c_literal(b):
         else: out += '\\%03o' % x; prev_oct = True
     return '"' + out + '"'
 
+# the work packages in the order of amiga/ids.h's WPI_ (each one's words: tools/lang/wp<tag>.py)
+PACKAGES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14a', '14b', '15a', '15b', '15c', '16', '17',
+            '18', '19', '20', '21a', '21b', '22a', '22b', '23', '24', '25', '26', '27', '28a', '28b', '28c', '28d', '29', '30', '31']
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def package_words(tag):
+    """the W list of tools/lang/wp<tag>.py ([] if there is none)"""
+    path = os.path.join(ROOT, 'tools', 'lang', 'wp%s.py' % tag)
+    if not os.path.exists(path): return []
+    env = {}
+    exec(compile(open(path, encoding='utf-8').read(), path, 'exec'), env)
+    return env.get('W', [])
+
+def all_rows():
+    """(section, entries): the rows here (section None), then each package's"""
+    out = [(None, W)]
+    for tag in PACKAGES: out.append((tag, package_words(tag)))
+    return out
+
 def main():
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    seen, lines, bad = set(), [], 0
-    for e in W:
-        en = c_unescape(e[0])
-        if en in seen: continue
-        seen.add(en)
-        cols = [c_literal(en)]
-        for t in e[1:]:
-            if t is None: cols.append('NULL'); continue
-            try: b = c_unescape(t)
-            except (UnicodeEncodeError, KeyError) as x: print('not Latin-1:', t, x); bad += 1; continue
-            cols.append(c_literal(b))
-        lines.append('  { { ' + ', '.join(cols) + ' } },')
-    with open(os.path.join(root, 'amiga', 'lang_table.h'), 'w') as f:
+    seen, lines, bad, count = set(), [], 0, 0
+    for sect, words in all_rows():
+        if sect is not None: lines.append('/* ---- begin WP%s (tools/lang/wp%s.py) */' % (sect, sect))
+        for e in words:
+            en = c_unescape(e[0])
+            if en in seen: continue
+            seen.add(en)
+            if len(e) != 5: print('WP%s: not five columns:' % sect if sect else 'not five columns:', e); bad += 1; continue
+            cols = [c_literal(en)]
+            for t in e[1:]:
+                if t is None: cols.append('NULL'); continue
+                try: b = c_unescape(t)
+                except (UnicodeEncodeError, KeyError) as x: print('not Latin-1:', t, x); bad += 1; continue
+                cols.append(c_literal(b))
+            lines.append('  { { ' + ', '.join(cols) + ' } },')
+            count += 1
+        if sect is not None: lines.append('/* ---- end WP%s */' % sect)
+    with open(os.path.join(ROOT, 'amiga', 'lang_table.h'), 'w') as f:
         f.write('/* lang_table.h - made by tools/mklang.py: do not edit (English, German, French, Spanish, Italian) */\n')
         f.write('\n'.join(lines) + '\n')
-    print(len(lines), 'entries')
+    print(count, 'entries')
     return bad != 0
 
-sys.exit(main())
+if __name__ == '__main__':
+    sys.exit(main())

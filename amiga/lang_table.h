@@ -1183,3 +1183,88 @@
   { { "_Add", "_Hinzuf\374gen", "_Ajouter", "_Agregar", "_Aggiungi" } },
   { { "Set as Default", "Als Standard festlegen", "D\351finir par d\351faut", "Establecer como predeterminado", "Imposta come predefinito" } },
   { { "New documents start with this look", "Neue Dokumente beginnen mit diesem Aussehen", "Les nouveaux documents prennent cette apparence", "Los documentos nuevos empiezan con este aspecto", "I nuovi documenti iniziano con questo aspetto" } },
+  { { "Draw", "Zeichnen", "Dessin", "Dibujar", "Disegno" } },
+  { { "Mailings", "Sendungen", "Publipostage", "Correspondencia", "Lettere" } },
+  { { "Developer", "Entwicklertools", "D\351veloppeur", "Programador", "Sviluppo" } },
+  { { "Equation", "Formel", "\311quation", "Ecuaci\363n", "Equazione" } },
+  { { "Chart Design", "Diagrammentwurf", "Cr\351ation de graphique", "Dise\361o de gr\341fico", "Progettazione grafico" } },
+  { { "SmartArt Design", "SmartArt-Entwurf", "Cr\351ation SmartArt", "Dise\361o de SmartArt", "Progettazione SmartArt" } },
+  { { "Outlining", "Gliederung", "Mode Plan", "Esquema", "Struttura" } },
+/* ---- begin WP1 (tools/lang/wp1.py) */
+/* ---- end WP1 */
+/* ---- begin WP2 (tools/lang/wp2.py) */
+/* ---- end WP2 */
+/* ---- begin WP3 (tools/lang/wp3.py) */
+/* ---- end WP3 */
+/* ---- begin WP4 (tools/lang/wp4.py) */
+/* ---- end WP4 */
+/* ---- begin WP5 (tools/lang/wp5.py) */
+/* ---- end WP5 */
+/* ---- begin WP6 (tools/lang/wp6.py) */
+/* ---- end WP6 */
+/* ---- begin WP7 (tools/lang/wp7.py) */
+/* ---- end WP7 */
+/* ---- begin WP8 (tools/lang/wp8.py) */
+/* ---- end WP8 */
+/* ---- begin WP9 (tools/lang/wp9.py) */
+/* ---- end WP9 */
+/* ---- begin WP10 (tools/lang/wp10.py) */
+/* ---- end WP10 */
+/* ---- begin WP11 (tools/lang/wp11.py) */
+/* ---- end WP11 */
+/* ---- begin WP12 (tools/lang/wp12.py) */
+/* ---- end WP12 */
+/* ---- begin WP13 (tools/lang/wp13.py) */
+/* ---- end WP13 */
+/* ---- begin WP14a (tools/lang/wp14a.py) */
+/* ---- end WP14a */
+/* ---- begin WP14b (tools/lang/wp14b.py) */
+/* ---- end WP14b */
+/* ---- begin WP15a (tools/lang/wp15a.py) */
+/* ---- end WP15a */
+/* ---- begin WP15b (tools/lang/wp15b.py) */
+/* ---- end WP15b */
+/* ---- begin WP15c (tools/lang/wp15c.py) */
+/* ---- end WP15c */
+/* ---- begin WP16 (tools/lang/wp16.py) */
+/* ---- end WP16 */
+/* ---- begin WP17 (tools/lang/wp17.py) */
+/* ---- end WP17 */
+/* ---- begin WP18 (tools/lang/wp18.py) */
+/* ---- end WP18 */
+/* ---- begin WP19 (tools/lang/wp19.py) */
+/* ---- end WP19 */
+/* ---- begin WP20 (tools/lang/wp20.py) */
+/* ---- end WP20 */
+/* ---- begin WP21a (tools/lang/wp21a.py) */
+/* ---- end WP21a */
+/* ---- begin WP21b (tools/lang/wp21b.py) */
+/* ---- end WP21b */
+/* ---- begin WP22a (tools/lang/wp22a.py) */
+/* ---- end WP22a */
+/* ---- begin WP22b (tools/lang/wp22b.py) */
+/* ---- end WP22b */
+/* ---- begin WP23 (tools/lang/wp23.py) */
+/* ---- end WP23 */
+/* ---- begin WP24 (tools/lang/wp24.py) */
+/* ---- end WP24 */
+/* ---- begin WP25 (tools/lang/wp25.py) */
+/* ---- end WP25 */
+/* ---- begin WP26 (tools/lang/wp26.py) */
+/* ---- end WP26 */
+/* ---- begin WP27 (tools/lang/wp27.py) */
+/* ---- end WP27 */
+/* ---- begin WP28a (tools/lang/wp28a.py) */
+/* ---- end WP28a */
+/* ---- begin WP28b (tools/lang/wp28b.py) */
+/* ---- end WP28b */
+/* ---- begin WP28c (tools/lang/wp28c.py) */
+/* ---- end WP28c */
+/* ---- begin WP28d (tools/lang/wp28d.py) */
+/* ---- end WP28d */
+/* ---- begin WP29 (tools/lang/wp29.py) */
+/* ---- end WP29 */
+/* ---- begin WP30 (tools/lang/wp30.py) */
+/* ---- end WP30 */
+/* ---- begin WP31 (tools/lang/wp31.py) */
+/* ---- end WP31 */

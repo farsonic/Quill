@@ -40,11 +40,42 @@ u8  *txt_save(Doc *d, int latin1, size_t *len);
 
 u8  *file_read(const char *path, size_t *len);           /* NULL if it can't be read */
 int  file_write(const char *path, const void *data, size_t len);   /* 0 if it couldn't be written */
-/* by the file's contents: a zip is a .docx, an old .doc is refused, anything else is plain text;
-   NULL if unreadable (err says why). *lost as for docx_load */
+/* the file formats Quill reads and writes (docx.c's doc_formats[]: .docx, the old .doc, plain text,
+   and a row for each of WP28a-d's, filled in by its own core file). A format: its name for people,
+   its name endings ("docx", or "htm|html": the first is the one a save adds), a test of a file's
+   first bytes (NULL: known by the name only), how it is read and written (NULL: it can't be), and DF_
+   flags. A row whose load and save are both NULL is left out everywhere */
+enum { DF_NATIVE = 1,           /* Save writes back to it without asking: nothing is lost */
+       DF_TEXT = 2 };           /* the last resort for files nothing else recognises */
+typedef struct DocFormat {
+  const char *name;
+  const char *exts;
+  int  (*sniff)(const u8 *data, size_t len);
+  Doc *(*load)(const u8 *data, size_t len, unsigned *lost, char *err, size_t errcap);
+  u8  *(*save)(Doc *d, size_t *len);
+  unsigned flags;
+} DocFormat;
+extern const DocFormat *const doc_formats[];
+extern const int doc_nformats;
+/* the format a file name's ending names that can be read (saving 0) or written (saving 1); NULL if none */
+const DocFormat *doc_format_for_name(const char *path, int saving);
+/* an AmigaDOS pattern of every name ending that can be read (saving 0) or written: "#?.(docx|txt)" */
+void doc_format_pattern(int saving, char *out, size_t cap);
+
+/* read by its contents (each format's sniff in table order), else by its name's ending, else as plain
+   text; NULL if unreadable (err says why). *lost as for docx_load */
 Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap);
-/* by the name's extension: .docx, else plain text in Latin-1; clears the modified flag on success,
-   0 on failure */
+/* written in the format its name's ending names, else as plain text in Latin-1; clears the modified
+   flag on success, 0 on failure */
 int  doc_save_file(Doc *d, const char *path);
+
+/* ---- for the work packages' .docx parts (see core/docx.c's *_ext hooks) */
+/* what docx_save is building: a package's write hook adds its parts with docx_out_part */
+typedef struct DocxOut DocxOut;
+/* a part to write: its name, content type (NULL: none needed, a .rels), the relationship to it (owner ""
+   from the package, "word/document.xml" from the document, NULL none; its type and id) and its bytes
+   (copied). 0 if out of memory */
+int docx_out_part(DocxOut *o, const char *name, const char *ctype, const char *owner, const char *reltype, const char *relid,
+                  const void *data, size_t len);
 
 #endif

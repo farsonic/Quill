@@ -23,15 +23,17 @@
 #include "lang.h"
 #include "ids.h"
 #include "../core/tstyle.h"
+#include "ribbondef.h"
+#include "wphooks.h"
 
 /* ------------------------------------------------------------------ */
 /* the lists */
-enum { PL_TEXT, PL_COLOR, PL_STYLES, PL_TSTYLES, PL_FONTS, PL_UNDERLINE, PL_LOOKSET, PL_LOOKTHEME, PL_LOOKCOLOR };   /* (the PL_LOOKs: look_info kinds 0-2, and last) */
+/* (the PL_ kinds are in ribbondef.h; the PL_LOOKs: look_info kinds 0-2, and last) */
 #define TS_COLS 3                /* the table styles list: in three columns */
 /* a drop-down list: its entries (Latin-1), how many, how they are drawn (PL_), and for PL_COLOR
    the 0xRRGGBB beside each (0xFF000000 is COLOR_AUTO: automatic, or none). open_list fills in
    the entries of the styles, table styles and fonts lists itself when one opens */
-typedef struct { const char *const *labels; int n; int kind; const ULONG *colors; } List;
+typedef RibbonList List;
 /* (quill.h) Word's usual families, which every font list starts with */
 const char *const ribbon_fonts[] = { "Times New Roman", "Arial", "Courier New", "Calibri", "Cambria", "Liberation Serif", "Liberation Sans",
                                      "Liberation Mono", "Carlito", "Caladea", NULL };
@@ -196,34 +198,11 @@ static const List lists[] = {
 
 /* ------------------------------------------------------------------ */
 /* the tools */
-/* item kinds: a button (a ReturnID of its id when clicked); a button with an arrow that opens its
-   list; a field showing a value (font, size, indent...) that opens its list; the styles gallery; a
-   plain caption. Sizes: a small button (16-pixel icon and label), a large one (24-pixel icon over
-   its label, the group's full height), an icon alone */
-enum { K_BUTTON, K_DROP, K_FIELD, K_GALLERY, K_LABEL };
-enum { S_SMALL, S_LARGE, S_ICON };
-#define F_ROW1 1                 /* rows mode: on the second row */
-#define F_NEWCOL 2               /* columns mode: start a new column */
-#define F_CHECK 4                /* a check box (ticked while its state is on) instead of an icon */
-#define F_SPLIT 8                /* a split button: its icon and label do split_id()'s command, the arrow opens the list */
-/* a tool: its kind and size (K_, S_), its icon (IC_, theme.h), its list (L_), its label (Latin-1,
-   through tr(); NULL for an icon alone), the command it returns (ID_), the RB_ states shown as
-   checked and needed to be usable, F_ flags, a field's width in pixels, and its help */
-typedef struct {
-  u8 kind, size, icon, list;
-  const char *label;
-  UWORD id;
-  u8 st, en;                     /* RB_ shown as checked, RB_ needed to be enabled (0: none) */
-  u8 flags;
-  UWORD fieldw;
-  const char *help;
-} Item;
-/* a group's arrangement (see the top of the file), a group, and a tab. Tab.contextual: 0 always
-   shown, else shown only while a state bit is on (see tab_visible: 1 in a table, 2 a picture
-   selected, 3 a shape, 4 a header or footer edited, 5 a note, comment or text box edited) */
-enum { G_COLS, G_ROWS, G_GALLERY };
-typedef struct { const char *name; u8 mode; const Item *items; int n; } Group;
-typedef struct { const char *name; const Group *groups; int n; u8 contextual; } Tab;
+/* the item kinds, sizes, flags, Item and Group are in ribbondef.h (shared with the work packages).
+   A tab: its name, its groups, and whether it is contextual: 0 always shown, else shown only while
+   a state bit is on (see tab_visible: 1 in a table, 2 a picture selected, 3 a shape, 4 a header or
+   footer edited, 5 a note, comment or text box edited; RB_WP_BASE and up: that package state bit) */
+typedef struct { const char *name; const Group *groups; int n; UWORD contextual; } Tab;
 
 /* the Home tab: Clipboard, Font and Paragraph (in two rows), the styles gallery and Editing. Each
    Item reads: kind, size, icon, list, label, id, state shown as checked, state needed, flags, field
@@ -643,16 +622,49 @@ static const Item e_ins[] = {
   { K_DROP, S_SMALL, IC_SYMBOL, L_SYMBOLS, "Symbol", ID_SYMBOLDD, 0, 0, 0, 0, "A symbol" } };
 static const Group stedit[] = { { "Insert", G_COLS, e_ins, N(e_ins) }, { "Close", G_COLS, h_close, N(h_close) } };
 
-/* the tab strip, left to right. File isn't a tab of tools: a click on it opens the File page
-   (ID_FILETAB). A tab's index here is MUIA_Ribbon_Tab's value, and events() takes 1 to be Home */
-static const Tab tabs[] = {
-  { "File", NULL, 0, 0 }, { "Home", home, N(home), 0 }, { "Insert", insert, N(insert), 0 }, { "Design", design, N(design), 0 }, { "Layout", layout, N(layout), 0 },
-  { "References", refs, N(refs), 0 }, { "Review", review, N(review), 0 }, { "View", view, N(view), 0 },
+/* the tab strip, left to right, in TAB_ order (ribbondef.h). File isn't a tab of tools: a click on it
+   opens the File page (ID_FILETAB). A tab's index here is MUIA_Ribbon_Tab's value, and events()
+   takes 1 to be Home. Draw, Mailings and Developer have no groups of their own: the work packages
+   give them theirs (wphooks.h), and a tab with no groups stays out of the strip. Equation, Chart
+   Design, SmartArt Design and Outlining show while their package says so (its WPS_TAB bit) */
+static const Tab basetabs[] = {
+  { "File", NULL, 0, 0 }, { "Home", home, N(home), 0 }, { "Insert", insert, N(insert), 0 }, { "Draw", NULL, 0, 0 },
+  { "Design", design, N(design), 0 }, { "Layout", layout, N(layout), 0 }, { "References", refs, N(refs), 0 }, { "Mailings", NULL, 0, 0 },
+  { "Review", review, N(review), 0 }, { "View", view, N(view), 0 }, { "Developer", NULL, 0, 0 },
   { "Table Design", tdesign, N(tdesign), 1 }, { "Table Layout", tlayout, N(tlayout), 1 },
   { "Picture Format", pformat, N(pformat), 2 }, { "Shape Format", sformat, N(sformat), 3 },
   { "Header & Footer", hfedit, N(hfedit), 4 }, { "Edit Text", stedit, N(stedit), 5 },
+  { "Equation", NULL, 0, RB_WP(WPI_14B, WPS_TAB) }, { "Chart Design", NULL, 0, RB_WP(WPI_15B, WPS_TAB) },
+  { "SmartArt Design", NULL, 0, RB_WP(WPI_15C, WPS_TAB) }, { "Outlining", NULL, 0, RB_WP(WPI_11, WPS_TAB) },
 };
-#define NTABS N(tabs)
+#define NTABS TAB_N
+/* the tabs as shown: basetabs with the packages' groups added (build_tabs, when the class is made) */
+static Tab tabs[NTABS];
+#define MAXTABGROUPS 400
+static Group tabgroups[MAXTABGROUPS];
+/* each tab's groups: its own, with every package's WpGroups for it put in before the group they name
+   (or after the last), in wphooks.c's package order. Called once, from ribbon_class() */
+static void build_tabs(void)
+{
+  int t, used = 0;
+  for (t = 0; t < NTABS; t++) {
+    const Tab *b = &basetabs[t];
+    int g, start = used, p, k;
+    tabs[t] = *b;
+    for (g = 0; g <= b->n; g++) {
+      for (p = 0; p < WP_NPKG; p++) {
+        const WpPackage *pk = wp_package(p);
+        for (k = 0; pk && k < pk->ngroups; k++) {
+          const WpGroup *wg = &pk->groups[k];
+          int at = wg->before < 0 || wg->before > b->n ? b->n : wg->before;
+          if (wg->tab == t && at == g && used < MAXTABGROUPS) tabgroups[used++] = wg->g;
+        }
+      }
+      if (g < b->n && used < MAXTABGROUPS) tabgroups[used++] = b->groups[g];
+    }
+    if (used > start) { tabs[t].groups = &tabgroups[start]; tabs[t].n = used - start; }
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* the instance */
@@ -665,6 +677,7 @@ struct RData {
   struct MUIP_Ribbon_State st;
   char font[48];
   RBox tabbox[NTABS];
+  LONG tabpad, tabcap;           /* the room round each tab's name (16, less when crowded); a cut-short name's width (0: none) */
   RBox qa[NQA];                  /* the quick access Save, Undo and Redo buttons in the tab strip (hot: 200 up) */
   RBox item[MAXI]; int nitem;     /* the shown tab's items, in order */
   RBox group[12]; int ngroup;
@@ -693,23 +706,38 @@ static int bodyh(void) { return 3 * rowh() + 4; }
 static int caph(void) { return fh() + 3; }
 
 /* whether state bit b (RB_) is on: 0-31 in st.on, 32 and up in st.on2 */
-static int bit_on(struct RData *d, int b) { return b >= 32 ? (d->st.on2 & RBIT(b - 32)) != 0 : (d->st.on & RBIT(b)) != 0; }
+/* (RB_WP_BASE and up: a work package's own, in st.wpon: a word for each package) */
+static int bit_on(struct RData *d, int b)
+{
+  if (b >= RB_WP_BASE) { b -= RB_WP_BASE; return b / 32 < WP_NPKG && (d->st.wpon[b / 32] & RBIT(b % 32)) != 0; }
+  return b >= 32 ? (d->st.on2 & RBIT(b - 32)) != 0 : (d->st.on & RBIT(b)) != 0;
+}
 /* whether an item shows checked: its state bit, or for VM() the view mode */
-static int item_on(struct RData *d, const Item *it) { return it->st >= 100 ? d->st.vmode == it->st - 100 : it->st && bit_on(d, it->st); }
+static int item_on(struct RData *d, const Item *it) { return it->st >= 100 && it->st < RB_WP_BASE ? d->st.vmode == it->st - 100 : it->st && bit_on(d, it->st); }
 /* whether an item can be used: it needs no state, or its state is on (else it is greyed out) */
 static int item_enabled(struct RData *d, const Item *it) { return !it->en || bit_on(d, it->en); }
 /* whether tab t is in the strip: contextual tabs only while what they work on is there */
 static int tab_visible(struct RData *d, int t)
 {
   static const u8 needs[6] = { 0, RB_INTABLE, RB_PICSEL, RB_SHAPESEL, RB_HFEDIT, RB_STORYEDIT };
-  return !tabs[t].contextual || bit_on(d, needs[tabs[t].contextual]);
+  UWORD c = tabs[t].contextual;
+  if (t != TAB_FILE && !tabs[t].n) return 0;          /* a package tab nobody has filled yet */
+  return !c || bit_on(d, c >= RB_WP_BASE ? c : needs[c < 6 ? c : 0]);
 }
 
 /* too little room for the tab (a narrow window, a language with long words): small buttons show
    their icons alone and group names are cut short */
 static int squeeze;
 /* whether an item shows as its icon alone (squeezed: small buttons and drop-downs with icons) */
-static int bare(const Item *it) { return squeeze && it->size == S_SMALL && it->icon && (it->kind == K_BUTTON || it->kind == K_DROP); }
+static int bare(const Item *it) { return squeeze && it->size == S_SMALL && (it->icon || it->xicon) && (it->kind == K_BUTTON || it->kind == K_DROP); }
+/* an item's icon at x, y in a size-pixel square: its IC_, or a package's own drawing (Item.xicon) */
+static void item_icon(struct RastPort *rp, const Item *it, LONG x, LONG y, LONG size, int dim)
+{
+  if (it->icon) theme_icon(rp, it->icon, x, y, size, dim);
+  else if (it->xicon) theme_icon_src(rp, it->xicon, x, y, size, dim);
+}
+/* the list an item opens: a package's own (Item.xlist) or one of lists[] by number */
+static const List *item_list(const Item *it);
 /* a large button's label on two lines when squeezed: the space where it breaks (0: one line), and
    the wider line's width */
 static int split_at(struct RastPort *rp, const char *s, LONG *w)
@@ -806,9 +834,34 @@ static void layout_ribbon(struct RData *d, Object *obj)
   const Tab *tab;
   LONG gw[12];
   d->width = _mwidth(obj);
-  /* the tab strip */
+  /* the tab strip. Each tab has 16 pixels round its name; when that doesn't fit the window (more tabs
+     from the work packages, a language with long words) the room round the names shrinks to 6, then
+     the longest names are cut short (tabcap, drawn ending in a dot) */
+  {
+    LONG sum = 0, avail = _mwidth(obj) - 4, cap = 0, lo, hi;
+    int nv = 0;
+    for (t = 0; t < NTABS; t++) if (tab_visible(d, t)) { sum += theme_textlen(rp, theme_font(), tabs[t].name); nv++; }
+    d->tabpad = 16;
+    if (nv && sum + nv * 16 > avail) {
+      d->tabpad = (avail - sum) / nv;
+      if (d->tabpad < 6) {
+        d->tabpad = 6;
+        /* the widest name that lets the strip fit */
+        lo = 8; hi = 400;
+        while (lo < hi) {
+          LONG mid = (lo + hi + 1) / 2, tot = 0;
+          for (t = 0; t < NTABS; t++) if (tab_visible(d, t)) { LONG w = theme_textlen(rp, theme_font(), tabs[t].name); tot += (w < mid ? w : mid) + 6; }
+          if (tot <= avail) lo = mid; else hi = mid - 1;
+        }
+        cap = lo;
+      }
+    }
+    d->tabcap = cap;
+  }
   for (t = 0; t < NTABS; t++) {
-    LONG w = theme_textlen(rp, theme_font(), tabs[t].name) + 16;
+    LONG w = theme_textlen(rp, theme_font(), tabs[t].name);
+    if (d->tabcap && w > d->tabcap) w = d->tabcap;
+    w += d->tabpad;
     if (!tab_visible(d, t)) { d->tabbox[t].x0 = d->tabbox[t].x1 = -1; continue; }
     d->tabbox[t].x0 = (WORD)x; d->tabbox[t].x1 = (WORD)(x + w - 1);
     d->tabbox[t].y0 = (WORD)_mtop(obj); d->tabbox[t].y1 = (WORD)(_mtop(obj) + tabh() - 1);
@@ -954,6 +1007,9 @@ static void field_text(struct RData *d, const Item *it, char *out, size_t cap)
     if (d->st.metric) sprintf(out, "%ld.%02ld cm", (long)(v * 254 / 144000), (long)(v * 254 / 1440 % 100));
     else sprintf(out, "%ld.%02ld\"", (long)(v / 1440), (long)(v % 1440 * 100 / 1440));
     break;
+  default:
+    if (it->id >= ID_WP_FIRST && it->id <= ID_WP_LAST) wp_field_text(it->id, &d->st, out, cap);     /* a package's field */
+    break;
   }
 }
 /* draws item k (its box from layout_ribbon) as it is now: hovered, pressed, checked, greyed.
@@ -1068,7 +1124,7 @@ static void draw_item(struct RData *d, Object *obj, int k)
   if (on) theme_rect(rp, b->x0, b->y0, b->x1, b->y1, tpen(T_SELECTION));
   if (it->size == S_LARGE) {
     LONG lw = it->label ? theme_textlen(rp, theme_font(), it->label) : 0, ix = b->x0 + (b->x1 - b->x0 + 1 - 24) / 2;
-    theme_icon(rp, it->icon, ix, b->y0 + 4, 24, !en);
+    item_icon(rp, it, ix, b->y0 + 4, 24, !en);
     const char *lab = it->label ? tr(it->label) : NULL;
     LONG w2;
     int sp = lab && squeeze ? split_at(rp, lab, &w2) : 0;
@@ -1086,7 +1142,7 @@ static void draw_item(struct RData *d, Object *obj, int k)
     }
   } else {
     LONG iy = b->y0 + (rowh() - 16) / 2;
-    theme_icon(rp, it->icon, b->x0 + 3, iy, 16, !en);
+    item_icon(rp, it, b->x0 + 3, iy, 16, !en);
     if (it->size == S_SMALL && it->label && !bare(it)) theme_text(rp, theme_font(), b->x0 + 22, b->y0 + (rowh() - fh()) / 2, it->label, tpen(en ? T_TEXT : T_DISABLED));
     if (it->kind == K_DROP) theme_icon(rp, IC_ARROWDOWN, b->x1 - 9, b->y0 + (rowh() - 8) / 2, 8, !en);
   }
@@ -1111,8 +1167,21 @@ static void draw_tabs(struct RData *d, Object *obj)
     if (b->x0 < 0) continue;
     if (d->hot == 100 + t && !act) theme_fill(rp, b->x0 + 2, b->y0 + 2, b->x1 - 2, b->y1 - 1, tpen(T_HOVER));
     w = theme_textlen(rp, theme_font(), tabs[t].name);
-    theme_text(rp, theme_font(), b->x0 + (b->x1 - b->x0 + 1 - w) / 2, b->y0 + (tabh() - fh()) / 2, tabs[t].name,
-               tpen(act || tabs[t].contextual ? T_ACCENT : T_TEXT));
+    if (d->tabcap && w > d->tabcap) {
+      /* crowded: as much of the name as fits, and a dot */
+      const char *nm = tr(tabs[t].name);
+      struct TextExtent te;
+      ULONG fit;
+      SetFont(rp, theme_font());
+      fit = TextFit(rp, (STRPTR)nm, (ULONG)strlen(nm), &te, NULL, 1, (ULONG)(d->tabcap - TextLength(rp, (STRPTR)".", 1)), 100);
+      w = d->tabcap;
+      SetSoftStyle(rp, 0, FSF_BOLD | FSF_ITALIC | FSF_UNDERLINED);
+      SetAPen(rp, tpen(act || tabs[t].contextual ? T_ACCENT : T_TEXT)); SetDrMd(rp, JAM1);
+      Move(rp, b->x0 + (b->x1 - b->x0 + 1 - w) / 2, b->y0 + (tabh() - fh()) / 2 + theme_font()->tf_Baseline);
+      Text(rp, (STRPTR)nm, fit); Text(rp, (STRPTR)".", 1);
+    } else
+      theme_text(rp, theme_font(), b->x0 + (b->x1 - b->x0 + 1 - w) / 2, b->y0 + (tabh() - fh()) / 2, tabs[t].name,
+                 tpen(act || tabs[t].contextual ? T_ACCENT : T_TEXT));
     if (act) theme_fill(rp, b->x0 + (b->x1 - b->x0 + 1 - w) / 2, b->y1 - 1, b->x0 + (b->x1 - b->x0 + 1 + w) / 2, b->y1, tpen(T_ACCENT));
   }
   for (t = 0; t < NQA; t++) {
@@ -1201,7 +1270,7 @@ static void open_list(struct RData *d, Object *obj, int k)
   LONG x, y, w = 150;
   struct Window *win = _window(obj);
   if (!it || !win) return;
-  l = &lists[it->list];
+  l = item_list(it);
   if (!d->popwin) {
     d->poplist = NewObject(pcls->mcc_Class, NULL, MUIA_FillArea, FALSE, TAG_DONE);
     d->popwin = QWindowObject, MUIA_Window_Borderless, TRUE, MUIA_Window_CloseGadget, FALSE, MUIA_Window_DepthGadget, FALSE,
@@ -1504,6 +1573,7 @@ static ULONG popdispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj,
 }
 
 /* a split button's own command (the list is the rest of what it does) */
+static const List *item_list(const Item *it) { return it->xlist ? it->xlist : &lists[it->list < N(lists) ? it->list : 0]; }
 static ULONG split_id(UWORD id)
 {
   switch (id) {
@@ -1616,7 +1686,7 @@ static ULONG events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent *m)
     d->pressed = -1;
     draw_item(d, obj, k);
     if (it && hit(d, im->MouseX, im->MouseY) == k) {
-      if ((it->flags & F_SPLIT) && !on_arrow(d, it, k, im->MouseX, im->MouseY)) DoMethod(_app(obj), MUIM_Application_ReturnID, split_id(it->id));
+      if ((it->flags & F_SPLIT) && !on_arrow(d, it, k, im->MouseX, im->MouseY)) DoMethod(_app(obj), MUIM_Application_ReturnID, it->split ? (ULONG)it->split : split_id(it->id));
       else if (it->kind == K_DROP || it->kind == K_FIELD || it->kind == K_GALLERY) open_list(d, obj, k);
       else DoMethod(_app(obj), MUIM_Application_ReturnID, (ULONG)it->id);
     }
@@ -1760,7 +1830,8 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     restyle = m->doc != d->st.doc || (m->doc && d->ngal == 0) || m->stylesig != d->st.stylesig;
     relayout = (m->on ^ d->st.on) & RBIT(RB_INTABLE);
     if (!restyle && !relayout && m->on == d->st.on && m->on2 == d->st.on2 && m->rowh == d->st.rowh && m->colw == d->st.colw && m->vmode == d->st.vmode && m->size == d->st.size && m->style == d->st.style && m->left == d->st.left &&
-        m->right == d->st.right && m->before == d->st.before && m->after == d->st.after && m->font && !strcmp(m->font, d->font)) return 0;
+        m->right == d->st.right && m->before == d->st.before && m->after == d->st.after && m->font && !strcmp(m->font, d->font) &&
+        !memcmp(m->wpon, d->st.wpon, sizeof m->wpon)) return 0;
     d->st = *m;
     if (m->font) { strncpy(d->font, m->font, sizeof d->font - 1); d->font[sizeof d->font - 1] = 0; }
     d->st.font = d->font;
@@ -1774,7 +1845,7 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
 /* both classes made on first call (the ribbon and its list window's list); NULL unless both are */
 struct MUI_CustomClass *ribbon_class(void)
 {
-  if (!rcls) rcls = MUI_CreateCustomClass(NULL, (STRPTR)MUIC_Area, NULL, sizeof(struct RData), (APTR)dispatch);
+  if (!rcls) { build_tabs(); rcls = MUI_CreateCustomClass(NULL, (STRPTR)MUIC_Area, NULL, sizeof(struct RData), (APTR)dispatch); }
   if (!pcls) pcls = MUI_CreateCustomClass(NULL, (STRPTR)MUIC_Area, NULL, sizeof(struct PData), (APTR)popdispatch);
   return rcls && pcls ? rcls : NULL;
 }

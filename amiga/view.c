@@ -41,6 +41,7 @@
 #include "../core/spell.h"
 #include "ids.h"
 #include <libraries/gadtools.h>        /* NM_BARLABEL: a line between menu items */
+#include "wphooks.h"
 #include "theme.h"
 #include "lang.h"
 
@@ -521,6 +522,16 @@ static struct RastPort *back_rp(struct Data *d, Object *obj, LONG w, LONG h)
 static Pos sel_lo(struct Data *d) { return pos_cmp(d->anchor, d->caret) <= 0 ? d->anchor : d->caret; }
 static Pos sel_hi(struct Data *d) { return pos_cmp(d->anchor, d->caret) <= 0 ? d->caret : d->anchor; }
 static int has_sel(struct Data *d) { return pos_cmp(d->anchor, d->caret) != 0; }
+static int sel_object(struct Data *d, Pos *at);
+/* what the work packages' hooks are told (wphooks.h WpCtx): the document, caret, selection, table,
+   view mode, the object selected, and where (WPC_) */
+static void wp_ctx(struct Data *d, WpCtx *c, int where)
+{
+  memset(c, 0, sizeof *c);
+  c->doc = d->doc; c->caret = d->caret; c->anchor = d->anchor; c->hassel = has_sel(d);
+  c->intable = d->doc && d->caret.para < d->doc->np && in_table(&d->doc->p[d->caret.para]->pf);
+  c->vmode = d->vmode; c->obj = d->doc ? sel_object(d, NULL) : -1; c->where = where;
+}
 
 /* x (twips, from the line's start) of byte off on a line */
 static i32 line_x(Layout *L, ParaLay *pl, Line *ln, u32 off)
@@ -1905,6 +1916,7 @@ static void update_toolbar(struct Data *d)
       }
       rs.stylesig = sig;
     }
+    { WpCtx wc; wp_ctx(d, &wc, WPC_TEXT); wp_state(rs.wpon, &wc); }    /* the work packages' own states (wphooks.h) */
     DoMethodA(tb->ribbon, (Msg)&rs);
   }
   if (d->obj && (in_table(&p->pf) != 0) != d->intable) { d->intable = in_table(&p->pf) != 0; set(d->obj, MUIA_Quill_InTable, d->intable); }
@@ -3397,8 +3409,8 @@ static const struct QLink *link_info(struct Data *d)
 enum { CTX_IGNORE = 20, CTX_ADD, CTX_SPELLING, CTX_CUT, CTX_COPY, CTX_PASTE, CTX_SELALL };
 /* user data for items that stand for something main.c does: a command id (ReturnID), or an entry of
    one of the ribbon's lists (main.c reads it back through MUIA_Quill_CtxPick) */
-#define CTX_ID(id)        (0x20000000UL | (ULONG)(id))
-#define CTX_LIST(id, v)   (0x40000000UL | ((ULONG)(id) << 8) | (ULONG)(v))
+#define CTX_ID(id)        WP_CTX_ID(id)            /* (wphooks.h: the work packages use the same) */
+#define CTX_LIST(id, v)   WP_CTX_LIST(id, v)
 /* one item added to a menu (title NM_BARLABEL: a separator line), its user data id, greyed if not enabled */
 static void ctx_item(Object *menu, const char *title, ULONG id, int enabled)
 {
@@ -3450,6 +3462,7 @@ static Object *ctx_object(struct Data *d, Object *obj, int k, Pos at)
   }
   ctx_item(d->ctxmenu, (const char *)NM_BARLABEL, 0, 1);
   ctx_item(d->ctxmenu, tr("Alt Text..."), CTX_ID(ID_ALTTEXT), 1);
+  { WpCtx wc; wp_ctx(d, &wc, WPC_OBJECT); wc.obj = k; wp_ctxmenu(d->ctxmenu, &wc); }     /* the work packages' items */
   DoMethod(d->ctxstrip, MUIM_Family_AddTail, (ULONG)d->ctxmenu);
   return d->ctxstrip;
 }
@@ -3555,6 +3568,12 @@ static Object *ctx_build(struct Data *d, Object *obj, LONG mx, LONG my)
     ctx_item(d->ctxmenu, (const char *)NM_BARLABEL, 0, 1);
     ctx_item(d->ctxmenu, tr("New Comment"), CTX_ID(ID_COMMENT), 1);
     ctx_item(d->ctxmenu, tr("Select All"), CTX_SELALL, 1);
+  }
+  {
+    /* the work packages' items (wphooks.h), told what was clicked */
+    WpCtx wc;
+    wp_ctx(d, &wc, d->ctx_word[0] ? WPC_SPELLING : doc_link_at(d->doc, p, NULL, NULL) ? WPC_LINK : WPC_TEXT);
+    wp_ctxmenu(d->ctxmenu, &wc);
   }
   DoMethod(d->ctxstrip, MUIM_Family_AddTail, (ULONG)d->ctxmenu);
   return d->ctxstrip;
@@ -3857,6 +3876,13 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
     case 0x71: scroll_to(d, obj, d->doch); return 1;
     }
     return 1;
+  }
+  {
+    /* a work package's key (wphooks.h): its command, run by main.c's loop */
+    WpCtx wc;
+    ULONG wid;
+    wp_ctx(d, &wc, WPC_TEXT);
+    if ((wid = wp_key(code, q, &wc))) { DoMethod(_app(obj), MUIM_Application_ReturnID, wid); return 1; }
   }
   caret_hide(d, obj);
   if (d->stale && ((code >= 0x4C && code <= 0x4F) || code == 0x70 || code == 0x71 || code == 0x48 || code == 0x49)) { relayout(d, obj); d->stale = 0; }   /* the cursor keys need the layout */

@@ -132,6 +132,7 @@ int xml_next(Xml *x)
     }
     {                                                   /* start tag with attributes */
       size_t a = i + 1, e = a;
+      x->tok = i;
       while (e < n && name_char((u8)s[e])) e++;
       if (e == a) { x->i = n; return x->type = XT_EOF; }
       local_name(x->name, sizeof x->name, s + a, e - a);
@@ -195,6 +196,14 @@ void xml_skip(Xml *x)
 {
   int d = x->depth;
   while (x->depth >= d && xml_next(x) != XT_EOF) ;
+}
+/* call right after a START: the element's text from its '<' to the end of its END, skipped */
+size_t xml_raw(Xml *x, const char **start)
+{
+  size_t b = x->tok;
+  *start = x->s + b;
+  xml_skip(x);
+  return x->i > b ? x->i - b : 0;
 }
 /* append s[0..n) to out with &, <, > and " replaced by entities; safe for both element text and
    double-quoted attribute values. Copies unchanged runs in one go. */

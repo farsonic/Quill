@@ -67,4 +67,62 @@ enum {
   ID_WINACT = 3000, ID_WINCLOSE = 3100
 };
 
+/* the work packages' blocks (docs/wordcraft-gap.md, "WP0 conventions"): 64 ids each from 4000, in the
+   order of WPI_ below, clear of the notifications at 1000 and the window ids at 3000 and 3100. A
+   package numbers its own commands inside its block (ID_WP1_FIRST + 0, + 1 ...: name them in its own
+   amiga/wp_*.c or a header of its own) and never uses another's; main.c's command() and
+   ribbon_choice() send the whole block to the package's wpN_command() (see wphooks.h) */
+#define ID_WP_BASE 4000
+#define ID_WP_BLOCK 64
+#define ID_WP_FIRST_OF(i) (ID_WP_BASE + ID_WP_BLOCK * (i))
+#define ID_WP_LAST_OF(i) (ID_WP_BASE + ID_WP_BLOCK * (i) + ID_WP_BLOCK - 1)
+/* each package's index (its id block, its ribbon state word, its place in wphooks.c's table) */
+enum {
+  WPI_1 = 0, WPI_2, WPI_3, WPI_4, WPI_5, WPI_6, WPI_7, WPI_8, WPI_9, WPI_10, WPI_11, WPI_12, WPI_13, WPI_14A, WPI_14B,
+  WPI_15A, WPI_15B, WPI_15C, WPI_16, WPI_17, WPI_18, WPI_19, WPI_20, WPI_21A, WPI_21B, WPI_22A, WPI_22B, WPI_23,
+  WPI_24, WPI_25, WPI_26, WPI_27, WPI_28A, WPI_28B, WPI_28C, WPI_28D, WPI_29, WPI_30, WPI_31, WP_NPKG
+};
+enum {
+  ID_WP1_FIRST = ID_WP_FIRST_OF(WPI_1), ID_WP1_LAST = ID_WP_LAST_OF(WPI_1),   /* WP1: Fields (wp_fields.c) */
+  ID_WP2_FIRST = ID_WP_FIRST_OF(WPI_2), ID_WP2_LAST = ID_WP_LAST_OF(WPI_2),   /* WP2: Captions, tables of figures, index, authorities, custom TOC (wp_refs.c) */
+  ID_WP3_FIRST = ID_WP_FIRST_OF(WPI_3), ID_WP3_LAST = ID_WP_LAST_OF(WPI_3),   /* WP3: Citations and bibliography (wp_cite.c) */
+  ID_WP4_FIRST = ID_WP_FIRST_OF(WPI_4), ID_WP4_LAST = ID_WP_LAST_OF(WPI_4),   /* WP4: Mail merge, envelopes, labels (wp_mailings.c) */
+  ID_WP5_FIRST = ID_WP_FIRST_OF(WPI_5), ID_WP5_LAST = ID_WP_LAST_OF(WPI_5),   /* WP5: Review: comments and markup (wp_review.c) */
+  ID_WP6_FIRST = ID_WP_FIRST_OF(WPI_6), ID_WP6_LAST = ID_WP_LAST_OF(WPI_6),   /* WP6: Compare and Combine (wp_compare.c) */
+  ID_WP7_FIRST = ID_WP_FIRST_OF(WPI_7), ID_WP7_LAST = ID_WP_LAST_OF(WPI_7),   /* WP7: Protection and encryption (wp_protect.c) */
+  ID_WP8_FIRST = ID_WP_FIRST_OF(WPI_8), ID_WP8_LAST = ID_WP_LAST_OF(WPI_8),   /* WP8: Proofing: grammar, thesaurus, AutoCorrect, AutoFormat, Read Aloud (wp_proof.c) */
+  ID_WP9_FIRST = ID_WP_FIRST_OF(WPI_9), ID_WP9_LAST = ID_WP_LAST_OF(WPI_9),   /* WP9: Character formatting (wp_charfmt.c) */
+  ID_WP10_FIRST = ID_WP_FIRST_OF(WPI_10), ID_WP10_LAST = ID_WP_LAST_OF(WPI_10),  /* WP10: Paragraph and Home quick commands (wp_para.c) */
+  ID_WP11_FIRST = ID_WP_FIRST_OF(WPI_11), ID_WP11_LAST = ID_WP_LAST_OF(WPI_11),  /* WP11: Outline view and outline levels (wp_outline.c) */
+  ID_WP12_FIRST = ID_WP_FIRST_OF(WPI_12), ID_WP12_LAST = ID_WP_LAST_OF(WPI_12),  /* WP12: Find, Go To, selection and editing keys (wp_find.c) */
+  ID_WP13_FIRST = ID_WP_FIRST_OF(WPI_13), ID_WP13_LAST = ID_WP_LAST_OF(WPI_13),  /* WP13: Styles and themes (wp_styles.c) */
+  ID_WP14A_FIRST = ID_WP_FIRST_OF(WPI_14A), ID_WP14A_LAST = ID_WP_LAST_OF(WPI_14A), /* WP14a: Equations: model, layout, .docx (wp_math.c) */
+  ID_WP14B_FIRST = ID_WP_FIRST_OF(WPI_14B), ID_WP14B_LAST = ID_WP_LAST_OF(WPI_14B), /* WP14b: Equation editor (wp_equation.c) */
+  ID_WP15A_FIRST = ID_WP_FIRST_OF(WPI_15A), ID_WP15A_LAST = ID_WP_LAST_OF(WPI_15A), /* WP15a: Charts and SmartArt: read, draw, keep (wp_chartkeep.c) */
+  ID_WP15B_FIRST = ID_WP_FIRST_OF(WPI_15B), ID_WP15B_LAST = ID_WP_LAST_OF(WPI_15B), /* WP15b: Insert Chart and Chart Design (wp_chart.c) */
+  ID_WP15C_FIRST = ID_WP_FIRST_OF(WPI_15C), ID_WP15C_LAST = ID_WP_LAST_OF(WPI_15C), /* WP15c: Insert SmartArt and SmartArt Design (wp_smartart.c) */
+  ID_WP16_FIRST = ID_WP_FIRST_OF(WPI_16), ID_WP16_LAST = ID_WP_LAST_OF(WPI_16),  /* WP16: Content controls (wp_controls.c) */
+  ID_WP17_FIRST = ID_WP_FIRST_OF(WPI_17), ID_WP17_LAST = ID_WP_LAST_OF(WPI_17),  /* WP17: Pictures (wp_picture.c) */
+  ID_WP18_FIRST = ID_WP_FIRST_OF(WPI_18), ID_WP18_LAST = ID_WP_LAST_OF(WPI_18),  /* WP18: Shapes and text boxes (wp_shapes.c) */
+  ID_WP19_FIRST = ID_WP_FIRST_OF(WPI_19), ID_WP19_LAST = ID_WP_LAST_OF(WPI_19),  /* WP19: WordArt and signature line (wp_wordart.c) */
+  ID_WP20_FIRST = ID_WP_FIRST_OF(WPI_20), ID_WP20_LAST = ID_WP_LAST_OF(WPI_20),  /* WP20: Draw tab and drawing canvas (wp_draw.c) */
+  ID_WP21A_FIRST = ID_WP_FIRST_OF(WPI_21A), ID_WP21A_LAST = ID_WP_LAST_OF(WPI_21A), /* WP21a: Table styles and quick tables (wp_tables.c) */
+  ID_WP21B_FIRST = ID_WP_FIRST_OF(WPI_21B), ID_WP21B_LAST = ID_WP_LAST_OF(WPI_21B), /* WP21b: Table drawing and cell options (wp_tables2.c) */
+  ID_WP22A_FIRST = ID_WP_FIRST_OF(WPI_22A), ID_WP22A_LAST = ID_WP_LAST_OF(WPI_22A), /* WP22a: Pages, sections and columns (wp_pages.c) */
+  ID_WP22B_FIRST = ID_WP_FIRST_OF(WPI_22B), ID_WP22B_LAST = ID_WP_LAST_OF(WPI_22B), /* WP22b: Footnote and endnote options (wp_notes.c) */
+  ID_WP23_FIRST = ID_WP_FIRST_OF(WPI_23), ID_WP23_LAST = ID_WP_LAST_OF(WPI_23),  /* WP23: Templates, building blocks, inserting files (wp_templates.c) */
+  ID_WP24_FIRST = ID_WP_FIRST_OF(WPI_24), ID_WP24_LAST = ID_WP_LAST_OF(WPI_24),  /* WP24: Document safety and information (wp_info.c) */
+  ID_WP25_FIRST = ID_WP_FIRST_OF(WPI_25), ID_WP25_LAST = ID_WP_LAST_OF(WPI_25),  /* WP25: Views and windows (wp_windows.c) */
+  ID_WP26_FIRST = ID_WP_FIRST_OF(WPI_26), ID_WP26_LAST = ID_WP_LAST_OF(WPI_26),  /* WP26: Customization and discoverability (wp_custom.c) */
+  ID_WP27_FIRST = ID_WP_FIRST_OF(WPI_27), ID_WP27_LAST = ID_WP_LAST_OF(WPI_27),  /* WP27: Right-to-left and East Asian (wp_intl.c) */
+  ID_WP28A_FIRST = ID_WP_FIRST_OF(WPI_28A), ID_WP28A_LAST = ID_WP_LAST_OF(WPI_28A), /* WP28a: RTF (wp_rtf.c) */
+  ID_WP28B_FIRST = ID_WP_FIRST_OF(WPI_28B), ID_WP28B_LAST = ID_WP_LAST_OF(WPI_28B), /* WP28b: ODT (wp_odt.c) */
+  ID_WP28C_FIRST = ID_WP_FIRST_OF(WPI_28C), ID_WP28C_LAST = ID_WP_LAST_OF(WPI_28C), /* WP28c: HTML and Markdown (wp_html.c) */
+  ID_WP28D_FIRST = ID_WP_FIRST_OF(WPI_28D), ID_WP28D_LAST = ID_WP_LAST_OF(WPI_28D), /* WP28d: Word 97-2003 .doc reader (wp_docbin.c) */
+  ID_WP29_FIRST = ID_WP_FIRST_OF(WPI_29), ID_WP29_LAST = ID_WP_LAST_OF(WPI_29),  /* WP29: PDF export depth and page images (wp_pdf.c) */
+  ID_WP30_FIRST = ID_WP_FIRST_OF(WPI_30), ID_WP30_LAST = ID_WP_LAST_OF(WPI_30),  /* WP30: More interface languages (wp_uilang.c) */
+  ID_WP31_FIRST = ID_WP_FIRST_OF(WPI_31), ID_WP31_LAST = ID_WP_LAST_OF(WPI_31),  /* WP31: Proofing languages (wp_proflang.c) */
+  ID_WP_FIRST = ID_WP_BASE, ID_WP_LAST = ID_WP_LAST_OF(WP_NPKG - 1)
+};
+
 #endif

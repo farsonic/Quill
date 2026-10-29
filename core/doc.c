@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "doc.h"
+#include "keep.h"
 #include "image.h"
 
 /* ------------------------------------------------------------------ */
@@ -2608,6 +2609,7 @@ void doc_free(Doc *d)
   free(d->enotes);
   for (i = 0; i < HF_N; i++) { story_free(&d->hdr[i]); story_free(&d->ftr[i]); }
   undo_free(d->undo);
+  keep_free(d);
   free(d);
 }
 

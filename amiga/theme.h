@@ -82,6 +82,8 @@ enum {
   IC_PAGECOUNT, IC_CLOSEHF, IC_GROUP, IC_UNGROUP, IC_LINK, IC_BLANKPAGE, IC_GOTO, IC_ADDTEXT, IC_FORWARD, IC_BACKWARD, IC_SELPANE, IC_ALIGNOBJ, IC_BOOKMARK, IC_XREF, IC_COVER, IC_THEMES, IC_COLORSETS, IC_PAGECOLOR, IC_SETDEFAULT, IC_CBORDER, IC_N
 };
 void theme_icon(struct RastPort *rp, int icon, LONG x, LONG y, LONG size, int dim);
+/* the same from a drawing in icons[]' language (theme.c), for icons a work package draws itself */
+void theme_icon_src(struct RastPort *rp, const char *src, LONG x, LONG y, LONG size, int dim);
 /* the same in one pen (white on the File page's blue; its white parts in the accent colour) */
 void theme_icon_pen(struct RastPort *rp, int icon, LONG x, LONG y, LONG size, LONG pen);
 

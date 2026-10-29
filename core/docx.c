@@ -10,6 +10,7 @@
 #include "zip.h"
 #include "image.h"
 #include "tstyle.h"
+#include "keep.h"
 
 /* ------------------------------------------------------------------ */
 /* reading: formatting as found (which fields a pPr or rPr sets) */
@@ -841,6 +842,8 @@ typedef struct {
   u8 rev; u16 rid;                  /* inside w:ins or w:del: the runs' tracked change */
   u16 link;                         /* inside w:hyperlink (or a fldSimple HYPERLINK): the runs' link number */
 } PCtx;
+/* (the work packages' reading hooks, further down) */
+static int docx_read_block_ext(Xml *x, PCtx *pc), docx_read_elem_ext(Xml *x, PCtx *pc);
 
 /* add a finished paragraph to pc->out, which takes ownership; 0 if out of memory (p is freed then) */
 static int emit(PCtx *pc, Para *p)
@@ -1517,6 +1520,7 @@ static void parse_children(Xml *x, PCtx *pc)
         c->cmopen[k] = (u8)(end ? 2 : 1);
       } else if (k < 0) c->lost |= LOST_COMMENTS;
     }
+    if (docx_read_elem_ext(x, pc)) continue;          /* a work package's element */
     xml_skip(x);
   }
 }
@@ -2069,7 +2073,7 @@ static int parse_document(Ctx *c, const char *xml, size_t n)
     else if (!strcmp(x.name, "tbl")) { if (held) { emit(&pc, held); held = NULL; } parse_table(&x, &pc); }
     else if (!strcmp(x.name, "sectPr")) { parse_sect(&x, c, &c->bodysect, 1); c->has_bodysect = 1; }
     else if (!strcmp(x.name, "sdt") || !strcmp(x.name, "sdtContent") || !strcmp(x.name, "customXml")) continue;   /* their paragraphs follow */
-    else xml_skip(&x);
+    else if (!docx_read_block_ext(&x, &pc)) xml_skip(&x);    /* (a work package's, or skipped) */
   }
   xml_free(&x);
   if (held) emit(&pc, held);
@@ -2138,6 +2142,262 @@ static char *part(ZipReader *z, const char *name, size_t *n)
 {
   return (char *)zip_read(z, zip_find(z, name), n);
 }
+/* ------------------------------------------------------------------ */
+/* the work packages' reading hooks (WP0). Each package puts the call to its own function on a line
+   right after its own marker line; never edit a marker line itself (so two packages' lines don't
+   touch and their branches merge cleanly) */
+/* a block-level element of the body that Quill doesn't read (w:p, w:tbl and w:sectPr are read): 1 if
+   a package took it (and read to its END), 0 to have it skipped */
+static int docx_read_block_ext(Xml *x, PCtx *pc)
+{
+  (void)x; (void)pc;
+  /* WP1: */
+  /* WP2: */
+  /* WP3: */
+  /* WP4: */
+  /* WP5: */
+  /* WP7: */
+  /* WP9: */
+  /* WP10: */
+  /* WP11: */
+  /* WP13: */
+  /* WP14a: */
+  /* WP15a: */
+  /* WP15b: */
+  /* WP15c: */
+  /* WP16: */
+  /* WP17: */
+  /* WP18: */
+  /* WP19: */
+  /* WP20: */
+  /* WP21a: */
+  /* WP21b: */
+  /* WP22a: */
+  /* WP22b: */
+  /* WP23: */
+  /* WP24: */
+  /* WP27: */
+  /* WP31: */
+  return 0;
+}
+/* an element inside a paragraph that Quill doesn't read (runs, links, bookmarks, tracked changes and
+   comment marks are read): 1 if a package took it, 0 to have it skipped */
+static int docx_read_elem_ext(Xml *x, PCtx *pc)
+{
+  (void)x; (void)pc;
+  /* WP1: */
+  /* WP2: */
+  /* WP3: */
+  /* WP4: */
+  /* WP5: */
+  /* WP7: */
+  /* WP9: */
+  /* WP10: */
+  /* WP11: */
+  /* WP13: */
+  /* WP14a: */
+  /* WP15a: */
+  /* WP15b: */
+  /* WP15c: */
+  /* WP16: */
+  /* WP17: */
+  /* WP18: */
+  /* WP19: */
+  /* WP20: */
+  /* WP21a: */
+  /* WP21b: */
+  /* WP22a: */
+  /* WP22b: */
+  /* WP23: */
+  /* WP24: */
+  /* WP27: */
+  /* WP31: */
+  return 0;
+}
+/* each start tag of word/settings.xml, after Quill's own (compatibility mode, odd and even headers,
+   automatic hyphenation) have been looked at */
+static void docx_read_setting_ext(Ctx *c, Xml *x)
+{
+  (void)c; (void)x;
+  /* WP1: */
+  /* WP2: */
+  /* WP3: */
+  /* WP4: */
+  /* WP5: */
+  /* WP7: */
+  /* WP9: */
+  /* WP10: */
+  /* WP11: */
+  /* WP13: */
+  /* WP14a: */
+  /* WP15a: */
+  /* WP15b: */
+  /* WP15c: */
+  /* WP16: */
+  /* WP17: */
+  /* WP18: */
+  /* WP19: */
+  /* WP20: */
+  /* WP21a: */
+  /* WP21b: */
+  /* WP22a: */
+  /* WP22b: */
+  /* WP23: */
+  /* WP24: */
+  /* WP27: */
+  /* WP31: */
+}
+
+/* the parts Quill doesn't read but keeps verbatim (core/keep.h): a relationship's type (the
+   package's own if pkglevel, else the document's) ends in one of these. Digital signatures are left
+   out (an edited document's would be wrong), and so is the thumbnail (it would show the old pages).
+   A package that comes to read one of these parts takes it out of the kept ones (keep_remove) */
+static int keep_type(const char *type, int pkglevel)
+{
+  static const char *const pkg[] = { "/extended-properties", "/custom-properties" };
+  static const char *const doc[] = { "/customXml", "/glossaryDocument", "/people" };
+  const char *const *l = pkglevel ? pkg : doc;
+  size_t i, n = pkglevel ? sizeof pkg / sizeof pkg[0] : sizeof doc / sizeof doc[0], lt = strlen(type);
+  for (i = 0; i < n; i++) if (lt >= strlen(l[i]) && !strcmp(type + lt - strlen(l[i]), l[i])) return 1;
+  return 0;
+}
+/* whether Quill writes a part of this name itself (a kept part must not take its place) */
+static int quill_part(const char *name)
+{
+  static const char *const own[] = { "[Content_Types].xml", "_rels/.rels", "word/document.xml", "word/_rels/document.xml.rels", "word/styles.xml",
+    "word/settings.xml", "word/numbering.xml", "word/footnotes.xml", "word/endnotes.xml", "word/comments.xml", "docProps/core.xml" };
+  size_t i;
+  for (i = 0; i < sizeof own / sizeof own[0]; i++) if (!strcmp(name, own[i])) return 1;
+  return !strncmp(name, "word/media/", 11) || !strncmp(name, "word/header", 11) || !strncmp(name, "word/footer", 11) ||
+         !strncmp(name, "word/_rels/header", 17) || !strncmp(name, "word/_rels/footer", 17);
+}
+/* target (a relationship's Target) as a part name, from the folder base ("word/", "" ...) */
+static void part_path(const char *base, const char *tg, char *out, size_t cap)
+{
+  char b[256];
+  if (tg[0] == '/') { snprintf(out, cap, "%s", tg + 1); return; }
+  snprintf(b, sizeof b, "%s", base);
+  while (!strncmp(tg, "../", 3) || !strncmp(tg, "./", 2)) {
+    char *sl;
+    if (tg[1] == '/') { tg += 2; continue; }
+    tg += 3;
+    b[strlen(b) ? strlen(b) - 1 : 0] = 0;
+    sl = strrchr(b, '/');
+    if (sl) sl[1] = 0; else b[0] = 0;
+  }
+  snprintf(out, cap, "%s%s", b, tg);
+}
+/* a part's content type from [Content_Types].xml (ct): its Override, else its extension's Default;
+   "" if neither */
+static void content_type(const char *ct, size_t n, const char *name, char *out, size_t cap)
+{
+  Xml x;
+  const char *ext = strrchr(name, '.');
+  char def[200] = "";
+  out[0] = 0;
+  if (!ct) return;
+  xml_init(&x, ct, n);
+  while (xml_next(&x) != XT_EOF && !out[0]) {
+    const char *pn, *ty;
+    if (x.type != XT_START) continue;
+    ty = xml_attr(&x, "ContentType");
+    if (!ty) continue;
+    if (!strcmp(x.name, "Override") && (pn = xml_attr(&x, "PartName")) && pn[0] == '/' && str_ieq(pn + 1, name)) snprintf(out, cap, "%s", ty);
+    else if (!strcmp(x.name, "Default") && ext && (pn = xml_attr(&x, "Extension")) && str_ieq(pn, ext + 1)) snprintf(def, sizeof def, "%s", ty);
+  }
+  xml_free(&x);
+  if (!out[0]) snprintf(out, cap, "%s", def);
+}
+/* keeps part name (and, through its own .rels, the parts it leads to) verbatim; owner, type and id
+   as keep_add's. depth stops loops */
+static void keep_tree(Doc *d, ZipReader *z, const char *ct, size_t ctn, const char *name, const char *owner,
+                      const char *reltype, const char *relid, int depth)
+{
+  char ty[200], relsname[300], dir[256], tgt[300];
+  char *data, *rels;
+  size_t n, rn;
+  const char *sl;
+  if (depth > 4 || quill_part(name) || keep_find(d, name) >= 0 || !(data = part(z, name, &n))) return;
+  content_type(ct, ctn, name, ty, sizeof ty);
+  keep_add(d, name, ty[0] ? ty : NULL, owner, reltype, relid, data, n);
+  free(data);
+  /* its own relationships, kept as they are, and the parts inside the package they lead to */
+  sl = strrchr(name, '/');
+  snprintf(dir, sizeof dir, "%.*s", sl ? (int)(sl - name + 1) : 0, name);
+  snprintf(relsname, sizeof relsname, "%s_rels/%s.rels", dir, sl ? sl + 1 : name);
+  if (!(rels = part(z, relsname, &rn))) return;
+  keep_add(d, relsname, NULL, NULL, NULL, NULL, rels, rn);
+  {
+    Xml x;
+    xml_init(&x, rels, rn);
+    while (xml_next(&x) != XT_EOF) {
+      const char *t, *mode;
+      if (x.type != XT_START || strcmp(x.name, "Relationship") || !(t = xml_attr(&x, "Target"))) continue;
+      if ((mode = xml_attr(&x, "TargetMode")) && !strcmp(mode, "External")) continue;
+      part_path(dir, t, tgt, sizeof tgt);
+      keep_tree(d, z, ct, ctn, tgt, NULL, NULL, NULL, depth + 1);
+    }
+    xml_free(&x);
+  }
+  free(rels);
+}
+/* the relationships in rels whose types keep_type names: their parts kept (owner: the rels' owner) */
+static void keep_rels(Doc *d, ZipReader *z, const char *ct, size_t ctn, const char *rels, size_t rn, const char *base, const char *owner)
+{
+  Xml x;
+  char tgt[300], ty[300], id[64];
+  if (!rels) return;
+  xml_init(&x, rels, rn);
+  while (xml_next(&x) != XT_EOF) {
+    const char *t, *tg, *mode, *i;
+    if (x.type != XT_START || strcmp(x.name, "Relationship")) continue;
+    t = xml_attr(&x, "Type"); tg = xml_attr(&x, "Target"); i = xml_attr(&x, "Id"); mode = xml_attr(&x, "TargetMode");
+    if (!t || !tg || !i || (mode && !strcmp(mode, "External")) || !keep_type(t, !owner[0])) continue;
+    snprintf(ty, sizeof ty, "%s", t); snprintf(id, sizeof id, "%s", i);
+    part_path(base, tg, tgt, sizeof tgt);
+    keep_tree(d, z, ct, ctn, tgt, owner, ty, id, 0);
+  }
+  xml_free(&x);
+}
+/* after everything Quill reads has been read: the parts kept verbatim, then the packages' own parts.
+   docrels: the main part's relationships (base its folder, "word/") */
+static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_t rn, const char *base, const char *mainpart)
+{
+  size_t ctn = 0, pn = 0;
+  char *ct = part(z, "[Content_Types].xml", &ctn), *pkgrels = part(z, "_rels/.rels", &pn);
+  keep_rels(c->d, z, ct, ctn, pkgrels, pn, "", "");
+  keep_rels(c->d, z, ct, ctn, docrels, rn, base, "word/document.xml");
+  (void)mainpart;
+  /* WP1: */
+  /* WP2: */
+  /* WP3: */
+  /* WP4: */
+  /* WP5: */
+  /* WP7: */
+  /* WP9: */
+  /* WP10: */
+  /* WP11: */
+  /* WP13: */
+  /* WP14a: */
+  /* WP15a: */
+  /* WP15b: */
+  /* WP15c: */
+  /* WP16: */
+  /* WP17: */
+  /* WP18: */
+  /* WP19: */
+  /* WP20: */
+  /* WP21a: */
+  /* WP21b: */
+  /* WP22a: */
+  /* WP22b: */
+  /* WP23: */
+  /* WP24: */
+  /* WP27: */
+  /* WP31: */
+  free(ct); free(pkgrels);
+}
+
 /* the parts are read in the order the text depends on them: the main part is found through
    _rels/.rels (it need not be word/document.xml), then theme, numbering and styles, notes and
    comments (so references in the text can find them), settings, the body, and last the headers and
@@ -2207,13 +2467,15 @@ Doc *docx_load(const u8 *data, size_t len, unsigned *lost, char *err, size_t err
   if ((xml = part(&z, path, &n))) {
     Xml x;
     xml_init(&x, xml, n);
-    while (xml_next(&x) != XT_EOF)
+    while (xml_next(&x) != XT_EOF) {
       if (x.type == XT_START && !strcmp(x.name, "compatSetting")) {
         const char *nm = xml_attr(&x, "name");
         i32 v;
         if (nm && !strcmp(nm, "compatibilityMode") && attr_num(&x, "val", &v)) c.compat = (int)v;
       } else if (x.type == XT_START && !strcmp(x.name, "evenAndOddHeaders")) c.d->evenodd = (u8)onoff(&x);
       else if (x.type == XT_START && !strcmp(x.name, "autoHyphenation")) c.d->hyphenate = (u8)onoff(&x);
+      if (x.type == XT_START) docx_read_setting_ext(&c, &x);
+    }
     xml_free(&x);
     free(xml);
   }
@@ -2258,8 +2520,9 @@ Doc *docx_load(const u8 *data, size_t len, unsigned *lost, char *err, size_t err
     for (n = 0; n < c.d->nsects; n++) if (c.d->sects[n].haspage && !memcmp(&c.d->sects[n].page, &c.d->page, sizeof(PageSetup))) c.d->sects[n].haspage = 0;
   }
   free(c.sid);
-  free(rels);
   if ((xml = part(&z, "docProps/core.xml", &n))) { parse_core(c.d, xml, n); free(xml); }
+  docx_read_parts_ext(&c, &z, rels, rn, base, main);
+  free(rels);
   free_raw(&c); free(c.abs); free(c.fnid); free(c.fnidx); free(c.enid); free(c.enidx); free(c.cmid); free(c.cmidx); free(c.cmopen);
   zip_close(&z);
   doc_clear_undo(c.d);
@@ -3278,6 +3541,115 @@ static void mark_media(Doc *d, Para **pp, u32 np)
    footers of their own, which notes and comments are still referred to, numbered in text order),
    then writes the parts and zips them. That state lives in the save_ statics, so this is not
    re-entrant. Always writes Word 2013 compatibility mode. The result is malloc'd (caller frees). */
+/* ---- the work packages' writing hooks (WP0): as the reading ones, each package's call goes on a
+   line right after its own marker line */
+/* the parts, content types and relationships the hooks add, written by docx_save */
+struct DocxOut {
+  Buf ct, pkgrels, docrels;             /* <Override .../> and <Relationship .../> entries */
+  struct { char *name; u8 *data; size_t len; } *parts;
+  int nparts, oom;
+};
+int docx_out_part(DocxOut *o, const char *name, const char *ctype, const char *owner, const char *reltype, const char *relid,
+                  const void *data, size_t len)
+{
+  void *np;
+  int i;
+  for (i = 0; i < o->nparts; i++) if (!strcmp(o->parts[i].name, name)) return 1;     /* (there already) */
+  if (!(np = realloc(o->parts, (size_t)(o->nparts + 1) * sizeof o->parts[0]))) { o->oom = 1; return 0; }
+  o->parts = np;
+  if (!(o->parts[o->nparts].name = str_dup(name)) || !(o->parts[o->nparts].data = (u8 *)malloc(len ? len : 1))) {
+    free(o->parts[o->nparts].name); o->oom = 1; return 0;
+  }
+  if (len) memcpy(o->parts[o->nparts].data, data, len);
+  o->parts[o->nparts].len = len;
+  o->nparts++;
+  if (ctype) {
+    buf_adds(&o->ct, "<Override PartName=\"/"); xml_escape(&o->ct, name, strlen(name));
+    buf_adds(&o->ct, "\" ContentType=\""); xml_escape(&o->ct, ctype, strlen(ctype)); buf_adds(&o->ct, "\"/>");
+  }
+  if (owner && reltype && relid) {
+    Buf *r = owner[0] ? &o->docrels : &o->pkgrels;
+    const char *tg = name;
+    if (owner[0] && !strncmp(name, "word/", 5)) tg = name + 5;          /* (the document's targets are from word/) */
+    buf_adds(r, "<Relationship Id=\""); xml_escape(r, relid, strlen(relid));
+    buf_adds(r, "\" Type=\""); xml_escape(r, reltype, strlen(reltype));
+    buf_adds(r, owner[0] && tg == name ? "\" Target=\"/" : "\" Target=\""); xml_escape(r, tg, strlen(tg)); buf_adds(r, "\"/>");
+  }
+  return 1;
+}
+/* the kept parts (core/keep.h), then each package's own */
+static void docx_write_parts_ext(Doc *d, DocxOut *o)
+{
+  int i;
+  for (i = 0; i < d->nkept; i++) {
+    const KeptPart *k = &d->kept[i];
+    docx_out_part(o, k->name, k->ctype, k->owner, k->reltype, k->relid, k->data, k->len);
+  }
+  /* WP1: */
+  /* WP2: */
+  /* WP3: */
+  /* WP4: */
+  /* WP5: */
+  /* WP7: */
+  /* WP9: */
+  /* WP10: */
+  /* WP11: */
+  /* WP13: */
+  /* WP14a: */
+  /* WP15a: */
+  /* WP15b: */
+  /* WP15c: */
+  /* WP16: */
+  /* WP17: */
+  /* WP18: */
+  /* WP19: */
+  /* WP20: */
+  /* WP21a: */
+  /* WP21b: */
+  /* WP22a: */
+  /* WP22b: */
+  /* WP23: */
+  /* WP24: */
+  /* WP27: */
+  /* WP31: */
+}
+/* word/settings.xml's elements of the packages, in the schema's order (CT_Settings): where 0 first
+   (w:writeProtection, w:view, w:zoom ...), 1 after w:displayBackgroundShape and before
+   w:defaultTabStop (w:trackRevisions, w:documentProtection ...), 2 after w:autoHyphenation (hyphenation
+   zone and limits; w:evenAndOddHeaders comes after), 3 after w:compat (w:docVars, w:rsids, m:mathPr,
+   w:attachedTemplate, w:mailMerge ...) */
+static void docx_write_settings_ext(Doc *d, Buf *b, int where)
+{
+  (void)d; (void)b; (void)where;
+  /* WP1: */
+  /* WP2: */
+  /* WP3: */
+  /* WP4: */
+  /* WP5: */
+  /* WP7: */
+  /* WP9: */
+  /* WP10: */
+  /* WP11: */
+  /* WP13: */
+  /* WP14a: */
+  /* WP15a: */
+  /* WP15b: */
+  /* WP15c: */
+  /* WP16: */
+  /* WP17: */
+  /* WP18: */
+  /* WP19: */
+  /* WP20: */
+  /* WP21a: */
+  /* WP21b: */
+  /* WP22a: */
+  /* WP22b: */
+  /* WP23: */
+  /* WP24: */
+  /* WP27: */
+  /* WP31: */
+}
+
 u8 *docx_save(Doc *d, size_t *len)
 {
   ZipWriter z;
@@ -3286,6 +3658,7 @@ u8 *docx_save(Doc *d, size_t *len)
   Buf ct, core;
   int ok;
   u8 *out;
+  DocxOut ext;
   /* the pictures the text refers to, numbered for the media folder */
   free(save_ml); save_ml = NULL; save_nml = 0; save_drawing = 0;
   if (d->nimages) {
@@ -3344,6 +3717,10 @@ u8 *docx_save(Doc *d, size_t *len)
   if (!(docxml = w_document(d, &dl))) return NULL;
   if (!(stxml = w_styles(d, &sl))) { free(docxml); return NULL; }
   if (d->nlists && !(numxml = w_numbering(d, &nl))) { free(docxml); free(stxml); return NULL; }
+  /* the parts kept from the file read and the work packages' own (docx_write_parts_ext) */
+  memset(&ext, 0, sizeof ext);
+  buf_init(&ext.ct); buf_init(&ext.pkgrels); buf_init(&ext.docrels);
+  docx_write_parts_ext(d, &ext);
   buf_init(&ct); buf_init(&core);
   buf_adds(&ct, XMLHDR);
   buf_adds(&ct, "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
@@ -3365,6 +3742,7 @@ u8 *docx_save(Doc *d, size_t *len)
   if (save_enotes) buf_adds(&ct, "<Override PartName=\"/word/endnotes.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml\"/>");
   if (save_comments) buf_adds(&ct, "<Override PartName=\"/word/comments.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml\"/>");
   if (save_nml) buf_adds(&ct, "<Default Extension=\"png\" ContentType=\"image/png\"/><Default Extension=\"jpeg\" ContentType=\"image/jpeg\"/>");
+  buf_add(&ct, ext.ct.data, ext.ct.len);
   buf_adds(&ct, "<Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/></Types>");
   buf_adds(&core, XMLHDR);
   buf_adds(&core, "<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" "
@@ -3379,8 +3757,8 @@ u8 *docx_save(Doc *d, size_t *len)
     static const char *const pkgrels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n"
       "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
       "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/>"
-      "<Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties\" Target=\"docProps/core.xml\"/>"
-      "</Relationships>";
+      "<Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties\" Target=\"docProps/core.xml\"/>";
+    Buf pr;
     static const char *const docrels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n"
       "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
       "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>"
@@ -3418,23 +3796,39 @@ u8 *docx_save(Doc *d, size_t *len)
         buf_printf(&wr, "<Relationship Id=\"rIdImg%d\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image%d.%s\"/>",
                    k + 1, k + 1, save_ml[k].type == IMG_PNG ? "png" : "jpeg");
     }
+    buf_add(&wr, ext.docrels.data, ext.docrels.len);
     buf_adds(&wr, "</Relationships>");
-    ok = ok && zip_add(&z, "_rels/.rels", pkgrels, strlen(pkgrels));
+    buf_init(&pr);
+    buf_adds(&pr, pkgrels); buf_add(&pr, ext.pkgrels.data, ext.pkgrels.len); buf_adds(&pr, "</Relationships>");
+    ok = ok && !pr.oom && zip_add(&z, "_rels/.rels", pr.data, pr.len);
+    buf_free(&pr);
     ok = ok && !wr.oom && zip_add(&z, "word/_rels/document.xml.rels", wr.data, wr.len);
     buf_free(&wr);
   }
   ok = ok && zip_add(&z, "word/document.xml", docxml, dl);
   ok = ok && zip_add(&z, "word/styles.xml", stxml, sl);
   {
-    /* Word 2013 mode: table indents are to the table's edge, as Quill keeps them */
-    char settings[900];
+    /* Word 2013 mode: table indents are to the table's edge, as Quill keeps them. The work packages'
+       settings go in at their places in the schema's order (docx_write_settings_ext) */
+    Buf st;
     int k;
-    snprintf(settings, sizeof settings, "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n"
-      "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">%s%s<w:defaultTabStop w:val=\"720\"/>%s%s%s"
-      "<w:compat><w:compatSetting w:name=\"compatibilityMode\" w:uri=\"http://schemas.microsoft.com/office/word\" w:val=\"15\"/></w:compat></w:settings>",
-      d->pagecolor ? "<w:displayBackgroundShape/>" : "", d->hyphenate ? "<w:autoHyphenation/>" : "", d->evenodd ? "<w:evenAndOddHeaders/>" : "", save_notes ? "<w:footnotePr><w:footnote w:id=\"-1\"/><w:footnote w:id=\"0\"/></w:footnotePr>" : "",
-      save_enotes ? "<w:endnotePr><w:endnote w:id=\"-1\"/><w:endnote w:id=\"0\"/></w:endnotePr>" : "");
-    ok = ok && zip_add(&z, "word/settings.xml", settings, strlen(settings));
+    buf_init(&st);
+    buf_adds(&st, "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n"
+      "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">");
+    docx_write_settings_ext(d, &st, 0);
+    if (d->pagecolor) buf_adds(&st, "<w:displayBackgroundShape/>");
+    docx_write_settings_ext(d, &st, 1);
+    buf_adds(&st, "<w:defaultTabStop w:val=\"720\"/>");
+    if (d->hyphenate) buf_adds(&st, "<w:autoHyphenation/>");
+    docx_write_settings_ext(d, &st, 2);
+    if (d->evenodd) buf_adds(&st, "<w:evenAndOddHeaders/>");
+    if (save_notes) buf_adds(&st, "<w:footnotePr><w:footnote w:id=\"-1\"/><w:footnote w:id=\"0\"/></w:footnotePr>");
+    if (save_enotes) buf_adds(&st, "<w:endnotePr><w:endnote w:id=\"-1\"/><w:endnote w:id=\"0\"/></w:endnotePr>");
+    buf_adds(&st, "<w:compat><w:compatSetting w:name=\"compatibilityMode\" w:uri=\"http://schemas.microsoft.com/office/word\" w:val=\"15\"/></w:compat>");
+    docx_write_settings_ext(d, &st, 3);
+    buf_adds(&st, "</w:settings>");
+    ok = ok && !st.oom && zip_add(&z, "word/settings.xml", st.data, st.len);
+    buf_free(&st);
     for (k = 0; k < (d->nsects + 1) * HF_N * 2 && ok; k++) {
       int g = k / (2 * HF_N), pk = k % (2 * HF_N);
       const Story *st;
@@ -3488,6 +3882,14 @@ u8 *docx_save(Doc *d, size_t *len)
   }
   if (numxml) ok = ok && zip_add(&z, "word/numbering.xml", numxml, nl);
   ok = ok && zip_add(&z, "docProps/core.xml", core.data, core.len);
+  {
+    /* the kept parts and the packages' */
+    int k;
+    for (k = 0; k < ext.nparts; k++) { if (ok) ok = zip_add(&z, ext.parts[k].name, ext.parts[k].data, ext.parts[k].len); free(ext.parts[k].name); free(ext.parts[k].data); }
+    free(ext.parts);
+    ok = ok && !ext.oom && !ext.ct.oom && !ext.pkgrels.oom && !ext.docrels.oom;
+    buf_free(&ext.ct); buf_free(&ext.pkgrels); buf_free(&ext.docrels);
+  }
   ok = ok && zip_finish(&z) && !ct.oom && !core.oom;
   free(docxml); free(stxml); free(numxml); buf_free(&ct); buf_free(&core);
   free(save_ml); save_ml = NULL; save_nml = 0;
@@ -3594,35 +3996,96 @@ int file_write(const char *path, const void *data, size_t len)
   if (fclose(fp)) ok = 0;
   return ok;
 }
-/* whether s ends in suf, ignoring case (Amiga file names are case-insensitive) */
-static int ends_with(const char *s, const char *suf)
+/* ---- the file formats (docx.h DocFormat). The rows are tried in this order when a file is read: first
+   by their sniff of its bytes, then by its name's ending, and plain text (DF_TEXT) when nothing
+   matches. WP28a-d fill in their rows in their own files (core/rtf.c, odt.c, html.c, markdown.c,
+   docbin.c); a row with neither load nor save is left out. ODT is a zip too, so it comes before .docx */
+static int sniff_zip(const u8 *b, size_t n) { return n >= 4 && b[0] == 'P' && b[1] == 'K' && b[2] == 3 && b[3] == 4; }
+static Doc *load_txt(const u8 *b, size_t n, unsigned *lost, char *err, size_t errcap)
 {
-  size_t a = strlen(s), b = strlen(suf);
-  return a >= b && str_ieq(s + a - b, suf);
+  Doc *d = txt_load(b, n);
+  (void)lost;
+  if (!d) snprintf(err, errcap, "Not enough memory to open the file.");
+  return d;
 }
-/* a zip is taken as .docx and an old binary .doc (an OLE file) is refused with a message saying
-   how to convert it; anything else is read as plain text. err says why on NULL. */
+static u8 *save_txt(Doc *d, size_t *len) { return txt_save(d, 1, len); }      /* (Latin-1, for Amiga editors) */
+static Doc *load_docx(const u8 *b, size_t n, unsigned *lost, char *err, size_t errcap) { return docx_load(b, n, lost, err, errcap); }
+static const DocFormat fmt_docx = { "Word Document", "docx", sniff_zip, load_docx, docx_save, DF_NATIVE };
+static const DocFormat fmt_txt = { "Plain Text", "txt|text|asc", NULL, load_txt, save_txt, DF_TEXT };
+extern const DocFormat fmt_odt, fmt_doc, fmt_rtf, fmt_html, fmt_markdown;
+const DocFormat *const doc_formats[] = { &fmt_odt, &fmt_docx, &fmt_doc, &fmt_rtf, &fmt_html, &fmt_markdown, &fmt_txt };
+const int doc_nformats = (int)(sizeof doc_formats / sizeof doc_formats[0]);
+/* whether path ends in "." and one of exts (ext|ext|...), ignoring case (Amiga names are case-insensitive) */
+static int ext_in(const char *path, const char *exts)
+{
+  const char *dot = strrchr(path, '.'), *e = exts;
+  size_t n;
+  if (!dot || strchr(dot, '/') || strchr(dot, ':')) return 0;
+  dot++; n = strlen(dot);
+  while (*e) {
+    const char *bar = strchr(e, '|');
+    size_t k = bar ? (size_t)(bar - e) : strlen(e);
+    if (k == n) {
+      size_t j;
+      for (j = 0; j < k && (e[j] | 0x20) == (dot[j] | 0x20); j++) ;
+      if (j == k) return 1;
+    }
+    e += k + (bar ? 1 : 0);
+  }
+  return 0;
+}
+const DocFormat *doc_format_for_name(const char *path, int saving)
+{
+  int i;
+  for (i = 0; i < doc_nformats; i++) {
+    const DocFormat *f = doc_formats[i];
+    if ((saving ? f->save != NULL : f->load != NULL) && ext_in(path, f->exts)) return f;
+  }
+  return NULL;
+}
+void doc_format_pattern(int saving, char *out, size_t cap)
+{
+  int i;
+  size_t o;
+  if (cap < 8) { if (cap) out[0] = 0; return; }
+  strcpy(out, "#?.(");
+  o = 4;
+  for (i = 0; i < doc_nformats; i++) {
+    const DocFormat *f = doc_formats[i];
+    size_t k = strlen(f->exts);
+    if (!(saving ? f->save != NULL : f->load != NULL)) continue;
+    if (o + k + 3 >= cap) break;
+    if (o > 4) out[o++] = '|';
+    memcpy(out + o, f->exts, k); o += k;
+  }
+  out[o++] = ')'; out[o] = 0;
+}
+/* the first format whose sniff knows the bytes, else the one the name's ending names, else plain text */
 Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap)
 {
   size_t n;
   u8 *data = file_read(path, &n);
+  const DocFormat *f = NULL;
   Doc *d;
+  int i;
   if (lost) *lost = 0;
   if (!data) { snprintf(err, errcap, "Can't read %s.", path); return NULL; }
-  if (n >= 4 && data[0] == 'P' && data[1] == 'K' && data[2] == 3 && data[3] == 4) d = docx_load(data, n, lost, err, errcap);
-  else if (n >= 8 && data[0] == 0xD0 && data[1] == 0xCF && data[2] == 0x11 && data[3] == 0xE0) {
-    snprintf(err, errcap, "%s is an old Word 97-2003 document (.doc). Save it as .docx in Word or LibreOffice first.", path);
-    d = NULL;
-  } else if (!(d = txt_load(data, n))) snprintf(err, errcap, "Not enough memory to open %s.", path);
+  for (i = 0; i < doc_nformats && !f; i++) if (doc_formats[i]->load && doc_formats[i]->sniff && doc_formats[i]->sniff(data, n)) f = doc_formats[i];
+  for (i = 0; i < doc_nformats && !f; i++) if (doc_formats[i]->load && !doc_formats[i]->sniff && ext_in(path, doc_formats[i]->exts)) f = doc_formats[i];
+  if (!f) f = &fmt_txt;
+  err[0] = 0;
+  d = f->load(data, n, lost, err, errcap);
+  if (!d && !err[0]) snprintf(err, errcap, "Quill couldn't read %s.", path);
   free(data);
   return d;
 }
-/* .docx by the name (case ignored), otherwise Latin-1 plain text; marks the document unmodified on
-   success. 0 if out of memory or the file can't be written. */
+/* in the format its name's ending names (case ignored), otherwise Latin-1 plain text; marks the
+   document unmodified on success. 0 if out of memory or the file can't be written. */
 int doc_save_file(Doc *d, const char *path)
 {
   size_t n;
-  u8 *data = ends_with(path, ".docx") ? docx_save(d, &n) : txt_save(d, 1, &n);
+  const DocFormat *f = doc_format_for_name(path, 1);
+  u8 *data = (f ? f : &fmt_txt)->save(d, &n);
   int ok;
   if (!data) return 0;
   ok = file_write(path, data, n);

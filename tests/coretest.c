@@ -17,16 +17,18 @@
 #include "../core/ttraster.h"
 #include "../core/hyph.h"
 #include "../core/image.h"
+#include "testutil.h"
 
-static int fails, total;
-static void ok(const char *what, int cond)
+/* (the helpers the work packages' tests share are declared in testutil.h) */
+int fails, total;
+void ok(const char *what, int cond)
 {
   total++;
   if (!cond) { fails++; printf("FAIL %s\n", what); }
 }
-static Pos P(u32 para, u32 off) { Pos p; p.para = para; p.off = off; return p; }
-static char *all(Doc *d) { return doc_text(d, doc_start(d), doc_end_pos(d), NULL); }
-static int text_is(Doc *d, const char *want)
+Pos P(u32 para, u32 off) { Pos p; p.para = para; p.off = off; return p; }
+char *all(Doc *d) { return doc_text(d, doc_start(d), doc_end_pos(d), NULL); }
+int text_is(Doc *d, const char *want)
 {
   char *t = all(d);
   int r = strcmp(t, want) == 0;
@@ -35,7 +37,7 @@ static int text_is(Doc *d, const char *want)
   return r;
 }
 /* every paragraph's runs cover its text exactly, in order, with no empty or mergeable neighbours */
-static int runs_sane(Doc *d)
+int runs_sane(Doc *d)
 {
   u32 i, k;
   for (i = 0; i < d->np; i++) {
@@ -72,8 +74,7 @@ static void typing(void)
   ok("delete: across paragraphs", d->np == 1 && text_is(d, "Helcond") && runs_sane(d));
   doc_free(d);
 }
-static int same_doc(Doc *a, Doc *b);
-static FontSet fs;
+FontSet fs;
 /* sections: columns, section and column breaks, line numbers, vertical alignment; saved and read back */
 static int set_sect(Doc *d, u32 pi, const SectFmt *s)
 {
@@ -993,7 +994,7 @@ static void docx_read(const char *file, int lo)
   doc_free(d);
 }
 /* save and read back: the same text, formatting and paragraph formatting */
-static int same_doc(Doc *a, Doc *b)
+int same_doc(Doc *a, Doc *b)
 {
   u32 i, k;
   if (a->np != b->np) { printf("  paragraphs %lu vs %lu\n", (unsigned long)a->np, (unsigned long)b->np); return 0; }
@@ -1025,6 +1026,18 @@ static int same_doc(Doc *a, Doc *b)
     }
   }
   return 1;
+}
+/* d written as a .docx and read back (NULL if either failed); *lost: the reader's LOST_ bits */
+Doc *docx_again(Doc *d, unsigned *lost)
+{
+  char err[200];
+  size_t n;
+  unsigned l = 0;
+  u8 *data = docx_save(d, &n);
+  Doc *b = data ? docx_load(data, n, &l, err, sizeof err) : NULL;
+  free(data);
+  if (lost) *lost = l;
+  return b;
 }
 static void docx_roundtrip(const char *file)
 {
@@ -2869,6 +2882,13 @@ int main(void)
   docx_read("tests/data/word.docx", 0); docx_read("tests/data/lo.docx", 1);
   docx_roundtrip("tests/data/word.docx"); docx_roundtrip("tests/data/lo.docx"); docx_roundtrip("tests/data/wordcraft-long.docx");
   typing(); formatting(); formatting2(); tab_stops(); contents(); cell_ops(); comments(); tracked(); endnotes(); spelling(); web_layout(); sections(); drop_caps(); hyphenation(); undo(); styles(); utf8(); hostile();
+  /* the work packages' own tests (tests/test_wp*.c; WP0's: the scaffolding) */
+  test_wp0();
+  test_wp1(); test_wp2(); test_wp3(); test_wp4(); test_wp5(); test_wp6(); test_wp7(); test_wp8(); test_wp9();
+  test_wp10(); test_wp11(); test_wp12(); test_wp13(); test_wp14a(); test_wp14b(); test_wp15a(); test_wp15b();
+  test_wp15c(); test_wp16(); test_wp17(); test_wp18(); test_wp19(); test_wp20(); test_wp21a(); test_wp21b();
+  test_wp22a(); test_wp22b(); test_wp23(); test_wp24(); test_wp25(); test_wp26(); test_wp27(); test_wp28a();
+  test_wp28b(); test_wp28c(); test_wp28d(); test_wp29(); test_wp30(); test_wp31();
   fonts_free(&fs);
   printf("%d tests, %d failed\n", total, fails);
   return fails != 0;
