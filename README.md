@@ -288,7 +288,8 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
 
 ### Other files
 
-- **PDF:** **Export** writes the pages as laid out, with the fonts embedded (Windows-1252 text: Western European languages and the usual typographic characters).
+- **PDF:** **Export** writes the pages as laid out. Each font goes in as a subset (only the letters used, so a PDF is kilobytes rather than the whole font files: a one-page letter about 30 KB instead of 370 KB), and any character the font has prints, Greek, Cyrillic and symbols as well as Western European text; copying and searching in a PDF reader find the words. Links to places in the document jump there (bookmarks, cross-references, table of contents entries, footnotes and endnotes and back), web links open, the headings make the reader's bookmarks panel, and the title, author, subject and keywords are in the document properties. **Export Options** (File page or File menu) chooses the pages, whether headings make bookmarks, and the subject and keywords.
+- **Pictures of the pages:** **Export Image** (File page or File menu) saves each page as a PNG or IFF ILBM picture (24 bit), at 72 to 300 dpi, drawn by Quill itself exactly as the PDF shows it.
 - **Plain text:** opened as UTF-8 or Latin-1 (Amiga text). **Save As Text** writes Latin-1.
 
 ### Layout like Word's
