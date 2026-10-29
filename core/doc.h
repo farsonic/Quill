@@ -37,6 +37,9 @@ typedef struct {
   u32 ulcolor;              /* the underline's colour: 0 the text's, else HL_ON | 0xRRGGBB */
   u32 shade;                /* character shading (w:shd, kept apart from the highlight): 0 none, else HL_ON | 0xRRGGBB */
   u16 rx;                   /* run properties kept verbatim (w14 text effects, w:effect): charfx.h rx_text(rx), 0 none */
+  u16 frev;                 /* WP5: a tracked formatting change (w:rPrChange): Doc.frevs index + 1, 0 none */
+  u8 move;                  /* WP5: a tracked insertion or deletion that is a move (w:moveTo, w:moveFrom):
+                               Doc.rvmoves index + 1 (its name), 0 not a move */
   u16 perm;                 /* (WP7) in an exception to Restrict Editing: DocProtect.perms index + 1 (core/protect.h), 0 none */
 } CharFmt;
 enum { REV_NONE, REV_INS, REV_DEL };
@@ -68,6 +71,7 @@ enum { CM_BOLD = 1, CM_ITALIC = 2, CM_UNDERLINE = 4, CM_STRIKE = 8, CM_SUPER = 1
        CM_CBORDER = 0x400000,    /* FX_BORDER */
        CM_LOOK = 0x704FCFFF,     /* how it looks (not its character style nor tracked changes; WP9's bits too) */
        CM_ALL = 0x704FEFFF };     /* CM_ALL leaves tracked changes alone */
+#define CM_FREV 0x08000000U        /* WP5: CharFmt.frev (not in CM_ALL; CM_REV carries move with rev) */
 
 enum { AL_LEFT, AL_CENTER, AL_RIGHT, AL_JUSTIFY, AL_DISTRIBUTE };   /* AL_DISTRIBUTE (WP10): every line spread out, the last too (w:jc distribute) */
 enum { LS_AUTO, LS_ATLEAST, LS_EXACT };    /* line spacing rule: line is 240ths of a line, or twips */
@@ -158,6 +162,7 @@ typedef struct {
   u32 shade;                /* the paragraph's fill: 0 none, else HL_ON | 0xRRGGBB */
   Cell cell;                /* the (innermost) table cell it is in */
   Cell outer;               /* a table inside a table cell: the outer table's cell (table 0: not nested) */
+  u16 prev;                 /* WP5: a tracked paragraph formatting change (w:pPrChange): Doc.frevs index + 1, 0 none */
 } ParaFmt;
 /* a paragraph's borders: those with the same borders run together in one box, "between" lines
    separating them */
@@ -167,6 +172,7 @@ enum { LEAD_NONE, LEAD_DOT, LEAD_HYPHEN, LEAD_LINE };
 enum { PM_STYLE = 1, PM_ALIGN = 2, PM_INDENT = 4, PM_SPACING = 8, PM_LINE = 16, PM_TABS = 32, PM_KEEP = 64, PM_LIST = 128,
        PM_BREAK = 256, PM_CELL = 512, PM_SECT = 1024, PM_DROP = 2048,
        PM_BORDER = 0x1000, PM_SHADE = 0x2000, PM_PAGINATION = 0x4000 /* keeplines, nowidow */, PM_CONTEXT = 0x8000,
+       PM_PREV = 0x40000000,     /* WP5: prev (not in PM_ALL) */
        PM_ALL = 0xF1FF };   /* PM_ALL leaves the cell, the section and drop caps alone */
 #define PM_STYLED (PM_ALL & ~PM_STYLE)    /* what a paragraph style can set */
 #define in_table(pf) ((pf)->cell.table != 0)
@@ -229,9 +235,32 @@ typedef struct {
   i32 width, height;        /* A4: 11906 x 16838; Letter: 12240 x 15840 */
   i32 top, bottom, left, right;
   i32 header, footer;       /* distance of the header from the page's top edge, the footer from its bottom (708) */
+  /* WP22a: */
+  i32 gutter;               /* binding room added to the left (inside) margin, or the top (Doc.gutterattop) */
 } PageSetup;
 struct Story;
 
+/* page borders: one kind of line all round (PB_); with WP22a's fields, each side its own (core/pages.h) */
+typedef struct {                /* WP22a: one side of a page border */
+  u8 style;                 /* PB_ nearest to it (PB_NONE: no line on this side) */
+  u8 width;                 /* eighths of a point (art borders: points) */
+  u8 shadow, frame;         /* w:shadow, w:frame */
+  u32 color;                /* 0xRRGGBB or COLOR_AUTO */
+  i32 space;                /* twips between it and the text (or the page's edge) */
+  char val[24];             /* Word's name for its kind ("single", "thinThickSmallGap", "apples"...) */
+} PBSide;
+typedef struct PageBorder {
+  u8 style;                 /* PB_ */
+  u8 width;                 /* eighths of a point (4 = half a point) */
+  u8 frompage;              /* space measured from the page's edge (else from the text) */
+  u32 color;                /* 0xRRGGBB or COLOR_AUTO */
+  i32 space;                /* twips between the border and the text (or the page's edge) */
+  /* WP22a: */
+  u8 own;                   /* the sides are side[] (else all four are style, width, color, space) */
+  PBSide side[4];           /* top, left, bottom, right (PBS_) */
+  u8 display;               /* PBD_: on every page, the section's first only, all but its first */
+  u8 back;                  /* behind the text (w:zOrder="back") */
+} PageBorder;
 /* sections: the paragraph that ends one holds its format (ParaFmt.sect), the document's last
    paragraph the last section's (none: one column, from a new page). A section may have its own page
    setup, and its own headers and footers; else it has the document's (Doc.page, Doc.hdr...), which are
@@ -268,26 +297,32 @@ typedef struct {
   PageSetup page;           /* (haspage) */
   struct Story *hf;         /* its own headers and footers: HF_N headers then HF_N footers (malloc'd,
                                the section format owns them); NULL: the document's */
+  /* WP22a: (core/pages.h) */
+  u8 colunequal;            /* columns of their own widths (colw, colsp) rather than equal ones */
+  i32 colw[MAX_SECT_COLS];  /* (colunequal) each column's width, twips */
+  i32 colsp[MAX_SECT_COLS]; /* and the space after it */
+  u8 pbown;                 /* the page border is pb (else the document's, Doc.border) */
+  PageBorder pb;            /* (pbown) its own page border (style PB_NONE and no sides: none) */
+  u8 rtlgutter;             /* w:rtlGutter: the gutter on the right */
   NotePr fnpr, enpr;        /* (WP22b) its own footnote and endnote options (w:footnotePr, w:endnotePr) */
 } SectFmt;
 /* s set to a section with no settings of its own: one column from a new page, 720 twips between
    columns, no line numbers */
 void sect_default(SectFmt *s);
 
-/* page borders: one kind of line all round (PB_) */
-typedef struct {
-  u8 style;                 /* PB_ */
-  u8 width;                 /* eighths of a point (4 = half a point) */
-  u8 frompage;              /* space measured from the page's edge (else from the text) */
-  u32 color;                /* 0xRRGGBB or COLOR_AUTO */
-  i32 space;                /* twips between the border and the text (or the page's edge) */
-} PageBorder;
 /* a watermark: words across each page behind the text (Word's text watermark) */
 typedef struct {
   char text[64];            /* UTF-8; "" none */
   u32 color;                /* 0xRRGGBB (Word's: silver C0C0C0) */
   u8 horizontal;            /* across (else diagonal, rising to the right) */
   char font[32];            /* "" : Calibri */
+  /* WP22a: a picture watermark (Word's WordPictureWatermark) instead of words */
+  u8 *pic; u32 piclen;      /* the picture file (PNG or JPEG), malloc'd, owned; NULL none */
+  u8 pictype;               /* IMG_ */
+  u32 pw, ph;               /* its size in pixels */
+  u16 scale;                /* per cent of its natural size (at 96 dpi); 0: fitted to the text area */
+  u8 washout;               /* drawn pale (Word's washout: gain 0.3, black level 0.35) */
+  u8 opaque;                /* words drawn solid (else half transparent) */
 } Watermark;
 
 
@@ -315,6 +350,8 @@ typedef struct {
   PageSetup page;           /* the document's page setup (Doc.page is the story's text area meanwhile) */
   u8 wm, border;            /* the watermark and page border (Doc.wm.text[0], Doc.border.style), put aside */
   struct Story hdr[HF_N], ftr[HF_N];   /* the document's headers and footers, put aside */
+  /* WP22a: */
+  u8 *wmpic;                /* the picture watermark, put aside */
 } StoryEdit;
 
 /* pictures and other objects (shapes, text boxes): the text holds U+F0000 + n for Doc.images[n]
@@ -332,6 +369,42 @@ enum { PA_NONE, PA_START, PA_CENTER, PA_END };            /* or where it is alig
 enum { SH_RECT, SH_ROUNDRECT, SH_ELLIPSE, SH_LINE, SH_ARROW, SH_TRIANGLE, SH_DIAMOND, SH_RARROW, SH_STAR,
        SH_PENTAGON, SH_HEXAGON, SH_OCTAGON, SH_PARALLELOGRAM, SH_TRAPEZOID, SH_RTRIANGLE, SH_LARROW, SH_UARROW, SH_DARROW,
        SH_PLUS, SH_HEART, SH_CALLOUT, SH_CHEVRON, SH_HOMEPLATE, SH_STAR4, SH_N };
+/* WP17/WP18: a picture's adjustments, an object's fill and effects and its text's settings (core/objfx.h
+   works with them). All zero: none, as an object always was */
+typedef struct {
+  /* a picture's adjustments: corrections, colour, transparency, an artistic effect, its background */
+  signed char bright, contrast;   /* -100..100 per cent (a:lum) */
+  signed char sharp;        /* -100..100: softened .. sharpened (a14:sharpenSoften) */
+  u8 cmode;                 /* PCM_ (objfx.h): greyscale, sepia, washout, black and white, recoloured */
+  u32 recolor;              /* PCM_RECOLOR's colour, 0xRRGGBB (a:duotone from it to white) */
+  u16 sat;                  /* saturation, per cent (0: unchanged) (a14:saturation) */
+  u16 temp;                 /* colour temperature, kelvin (0: unchanged) (a14:colorTemperature) */
+  u8 alpha;                 /* transparency, per cent (a:alphaModFix) */
+  u8 art;                   /* ART_ (objfx.h): an artistic effect (a14:artistic...) */
+  u8 bgkey, bgtol;          /* the background removed: colours near bgcolor (bgtol 0-100) made transparent (a:clrChange) */
+  u32 bgcolor;
+  /* a shape's fill (or a picture's under it): FT_ (objfx.h) solid (Image.fill), gradient, picture */
+  u8 filltype, gtype;       /* gtype: GT_ linear, radial, rectangular */
+  u16 gangle;               /* a linear gradient's direction, tenths of a degree clockwise from left to right */
+  u8 ngs, gpos[4];          /* its stops: how many (2-4), where (per cent) */
+  u32 gcol[4];
+  u8 falpha;                /* the fill's transparency, per cent */
+  /* effects: shadow, glow, soft edges (twips, tenths of a degree, per cent transparency) */
+  u8 shadow, shalpha;       /* shadow 1: an outer shadow (a:outerShdw) */
+  u16 shdist, shblur, shdir;
+  u32 shcolor;
+  u16 glow; u8 glalpha;     /* glow: its size, 0 none */
+  u32 glcolor;
+  u16 soft;                 /* soft edges' size, 0 none */
+  /* the text in a text box or shape */
+  u8 vert;                  /* TV_ (objfx.h): across, turned a quarter right, a quarter left */
+  u8 anchor;                /* TA_ (objfx.h): at the top, middle, bottom */
+  u8 hasins;                /* ins (left, top, right, bottom, twips) set; else Word's 0.1 and 0.05 inch */
+  i32 ins[4];
+  u16 link, seq;            /* linked text boxes: the chain's number (wps:txbx id), the place in it (0 holds the text) */
+  u16 icon;                 /* SHX_ICON: which icon of objicons.c, from 1 */
+  char *raw;                /* a picture's a14:imgProps kept as read (effects drawn into the picture already), or NULL */
+} ObjFx;
 typedef struct DocImage {
   u8 *data; u32 len;        /* the file as it came (PNG or JPEG); shapes and text boxes: none */
   u8 shared;                /* data belongs to an earlier entry (a copy made by changing the object) */
@@ -366,6 +439,7 @@ typedef struct DocImage {
   struct ObjPack *pack;     /* (WP15a) a chart's or SmartArt's parts and model (core/chart.h), shared between the
                                entries copies make (counted); NULL for other objects */
   u8 decorative;            /* (WP24) marked decorative: a screen reader passes over it (Word's adec:decorative) */
+  ObjFx fx;                 /* WP17/WP18: adjustments, fills, effects, text settings */
 } Image;
 /* an object copied (dst a new entry): its text, objects and outline copied; its picture shared (it
    stays with the entry that brought it), or with own, copied too. 0 if out of memory (dst then holds
@@ -396,7 +470,14 @@ void enote_utf8(char *out, int index);   /* an endnote reference: 4 bytes and a 
 /* comments: where one starts and ends is marked in the text with U+F8000 + n and U+FC000 + n for
    Doc.comments[n]. The marks have no width; like pictures they move, copy and undo with the text */
 #define MAX_COMMENTS 16384
-typedef struct { char author[64], initials[12], date[24]; Story text; } Comment;
+typedef struct {
+  char author[64], initials[12], date[24]; Story text;
+  /* WP5: replies and Resolve (commentsExtended, commentsIds, commentsExtensible) */
+  int parent;               /* a reply: Doc.comments index + 1 of the comment it answers (0: it starts a thread) */
+  u8 done;                  /* resolved (w15:done) */
+  u32 durable;              /* its durable id (w16cid), 0 none yet */
+  char dateutc[24];         /* its time in UTC (w16cex:dateUtc), "" unknown */
+} Comment;
 #define IS_CSTART(t) ((u8)(t)[0] == 0xF3 && ((u8)(t)[1] & 0xFC) == 0xB8)
 #define IS_CEND(t) ((u8)(t)[0] == 0xF3 && ((u8)(t)[1] & 0xFC) == 0xBC)
 #define IS_MARK(t) ((u8)(t)[0] == 0xF3 && ((u8)(t)[1] & 0xF8) == 0xB8)       /* either */
@@ -449,6 +530,16 @@ typedef struct Doc {
   StoryEdit edit;           /* a story being edited in the body's place */
   struct KeptPart *kept; int nkept;   /* .docx parts kept verbatim, written back on saving (core/keep.h) */
   /* (work packages: new fields go below, at the end) */
+  /* WP22a: (core/pages.h) settings.xml's page and hyphenation settings */
+  u8 mirror;                /* w:mirrorMargins: left and right are inside and outside */
+  u8 twoonone;              /* w:printTwoOnOne: two pages to a sheet */
+  u8 bookfold;              /* w:bookFoldPrinting: a booklet (w:bookFoldRevPrinting: bookfold 2) */
+  u8 gutterattop;           /* w:gutterAtTop */
+  u16 bfsheets;             /* w:bookFoldPrintingSheets: sheets to a booklet (0: all) */
+  u8 hynocaps;              /* w:doNotHyphenateCaps */
+  u8 hylimit;               /* w:consecutiveHyphenLimit (0: no limit) */
+  i32 hyzone;               /* w:hyphenationZone, twips (0: Word's 360) */
+  u8 pbnohdr, pbnoftr;      /* w:bordersDoNotSurroundHeader, w:bordersDoNotSurroundFooter */
   NotePr fnpr, enpr;        /* (WP22b) the document's footnote and endnote options (settings.xml) */
   struct NoteSeps *nseps;   /* (WP22b) the document's own note separators (core/notes.h), NULL: Word's */
   struct DocInfo *info;     /* (WP24) the document's properties (core/info.h), NULL: none read or set */
@@ -456,6 +547,20 @@ typedef struct Doc {
      settings.xml's m:mathPr kept verbatim */
   struct MathEq **maths; int nmaths, mathcap;
   char *mathpr;
+  /* WP5 (core/review.h): tracked formatting changes, how changes and comments are shown, the people,
+     move names, property changes of tables and sections kept verbatim, tracking formatting now */
+  struct FmtRev *frevs; int nfrevs;   /* only added to (undo may bring back runs that refer to any) */
+  struct RevView *rview;    /* Display for Review and Show Markup (NULL: All Markup, everything shown) */
+  struct Person *people; int npeople;   /* people.xml: authors and how they signed in */
+  char (*rvmoves)[40]; int nrvmoves;    /* moves' names (w:name of their ranges) */
+  struct KeptChange *kchg; int nkchg;   /* w:tblPrChange, w:trPrChange, w:tcPrChange, w:sectPrChange ... */
+  u16 rvtrack;              /* formatting changes are being tracked: Doc.revs index + 1 of their author, 0 not */
+  u8 rvsettings;            /* settings.xml's w:revisionView read (bit 0) */
+  /* WP1 fields (core/field.h): the records the field marks in the text name (only added to), every
+     field showing its code (Alt+F9; not saved), and what the file says for the fields (docProps...) */
+  struct Field *fields; int nfields;
+  u8 fieldcodes;
+  struct FieldInfo *finfo;
   struct DocProtect *prot;  /* (WP7) Restrict Editing and the encryption password (core/protect.h), NULL: none */
 } Doc;
 
