@@ -44,6 +44,7 @@
 #include "zip.h"
 #include "xml.h"
 #include "tstyle.h"
+#include "field.h"
 
 /* ================================================================== */
 /* what reading and writing share (odtx.h) */
@@ -259,6 +260,7 @@ typedef struct {
   int depth;                /* nesting of stories (notes in text boxes...) */
   u8 linenum, lnby; i32 lndist;   /* line numbering (text:linenumbering-configuration): every section's */
   int flat;                 /* reading a Flat ODT */
+  int fstk[16]; int nfstk;  /* fields open by Quill's marker spans (quill:field-start) */
 } R;
 
 static void blocks(Xml *x, R *r, ParaList *l, Blk *b);
@@ -1630,6 +1632,39 @@ static void bookmark_end(R *r, const char *name)
 }
 /* the text of an element (a field's result), read to its END, into the paragraph as cf */
 static void field_text(Xml *x, R *r, CharFmt cf) { inline_children(x, r, cf); }
+/* ODF's fields and Word's codes for them (WP1's field model, core/field.h) */
+static const struct { const char *el, *code; } odt_fields[] = {
+  { "date", "DATE" }, { "time", "TIME" }, { "initial-creator", "AUTHOR" }, { "author-name", "AUTHOR" }, { "author-initials", "USERINITIALS" },
+  { "title", "TITLE" }, { "subject", "SUBJECT" }, { "keywords", "KEYWORDS" }, { "description", "COMMENTS" }, { "file-name", "FILENAME" },
+  { "creation-date", "CREATEDATE" }, { "modification-date", "SAVEDATE" }, { "print-date", "PRINTDATE" }, { "word-count", "NUMWORDS" },
+  { "character-count", "NUMCHARS" }, { "editing-cycles", "REVNUM" }, { "creator", "LASTSAVEDBY" }, { "template-name", "TEMPLATE" },
+  { "sequence", "SEQ" }, { "user-defined", "DOCPROPERTY" }, { NULL, NULL } };
+static void put_fmark(R *r, int k, int end, const CharFmt *cf)
+{
+  char m[8];
+  fmark_utf8(m, k, end);
+  put_special(r, m, 4, cf);
+}
+/* a field element x (its START) as a Quill field: its code (Quill's own, else made from the element)
+   and its result between the marks; 0 if x isn't one */
+static int read_field(Xml *x, R *r, CharFmt cf)
+{
+  int i, k;
+  const char *qc = xml_attr(x, "field-code"), *fx = xml_attr(x, "fixed");
+  char code[160];
+  for (i = 0; odt_fields[i].el && strcmp(odt_fields[i].el, x->name); i++) ;
+  if (!odt_fields[i].el || !r->pb || !r->pb->p) return 0;
+  if (qc) cpy(code, sizeof code, qc);
+  else if (!strcmp(x->name, "sequence") || !strcmp(x->name, "user-defined")) {
+    const char *nm = xml_attr(x, "name");
+    snprintf(code, sizeof code, " %s %s%s%s ", odt_fields[i].code, nm && strchr(nm, ' ') ? "\"" : "", nm ? nm : "", nm && strchr(nm, ' ') ? "\"" : "");
+  } else snprintf(code, sizeof code, " %s ", odt_fields[i].code);
+  if ((k = field_new(r->d, code, fx && !strcmp(fx, "true"))) < 0) return 0;
+  put_fmark(r, k, 0, &cf);
+  inline_children(x, r, cf);
+  put_fmark(r, k, 1, &cf);
+  return 1;
+}
 
 static void inline_elem(Xml *x, R *r, CharFmt cf)
 {
@@ -1650,6 +1685,15 @@ static void inline_elem(Xml *x, R *r, CharFmt cf)
            !strcmp(n, "reference-mark") || !strcmp(n, "reference-mark-start") || !strcmp(n, "reference-mark-end") ||
            !strcmp(n, "bibliography-mark") || !strcmp(n, "hidden-text") || !strcmp(n, "hidden-paragraph") || !strcmp(n, "note-citation") ||
            !strcmp(n, "variable-decls") || !strcmp(n, "sequence-decls") || !strcmp(n, "user-field-decls")) skip(x);
+  else if (!strcmp(n, "span") && (xml_attr(x, "field-start") || xml_attr(x, "field-end"))) {
+    /* Quill's own marks of a field whose result isn't one ODF element: start and end */
+    const char *fs = xml_attr(x, "field-start");
+    if (fs) {
+      int k = field_new(r->d, fs, attr_is(x, "field-locked", "true"));
+      if (k >= 0 && r->nfstk < 16) { r->fstk[r->nfstk++] = k; put_fmark(r, k, 0, &cf); }
+    } else if (r->nfstk) put_fmark(r, r->fstk[--r->nfstk], 1, &cf);
+    skip(x);
+  }
   else if (!strcmp(n, "span")) {
     const char *cl = xml_attr(x, "class-names"), *sn = xml_attr(x, "style-name");
     if (cl) {
@@ -1726,8 +1770,8 @@ static void inline_elem(Xml *x, R *r, CharFmt cf)
   } else if (!strcmp(n, "list") || !strcmp(n, "table") || !strcmp(n, "p") || !strcmp(n, "h")) {
     /* (blocks inside a paragraph, from some writers: their text goes on here) */
     inline_children(x, r, cf);
-  } else {
-    /* date, time, author, title, file name, sequence, chapter, meta... and anything else: what it shows */
+  } else if (!read_field(x, r, cf)) {
+    /* chapter, meta... and anything else: what it shows */
     field_text(x, r, cf);
   }
 }

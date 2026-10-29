@@ -10,6 +10,7 @@
 #include "../core/info.h"
 #include "../core/zip.h"
 #include "../core/notes.h"
+#include "../core/field.h"
 
 extern const DocFormat fmt_odt, fmt_fodt;
 
@@ -600,8 +601,56 @@ static void odt_details(void)
   }
 }
 
+/* fields (WP1's model) through ODT: ODF's field elements, Quill's marks for the others */
+static void odt_fields(void)
+{
+  Doc *d = doc_new(), *e;
+  Pos c = doc_start(d);
+  FieldEnv env;
+  int k1, k2, k3, n = 0;
+  unsigned lost;
+  u8 *odt = NULL;
+  size_t on;
+  char *ct;
+  u32 i;
+  field_env(&env);
+  add(d, &c, "Date: ");
+  k1 = field_insert_result(d, &c, " DATE \\@ \"d MMMM yyyy\" ", "29 October 2026", &env, NULL);
+  add(d, &c, " Figure ");
+  k2 = field_insert_result(d, &c, " SEQ Figure \\* ARABIC ", "3", &env, NULL);
+  add(d, &c, " to ");
+  k3 = field_insert_result(d, &c, " MERGEFIELD Name ", "\xC2\xABName\xC2\xBB", &env, NULL);
+  add(d, &c, " end");
+  e = odt_again(d, 0, &lost, &odt, &on);
+  ct = odt ? odt_part(odt, on, "content.xml") : NULL;
+  for (i = 0; e && i + 4 <= e->p[0]->len; i++) if (IS_FSTART(e->p[0]->t + i)) {
+    const Field *f = field_get(e, fmark_index(e->p[0]->t + i)), *g = field_get(d, n == 0 ? k1 : n == 1 ? k2 : k3);
+    if (f && g && !strcmp(f->code, g->code)) n++;
+  }
+  ok("odt: fields: date and sequence as ODF's fields, others with Quill's marks; their codes and results come back",
+     e && same_doc(d, e) && n == 3 && ct && strstr(ct, "<text:date") && strstr(ct, "<text:sequence text:name=\"Figure\"") && strstr(ct, "quill:field-start=\" MERGEFIELD Name \""));
+  free(ct); free(odt);
+  doc_free(e); doc_free(d);
+  /* LibreOffice's fields: their codes made from the elements */
+  d = odt_str(C0 "<office:body><office:text><text:p>By <text:initial-creator>Ada</text:initial-creator> on <text:date text:fixed=\"true\">1 May</text:date>, "
+              "<text:title>T</text:title></text:p></office:text></office:body></office:document-content>", NULL, &lost);
+  {
+    int got = 0;
+    for (i = 0; d && i + 4 <= d->p[0]->len; i++) if (IS_FSTART(d->p[0]->t + i)) {
+      char nm[24];
+      const Field *f = field_get(d, fmark_index(d->p[0]->t + i));
+      if (!f) continue;
+      field_name(f->code, nm, sizeof nm);
+      if ((got == 0 && !strcmp(nm, "AUTHOR")) || (got == 1 && !strcmp(nm, "DATE") && f->locked) || (got == 2 && !strcmp(nm, "TITLE"))) got++;
+    }
+    ok("odt: LibreOffice's author, date (fixed) and title fields read as fields", d && got == 3);
+  }
+  doc_free(d);
+}
+
 void test_wp28b(void)
 {
+  odt_fields();
   odt_everything();
   odt_docx_files();
   odt_from_libreoffice();

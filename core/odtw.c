@@ -35,6 +35,7 @@
 #include "zip.h"
 #include "xml.h"
 #include "tstyle.h"
+#include "field.h"
 
 /* paragraph attributes (as odt.c's) */
 enum { A_ALIGN = 1, A_LEFT = 2, A_RIGHT = 4, A_FIRST = 8, A_BEFORE = 16, A_AFTER = 32, A_LINE = 64, A_TABS = 128, A_KEEPNEXT = 256,
@@ -710,6 +711,55 @@ static void w_annotation(W *w, int k)
 }
 
 /* ---- paragraphs */
+/* ---- fields (WP1's model, core/field.h) */
+static const struct { const char *code, *el; } odt_fields[] = {
+  { "DATE", "date" }, { "TIME", "time" }, { "AUTHOR", "initial-creator" }, { "USERINITIALS", "author-initials" }, { "USERNAME", "author-name" },
+  { "TITLE", "title" }, { "SUBJECT", "subject" }, { "KEYWORDS", "keywords" }, { "COMMENTS", "description" }, { "FILENAME", "file-name" },
+  { "CREATEDATE", "creation-date" }, { "SAVEDATE", "modification-date" }, { "PRINTDATE", "print-date" }, { "NUMWORDS", "word-count" },
+  { "NUMCHARS", "character-count" }, { "REVNUM", "editing-cycles" }, { "LASTSAVEDBY", "creator" }, { "TEMPLATE", "template-name" },
+  { "SEQ", "sequence" }, { "DOCPROPERTY", "user-defined" }, { NULL, NULL } };
+/* the page number fields: their result is Quill's placeholder, which is written as ODF's field */
+static int field_is_page(const char *code)
+{
+  char nm[24];
+  field_name(code, nm, sizeof nm);
+  return !strcmp(nm, "PAGE") || !strcmp(nm, "NUMPAGES") || !strcmp(nm, "SECTION") || !strcmp(nm, "SECTIONPAGES") || !strcmp(nm, "PAGEREF");
+}
+static void w_chars(W *w, const Para *p, u32 a, u32 b, const CharFmt *f);
+/* the field whose start mark is at i (the run ends at b): as ODF's field element when its result is plain
+   text in this run (its code kept as quill:field-code), else as Quill's marks round its result; where the
+   text goes on (i: only the start mark was written) */
+static u32 w_field(W *w, const Para *p, u32 i, u32 b)
+{
+  int k = fmark_index(p->t + i), j;
+  const Field *fd = field_get(w->d, k);
+  u32 e, q;
+  char nm[24], arg[96];
+  if (!fd) return i;
+  if (field_is_page(fd->code)) return i + 4;
+  field_name(fd->code, nm, sizeof nm);
+  e = field_end_in_para(p, i);
+  for (j = 0; odt_fields[j].code && strcmp(odt_fields[j].code, nm); j++) ;
+  if (odt_fields[j].code && e < b) {
+    for (q = i + 4; q < e; q++) { u8 c = (u8)p->t[q]; if (c < 0x20 || c == 0xEE || c == 0xF3 || c == 0xF4) break; }
+    if (q == e) {
+      buf_printf(w->o, "<text:%s", odt_fields[j].el);
+      if ((!strcmp(nm, "SEQ") || !strcmp(nm, "DOCPROPERTY")) && field_arg(fd->code, 0, arg, sizeof arg)) attr_esc(w->o, "text:name", arg);
+      if (fd->locked) buf_adds(w->o, " text:fixed=\"true\"");
+      attr_esc(w->o, "quill:field-code", fd->code);
+      buf_addc(w->o, '>');
+      w_esc_text(w, p->t + i + 4, e - i - 4);
+      buf_printf(w->o, "</text:%s>", odt_fields[j].el);
+      return e + 4;
+    }
+  }
+  buf_adds(w->o, "<text:span");
+  attr_esc(w->o, "quill:field-start", fd->code);
+  if (fd->locked) buf_adds(w->o, " quill:field-locked=\"true\"");
+  buf_adds(w->o, "/>");
+  return i + 4;
+}
+
 /* a stretch of a run's text: characters, spaces, tabs, breaks, fields and objects */
 static void w_chars(W *w, const Para *p, u32 a, u32 b, const CharFmt *f)
 {
@@ -756,10 +806,19 @@ static void w_chars(W *w, const Para *p, u32 a, u32 b, const CharFmt *f)
         int k = (int)(utf8_get(p->t + i, 4, &used) - 0xFC000);
         buf_printf(w->o, "<office:annotation-end office:name=\"__Annotation__%d\"/>", k);
       } else if (i + 4 <= p->len && IS_MATH(p->t + i)) { used = 4; w_math(w, math_index(p->t + i), f); }
-      else {
-        /* any other character with these lead bytes */
-        utf8_get(p->t + i, p->len - i, &used);
-        w_esc_text(w, p->t + i, (size_t)used);
+      else if (i + 4 <= p->len && IS_FSTART(p->t + i)) {
+        u32 e = w_field(w, p, i, b);
+        if (e > i) { i = e; s = i; w->sp = 0; continue; }
+        used = 4;
+      } else if (i + 4 <= p->len && IS_FEND(p->t + i)) {
+        const Field *fd = field_get(w->d, fmark_index(p->t + i));
+        used = 4;
+        if (fd && !field_is_page(fd->code)) buf_adds(w->o, "<text:span quill:field-end=\"\"/>");
+      } else {
+        /* any other character with these lead bytes: written, unless it is a private one (U+F0000 on)
+           Quill uses for something ODT doesn't carry */
+        u32 cp = utf8_get(p->t + i, p->len - i, &used);
+        if (cp < 0xF0000) w_esc_text(w, p->t + i, (size_t)used);
       }
       i += (u32)used; s = i;
       w->sp = 0;
