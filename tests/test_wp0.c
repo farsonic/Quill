@@ -43,12 +43,23 @@ static void formats(void)
   ok("formats: .DOCX names Word for saving", (f = doc_format_for_name("RAM:Letter.DOCX", 1)) && !strcmp(f->exts, "docx") && (f->flags & DF_NATIVE));
   ok("formats: .txt reads as text", (f = doc_format_for_name("notes.txt", 0)) && (f->flags & DF_TEXT));
   ok("formats: .doc can be read (refused) but not written", doc_format_for_name("old.doc", 0) && !doc_format_for_name("old.doc", 1));
-  ok("formats: rows without functions are left out", !doc_format_for_name("x.rtf", 0) && !doc_format_for_name("x.odt", 1));
+  {
+    /* (whichever rows WP28a-d have filled in: a row without a load or save is never chosen for it) */
+    int i, good = 1;
+    for (i = 0; i < doc_nformats; i++) {
+      char nm[40];
+      const char *bar = strchr(doc_formats[i]->exts, '|');
+      snprintf(nm, sizeof nm, "x.%.*s", (int)(bar ? (size_t)(bar - doc_formats[i]->exts) : strlen(doc_formats[i]->exts)), doc_formats[i]->exts);
+      if (!doc_formats[i]->load && doc_format_for_name(nm, 0) == doc_formats[i]) good = 0;
+      if (!doc_formats[i]->save && doc_format_for_name(nm, 1) == doc_formats[i]) good = 0;
+    }
+    ok("formats: rows without functions are left out", good);
+  }
   ok("formats: no ending, no format", !doc_format_for_name("README", 0) && !doc_format_for_name("dir.docx/file", 0));
   doc_format_pattern(0, pat, sizeof pat);
-  ok("formats: open pattern", !strcmp(pat, "#?.(docx|dotx|dotm|doc|txt|text|asc)"));
+  ok("formats: open pattern", !strncmp(pat, "#?.(", 4) && strstr(pat, "docx|doc|") && strstr(pat, "|txt|text|asc)"));
   doc_format_pattern(1, pat, sizeof pat);
-  ok("formats: save pattern", !strcmp(pat, "#?.(docx|dotx|dotm|txt|text|asc)"));
+  ok("formats: save pattern", !strncmp(pat, "#?.(", 4) && strstr(pat, "docx|") && !strstr(pat, "|doc|") && strstr(pat, "|txt|text|asc)"));
   {
     static const u8 cfb[16] = { 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 };
     Doc *d;
