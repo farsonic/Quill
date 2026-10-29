@@ -29,6 +29,9 @@ void sha512_init(Sha512 *c);
 void sha512_update(Sha512 *c, const void *data, size_t len);
 void sha512_final(Sha512 *c, u8 out[64]);
 void sha512(const void *data, size_t len, u8 out[64]);
+/* h = SHA-512(i + h) for i = 0 .. spin - 1 (after: SHA-512(h + i)), i as 4 bytes little-endian: Office's
+   password spinning, done block by block */
+void sha512_spin(u8 h[64], u32 spin, int after);
 
 /* a hash by its algorithm (CH_), so the Office code can work with whichever a file names */
 enum { CH_SHA1, CH_SHA512 };

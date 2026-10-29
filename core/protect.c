@@ -216,6 +216,7 @@ static void prot_hash(int alg, const u8 *salt, size_t sl, const char *text, u32 
   int hl = hash_len(alg);
   u32 i;
   hash2(alg, salt, sl, t16, tl, out);
+  if (alg == CH_SHA512) { sha512_spin(out, spin, 1); spin = 0; }
   for (i = 0; i < spin; i++) {
     memcpy(buf, out, (size_t)hl);
     buf[hl] = (u8)i; buf[hl + 1] = (u8)(i >> 8); buf[hl + 2] = (u8)(i >> 16); buf[hl + 3] = (u8)(i >> 24);

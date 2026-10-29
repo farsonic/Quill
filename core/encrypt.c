@@ -63,6 +63,7 @@ static void spin_hash(int alg, const u8 *salt, size_t sl, const char *pw, u32 sp
   int hl = hash_len(alg);
   u32 i;
   hash2(alg, salt, sl, pw16, pl, out);
+  if (alg == CH_SHA512) { sha512_spin(out, spin, 0); spin = 0; }
   for (i = 0; i < spin; i++) {
     put32(buf, i);
     memcpy(buf + 4, out, (size_t)hl);

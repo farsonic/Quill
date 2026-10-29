@@ -180,6 +180,29 @@ void sha512_final(Sha512 *c, u8 out[64])
   for (i = 0; i < 16; i++) put32(out + 4 * i, c->h[i]);
   crypt_wipe(c, sizeof *c);
 }
+/* see crypt.h: the 68-byte message is always one block, so it is compressed straight away */
+void sha512_spin(u8 h[64], u32 spin, int after)
+{
+  static const u32 iv[16] = {
+    0x6a09e667UL,0xf3bcc908UL, 0xbb67ae85UL,0x84caa73bUL, 0x3c6ef372UL,0xfe94f82bUL, 0xa54ff53aUL,0x5f1d36f1UL,
+    0x510e527fUL,0xade682d1UL, 0x9b05688cUL,0x2b3e6c1fUL, 0x1f83d9abUL,0xfb41bd6bUL, 0x5be0cd19UL,0x137e2179UL };
+  Sha512 c;
+  u8 *b = c.buf, *hp = after ? b : b + 4, *ip = after ? b + 64 : b;
+  u32 i;
+  int k;
+  memset(b, 0, 128);
+  b[68] = 0x80;
+  b[126] = (u8)(544 >> 8); b[127] = (u8)(544 & 255);
+  memcpy(hp, h, 64);
+  for (i = 0; i < spin; i++) {
+    ip[0] = (u8)i; ip[1] = (u8)(i >> 8); ip[2] = (u8)(i >> 16); ip[3] = (u8)(i >> 24);
+    memcpy(c.h, iv, sizeof iv);
+    sha512_block(&c, b);
+    for (k = 0; k < 16; k++) put32(hp + 4 * k, c.h[k]);
+  }
+  memcpy(h, hp, 64);
+  crypt_wipe(&c, sizeof c);
+}
 void sha512(const void *data, size_t len, u8 out[64]) { Sha512 c; sha512_init(&c); sha512_update(&c, data, len); sha512_final(&c, out); }
 
 /* ------------------------------------------------------------------ by algorithm */
