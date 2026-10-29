@@ -325,6 +325,7 @@ void field_format_date(const char *pic, const FieldTime *t, char *out, size_t ca
   while (*pic && n + 1 < cap) {
     char c = *pic;
     int run = 1;
+    if (c == '\\' && pic[1]) { out[n++] = pic[1]; out[n] = 0; pic += 2; continue; }   /* \x: x itself (LibreOffice writes "d\ MMMM") */
     if (c == '\'') {                                  /* 'literal text' */
       pic++;
       while (*pic && *pic != '\'' && n + 1 < cap) out[n++] = *pic++;

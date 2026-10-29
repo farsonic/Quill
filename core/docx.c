@@ -45,7 +45,7 @@ typedef struct {
   int depth;                        /* nesting of tables (recursion guard) */
   int compat;                       /* Word's compatibility mode: 15 for Word 2013 and later */
   int story;                        /* reading a header or footer: page fields become FIELD_ characters */
-  char instr[600]; int fieldkind;   /* the code of the complex field being read; 1 PAGE, 2 NUMPAGES */
+  int fieldkind;                    /* the result of the field being read is left out (a placeholder stands for it; fld_state) */
   u16 fieldlink;                    /* a HYPERLINK field's link number: its result's runs are the link */
   u16 bmark; char bmid[16];         /* the bookmark being read (its runs get it) and its w:id; 0: none */
   char hdrid[HF_N][32], ftrid[HF_N][32];   /* the section's header and footer relationships */

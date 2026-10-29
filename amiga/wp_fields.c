@@ -403,7 +403,7 @@ static void p_open(void)
   if (!pwin) {
     Object *c = VGroup,
       Child, FLabel(tr("Property:")),
-      Child, p_list = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
+      Child, p_list = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_AdjustWidth, TRUE, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
         MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, MUIA_CycleChain, 1, End,
       Child, HGroup, Child, FLabel(tr("Value:")), Child, p_val = TextObject, TextFrame, MUIA_Text_Contents, (ULONG)"", End, End,
     End;
@@ -443,7 +443,7 @@ static void d_open(void)
   if (!dwin) {
     Object *c = VGroup,
       Child, FLabel(tr("Available formats:")),
-      Child, d_list = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
+      Child, d_list = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_AdjustWidth, TRUE, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
         MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, MUIA_CycleChain, 1, End,
       Child, HGroup, Child, d_upd = CheckMark(FALSE), Child, FLabel(tr("Update automatically")), Child, HSpace(0), End,
     End;
@@ -636,7 +636,7 @@ static void state(ULONG *on, const WpCtx *c)
 /* the right button on a field: Word's field menu */
 static void ctxmenu(Object *menu, const WpCtx *c)
 {
-  if (c->where != WPC_TEXT || !c->doc || !c->doc->nfields || field_at(c->doc, c->caret, NULL, NULL) < 0) return;
+  if ((c->where != WPC_TEXT && c->where != WPC_LINK) || !c->doc || !c->doc->nfields || field_at(c->doc, c->caret, NULL, NULL) < 0) return;
   wp_ctx_item(menu, (const char *)NM_BARLABEL, 0, 1);
   wp_ctx_item(menu, tr("Update Field"), WP_CTX_ID(ID_FLD_UPDATE), 1);
   wp_ctx_item(menu, tr("Edit Field..."), WP_CTX_ID(ID_FLD_EDIT), 1);

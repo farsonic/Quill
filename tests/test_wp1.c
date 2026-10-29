@@ -125,6 +125,8 @@ static void formats(void)
   ok("fields: date picture M/d/yy h:mm am/pm", !strcmp(b, "10/9/26 2:05 pm"));
   field_format_date("yyyy-MM-dd'T'HH:mm:ss ddd MMM", &t, b, sizeof b);
   ok("fields: date picture with a literal", !strcmp(b, "2026-10-09T14:05:07 Fri Oct"));
+  field_format_date("dddd', 'd\\ MMMM\\ yyyy", &t, b, sizeof b);
+  ok("fields: LibreOffice's date picture", !strcmp(b, "Friday, 9 October 2026"));
   field_format_number(" PAGE \\* roman ", 14, b, sizeof b); ok("fields: \\* roman", !strcmp(b, "xiv"));
   field_format_number(" PAGE \\* ROMAN ", 1999, b, sizeof b); ok("fields: \\* ROMAN", !strcmp(b, "MCMXCIX"));
   field_format_number(" SEQ x \\* alphabetic ", 28, b, sizeof b); ok("fields: \\* alphabetic", !strcmp(b, "bb"));
