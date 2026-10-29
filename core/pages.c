@@ -342,7 +342,11 @@ int pages_border_rects(Layout *L, u32 page, PBRect **out)
   *out = NULL;
   if (!pb) return 0;
   memset(&R, 0, sizeof R);
-  for (k = 0; k < 4; k++) { pages_pb_side(pb, k, &s[k]); nsub[k] = side_lines(&s[k], sub[k], &band[k], &dash[k], &art[k]); }
+  for (k = 0; k < 4; k++) {
+    pages_pb_side(pb, k, &s[k]);
+    nsub[k] = side_lines(&s[k], sub[k], &band[k], &dash[k], &art[k]);
+    if (!nsub[k]) s[k].space = pb->space;          /* (a side without a line: where it would be, for the others' ends) */
+  }
   if (pb->frompage) {
     /* space from the page's edge to the border's outside */
     edge[PBS_TOP] = s[PBS_TOP].space + band[PBS_TOP];
