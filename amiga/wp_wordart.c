@@ -367,12 +367,12 @@ static void draw_cell(Object *obj, struct RastPort *rp, int which, LONG x0, LONG
   TextFx fx;
   theme_fill(rp, x0, y0, x0 + s - 1, y0 + s - 1, tpen(sel ? T_CHECKED : T_WHITE));
   theme_rect(rp, x0, y0, x0 + s - 1, y0 + s - 1, tpen(T_BORDER2));
-  if (!L || !(z = fonts_size(L->fs, "Calibri", 1, 0, (u16)(s * 3 / 2)))) return;
+  if (!L || !(z = fonts_size(L->fs, "Calibri", 1, 0, (u16)(s * 6 / 5)))) return;
   cell_pens(obj);
   wa_style(which, &fx);
   wa_path_init(&p);
   if (wa_path_text(&p, z, "A", 1, 0, 0) && wa_render(&p, &fx, 0, 1, 10, WL_ALL, &r)) {
-    LONG x, y, cx = x0 + (s - (p.x1 - p.x0) / WA_SUB / 10) / 2 - p.x0 / WA_SUB / 10, by = y0 + s * 3 / 4;
+    LONG x, y, cx = x0 + (s - (p.x1 - p.x0) / WA_SUB / 10) / 2 - p.x0 / WA_SUB / 10, by = y0 + s * 4 / 5;
     for (y = 0; y < r.h; y++)
       for (x = 0; x < r.w; x++) {
         const u8 *q = r.px + ((size_t)y * r.w + x) * 4;
@@ -548,6 +548,12 @@ static void sig_done(void)
   }
   img_defaults(&m);
   if (!sig_make(&m, &sl, L->fs) || (k = doc_take_object(d, &m)) < 0) { img_release(&m); beep(); return; }
+  {
+    /* in after the selection (a selected object stays) */
+    Pos a, b;
+    sel_range(&a, &b);
+    set(wp_view(), MUIA_Quill_Caret, (ULONG)&b);
+  }
   DoMethod(wp_view(), MUIM_Quill_Command, CMD_PICTURE, (ULONG)k);
 }
 
