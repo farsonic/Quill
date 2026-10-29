@@ -12,6 +12,7 @@
 #include "chart.h"                 /* (WP15a) Image.pack */
 #include "notes.h"   /* (WP22b) */
 #include "info.h"    /* (WP24) */
+#include "wordart.h" /* (WP19) */
 #include "math.h"     /* WP14a */
 #include "ink.h"      /* WP20 */
 #include "review.h"
@@ -1320,6 +1321,7 @@ int img_clone(Image *dst, const Image *src, int own)
   *dst = *src;
   dst->text = NULL; dst->kids = NULL; dst->nkids = 0; dst->poly = NULL; dst->npoly = 0;
   dst->fx.raw = NULL;                         /* WP17 */
+  dst->sig = NULL;                            /* WP19 */
   pack_ref(dst->pack);                       /* (WP15a) a chart's parts: shared */
   ff_ref(dst->ff);                           /* WP20: a freeform's paths: shared */
   if (own) {
@@ -1329,6 +1331,7 @@ int img_clone(Image *dst, const Image *src, int own)
   } else dst->shared = src->data != NULL;     /* the file stays with the entry that brought it */
   if (src->text && !(dst->text = story_copy(src->text))) goto oom;
   if (src->fx.raw && !(dst->fx.raw = str_dup(src->fx.raw))) goto oom;   /* WP17 */
+  if (src->sig && !(dst->sig = sig_copy(src->sig))) goto oom;          /* WP19 */
   if (src->npoly) {
     if (!(dst->poly = (i32 *)malloc(src->npoly * 2 * sizeof(i32)))) goto oom;
     memcpy(dst->poly, src->poly, src->npoly * 2 * sizeof(i32));
@@ -1357,6 +1360,7 @@ void img_release(Image *im)
   free(im->kids); im->kids = NULL; im->nkids = 0;
   free(im->poly); im->poly = NULL; im->npoly = 0;
   free(im->fx.raw); im->fx.raw = NULL;      /* WP17 */
+  sig_free(im->sig); im->sig = NULL;        /* WP19 */
   pack_unref(im->pack); im->pack = NULL;     /* (WP15a) */
   ff_unref(im->ff); im->ff = NULL;           /* WP20 */
 }

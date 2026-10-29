@@ -465,6 +465,7 @@ typedef struct {
   u16 icon;                 /* SHX_ICON: which icon of objicons.c, from 1 */
   char *raw;                /* a picture's a14:imgProps kept as read (effects drawn into the picture already), or NULL */
 } ObjFx;
+struct SigLine;
 typedef struct DocImage {
   u8 *data; u32 len;        /* the file as it came (PNG or JPEG); shapes and text boxes: none */
   u8 shared;                /* data belongs to an earlier entry (a copy made by changing the object) */
@@ -504,6 +505,9 @@ typedef struct DocImage {
   u8 decorative;            /* (WP24) marked decorative: a screen reader passes over it (Word's adec:decorative) */
   u32 thfill, thline;       /* (WP13) fill and outline are theme colours (THR_ references, core/doctheme.h), 0 not */
   ObjFx fx;                 /* WP17/WP18: adjustments, fills, effects, text settings */
+  /* WP19: */
+  u8 warp;                  /* WordArt's Transform: the text bent (core/wordart.h's table of a:prstTxWarp names), 0 none */
+  struct SigLine *sig;      /* a signature line's setup (core/wordart.h), its picture Quill's drawing of it; NULL for others */
 } Image;
 /* an object copied (dst a new entry): its text, objects and outline copied; its picture shared (it
    stays with the entry that brought it), or with own, copied too. 0 if out of memory (dst then holds

@@ -9,6 +9,7 @@
 #include "docx.h"
 #include "image.h"
 #include "objfx.h"     /* WP17/WP18 */
+#include "wordart.h"   /* WP19 */
 #include "chart.h"                 /* (WP15a) charts and SmartArt */
 #include "charfx.h"
 #include "toc.h"
@@ -258,6 +259,75 @@ static void deco_line(Buf *b, int kind, i32 x, i32 y, i32 w, i32 size)
   default: buf_printf(b, "%ld %ld %ld %ld re f\n", (long)x, (long)(y - t / 2), (long)w, (long)t);
   }
 }
+/* (WP19) a raster with transparency (the soft effects of WordArt) as an image with a soft mask: its
+   top left ox, oy pixels from the origin at x, y (PDF space), num / den pixels a twip */
+static void wp19_rich(Pdf *p, Buf *b, const WaRaster *r, long num, long den, i32 x, i32 y)
+{
+  struct PRich *nr;
+  i32 k;
+  if (!(nr = (struct PRich *)realloc(p->rich, (size_t)(p->nrich + 1) * sizeof *nr))) return;
+  p->rich = nr; nr += p->nrich;
+  nr->w = r->w; nr->h = r->h;
+  nr->rgb = (u8 *)malloc((size_t)r->w * r->h * 3); nr->a = (u8 *)malloc((size_t)r->w * r->h);
+  if (!nr->rgb || !nr->a) { free(nr->rgb); free(nr->a); return; }
+  for (k = 0; k < r->w * r->h; k++) { memcpy(nr->rgb + k * 3, r->px + k * 4, 3); nr->a[k] = r->px[k * 4 + 3]; }
+  buf_printf(b, "q %ld 0 0 %ld %ld %ld cm /R%d Do Q\n", (long)r->w * den / num, (long)r->h * den / num, (long)x + (long)r->ox * den / num,
+             (long)y - (long)r->oy * den / num - (long)r->h * den / num, p->nrich);
+  p->nrich++;
+}
+/* (WP19) a path with WordArt effects fx (NULL: plain, in color) at x, y: its shadow, glow and
+   reflection as a picture (150 dpi, none when a page is drawn as a picture), its letters as paths */
+static void wp19_path(Pdf *p, Buf *b, const WaPath *wp, const TextFx *fx, u32 color, i32 x, i32 y)
+{
+  static const TextFx none;
+  WaRaster r;
+  if (!fx) fx = &none;
+  if (!p->raster && (fx->shadow || fx->glow || fx->refl) && wa_render(wp, fx, color, 150, 1440, WL_SOFT, &r)) {
+    wp19_rich(p, b, &r, 150, 1440, x, y);
+    wa_raster_free(&r);
+  }
+  wa_pdf_letters(b, wp, fx, color, x, y);
+}
+/* (WP19) a run with WordArt effects drawn from its outlines, its text kept as invisible text (so it
+   can be found and copied); 1 if it was one */
+static int wp19_pdf_text(Pdf *p, Buf *b, const CharFmt *f, const char *s, u32 n, i32 x, i32 y)
+{
+  const TextFx *fx = WA_RICH(f) ? wa_get(f->rx) : NULL;
+  FaceSize *z;
+  WaPath wp;
+  u32 cps[512], i = 0, k = 0;
+  if (!fx || !(z = lay_face(p->L, f))) return 0;
+  wa_path_init(&wp);
+  if (wa_path_run(&wp, p->L, f, s, n, 0, 0)) wp19_path(p, b, &wp, fx, f->color, x, y);
+  wa_path_free(&wp);
+  if (p->raster) return 1;
+  while (i < n && k < 512) {
+    int used;
+    u32 cp = utf8_get(s + i, n - i, &used);
+    i += (u32)used;
+    if (cp == 0xAD) continue;
+    if (cp == '\t' || cp == '\v' || cp >= 0xE000) cp = ' ';
+    if ((f->flags & CF_CAPS) && cp >= 'a' && cp <= 'z') cp -= 32;
+    cps[k++] = cp;
+  }
+  buf_printf(b, "BT 3 Tr /F%d %ld Tf %ld %ld Td ", font_index(p, z->face), (long)z->size * 10, (long)x, (long)y);
+  show(p, b, font_index(p, z->face), cps, k);
+  buf_adds(b, "0 Tr ET\n");
+  return 1;
+}
+/* (WP19) a text box's text bent by its WordArt Transform, in the box's space (its top left at x0, top;
+   tw x th): 1 if it was drawn so */
+static int wp19_pdf_warped(Pdf *p, Buf *b, const Image *im, const Furn *f, i32 x0, i32 top, i32 tw, i32 th)
+{
+  WaPiece *pc;
+  int n, k;
+  i32 l = tb_inset(im, 0), t = tb_inset(im, 1), fw = tw - l - tb_inset(im, 2), fh = th - t - tb_inset(im, 3);
+  if (!im->warp || im->warp >= WW_N || fw <= 0 || fh <= 0 || !(n = wa_pieces(p->L, f, &pc))) return 0;
+  wa_pieces_warp(pc, n, im->warp, fw, fh, 0, l + fw / 2, t + fh / 2);
+  for (k = 0; k < n; k++) wp19_path(p, b, &pc[k].p, pc[k].f.rx ? wa_get(pc[k].f.rx) : NULL, pc[k].f.color, x0, top);
+  wa_pieces_free(pc, n);
+  return 1;
+}
 /* one run of text (a box or a label) at x, baseline y (twips, PDF's y upwards) */
 static void text(Pdf *p, Buf *b, const CharFmt *f, const char *s, u32 n, i32 x, i32 y, i32 w)
 {
@@ -268,6 +338,7 @@ static void text(Pdf *p, Buf *b, const CharFmt *f, const char *s, u32 n, i32 x, 
   i32 size = f->size * 10, ssize;              /* twips */
   int small = (f->fx & FX_SMALLCAPS) && !(f->flags & CF_CAPS), synth_b, synth_i;
   if (!z) return;
+  if (wp19_pdf_text(p, b, f, s, n, x, y)) return;     /* (WP19) WordArt */
   if (f->flags & (CF_SUPER | CF_SUB)) {
     if (f->flags & CF_SUPER) y += size / 3; else y -= size / 8;
     size = (size * 2 + 2) / 3;
@@ -805,6 +876,7 @@ text:
         buf_printf(b, "0 0 cm 1 0 0 1 %ld %ld cm\n", (long)-cx, (long)-cy);
       }
       buf_printf(b, "q %ld %ld %ld %ld re W n\n", (long)x0, (long)(cy - th / 2), (long)tw, (long)th);
+      if (!wp19_pdf_warped(p, b, im, &f, x0, top, tw, th))     /* (WP19) bent by a Transform */
       for (j = 0; j < f.n; j++) {
         i32 ty = f.f[j].y;
         for (l = 0; l < f.f[j].pl.nlines; l++) {

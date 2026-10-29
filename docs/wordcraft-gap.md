@@ -6,7 +6,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 ## Summary
 
-- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **426** (✅), **4** partly (🟨) and lacks **71** (⬜); 30 are ➖. So Quill covers 85% of the applicable commands fully and 86% at least in part.
+- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **432** (✅), **4** partly (🟨) and lacks **65** (⬜); 30 are ➖. So Quill covers 86% of the applicable commands fully and 87% at least in part.
 - **Beyond the ribbon (section 2):** 152 features: ✅ 55, 🟨 43, ⬜ 37, ➖ 17.
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
 - **Missing whole:** Mailings (22), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
@@ -19,7 +19,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Quick Access | 5 | 5 | 0 | 0 | 0 |
 | Title Bar | 1 | 0 | 0 | 1 | 0 |
 | Home | 105 | 99 | 1 | 4 | 1 |
-| Insert | 53 | 45 | 0 | 2 | 6 |
+| Insert | 53 | 47 | 0 | 0 | 6 |
 | Draw | 11 | 9 | 0 | 1 | 1 |
 | Design | 10 | 10 | 0 | 0 | 0 |
 | Layout | 22 | 19 | 0 | 3 | 0 |
@@ -34,7 +34,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Table Design | 8 | 8 | 0 | 0 | 0 |
 | Table Layout | 33 | 32 | 0 | 1 | 0 |
 | Picture Format | 14 | 14 | 0 | 0 | 0 |
-| Shape Format | 13 | 9 | 0 | 4 | 0 |
+| Shape Format | 13 | 13 | 0 | 0 | 0 |
 | Header & Footer | 5 | 5 | 0 | 0 | 0 |
 | Equation | 22 | 21 | 0 | 0 | 1 |
 | Outlining | 13 | 13 | 0 | 0 | 0 |
@@ -42,7 +42,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Chart Design | 5 | 5 | 0 | 0 | 0 |
 | Editing | 41 | 41 | 0 | 0 | 0 |
 | Tools | 7 | 4 | 0 | 3 | 0 |
-| **All** | **531** | **426** | **4** | **71** | **30** |
+| **All** | **531** | **432** | **4** | **65** | **30** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
@@ -116,7 +116,7 @@ Sizes are for one engineer-agent; "ribbon" counts the ⬜ and 🟨 commands of s
 - **WP14b Equation editor** (ribbon 20; 5-6 h; after WP14a). Editing equations in place, the Equation tab (structures gallery, symbols, Unicode/LaTeX linear input and Convert, Normal Text, inline/display, justification, equation numbers, structure commands). Files: new amiga/wp_equation.c, core/math.c, amiga/view.c, amiga/ribbon.c (its tab from WP0).
 - **WP15b Insert Chart and Chart Design** (ribbon 6; 4-5 h; after WP15a). Insert Chart with a small data grid, chart types, title, legend, data labels, written as `c:chartSpace` with literal data. Files: core/chart.c, core/docx.c, new amiga/wp_chart.c, amiga/ribbon.c.
 - **WP15c Insert SmartArt and SmartArt Design** (ribbon 8; 4-5 h; after WP15a). A few layouts (list, process, cycle, hierarchy), text pane, add shape, promote/demote, colours, reset, written with a drawing part Word can show. Files: core/smartart.c, core/docx.c, new amiga/wp_smartart.c, amiga/ribbon.c.
-- **WP19 WordArt and signature line** (ribbon 6; 3-4 h; after WP9 and WP18). WordArt text effects (`w14:textFill`, `textOutline`, `shadow`, `glow`, `reflection`), Insert WordArt, Quick Styles, Text Fill, Text Outline, a few Transform warps; Signature Line. Files: core/doc.h, core/docx.c, amiga/view.c, core/pdf.c, new amiga/wp_wordart.c.
+- **WP19 WordArt and signature line** (ribbon 6; 3-4 h; after WP9 and WP18). WordArt text effects (`w14:textFill`, `textOutline`, `shadow`, `glow`, `reflection`), Insert WordArt, Quick Styles, Text Fill, Text Outline, a few Transform warps; Signature Line. Files: core/doc.h, core/docx.c, amiga/view.c, core/pdf.c, new amiga/wp_wordart.c. **Done** (branch wordart): the 6 lines ✅. Model: the w14 effects stay in WP9's `CharFmt.rx` (one place, written once), parsed into a `TextFx` per rx number for drawing and rewritten part by part in the schema's order by `wa_set`; `Image.warp`, `Image.sig` (struct SigLine). Files: core/wordart.c/.h, core/sigline.c, amiga/wp_wordart.c/.h; small hooks in core/docx.c (signature line reader and writer, warp reader), core/objdocx.c (warp in bodyPr), core/pdf.c (WordArt runs and bent text), core/docx_charfx.c (w14:shadow no longer taken for w:shadow), core/doc.c (SigLine copied and freed), amiga/view.c (drawing). Tests in tests/test_wp19.c.
 - **WP20 Draw tab and drawing canvas** (ribbon 12; 4-6 h). Pens, pencil, highlighter, eraser, lasso, Add Pen, Ink to Shape, Ink Replay, Hide Ink; ink saved as freeform shapes (`a:custGeom`, which also reads Word's freeforms); Drawing Canvas (`wpc:`, README roadmap). Files: core/doc.h (OBJ_INK, OBJ_CANVAS), core/docx.c, amiga/view.c (pen input), core/pdf.c, new amiga/wp_draw.c, amiga/ribbon.c (its tab from WP0). **Done** (branch draw): all 12 lines ✅. Model: `Image.ff` (a `Freeform`: paths, pen, drawing order, Word's own ink kept), `Image.canvas`, `SH_FREEFORM` (core/ink.h, core/ink.c): `a:custGeom` read (lines, Béziers, arcs, several paths each in its own space: Word's freeforms) and written; Word's ink (`w14:contentPart` in a drawing, a group or a canvas, its `mc:Fallback` picture left out) kept as written with its InkML part (kept by WP0's customXml keeping) and drawn from the part's traces (InkML differences decoded, brush colour and width); drawing canvases `wpc:wpc`. UI: amiga/wp_draw.c (Draw tab, Review › Ink, Insert and Review menu items, right-button items), amiga/wp_draw_view.h (included by view.c: drawing, eraser, lasso, replay). Ink to Text ➖: handwriting recognition needs a recogniser Quill doesn't have (and Word's uses a cloud service). Tests in tests/test_wp20.c.
 - **WP26 Customization and discoverability** (ribbon 4; 4-5 h). Options in panes (General, Display, Proofing, Save, Language, Advanced) for the settings the other packages add; Customize Ribbon and the quick access buttons; Customize Keyboard (a key map in Quill.prefs); command search (Tell Me); KeyTips; a mini toolbar; the missing keyboard shortcuts of section 2.7 where Amiga keys allow. Files: amiga/ribbon.c, amiga/main.c, amiga/backstage.c, new amiga/wp_custom.c.
 - **WP27 Right-to-left and East Asian** (ribbon 9; 8+ h, split into bidi and East Asian). UAX #9 bidi, right-to-left paragraphs, sections and tables, Arabic and Hebrew shaping, numerals; vertical text, document grid, Asian typography, ruby (Phonetic Guide). Needs fonts and an interface encoding beyond Latin-1; lowest priority for an Amiga word processor. Files: core/layout.c, core/doc.h, core/docx.c, core/fonts.c, core/ttraster.c, amiga/view.c.
@@ -215,7 +215,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Superscript (Font) `format.superscript` — `ID_SUPER`
 - ✅ Text Effects Outline (Font) `format.outline` — `FX2_OUTLINE` (`w:outline`): Text Effects list, Font window, Format menu, right-button menu; hollow letters on screen, stroked (2 Tr) in the PDF [WP9]
 - ✅ Text Effects Shadow (Font) `format.shadow` — `FX2_SHADOW` (`w:shadow`): a grey copy behind, on screen and in the PDF [WP9]
-- 🟨 Text Effects and Typography (Font) `format.textEffects` — the Font group's Text Effects list (`ID_C_EFFECTS`): outline, shadow, emboss, engrave, hidden, shading, underline colour, enclose, standard ligatures and old-style/lining numbers (kept as `w14:ligatures`/`w14:numForm`, not drawn: the Amiga's fonts have no OpenType features). Every other `w14` text effect (fill, outline colour, glow, reflection, 3-D) and `w:effect`/`w:kern` are kept verbatim through a save (`CharFmt.rx`, core/charfx.c); their galleries are WordArt's, WP19 [WP9]
+- 🟨 Text Effects and Typography (Font) `format.textEffects` — the Font group's Text Effects list (`ID_C_EFFECTS`): outline, shadow, emboss, engrave, hidden, shading, underline colour, enclose, standard ligatures and old-style/lining numbers (kept as `w14:ligatures`/`w14:numForm`, not drawn: the Amiga's fonts have no OpenType features). Every other `w14` text effect (fill, outline colour, glow, reflection, 3-D) and `w:effect`/`w:kern` are kept verbatim through a save (`CharFmt.rx`, core/charfx.c); their galleries are WordArt's, WP19, which draws fill, outline, shadow, glow, reflection and bevel (core/wordart.c) and edits them in place in `rx` [WP9]
 - ✅ Text Highlight Color (Font) `format.highlight` — `ID_HIGHLIGHT` (16 colours)
 - ✅ Font Color (Font) `format.color` — `ID_FONTCOLOR` (+ More Colours)
 - ✅ Character Shading (Font) `format.shading` — `CharFmt.shade`, apart from the highlight (`w:shd` on runs, Word's pct patterns as greys): Text Effects list and Format menu (grey on or off, `ID_C_SHADETOGGLE`), Font window "Shading" colours; drawn under the highlight on screen and in the PDF [WP9]
@@ -295,7 +295,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Dictate (Voice) `tools.dictate` — WordCraft doesn't have it either (cloud speech service)
 - ✅ Editor (Editor) `review.editor` — WordCraft's Editor runs Spelling: Quill `ID_SPELL`
 
-### Insert (53: ✅ 45 · 🟨 0 · ⬜ 2 · ➖ 6)
+### Insert (53: ✅ 47 · 🟨 0 · ⬜ 0 · ➖ 6)
 
 - ✅ Cover Page (Pages) `insert.coverPage` — `ID_COVERDD` (3 designs, remove)
 - ✅ Blank Page (Pages) `insert.blankPage` — `ID_BLANKPAGE`
@@ -338,9 +338,9 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ AutoText (Text) `insert.autoText` — `ID_TP_AUTOTEXT`: the AutoText gallery (`autoTxt`) and Save Selection to AutoText Gallery; F3 replaces the word before the caret by the AutoText entry of that name [WP23]
 - ✅ Document Property (Text) `insert.docProperty` — WP1: the Document Property list (References › Fields; the Insert tab is full at 640 pixels) and window (Insert menu) (`ID_FLD_DOCPROP`, `ID_FLD_PROPWIN`, amiga/wp_fields.c) put in a DOCPROPERTY field; Word's built-in names and the file's custom properties [WP1]
 - ✅ Field (Text) `insert.field` — WP1: the Field window (`ID_FLD_INSERT`, Ctrl-F9): 63 of Word's fields by category with descriptions, argument, \\* format, \\@ date picture, Preserve formatting, and the code itself to type (nested fields as { }); core/field.c `field_insert()` [WP1]
-- ⬜ WordArt (Text) `insert.wordArt` [WP19]
+- ✅ WordArt (Text) `insert.wordArt` — Insert › WordArt (ribbon and Insert menu): a window with the text to use and Quill's 12 WordArt styles, each drawn as it looks; the pick becomes a floating text box with no fill or line, centred, sized to the text, its run in the style (w14 effects in `CharFmt.rx`). Effects drawn from the glyph outlines on screen and in PDFs (core/wordart.c), read and written once through .docx (tests/test_wp19.c), LibreOffice opens the file [WP19]
 - ✅ Drop Cap (Text) `insert.dropCap` — `ID_DROPCAPDD`, `ID_DROPCAPDLG`
-- ⬜ Signature Line (Text) `insert.signatureLine` [WP19]
+- ✅ Signature Line (Text) `insert.signatureLine` — Insert › Signature Line: Word's setup window (suggested signer, title, e-mail, instructions, allow comments, show sign date); drawn as Word draws an unsigned line (a cross, the line, name and title under it) into a PNG picture 192 × 96 pt; written as Word's VML `w:pict` with `o:signatureline` and read back with its setup (core/sigline.c); right-click › Signature Setup... changes it; LibreOffice shows it as a signature line. Signing itself (certificates) is not done: digital signatures are dropped on save by design (WP0) [WP19]
 - ✅ Date & Time (Text) `insert.dateTime` — WP1: the Date and Time window (`ID_FLD_DATETIME`): 16 formats with today's date in the interface's language, as text or (Update automatically) a DATE/TIME field with that picture; `ID_DATE` still types today's date at once [WP1]
 - ✅ Object (Text) `insert.object` — `ID_TP_OBJECT`: Create from File puts a document's text and formatting (any `doc_formats[]` reader) or a PNG/JPEG picture at the caret; Link to file and Display as icon are greyed (no OLE: ➖) [WP23]
 - ✅ Text from File (Text) `insert.textFromFile` — `ID_TP_TEXTFILE`: Insert File window (file name, Range = a bookmark), one undo step (core/blocks.c `doc_insert_file`, tables come in as their text as `doc_fragment` copies them) [WP23]
@@ -624,7 +624,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Size (Size) `picture.size` — `ID_OBJSIZE`
 - ✅ Rotation (Size) `arrange.rotation` — `ID_OBJROTDD`, round handle
 
-### Shape Format (13: ✅ 9 · 🟨 0 · ⬜ 4 · ➖ 0)
+### Shape Format (13: ✅ 13 · 🟨 0 · ⬜ 0 · ➖ 0)
 
 - ✅ Alt Text (Accessibility) `object.altText` — `ID_ALTTEXT` (Shape Format's Accessibility group, `o_salt`)
 - ✅ Shape Fill (Shape Styles) `shape.fill` — `ID_OBJFILLDD` (solid colours)
@@ -632,10 +632,10 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Format Shape Pane (Shape Styles) `view.formatShapePane` — `ID_SH_PANE`: a pane window beside the page that follows the selection and changes the object as you set it (fill, line, shadow, glow, soft edges, size, rotation, text box alignment, direction and margins; for a picture its corrections, colour, transparency and artistic effect) [WP18]
 - ✅ Shape Outline (Shape Styles) `shape.outline` — `ID_OBJLINEDD`
 - ✅ Shape Effects (Shape Styles) `shape.effects` — `ID_SH_EFFECTSDD`: shadows, glows, soft edges (`a:outerShdw`, `a:glow`, `a:softEdge`), drawn on the screen and in PDFs [WP18]
-- ⬜ WordArt Quick Styles (WordArt Styles) `wordArt.style` [WP19]
-- ⬜ Text Fill (WordArt Styles) `wordArt.textFill` [WP19]
-- ⬜ Text Outline (WordArt Styles) `wordArt.textOutline` [WP19]
-- ⬜ Text Effects Transform (WordArt Styles) `wordArt.transform` [WP19]
+- ✅ WordArt Quick Styles (WordArt Styles) `wordArt.style` — Shape Format › WordArt Styles › Quick Styles (and Format › WordArt Styles...): a style on the selected shape's text, or the selected text [WP19]
+- ✅ Text Fill (WordArt Styles) `wordArt.textFill` — no fill, eight colours, five gradients (linear and from the centre): `w14:textFill` [WP19]
+- ✅ Text Outline (WordArt Styles) `wordArt.textOutline` — no outline, eight colours, three weights: `w14:textOutline`; the Text Effects list beside it: shadows (`w14:shadow`), reflections (`w14:reflection`), glows (`w14:glow`) and bevels (`w14:props3d` bevelT with `w14:scene3d`, drawn as a light and dark edge on screen; flat in PDFs) [WP19]
+- ✅ Text Effects Transform (WordArt Styles) `wordArt.transform` — 12 warps drawn bent by mapping the glyph outlines (arch up/down, circle, wave, slant up/down, inflate, deflate, chevron and triangle up/down), on screen (turned with the box) and in PDFs; `a:prstTxWarp` read and written in `wps:bodyPr`; every other DrawingML preset kept by name and drawn flat (`Image.warp`) [WP19]
 - ✅ Text Direction (Text) `shape.textDirection` — `ID_SH_TEXTDIRDD` (`bodyPr vert`: across, turned 90° or 270°, drawn turned on the screen and in PDFs) [WP18]
 - ✅ Align Text (Text) `shape.alignText` — `ID_SH_ALIGNDD` (`bodyPr anchor`: top, middle, bottom; core/objtext.c) [WP18]
 - ✅ Create Link (Text) `shape.link` — `ID_SH_LINK` (then click the empty box) and Break Link `ID_SH_UNLINK`; the chain's text flows from box to box (core/objtext.c), `wps:txbx id`/`wps:linkedTxbx` read and written [WP18]
