@@ -226,6 +226,12 @@ static void insert_canvas(void)
   if (!d) return;
   w = d->page.width - d->page.left - d->page.right;
   if (w < 1440) w = 1440;
+  {
+    /* after the selection (an object, say), not in its place */
+    Pos *ca = NULL, *an = NULL, p;
+    get(wp_view(), MUIA_Quill_Caret, &ca); get(wp_view(), MUIA_Quill_Anchor, &an);
+    if (ca && an) { p = pos_cmp(*ca, *an) > 0 ? *ca : *an; set(wp_view(), MUIA_Quill_Caret, (ULONG)&p); }
+  }
   if (!canvas_make(&c, w, w / 2 < 3600 ? w / 2 : 3600)) return;
   k = doc_add_object(d, &c);
   img_release(&c);
@@ -375,7 +381,9 @@ static const Item i_pens[] = {
   { K_DROP, S_SMALL, 0, 0, "My Pens", ID_DR_MYPENS, RB_WP(WPI_20, ST_CUSTOM), 0, 0, 0, "The pens added with Add Pen", &l_added, IC_MYPENS, 0 } };
 static const Item i_convert[] = {
   { K_BUTTON, S_SMALL, 0, 0, "Ink to Shape", ID_DR_INKSHAPE, RB_WP(WPI_20, ST_INKSHAPE), 0, 0, 0, "Strokes drawn from now on that look like shapes become those shapes", NULL, IC_INKSHAPE, 0 },
-  { K_BUTTON, S_SMALL, 0, 0, "Convert", ID_DR_CONVERT, 0, 0, 0, 0, "The strokes chosen that look like shapes become those shapes", NULL, IC_CONVERT, 0 } };
+  { K_BUTTON, S_SMALL, 0, 0, "Convert", ID_DR_CONVERT, 0, 0, 0, 0, "The strokes chosen that look like shapes become those shapes", NULL, IC_CONVERT, 0 },
+  /* (Review's Ink group has it too, but Review has no room left on a 640-pixel screen) */
+  { K_BUTTON, S_SMALL, 0, 0, "Hide Ink", ID_DR_HIDE, RB_WP(WPI_20, ST_HIDDEN), 0, 0, 0, "Hide the ink in the document, or show it again", NULL, IC_HIDE, 0 } };
 static const Item i_insert[] = {
   { K_BUTTON, S_LARGE, 0, 0, "Drawing Canvas", ID_DR_CANVAS, 0, 0, 0, 0, "A drawing canvas in the text: shapes and ink in it move as one", NULL, IC_CANVAS, 0 } };
 static const Item i_replay[] = {
@@ -386,7 +394,7 @@ static const Item i_ink[] = {
 static const WpGroup groups[] = {
   { TAB_DRAW, -1, { "Tools", G_COLS, i_tools, 3 } },
   { TAB_DRAW, -1, { "Pens", G_COLS, i_pens, 9 } },
-  { TAB_DRAW, -1, { "Convert", G_COLS, i_convert, 2 } },
+  { TAB_DRAW, -1, { "Convert", G_COLS, i_convert, 3 } },
   { TAB_DRAW, -1, { "Insert", G_COLS, i_insert, 1 } },
   { TAB_DRAW, -1, { "Replay", G_COLS, i_replay, 1 } },
   { TAB_REVIEW, -1, { "Ink", G_COLS, i_ink, 2 } } };

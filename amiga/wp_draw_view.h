@@ -59,6 +59,14 @@ static int dv_leaf(struct Data *d, Object *obj, struct RastPort *rp, const ObjPa
   LONG ox, oy, *xy;
   u32 k, i, left;
   int th;
+  if (src->canvas == CANVAS_BG && src->fill == COLOR_AUTO && (src->lstyle == PB_NONE || !src->lwidth)) {
+    /* a canvas with no fill or outline: its edge dotted on the screen, so it can be found (not in PDFs) */
+    LONG x0 = pl + tx(d, cx - part->cx / 2), y0 = pt + tx(d, cy - part->cy / 2), x1 = x0 + tx(d, part->cx) - 1, y1 = y0 + tx(d, part->cy) - 1, k;
+    SetAPen(rp, d->pen_shadow);
+    for (k = x0; k <= x1; k += 3) { WritePixel(rp, k, y0); WritePixel(rp, k, y1); }
+    for (k = y0; k <= y1; k += 3) { WritePixel(rp, x0, k); WritePixel(rp, x1, k); }
+    return 0;
+  }
   if (!f || src->kind != OBJ_SHAPE) return 0;
   if (ff_is_ink(src) && wp20_hidden()) return 1;
   left = ff_is_ink(src) ? dv_shown(f) : 0xFFFFFFFFUL;

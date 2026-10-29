@@ -489,7 +489,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Combine (Compare) `review.combine` [WP6]
 - ➖ Block Authors (Protect) `review.blockAuthors` — WordCraft doesn't have it either (co-authoring service)
 - ⬜ Restrict Editing (Protect) `review.restrict` [WP7]
-- ✅ Hide Ink (Ink) `review.hideInk` — `ID_DR_HIDE` (Review › Ink, Review menu) hides and shows all ink; Delete All Ink (`ID_DR_DELALL`) beside it [WP20]
+- ✅ Hide Ink (Ink) `review.hideInk` — `ID_DR_HIDE` (Review › Ink, which only fits a window wider than 640 pixels, so also in Draw › Convert; Review menu) hides and shows all ink; Delete All Ink (`ID_DR_DELALL`) beside it [WP20]
 
 ### View (29: ✅ 18 · 🟨 2 · ⬜ 4 · ➖ 5)
 
