@@ -209,7 +209,11 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
 - **View Gridlines:** dotted lines where cells have no borders.
 - **New ribbon tabs:** Table Design and Table Layout appear while the caret is in a table, as in Word; the Table menu has the new commands too.
 - **Word files:** table styles with their conditional formatting (w:tblStylePr), w:tblLook, cell borders with their kind, width and colour, w:jc, top and bottom cell margins, w:cantSplit, w:tblLayout and nested tables, read and written. LibreOffice opens Quill's tables with their styles, merged cells, lines and nested tables as Quill draws them.
-- **Not yet:** text direction in cells (vertical text), tables with text wrapping round them (floating tables are placed in the text), and drawing tables with the mouse.
+- **Table styles of your own:** New, Modify and Delete Table Style (Table Design, or Table > Table Styles): every part of a style, as Word's window has them (the whole table, heading and total rows, first and last columns, odd and even banded rows and columns, the four corner cells), each with bold, italic, underline, size, colour, shading, borders in any pen and a 9-way alignment, shown in a picture as you go. Changing a style changes every table in it; they are saved to Word files as custom table styles.
+- **Border Painter, Quick Tables, spreadsheets:** the Border Painter puts the Borders group's pen on cell edges you click or drag along; Insert > Quick Tables makes calendars, lists, a matrix and tables with subheadings; Insert > Spreadsheet makes a table from a CSV file.
+- **Drawing tables:** Draw Table draws a table where you drag a box, and splits cells along the lines you draw through them; the Eraser merges the cells either side of a line you click; Esc ends either.
+- **Cells:** Delete Cells (shift left, shift up, the whole row or column), a 9-way alignment, text turned to read down or up (laid out, drawn and exported turned), each cell's own margins, and a table's alternative text (title and description).
+- **Floating tables:** Table Positioning floats a table (from the column, margin or page, aligned or at a distance) with the text wrapping round it, as Word's w:tblpPr; read and written.
 
 ![Table Design: a table style, merged cells, lines of several kinds and a table inside a cell](docs/quill-tables.png)
 
@@ -282,12 +286,13 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
 - **Pictures:** PNG, JPEG, GIF, BMP and IFF ILBM pictures, in the text or floating with the text wrapping round them, cropped, turned, flipped and outlined, with alt text. Quill decodes them itself, at the size they are shown, and dithers them to the screen's colours: every kind of PNG, baseline, progressive and CMYK JPEG, and ILBM with EHB, HAM6/HAM8 and 24-bit. Their adjustments (brightness and contrast, sharpen and soften, greyscale, sepia, washout, black and white, recolouring, saturation, tone, transparency, artistic effects, a removed background) and picture styles (frames, shadows, rounded and snipped corners, ovals, soft edges) are read and written: those Word draws itself as `a:lum`, `a:grayscl`, `a:duotone`, `a:alphaModFix`, `a:clrChange`, the others drawn into the picture saved, the original kept for changing them again, as Word does.
 - **Shapes and text boxes:** Word's preset shapes (basic shapes, block arrows, flowchart, callouts, stars and explosions: 93 of them) with their fill (a colour, a gradient or a picture), outline, shadow, glow and soft edges; text boxes with their text, its direction (turned 90 or 270 degrees), its place (top, middle, bottom) and margins, and linked text boxes whose text flows from one to the next; and icons.
 - **Headers and footers:** including a different first page and even pages, page numbers ("Page 2 of 3"), pictures (logos) and text watermarks.
-- **Pages and sections:** section breaks of each kind, columns (with a line between), column breaks, line numbers, vertical alignment, page borders, drop caps and automatic hyphenation.
+- **Pages and sections:** section breaks of each kind, columns (of their own widths, with a line between; balanced before a continuous break as Word does), column breaks, line numbers and page borders for each section, page borders in each of Word's line kinds with each side its own (its art borders drawn as a pattern), the gutter, mirror margins, two pages per sheet and book folds, vertical alignment (Justified too), drop caps, picture and text watermarks (washed out, solid or half transparent), and hyphenation with its zone, capitals and consecutive-hyphens settings.
 - **Notes:** footnotes at the bottom of the page that refers to them, and endnotes (i, ii, iii) after the text, each under a short line.
 - **Comments:** in balloons beside the page, joined to the text they are about.
 - **Tracked changes:** insertions and deletions, with who made them and when.
 - **A table of contents:** saved as Word's TOC field, so Word can update it too.
-- **Text it keeps:** hyperlinks, content controls and field results keep their text. Field codes are left out (but page numbers and the table of contents are understood).
+- **Text it keeps:** hyperlinks and content controls keep their text.
+- **Fields:** every field keeps its code and its result (DATE, SEQ, MERGEFIELD, Zotero and Mendeley citations, IF, DOCPROPERTY, XE, REF, form fields...) and is written back, so nothing is lost when the document goes back to Word. **Insert > Field** (Ctrl-F9) puts in any of Word's fields, **Document Property** and **Date and Time** (as text or a field that updates) too. **Update Fields** (F9) works out dates, times, the document's properties, page and word counts, sections, sequence numbers (captions), cross-references, IF and more, with Word's \\@ \\* and \\# formats; **Show Field Codes** (Alt-F9), **Toggle** (Shift-F9), **Edit Field Code**, **Unlink** (Ctrl-Shift-F9), **Lock** and **Unlock** (Ctrl-3, Ctrl-4), **Next** and **Previous Field** and field shading are on the References tab.
 - **Not read yet:** VML pictures (from very old Word versions). Quill says when a document had any.
 - **What it writes:** complete .docx files with the document's styles. LibreOffice and python-docx open them; Word itself hasn't been tried yet.
 
@@ -324,7 +329,7 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
   - **Tracked changes:** with Track Changes on, what you type is marked as yours and what you delete stays, struck through. Accept or reject changes one at a time, moving on to the next, or all at once.
   - **Spelling:** words not in the dictionary get a red wavy line, and **Review > Spelling** goes from one to the next with suggestions (Change, Change All, Ignore, Ignore All, Add to Dictionary).
   - **Word count:** pages, words, characters with and without spaces, paragraphs and lines.
-- **Page setup:** A4, Letter, A5 or Legal paper, portrait or landscape, and four sets of margins; columns, section and column breaks, line numbers, vertical alignment and hyphenation; watermarks and page borders.
+- **Page setup:** A4, Letter, A5 or Legal paper, portrait or landscape, and four sets of margins; **Page Setup** with the gutter (left or top), mirror margins, two pages per sheet and book fold, the section's start, headers and footers and vertical alignment (top, centre, bottom, justified), for the whole document, the section or from the caret on; **Columns** (presets One, Two, Three, Left and Right, up to six columns of their own widths and spacing, a line between, for the whole document, the section, from the caret on or the selected text); section and column breaks; **Line Numbers** for each section; **Hyphenation** automatic or manual (each word that could break at a line's end, with the place to break), with its zone, capitals and limit of consecutive hyphens; **Printed Watermark** (a picture at a scale, washed out, or words in a font and colour) and **Page Borders** (each side, every line kind and a few art borders, colour, width, distance from the text or the page's edge, the section's first page only or the others, round the header and footer or not).
 - **Templates:** start from Blank, Welcome (a tour of Quill), Letter, Résumé or Report.
 - **Also:** page and line breaks, the date, symbols, and zoom.
 
@@ -522,17 +527,12 @@ The MUI headers come from Aminet's `dev/mui/mui38dev.lha`. That archive may only
 
 ## Roadmap
 
-- **Tables:**
-  - text direction in cells
-  - floating tables with text around them
-  - a table style editor
 - **Pictures and objects:**
   - editing text in grouped shapes
   - drawing canvases
   - adjust handles on shapes (their yellow diamonds), and WebP, WMF and EMF pictures
 - **Page furniture:**
   - tables in headers and footers (read now as their text)
-  - line numbers and page borders for each section on its own
   - comment balloons showing their formatting (it is kept and saved)
 - **Styles:** linked paragraph and character styles; tab stops and borders in the Modify Style window; selecting text with the same formatting.
 - **Fonts:** choosing a variable font's other designs (weights, widths); antialiased text on RTG screens without AAText.
