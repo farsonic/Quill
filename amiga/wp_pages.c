@@ -133,6 +133,8 @@ static int apply_sect(int scope, int start, SectFn fn, void *arg)
   }
   doc_end(d, c);
   set(wp_view(), MUIA_Quill_Caret, (ULONG)&c);
+  d->dirty = 1;
+  set(wp_view(), MUIA_Quill_Changed, TRUE);
   relayout();
   return 1;
 }
