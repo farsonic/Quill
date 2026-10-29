@@ -47,9 +47,9 @@ W = [
 ("Shrink text", "Text verkleinern", "Réduire le texte", "Reducir texto", "Riduci testo"),
 ("Enlarge symbol", "Symbol vergrößern", "Agrandir le symbole", "Agrandar símbolo", "Ingrandisci simbolo"),
 ("Circle", "Kreis", "Cercle", "Círculo", "Cerchio"),
-("One or two characters, enclosed in a circle, square, triangle or diamond.", "Ein oder zwei Zeichen, umrandet von Kreis, Quadrat, Dreieck oder Raute.",
- "Un ou deux caractères, encadrés d'un cercle, d'un carré, d'un triangle ou d'un losange.", "Uno o dos caracteres, encerrados en un círculo, cuadrado, triángulo o rombo.",
- "Uno o due caratteri, racchiusi in un cerchio, un quadrato, un triangolo o un rombo."),
+("One or two characters, enclosed in\na circle, square, triangle or diamond.", "Ein oder zwei Zeichen, umrandet\nvon Kreis, Quadrat, Dreieck oder Raute.",
+ "Un ou deux caractères, encadrés d'un cercle,\nd'un carré, d'un triangle ou d'un losange.", "Uno o dos caracteres, encerrados en\nun círculo, cuadrado, triángulo o rombo.",
+ "Uno o due caratteri, racchiusi in un cerchio,\nun quadrato, un triangolo o un rombo."),
 ("Only one or two characters can be enclosed.", "Nur ein oder zwei Zeichen können umrandet werden.", "Seuls un ou deux caractères peuvent être encadrés.",
  "Solo se pueden encerrar uno o dos caracteres.", "Si possono racchiudere solo uno o due caratteri."),
 ]

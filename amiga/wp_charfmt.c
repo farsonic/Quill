@@ -108,7 +108,7 @@ static void open_enclose(void)
         Child, Label2(tr("Text")), Child, enc_text = StringObject, StringFrame, MUIA_String_MaxLen, 12, MUIA_CycleChain, 1, End,
         Child, Label1(tr("Enclosure")), Child, enc_shape = CycleObject, MUIA_Cycle_Entries, (ULONG)trl(enc_shapes, t_shapes), MUIA_CycleChain, 1, End,
       End,
-      Child, TextObject, MUIA_Text_Contents, (ULONG)tr("One or two characters, enclosed in a circle, square, triangle or diamond."), MUIA_Font, MUIV_Font_Tiny, End,
+      Child, TextObject, MUIA_Text_Contents, (ULONG)tr("One or two characters, enclosed in\na circle, square, triangle or diamond."), MUIA_Font, MUIV_Font_Tiny, End,
     End;
     if (!(encwin = wp_dialog("Enclose Characters", MAKE_ID('E','N','C','L'), c, "_OK", ID_C_ENCGO))) return;
   }

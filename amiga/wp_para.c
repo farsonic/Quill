@@ -269,7 +269,7 @@ static void open_number(void)
         Child, Label2(tr("Start at")), Child, nu_start = StringObject, StringFrame, MUIA_String_MaxLen, 6, MUIA_String_Accept, (ULONG)"0123456789", MUIA_CycleChain, 1, End,
         Child, Label1(tr("Font")), Child, nu_font = font_cycle(),
       End,
-      Child, TextObject, MUIA_Text_Contents, (ULONG)tr("In the number format, %1 stands for the number (%2 for the level above's, and so on)."), MUIA_Font, MUIV_Font_Tiny, End,
+      Child, TextObject, MUIA_Text_Contents, (ULONG)tr("In the number format, %1 stands for the number\n(%2 for the level above's, and so on)."), MUIA_Font, MUIV_Font_Tiny, End,
     End;
     if (!(numwin = wp_dialog("Define New Number Format", MAKE_ID('N','U','M','D'), c, "_OK", ID_P_NUMGO))) return;
   }
@@ -548,7 +548,7 @@ static void open_pastespecial(void)
         Child, ps_list = ListviewObject, MUIA_CycleChain, 1, MUIA_Listview_List, ListObject, InputListFrame,
           MUIA_List_SourceArray, (ULONG)trl(ps_formats, t_ps_formats), MUIA_List_Active, 0, End, End,
       End,
-      Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Formatted text keeps its fonts and formatting; unformatted text takes the formatting where it goes.\nPaste link needs linked objects, which Quill doesn't have."),
+      Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Formatted text keeps its fonts and formatting;\nunformatted text takes the formatting where it goes.\nPaste link needs linked objects, which Quill\ndoesn't have."),
         MUIA_Font, MUIV_Font_Tiny, End,
     End;
     if (!(pswin = wp_dialog("Paste Special", MAKE_ID('P','S','P','C'), c, "_OK", ID_P_PSGO))) return;
@@ -673,10 +673,9 @@ static void clip_pane(void)
   if (!w) { DisplayBeep(NULL); return; }
   if (!clippane) {
     Object *pall, *clr, *pst, *del;
-    clippane = VGroup, MUIA_HorizWeight, 30, MUIA_Frame, MUIV_Frame_Group, QDLG,
+    clippane = VGroup, MUIA_HorizWeight, 0, MUIA_FixWidthTxt, (ULONG)"MMMMMMMMMMMMMMMM", MUIA_Frame, MUIV_Frame_Group, QDLG,
       Child, QTitleObject(tr("Clipboard")),
       Child, HGroup, Child, pall = QButton(tr("Paste All")), Child, clr = QButton(tr("Clear All")), End,
-      Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Double-click an item to paste it:"), MUIA_Font, MUIV_Font_Tiny, End,
       Child, cl_list = ListviewObject, MUIA_CycleChain, 1, MUIA_Listview_List, ListObject, InputListFrame, End, End,
       Child, HGroup, Child, pst = QButton(tr("Paste")), Child, del = QButton(tr("Delete")), End,
     End;
