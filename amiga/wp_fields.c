@@ -229,6 +229,28 @@ static int f_idx[NDEFS], f_n;           /* the list's entries (defs indexes) */
 static int f_edit;                      /* editing the field whose start mark is at f_at */
 static Pos f_at;
 static int f_busy;                      /* (setting the gadgets: their notifications ignored) */
+/* the gadgets as last seen: a notification that arrives when nothing changed (those queued while the
+   window was being filled) is ignored, so it can't overwrite a code being edited */
+typedef struct { LONG act; ULONG cat, fmt, dt, keep; char arg[256]; } FSnap;
+static FSnap f_last;
+static void f_snapshot(FSnap *n)
+{
+  char *a = NULL;
+  memset(n, 0, sizeof *n);
+  n->act = -1;
+  get(f_list, MUIA_List_Active, &n->act); get(f_cat, MUIA_Cycle_Active, &n->cat);
+  get(f_fmt, MUIA_Cycle_Active, &n->fmt); get(f_date, MUIA_Cycle_Active, &n->dt); get(f_keep, MUIA_Selected, &n->keep);
+  get(f_arg, MUIA_String_Contents, &a);
+  if (a) { strncpy(n->arg, a, sizeof n->arg - 1); n->arg[sizeof n->arg - 1] = 0; }
+}
+static int f_changed(void)
+{
+  FSnap n;
+  f_snapshot(&n);
+  if (!memcmp(&n, &f_last, sizeof n)) return 0;
+  f_last = n;
+  return 1;
+}
 static void f_fill(int cat)
 {
   int i;
@@ -343,6 +365,7 @@ static void f_open(int edit, Pos at)
   f_busy = 0;
   f_options();
   if (!edit) f_make();
+  f_snapshot(&f_last);
   set(fwin, MUIA_Window_Open, TRUE);
   set(fwin, MUIA_Window_ActiveObject, (ULONG)f_list);
 }
@@ -544,8 +567,16 @@ int wp1_command(ULONG id, LONG value)
   switch (id) {
   case ID_FLD_INSERT: { Pos z; z.para = 0; z.off = 0; f_open(0, z); return WPR_KEEPFOCUS; }
   case ID_FLD_INSERT_OK: if (fwin) f_ok(); return WPR_DONE;
-  case ID_FLD_DLG_CAT: if (fwin && !f_busy) { ULONG c = 0; get(f_cat, MUIA_Cycle_Active, &c); f_busy = 1; f_fill((int)c); set(f_list, MUIA_List_Active, 0); f_busy = 0; f_options(); f_make(); } return WPR_KEEPFOCUS;
-  case ID_FLD_DLG_CHANGE: if (fwin && !f_busy) { f_options(); f_make(); } return WPR_KEEPFOCUS;
+  case ID_FLD_DLG_CAT:
+    if (fwin && !f_busy) {
+      ULONG c = 0;
+      get(f_cat, MUIA_Cycle_Active, &c);
+      if (c == f_last.cat) return WPR_KEEPFOCUS;
+      f_busy = 1; f_fill((int)c); set(f_list, MUIA_List_Active, 0); f_busy = 0;
+      f_options(); f_make(); f_snapshot(&f_last);
+    }
+    return WPR_KEEPFOCUS;
+  case ID_FLD_DLG_CHANGE: if (fwin && !f_busy && f_changed()) { f_options(); f_make(); } return WPR_KEEPFOCUS;
   case ID_FLD_DOCPROP:
     if (value >= 0 && value < NPROPL) insert_prop(prop_list[value]);
     else p_open();
