@@ -120,6 +120,9 @@ typedef struct Layout {
   u8 *ohid; u32 nohid;
   CharFmt oplain;
   u16 ocur;                   /* (the paragraph being laid out's okey) */
+  /* (WP25) lines this many per cent of their height (Read Mode's wider line spacing); 0: as they are.
+     Changing it needs the paragraphs laid out afresh (ParaLay.laid 0) */
+  u16 linepct;
 } Layout;
 enum { OL_ON = 1, OL_PLAIN = 2, OL_FIRST = 4 };      /* (WP11) Layout.outline: on, without text formatting, body text's first line only */
 #define OK_HIDDEN 8                                 /* (WP11) ParaLay.okey: hidden */

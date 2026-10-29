@@ -323,6 +323,7 @@ static void line_metrics(Layout *L, Para *p, Work *w, Line *ln)
   else if (pf->linerule == LS_AUTO && pf->line > 0 && pf->line != 240) h = h * pf->line / 240;
   /* a picture taller than the text: its bottom on the baseline, the line grows (unless exact) */
   if (picasc > asc && pf->linerule != LS_EXACT) { h += picasc - asc; asc = picasc; }
+  if (L->linepct && L->linepct != 100) { i32 more = h * (L->linepct - 100) / 100; h += more; asc += more / 2; }   /* (WP25) */
   ln->height = h; ln->ascent = asc;
 }
 /* text wrapping round floating objects: while laying out a paragraph placed on a page (sh_on), each

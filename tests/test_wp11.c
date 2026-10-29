@@ -222,8 +222,31 @@ static void word_files(void)
   }
 }
 
+/* a sample for trying Outline view (and LibreOffice): headings at three levels, body text, a table,
+   a Normal paragraph with an outline level of its own */
+static void sample_file(void)
+{
+  static const char *const paras[] = {
+    "1:Introduction", "0:Quill shows this document as an outline in View > Outline.", "2:What an outline is",
+    "0:Headings are indented by their level; body text sits under its heading.", "0:A second paragraph of body text, long enough to need more than one line when the window is narrow, so that Show First Line Only has something to cut.",
+    "3:A third level", "0:Body text under the third level.", "2:Moving things", "0:Move Up and Move Down take a collapsed heading with everything under it.",
+    "1:Second chapter", "0:Its body text.", "2:A section of it", "0:More body text.", "1:Last chapter", "0:The end." };
+  Doc *d = outline_doc(paras, (int)(sizeof paras / sizeof paras[0]));
+  ParaFmt pf = d->p[12]->pf;
+  size_t n;
+  u8 *data;
+  pf.outlvl = 3;
+  doc_para_format(d, 12, 12, PM_OUTLINE, &pf);
+  data = docx_save(d, &n);
+  if (data) file_write("/tmp/quill_wp11.docx", data, n);
+  ok("outline: sample written", data != NULL);
+  free(data);
+  doc_free(d);
+}
+
 void test_wp11(void)
 {
+  sample_file();
   levels();
   promote();
   moving();
