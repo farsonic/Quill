@@ -4699,6 +4699,7 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
         doc_format(d->doc, sel_lo(d), sel_hi(d), CM_ALL, &d->brushfmt);
         refresh(d, obj, 1);
       }
+      else if (has_sel(d) && _window(obj)) wp_minibar(_window(obj)->LeftEdge + im->MouseX, _window(obj)->TopEdge + im->MouseY);   /* (WP26) */
       return MUI_EventHandlerRC_Eat;
     }
   }

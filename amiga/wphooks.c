@@ -78,6 +78,8 @@ void wp_ctxmenu(Object *menu, const WpCtx *c)
 ULONG wp_key(UWORD code, UWORD qual, const WpCtx *c)
 {
   int i;
+  ULONG pre = wp26_prekey(code, qual, c);          /* (WP26) KeyTips and the user's keys first */
+  if (pre) return pre;
   for (i = 0; i < WP_NPKG; i++)
     if (packages[i]->key) {
       ULONG id = packages[i]->key(code, qual, c);
@@ -89,6 +91,12 @@ void wp_init(void)
 {
   int i;
   for (i = 0; i < WP_NPKG; i++) if (packages[i]->init) packages[i]->init();
+}
+/* (WP26) the interface language changed: each package's windows let go (main.c's drop_windows) */
+void wp_drop(void)
+{
+  int i;
+  for (i = 0; i < WP_NPKG; i++) if (packages[i]->drop) packages[i]->drop();
 }
 void wp_cleanup(void)
 {

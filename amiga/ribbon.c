@@ -27,6 +27,8 @@
 #include "ribbondef.h"
 #include "wp_charpara.h"                /* (WP9, WP10: their items in the Font and Paragraph groups) */
 #include "wphooks.h"
+#include "../core/custom.h"
+#include "wp_custom.h"               /* (WP26: collapsing, customizing, Quick Access, Tell Me, KeyTips) */
 
 /* ------------------------------------------------------------------ */
 /* the lists */
@@ -217,7 +219,8 @@ static const Item g_clip[] = {
   { K_BUTTON, S_SMALL, IC_BRUSH, 0, "Format", ID_BRUSH, RB_BRUSH, 0, 0, 0, "Copy the formatting at the caret to the next text you select" },
 };
 /* Save, Undo and Redo: not a group on a tab but the quick access buttons at the right end of the
-   tab strip, always in reach and taking no room from the tabs' tools (see qa below) */
+   tab strip, always in reach and taking no room from the tabs' tools (see qa below). (WP26) These are
+   the Quick Access Toolbar's first commands; the user changes them (qaitem below) */
 #define NQA 4
 static const Item g_undo[NQA] = {
   { K_BUTTON, S_SMALL, 0, 0, "AutoSave", ID_INFO_AUTOSAVE, RB_WP(WPI_24, WP24S_AUTOSAVE), 0, 0, 0,          /* (WP24, wp_info.h) */
@@ -645,7 +648,7 @@ static const Group stedit[] = { { "Insert", G_COLS, e_ins, N(e_ins) }, { "Close"
 static const Tab basetabs[] = {
   { "File", NULL, 0, 0 }, { "Home", home, N(home), 0 }, { "Insert", insert, N(insert), 0 }, { "Draw", NULL, 0, 0 },
   { "Design", design, N(design), 0 }, { "Layout", layout, N(layout), 0 }, { "References", refs, N(refs), 0 }, { "Mailings", NULL, 0, 0 },
-  { "Review", review, N(review), 0 }, { "View", view, N(view), 0 }, { "Developer", NULL, 0, 0 },
+  { "Review", review, N(review), 0 }, { "View", view, N(view), 0 }, { "Developer", NULL, 0, 0 }, { "Custom", NULL, 0, 0 },
   { "Table Design", tdesign, N(tdesign), 1 }, { "Table Layout", tlayout, N(tlayout), 1 },
   { "Picture Format", pformat, N(pformat), 2 }, { "Shape Format", sformat, N(sformat), 3 },
   { "Header & Footer", hfedit, N(hfedit), 4 }, { "Edit Text", stedit, N(stedit), 5 },
@@ -657,33 +660,52 @@ static const Tab basetabs[] = {
 static Tab tabs[NTABS];
 #define MAXTABGROUPS 400
 static Group tabgroups[MAXTABGROUPS];
+static Tab alltabs[NTABS];                /* (WP26) the same before the user hid any (Customize Ribbon lists these) */
+static Group allgroups[MAXTABGROUPS];
+static void qa_build(void);
 /* each tab's groups: its own, with every package's WpGroups for it put in before the group they name
-   (or after the last), in wphooks.c's package order. Called once, from ribbon_class() */
+   (or after the last), in wphooks.c's package order. Called from ribbon_class(), and again by
+   ribbon_rebuild() when the user customizes the ribbon (WP26): tabs and groups the user hid are left
+   out, and the user's own tab gets its groups */
 static void build_tabs(void)
 {
-  int t, used = 0;
+  int t, used = 0, all = 0;
   for (t = 0; t < NTABS; t++) {
     const Tab *b = &basetabs[t];
-    int g, start = used, p, k;
-    tabs[t] = *b;
+    int g, start = used, astart = all, p, k;
+    tabs[t] = *b; alltabs[t] = *b;
     for (g = 0; g <= b->n; g++) {
       for (p = 0; p < WP_NPKG; p++) {
         const WpPackage *pk = wp_package(p);
         for (k = 0; pk && k < pk->ngroups; k++) {
           const WpGroup *wg = &pk->groups[k];
           int at = wg->before < 0 || wg->before > b->n ? b->n : wg->before;
-          if (wg->tab == t && at == g && used < MAXTABGROUPS) tabgroups[used++] = wg->g;
+          if (wg->tab == t && at == g && all < MAXTABGROUPS) allgroups[all++] = wg->g;
         }
       }
-      if (g < b->n && used < MAXTABGROUPS) tabgroups[used++] = b->groups[g];
+      if (g < b->n && all < MAXTABGROUPS) allgroups[all++] = b->groups[g];
     }
-    if (used > start) { tabs[t].groups = &tabgroups[start]; tabs[t].n = used - start; }
+    if (all > astart) { alltabs[t].groups = &allgroups[astart]; alltabs[t].n = all - astart; }
+    if (t == TAB_CUSTOM) {
+      const char *nm = NULL;
+      const Group *cg = NULL;
+      int n = wp26_custom_tab(&nm, &cg);
+      for (k = 0; k < n && used < MAXTABGROUPS; k++) tabgroups[used++] = cg[k];
+      if (nm && nm[0]) tabs[t].name = alltabs[t].name = nm;
+    } else if (t == TAB_FILE || !wp26_tab_hidden(b->name))
+      for (k = astart; k < all && used < MAXTABGROUPS; k++) if (!wp26_group_hidden(b->name, allgroups[k].name)) tabgroups[used++] = allgroups[k];
+    tabs[t].groups = used > start ? &tabgroups[start] : NULL; tabs[t].n = used - start;
   }
+  qa_build();
 }
 
 /* ------------------------------------------------------------------ */
 /* the instance */
-#define MAXI 56
+#define MAXI 128                 /* (WP26: more, as the packages add tools) */
+#define MAXG 24                  /* groups on a tab */
+#define MAXQA 16                 /* (WP26) Quick Access Toolbar buttons */
+#define QA_MORE 300              /* (WP26) hit(): the Quick Access Toolbar's arrow (Customize), the Tell Me box */
+#define QA_TELL 301
 #define MAXGAL 24
 typedef struct { WORD x0, y0, x1, y1; } RBox;
 struct RData {
@@ -693,9 +715,24 @@ struct RData {
   char font[48];
   RBox tabbox[NTABS];
   LONG tabpad, tabcap;           /* the room round each tab's name (16, less when crowded); a cut-short name's width (0: none) */
-  RBox qa[NQA];                  /* the quick access Save, Undo and Redo buttons in the tab strip (hot: 200 up) */
+  RBox qa[MAXQA];                /* the quick access Save, Undo and Redo buttons in the tab strip (hot: 200 up) */
+  RBox qamore, tell;             /* (WP26) the Quick Access arrow and the Tell Me box (-1: not shown) */
   RBox item[MAXI]; int nitem;     /* the shown tab's items, in order */
-  RBox group[12]; int ngroup;
+  RBox group[MAXG]; int ngroup;
+  /* (WP26) the shown tab's placed items: each one's tool (NULL: a collapsed group's button) and group;
+     the groups shown as one button for lack of room; the list open for one (and its entries) */
+  const Item *kitem[MAXI]; int kgroup[MAXI];
+  int collapsed[MAXG];
+  int popgroup;
+  List glist; const char *glabels[41]; char gbuf[40][48]; int gidx[40];
+  const Item *popit;             /* the tool whose list is open */
+  RBox popbox;                   /* the box it opened under */
+  const Item *defer; RBox deferbox;   /* a list to open once the one before has closed */
+  int measuring;                 /* (the fit check) every tab laid out, shown or not */
+  /* KeyTips: 0 off, 1 the tabs' letters, 2 the shown tab's; what has been typed; the codes */
+  int kt; char ktyped[4];
+  char ktab[TAB_N + MAXQA + 2][3]; char kcode[MAXI][3];
+  Object *ctxstrip, *ctxmenu;    /* the right-button menu: its strip (kept) and the menu made for this click */
   RBox gal; int galfirst, galn, galw;          /* the styles gallery: its box, first style shown, how many fit */
   int galstyle[MAXGAL]; int ngal;             /* the styles it offers (Doc.styles indexes) */
   RBox galup, galdown, galmore;
@@ -705,7 +742,6 @@ struct RData {
   LONG width;
   struct MUI_EventHandlerNode ehn;
   Object *popwin, *poplist;
-  int popitem;                   /* the item whose list is open */
   struct TextFont *galfont[MAXGAL];
   int penstyle, penwidth, pencolor;   /* the borders' pen: list entries chosen */
   int tsn; int tsval[64]; const TableStyle *tsp[64];   /* the table styles list: each entry's value and style */
@@ -737,6 +773,7 @@ static int tab_visible(struct RData *d, int t)
   static const u8 needs[6] = { 0, RB_INTABLE, RB_PICSEL, RB_SHAPESEL, RB_HFEDIT, RB_STORYEDIT };
   UWORD c = tabs[t].contextual;
   if (t != TAB_FILE && !tabs[t].n) return 0;          /* a package tab nobody has filled yet */
+  if (d->measuring) return 1;
   return !c || bit_on(d, c >= RB_WP_BASE ? c : needs[c < 6 ? c : 0]);
 }
 
@@ -810,7 +847,7 @@ static LONG group_widths(struct RastPort *rp, const Tab *tab, LONG *gw)
 {
   LONG total = 0;
   int g, i;
-  for (g = 0; g < tab->n && g < 12; g++) {
+  for (g = 0; g < tab->n && g < MAXG; g++) {
     const Group *gr = &tab->groups[g];
     LONG w = 0, cap = theme_textlen(rp, theme_font(), gr->name) + 12;
     if (gr->mode == G_ROWS) {
@@ -836,24 +873,59 @@ static LONG group_widths(struct RastPort *rp, const Tab *tab, LONG *gw)
 }
 /* lay out the shown tab: boxes of tabs, groups and items */
 /* works out every box of the shown tab in window pixels: the tabs, the quick access buttons, then
-   the groups left to right with their items numbered in table order (nth_item counts the same
-   way). If the groups don't fit it lays out again squeezed; the gallery takes the room left over,
-   or turns into a single Styles button when there isn't enough. Done on every draw, so it follows
-   the window's width and the state (contextual tabs come and go). Called only while the object
-   has a RastPort (between MUIM_Setup and MUIM_Cleanup) */
+   the groups left to right with their items numbered in the order placed (kitem: each one's tool).
+   If the groups don't fit it lays out again squeezed; the gallery takes the room left over, or turns
+   into a single Styles button when there isn't enough; and if the tab still doesn't fit, groups
+   from the right become one button each, their tools in its list (WP26, as Word and Ledger do).
+   Done on every draw, so it follows the window's width and the state (contextual tabs come and go).
+   Called only while the object has a RastPort (between MUIM_Setup and MUIM_Cleanup) */
+static LONG group_button_w(struct RastPort *rp, const Group *gr)
+{
+  LONG w;
+  if (squeeze) split_at(rp, tr(gr->name), &w); else w = theme_textlen(rp, theme_font(), gr->name);
+  w += 12;
+  return w < 40 ? 40 : w;
+}
+/* the right end of the tab strip (WP26): the Tell Me box, the Quick Access Toolbar's buttons and
+   its arrow, right to left; the pixels they take */
+static int nqa;
+static Item qaitem[MAXQA];
+static LONG strip_right(struct RData *d, Object *obj, LONG tabs_end)
+{
+  LONG x1 = _mright(obj) - 2, y0 = _mtop(obj) + 1, y1 = _mtop(obj) + tabh() - 1, room;
+  int t;
+  d->qamore.x0 = (WORD)(x1 - 11); d->qamore.x1 = (WORD)x1; d->qamore.y0 = (WORD)y0; d->qamore.y1 = (WORD)y1;
+  x1 -= 13;
+  for (t = nqa - 1; t >= 0; t--) {
+    d->qa[t].x0 = (WORD)(x1 - 21); d->qa[t].x1 = (WORD)x1; d->qa[t].y0 = (WORD)y0; d->qa[t].y1 = (WORD)y1;
+    x1 -= 24;
+  }
+  d->tell.x0 = d->tell.x1 = -1;
+  if (wp26_tellme_box()) {
+    /* the box: a magnifier, and "Tell me" when there is room for it */
+    LONG tw = theme_textlen(_rp(obj), theme_font(), "Tell me"), w = 22;
+    room = x1 - tabs_end - 4;
+    if (room >= 22 + tw + 8 + 40) w = 22 + tw + 8;
+    d->tell.x0 = (WORD)(x1 - w + 1); d->tell.x1 = (WORD)x1; d->tell.y0 = (WORD)(y0 + 2); d->tell.y1 = (WORD)(y1 - 2);
+    x1 -= w + 2;
+  }
+  return _mright(obj) - x1;
+}
 static void layout_ribbon(struct RData *d, Object *obj)
 {
   struct RastPort *rp = _rp(obj);
-  LONG x = _mleft(obj), y0 = _mtop(obj) + tabh() + 2, total = 0, extra;
+  LONG x = _mleft(obj), y0 = _mtop(obj) + tabh() + 2, total = 0, extra, right;
   int t, g, i, n = 0;
   const Tab *tab;
-  LONG gw[12];
+  LONG gw[MAXG];
   d->width = _mwidth(obj);
+  /* the right end first (its least: the Tell Me box without its words), the tabs in what is left */
+  right = strip_right(d, obj, _mright(obj));       /* (as narrow as it goes) */
   /* the tab strip. Each tab has 16 pixels round its name; when that doesn't fit the window (more tabs
      from the work packages, a language with long words) the room round the names shrinks to 6, then
      the longest names are cut short (tabcap, drawn ending in a dot) */
   {
-    LONG sum = 0, avail = _mwidth(obj) - 4, cap = 0, lo, hi;
+    LONG sum = 0, avail = _mwidth(obj) - 4 - right, cap = 0, lo, hi;
     int nv = 0;
     for (t = 0; t < NTABS; t++) if (tab_visible(d, t)) { sum += theme_textlen(rp, theme_font(), tabs[t].name); nv++; }
     d->tabpad = 16;
@@ -882,35 +954,51 @@ static void layout_ribbon(struct RData *d, Object *obj)
     d->tabbox[t].y0 = (WORD)_mtop(obj); d->tabbox[t].y1 = (WORD)(_mtop(obj) + tabh() - 1);
     x += w;
   }
-  /* Save, Undo and Redo at the strip's right end (left out if the tabs reach that far) */
-  for (t = 0; t < NQA; t++) {
-    LONG qx1 = _mright(obj) - 4 - (NQA - 1 - t) * 24;
-    if (qx1 - 21 <= x) { d->qa[t].x0 = d->qa[t].x1 = -1; continue; }
-    d->qa[t].x0 = (WORD)(qx1 - 21); d->qa[t].x1 = (WORD)qx1;
-    d->qa[t].y0 = (WORD)(_mtop(obj) + 1); d->qa[t].y1 = (WORD)(_mtop(obj) + tabh() - 1);
-  }
-  if (!tab_visible(d, d->tab)) {
+  /* the Quick Access Toolbar and the Tell Me box at the strip's right end (the box's words when the
+     tabs leave room) */
+  strip_right(d, obj, x);
+  if (!d->measuring && !tab_visible(d, d->tab)) {
     /* its tab gone: from one object's tab to the other's (a picture grouped into a shape), else Home */
-    int c = tabs[d->tab].contextual, n = 1;
-    if (c == 2 || c == 3) for (t = 0; t < NTABS; t++) if ((tabs[t].contextual == 2 || tabs[t].contextual == 3) && tab_visible(d, t)) n = t;
-    d->tab = n;
+    int c = tabs[d->tab].contextual, nn = 1;
+    if (c == 2 || c == 3) for (t = 0; t < NTABS; t++) if ((tabs[t].contextual == 2 || tabs[t].contextual == 3) && tab_visible(d, t)) nn = t;
+    if (!tab_visible(d, nn)) for (nn = 1; nn < NTABS && !tab_visible(d, nn); nn++) ;   /* (Home hidden by the user) */
+    d->tab = nn < NTABS ? nn : 1;
   }
   tab = &tabs[d->tab];
   d->nitem = 0; d->ngroup = 0;
+  for (g = 0; g < MAXG; g++) d->collapsed[g] = 0;
   if (!tab->groups) return;
   /* each group's natural width; too wide for the window, squeezed */
   squeeze = 0;
   total = group_widths(rp, tab, gw);
   {
     LONG need = total;                       /* the gallery can shrink to a button */
-    for (g = 0; g < tab->n && g < 12; g++) if (tab->groups[g].mode == G_GALLERY) need += 56 - gw[g];
+    for (g = 0; g < tab->n && g < MAXG; g++) if (tab->groups[g].mode == G_GALLERY) need += 56 - gw[g];
     if (need > _mwidth(obj) + 8) { squeeze = 1; total = group_widths(rp, tab, gw); }   /* + 8: the last group's padding can go */
+    need = total;
+    for (g = 0; g < tab->n && g < MAXG; g++) if (tab->groups[g].mode == G_GALLERY) need += 56 - gw[g];
+    /* still too wide: groups from the right become one button each (the gallery's group too, once
+       it has shrunk to its button) */
+    for (g = tab->n - 1; g >= 0 && need > _mwidth(obj) + 8; g--) {
+      LONG cw;
+      if (g >= MAXG) continue;
+      cw = group_button_w(rp, &tab->groups[g]) + 8;
+      if (tab->groups[g].mode == G_GALLERY) { need += cw - 56; total += cw - gw[g]; gw[g] = cw; d->collapsed[g] = 1; continue; }
+      if (cw >= gw[g]) continue;                         /* (no narrower as a button) */
+      need += cw - gw[g]; total += cw - gw[g]; gw[g] = cw; d->collapsed[g] = 1;
+    }
   }
   extra = _mwidth(obj) - total;
   x = _mleft(obj) + 2;
-  for (g = 0; g < tab->n && g < 12; g++) {
+  for (g = 0; g < tab->n && g < MAXG; g++) {
     const Group *gr = &tab->groups[g];
     LONG w = gw[g], cx, top = y0 + 2;
+    if (d->collapsed[g] && n < MAXI) {
+      /* a collapsed group: one large button (its first tool's icon, its name, an arrow) */
+      d->item[n].x0 = (WORD)(x + 3); d->item[n].x1 = (WORD)(x + w - 6); d->item[n].y0 = (WORD)top; d->item[n].y1 = (WORD)(top + 3 * rowh() - 1);
+      d->kitem[n] = NULL; d->kgroup[n] = g; n++;
+      goto placed;
+    }
     if (gr->mode == G_GALLERY) {
       LONG bw = 66;
       w = gw[g] + extra - 4;
@@ -921,6 +1009,7 @@ static void layout_ribbon(struct RData *d, Object *obj)
         d->gal.x0 = d->gal.x1 = d->galup.x0 = d->galup.x1 = d->galdown.x0 = d->galdown.x1 = d->galmore.x0 = d->galmore.x1 = -1;
         d->galn = 0;
         d->item[n].x0 = (WORD)(x + 3); d->item[n].x1 = (WORD)(x + w - 4); d->item[n].y0 = (WORD)top; d->item[n].y1 = (WORD)(top + 3 * rowh() - 1);
+        d->kitem[n] = &gr->items[0]; d->kgroup[n] = g;
         n++;
         extra -= w - gw[g];
         goto placed;
@@ -936,6 +1025,7 @@ static void layout_ribbon(struct RData *d, Object *obj)
       d->galdown.y0 = (WORD)(top + rowh()); d->galdown.y1 = (WORD)(top + 2 * rowh() - 1);
       d->galmore.y0 = (WORD)(top + 2 * rowh()); d->galmore.y1 = (WORD)(top + 3 * rowh() - 1);
       d->item[n].x0 = d->gal.x0; d->item[n].y0 = d->gal.y0; d->item[n].x1 = d->gal.x1; d->item[n].y1 = d->gal.y1;
+      d->kitem[n] = &gr->items[0]; d->kgroup[n] = g;
       n++;
     } else if (gr->mode == G_ROWS) {
       LONG rx[2];
@@ -945,6 +1035,7 @@ static void layout_ribbon(struct RData *d, Object *obj)
         int r = (it->flags & F_ROW1) ? 1 : 0;
         LONG iw = item_w(rp, it), iy = top + 4 + r * (rowh() + 6);
         d->item[n].x0 = (WORD)rx[r]; d->item[n].x1 = (WORD)(rx[r] + iw - 1); d->item[n].y0 = (WORD)iy; d->item[n].y1 = (WORD)(iy + rowh() - 1);
+        d->kitem[n] = it; d->kgroup[n] = g;
         rx[r] += iw + 1; n++;
       }
     } else {
@@ -958,6 +1049,7 @@ static void layout_ribbon(struct RData *d, Object *obj)
           int k;
           if (colw) { for (k = colstart; k < n; k++) d->item[k].x1 = (WORD)(d->item[k].x0 + colw - 1); cx += colw + 2; colw = 0; row = 0; }
           d->item[n].x0 = (WORD)cx; d->item[n].x1 = (WORD)(cx + iw - 1); d->item[n].y0 = (WORD)top; d->item[n].y1 = (WORD)(top + 3 * rowh() - 1);
+          d->kitem[n] = it; d->kgroup[n] = g;
           cx += iw + 2; n++; colstart = n;
           continue;
         }
@@ -968,10 +1060,11 @@ static void layout_ribbon(struct RData *d, Object *obj)
         }
         d->item[n].x0 = (WORD)cx; d->item[n].x1 = (WORD)(cx + iw - 1);
         d->item[n].y0 = (WORD)(top + row * rowh()); d->item[n].y1 = (WORD)(top + (row + 1) * rowh() - 1);
+        d->kitem[n] = it; d->kgroup[n] = g;
         if (iw > colw) colw = iw;
         row++; n++;
       }
-      { int k; for (k = colstart; k < n; k++) if (d->item[k].x1 < d->item[k].x0 + colw - 1 && tab->groups[g].items[gr->n - (n - k)].kind != K_FIELD) d->item[k].x1 = (WORD)(d->item[k].x0 + colw - 1); }
+      { int k; for (k = colstart; k < n; k++) if (d->item[k].x1 < d->item[k].x0 + colw - 1 && d->kitem[k]->kind != K_FIELD) d->item[k].x1 = (WORD)(d->item[k].x0 + colw - 1); }
     }
   placed:
     d->group[d->ngroup].x0 = (WORD)x; d->group[d->ngroup].x1 = (WORD)(x + w - 1);
@@ -981,17 +1074,15 @@ static void layout_ribbon(struct RData *d, Object *obj)
   }
   d->nitem = n;
 }
-/* the tab's items in order (gallery included), as layout_ribbon numbered them */
-/* item k of the shown tab and its group's number (in *group, if given), or NULL */
+/* placed item k's tool (NULL for a collapsed group's button, or out of range) and its group's number
+   (in *group, if given) */
 static const Item *nth_item(struct RData *d, int k, int *group)
 {
-  const Tab *tab = &tabs[d->tab];
-  int g, i, n = 0;
-  if (!tab->groups) return NULL;
-  for (g = 0; g < tab->n; g++)
-    for (i = 0; i < tab->groups[g].n; i++) { if (n == k) { if (group) *group = g; return &tab->groups[g].items[i]; } n++; }
-  return NULL;
+  if (k < 0 || k >= d->nitem) return NULL;
+  if (group) *group = d->kgroup[k];
+  return d->kitem[k];
 }
+static int is_group_button(struct RData *d, int k) { return k >= 0 && k < d->nitem && !d->kitem[k]; }
 
 /* ------------------------------------------------------------------ */
 /* drawing */
@@ -1037,6 +1128,34 @@ static void draw_item(struct RData *d, Object *obj, int k)
   RBox *b = &d->item[k];
   int en, on, hot, pr;
   LONG bg;
+  if (is_group_button(d, k)) {
+    /* (WP26) a collapsed group: its first tool's icon, its name (on two lines if need be) and an arrow */
+    const Group *gr = &tabs[d->tab].groups[d->kgroup[k]];
+    const Item *ic = NULL;
+    const char *nm = tr(gr->name);
+    LONG lw, w2, cx;
+    int i, sp;
+    for (i = 0; i < gr->n && !ic; i++) if (gr->items[i].icon || gr->items[i].xicon) ic = &gr->items[i];
+    theme_fill(rp, b->x0, b->y0, b->x1, b->y1, d->pressed == k ? tpen(T_PRESSED) : d->hot == k ? tpen(T_HOVER) : tpen(T_RIBBON));
+    if (ic) item_icon(rp, ic, b->x0 + (b->x1 - b->x0 + 1 - 24) / 2, b->y0 + 4, 24, 0);
+    else theme_icon(rp, IC_STYLESPANE, b->x0 + (b->x1 - b->x0 + 1 - 24) / 2, b->y0 + 4, 24, 0);
+    sp = squeeze ? split_at(rp, nm, &w2) : 0;
+    SetFont(rp, theme_font()); SetAPen(rp, tpen(T_TEXT)); SetDrMd(rp, JAM1);
+    if (sp) {
+      LONG a = TextLength(rp, (STRPTR)nm, (ULONG)sp), c = TextLength(rp, (STRPTR)nm + sp + 1, (ULONG)strlen(nm + sp + 1));
+      Move(rp, b->x0 + (b->x1 - b->x0 + 1 - a) / 2, b->y0 + 30 + theme_font()->tf_Baseline); Text(rp, (STRPTR)nm, (ULONG)sp);
+      cx = b->x0 + (b->x1 - b->x0 + 1 - c - 10) / 2;
+      Move(rp, cx, b->y0 + 30 + fh() + theme_font()->tf_Baseline); Text(rp, (STRPTR)nm + sp + 1, (ULONG)strlen(nm + sp + 1));
+      theme_icon(rp, IC_ARROWDOWN, cx + c + 2, b->y0 + 30 + fh() + (fh() - 8) / 2, 8, 0);
+    } else {
+      struct TextExtent te;
+      ULONG fit = TextFit(rp, (STRPTR)nm, (ULONG)strlen(nm), &te, NULL, 1, (ULONG)(b->x1 - b->x0 - 1), 100);
+      lw = te.te_Width;
+      Move(rp, b->x0 + (b->x1 - b->x0 + 1 - lw) / 2, b->y0 + 31 + theme_font()->tf_Baseline); Text(rp, (STRPTR)nm, fit);
+      theme_icon(rp, IC_ARROWDOWN, b->x0 + (b->x1 - b->x0 + 1 - 8) / 2, b->y0 + 31 + fh(), 8, 0);
+    }
+    return;
+  }
   if (!it || k >= d->nitem) return;
   en = item_enabled(d, it); on = item_on(d, it); hot = d->hot == k && en; pr = d->pressed == k && en;
   if (it->kind == K_GALLERY && d->galcompact) {
@@ -1199,13 +1318,40 @@ static void draw_tabs(struct RData *d, Object *obj)
                  tpen(act || tabs[t].contextual ? T_ACCENT : T_TEXT));
     if (act) theme_fill(rp, b->x0 + (b->x1 - b->x0 + 1 - w) / 2, b->y1 - 1, b->x0 + (b->x1 - b->x0 + 1 + w) / 2, b->y1, tpen(T_ACCENT));
   }
-  for (t = 0; t < NQA; t++) {
+  for (t = 0; t < nqa; t++) {
     RBox *b = &d->qa[t];
-    int en = item_enabled(d, &g_undo[t]);
+    int en = item_enabled(d, &qaitem[t]);
     if (b->x0 < 0) continue;
-    if (item_on(d, &g_undo[t])) theme_fill(rp, b->x0, b->y0 + 1, b->x1, b->y1 - 1, tpen(T_CHECKED));     /* (WP24: AutoSave on) */
+    if (item_on(d, &qaitem[t])) theme_fill(rp, b->x0, b->y0 + 1, b->x1, b->y1 - 1, tpen(T_CHECKED));     /* (WP24: AutoSave on) */
     if (d->hot == 200 + t && en) theme_fill(rp, b->x0, b->y0 + 1, b->x1, b->y1 - 1, tpen(T_HOVER));
-    item_icon(rp, &g_undo[t], b->x0 + 3, b->y0 + (b->y1 - b->y0 + 1 - 16) / 2, 16, !en);
+    if (qaitem[t].icon || qaitem[t].xicon) item_icon(rp, &qaitem[t], b->x0 + 3, b->y0 + (b->y1 - b->y0 + 1 - 16) / 2, 16, !en);
+    else {
+      /* (WP26) a command without an icon: the first two letters of its name in a small box */
+      char nm[48], two[3];
+      ribbon_item_name(&qaitem[t], nm, sizeof nm);
+      strncpy(two, tr(nm), 2); two[2] = 0;
+      theme_rect(rp, b->x0 + 3, b->y0 + 2, b->x1 - 2, b->y1 - 2, tpen(T_BORDER2));
+      theme_text(rp, theme_font(), b->x0 + (b->x1 - b->x0 + 1 - theme_textlen(rp, theme_font(), two)) / 2, b->y0 + (b->y1 - b->y0 + 1 - fh()) / 2, two, tpen(en ? T_TEXT : T_DISABLED));
+    }
+  }
+  /* (WP26) the arrow that customizes the Quick Access Toolbar, and the Tell Me box */
+  if (d->qamore.x0 >= 0) {
+    RBox *b = &d->qamore;
+    if (d->hot == QA_MORE) theme_fill(rp, b->x0, b->y0 + 1, b->x1, b->y1 - 1, tpen(T_HOVER));
+    SetAPen(rp, tpen(T_ICON));
+    Move(rp, b->x0 + 3, b->y0 + 5); Draw(rp, b->x1 - 3, b->y0 + 5);
+    theme_icon(rp, IC_ARROWDOWN, b->x0 + 2, b->y0 + 8, 8, 0);
+  }
+  if (d->tell.x0 >= 0) {
+    RBox *b = &d->tell;
+    LONG cy = (b->y0 + b->y1) / 2;
+    theme_fill(rp, b->x0, b->y0, b->x1, b->y1, tpen(d->hot == QA_TELL ? T_HOVER : T_WHITE));
+    theme_rect(rp, b->x0, b->y0, b->x1, b->y1, tpen(d->hot == QA_TELL ? T_ACCENT : T_BORDER2));
+    /* a magnifier */
+    SetAPen(rp, tpen(T_ICON));
+    DrawEllipse(rp, b->x0 + 8, cy - 1, 4, 4);
+    Move(rp, b->x0 + 11, cy + 2); Draw(rp, b->x0 + 15, cy + 6); Move(rp, b->x0 + 12, cy + 2); Draw(rp, b->x0 + 16, cy + 6);
+    if (b->x1 - b->x0 > 30) theme_text(rp, theme_font(), b->x0 + 20, cy - fh() / 2, "Tell me", tpen(T_DIM));
   }
 }
 /* the whole ribbon, laid out afresh: tabs, items, then each group's caption and the line after it */
@@ -1277,16 +1423,41 @@ static LONG pop_rowh(struct PData *p);
    longer the active window, so a click anywhere else dismisses it. The width is worked out here
    before opening because MUI asks the list's size (MUIM_AskMinMax) as the window opens. The font
    list measures each name in its own font, which is slow, so the window sleeps (busy pointer) meanwhile */
+static void open_list_box(struct RData *d, Object *obj, const Item *it, const RBox *box, const List *l);
 static void open_list(struct RData *d, Object *obj, int k)
 {
-  int g;
-  const Item *it = nth_item(d, k, &g);
-  const List *l;
+  const Item *it = nth_item(d, k, NULL);
+  if (!it || k >= d->nitem) return;
+  d->popgroup = -1;
+  open_list_box(d, obj, it, &d->item[k], item_list(it));
+}
+/* (WP26) a collapsed group's list: its tools by name (a list's "..." after it) */
+static void open_group(struct RData *d, Object *obj, int k)
+{
+  const Group *gr = &tabs[d->tab].groups[d->kgroup[k]];
+  int i, n = 0;
+  for (i = 0; i < gr->n && n < 40; i++) {
+    const Item *it = &gr->items[i];
+    char nm[48];
+    if (it->kind == K_LABEL) continue;
+    ribbon_item_name(it, nm, sizeof nm);
+    strncpy(d->gbuf[n], tr(nm), sizeof d->gbuf[n] - 1); d->gbuf[n][sizeof d->gbuf[n] - 1] = 0;
+    if ((it->kind == K_DROP || it->kind == K_FIELD || it->kind == K_GALLERY) && !strstr(d->gbuf[n], "..."))
+      strncat(d->gbuf[n], "...", sizeof d->gbuf[n] - 1 - strlen(d->gbuf[n]));
+    d->glabels[n] = d->gbuf[n]; d->gidx[n] = i; n++;
+  }
+  d->glabels[n] = NULL;
+  d->glist.labels = d->glabels; d->glist.n = n; d->glist.kind = PL_TEXT; d->glist.colors = NULL;
+  open_list_box(d, obj, NULL, &d->item[k], &d->glist);
+  d->popgroup = d->kgroup[k];
+}
+/* the list l of tool it (NULL: a collapsed group's) under box */
+static void open_list_box(struct RData *d, Object *obj, const Item *it, const RBox *box, const List *l)
+{
   struct PData *pd;
   LONG x, y, w = 150;
   struct Window *win = _window(obj);
-  if (!it || !win) return;
-  l = item_list(it);
+  if (!win || !l) return;
   if (!d->popwin) {
     d->poplist = NewObject(pcls->mcc_Class, NULL, MUIA_FillArea, FALSE, TAG_DONE);
     d->popwin = QWindowObject, MUIA_Window_Borderless, TRUE, MUIA_Window_CloseGadget, FALSE, MUIA_Window_DepthGadget, FALSE,
@@ -1319,12 +1490,12 @@ static void open_list(struct RData *d, Object *obj, int k)
   }
   else if (l->kind == PL_FONTS) { pd->labels = ribbon_font_names(d->st.fs); for (pd->n = 0; pd->labels[pd->n]; pd->n++) ; }
   else { pd->n = l->n; pd->labels = l->labels; }
-  d->popitem = k;
+  d->popit = it; d->popbox = *box;
   pd->cols = 1;
   if (l->kind == PL_FONTS) {
     /* each name in its own font; in as many columns as keep the list on the screen */
     int i, rows;
-    LONG cw = 120, room = _screen(obj)->Height - (win->TopEdge + d->item[k].y1 + 1) - 8;
+    LONG cw = 120, room = _screen(obj)->Height - (win->TopEdge + box->y1 + 1) - 8;
     set(_win(obj), MUIA_Window_Sleep, TRUE);
     for (i = 0; i < pd->n; i++) {
       Face *f = d->st.fs ? fonts_face(d->st.fs, pd->labels[i], 0, 0) : NULL;
@@ -1358,10 +1529,10 @@ static void open_list(struct RData *d, Object *obj, int k)
     }
   }
   if (l->kind == PL_TSTYLES) w = w * TS_COLS;
-  if (d->item[k].x1 - d->item[k].x0 + 1 > w) w = d->item[k].x1 - d->item[k].x0 + 1;
+  if (box->x1 - box->x0 + 1 > w) w = box->x1 - box->x0 + 1;
   pd->w = w;
-  x = win->LeftEdge + d->item[k].x0; y = win->TopEdge + d->item[k].y1 + 1;
-  if (it->kind == K_GALLERY && !d->galcompact) { x = win->LeftEdge + d->galmore.x0 - w + 12; y = win->TopEdge + d->galmore.y1 + 1; }
+  x = win->LeftEdge + box->x0; y = win->TopEdge + box->y1 + 1;
+  if (it && it->kind == K_GALLERY && !d->galcompact && box->x0 == d->gal.x0) { x = win->LeftEdge + d->galmore.x0 - w + 12; y = win->TopEdge + d->galmore.y1 + 1; }
   if (x + w > _screen(obj)->Width) x = _screen(obj)->Width - w;
   if (x < 0) x = 0;
   SetAttrs(d->popwin, MUIA_Window_LeftEdge, x, MUIA_Window_TopEdge, y, TAG_DONE);
@@ -1370,10 +1541,22 @@ static void open_list(struct RData *d, Object *obj, int k)
   set(d->popwin, MUIA_Window_Open, TRUE);
 }
 /* a choice from a list (or a style from the gallery) */
+/* (k: the placed item, or -1 for the list open: d->popit's, or a collapsed group's) */
 static void chosen(Object *obj, struct RData *d, int k, LONG value)
 {
-  int g;
-  const Item *it = nth_item(d, k, &g);
+  const Item *it = k >= 0 ? nth_item(d, k, NULL) : d->popit;
+  if (k < 0 && d->popgroup >= 0) {
+    /* (WP26) a tool from a collapsed group's list: a button does its command, a list opens (once this one has gone) */
+    const Group *gr = &tabs[d->tab].groups[d->popgroup];
+    d->popgroup = -1;
+    if (value < 0 || value >= d->glist.n) return;
+    it = &gr->items[d->gidx[value]];
+    if (it->kind == K_DROP || it->kind == K_FIELD || it->kind == K_GALLERY) {
+      d->defer = it; d->deferbox = d->popbox;
+      DoMethod(_app(obj), MUIM_Application_PushMethod, (ULONG)obj, 1, MUIM_Ribbon_Deferred);
+    } else if (item_enabled(d, it)) DoMethod(_app(obj), MUIM_Application_ReturnID, (ULONG)it->id);
+    return;
+  }
   if (!it) return;
   d->value = value;
   if (it->id == ID_PENSTYLE) d->penstyle = (int)value;          /* the pen shows in its fields */
@@ -1579,7 +1762,7 @@ static ULONG popdispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj,
         LONG value = p->l->kind == PL_STYLES ? p->r->galstyle[i] : p->l->kind == PL_TSTYLES ? p->r->tsval[i] : p->l->kind == PL_COLOR ? (LONG)p->l->colors[i] : i;
         if (p->l == &lists[L_SIZES]) value = atoi(p->labels[i]) * 2 + (strchr(p->labels[i], '.') ? 1 : 0);
         DoMethod(_app(obj), MUIM_Application_PushMethod, (ULONG)win, 3, MUIM_Set, MUIA_Window_Open, FALSE);
-        chosen(p->ribbon, p->r, p->r->popitem, value);
+        chosen(p->ribbon, p->r, -1, value);
       }
     }
     return 0;
@@ -1619,14 +1802,17 @@ static int on_arrow(struct RData *d, const Item *it, int k, WORD x, WORD y)
 static int hit(struct RData *d, WORD mx, WORD my)
 {
   int k, t;
-  for (t = 0; t < NQA; t++)
+  for (t = 0; t < nqa; t++)
     if (d->qa[t].x0 >= 0 && mx >= d->qa[t].x0 && mx <= d->qa[t].x1 && my >= d->qa[t].y0 && my <= d->qa[t].y1) return 200 + t;
+  if (d->qamore.x0 >= 0 && mx >= d->qamore.x0 && mx <= d->qamore.x1 && my >= d->qamore.y0 && my <= d->qamore.y1) return QA_MORE;
+  if (d->tell.x0 >= 0 && mx >= d->tell.x0 && mx <= d->tell.x1 && my >= d->tell.y0 && my <= d->tell.y1) return QA_TELL;
   for (t = 0; t < NTABS; t++)
     if (d->tabbox[t].x0 >= 0 && mx >= d->tabbox[t].x0 && mx <= d->tabbox[t].x1 && my >= d->tabbox[t].y0 && my <= d->tabbox[t].y1) return 100 + t;
   for (k = 0; k < d->nitem; k++)
     if (mx >= d->item[k].x0 && mx <= d->item[k].x1 && my >= d->item[k].y0 && my <= d->item[k].y1) return k;
   return -1;
 }
+static void kt_draw(struct RData *d, Object *obj);      /* (WP26, below) */
 /* whether x, y is in b, edges included */
 static int in_box(RBox *b, WORD x, WORD y) { return x >= b->x0 && x <= b->x1 && y >= b->y0 && y <= b->y1; }
 /* after the hover moved from old to d->hot, only what changed drawn again (the tabs, or two items) */
@@ -1635,6 +1821,7 @@ static void redraw_hot(struct RData *d, Object *obj, int old)
   if (old >= 100 || d->hot >= 100) draw_tabs(d, obj);
   if (old >= 0 && old < 100) draw_item(d, obj, old);
   if (d->hot >= 0 && d->hot < 100) draw_item(d, obj, d->hot);
+  if (d->kt) kt_draw(d, obj);                  /* (WP26: the KeyTips stay on top) */
 }
 /* the ribbon's MUIM_HandleEvent (its handler is added in MUIM_Setup by theme_handler). MUI hands
    it every mouse event in the window, so it checks the pointer is over the ribbon first. A button
@@ -1652,12 +1839,22 @@ static ULONG events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent *m)
     return 0;
   }
   if (im->Class != IDCMP_MOUSEBUTTONS) return 0;
+  if (im->Code == SELECTDOWN && d->kt) { d->kt = 0; MUI_Redraw(obj, MADF_DRAWOBJECT); }     /* (WP26) a click ends KeyTips */
   if (im->Code == SELECTDOWN) {
     if (im->MouseX < _mleft(obj) || im->MouseX > _mright(obj) || im->MouseY < _mtop(obj) || im->MouseY > _mbottom(obj)) return 0;
     h = hit(d, im->MouseX, im->MouseY);
+    if (h == QA_MORE) { wp_options_open(OP_QAT); return MUI_EventHandlerRC_Eat; }               /* (WP26) */
+    if (h == QA_TELL) {
+      struct Window *w = _window(obj);
+      if (w) wp26_tellme_open(w->LeftEdge + d->tell.x0, w->TopEdge + d->tell.y1 + 1);
+      return MUI_EventHandlerRC_Eat;
+    }
     if (h >= 200) {
-      /* quick access Undo or Redo */
-      if (item_enabled(d, &g_undo[h - 200])) DoMethod(_app(obj), MUIM_Application_ReturnID, (ULONG)g_undo[h - 200].id);
+      /* quick access Save, Undo, Redo and the user's own (a list opens under its button) */
+      const Item *qi = &qaitem[h - 200];
+      if (!item_enabled(d, qi)) return MUI_EventHandlerRC_Eat;
+      if ((qi->kind == K_DROP || qi->kind == K_FIELD || qi->kind == K_GALLERY) && !(qi->flags & F_SPLIT)) { d->popgroup = -1; open_list_box(d, obj, qi, &d->qa[h - 200], item_list(qi)); }
+      else DoMethod(_app(obj), MUIM_Application_ReturnID, (qi->flags & F_SPLIT) ? (qi->split ? (ULONG)qi->split : split_id(qi->id)) : (ULONG)qi->id);
       return MUI_EventHandlerRC_Eat;
     }
     if (h >= 100) {
@@ -1669,6 +1866,7 @@ static ULONG events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent *m)
     if (h >= 0) {
       int g;
       const Item *it = nth_item(d, h, &g);
+      if (is_group_button(d, h)) { d->pressed = h; draw_item(d, obj, h); return MUI_EventHandlerRC_Eat; }   /* (WP26) */
       if (!it || !item_enabled(d, it) || it->kind == K_LABEL) return MUI_EventHandlerRC_Eat;
       if (it->kind == K_GALLERY && !d->galcompact) {
         WORD x = im->MouseX, y = im->MouseY;
@@ -1701,6 +1899,7 @@ static ULONG events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent *m)
     const Item *it = nth_item(d, k, &g);
     d->pressed = -1;
     draw_item(d, obj, k);
+    if (is_group_button(d, k) && hit(d, im->MouseX, im->MouseY) == k) { open_group(d, obj, k); return MUI_EventHandlerRC_Eat; }   /* (WP26) */
     if (it && hit(d, im->MouseX, im->MouseY) == k) {
       if ((it->flags & F_SPLIT) && !on_arrow(d, it, k, im->MouseX, im->MouseY)) DoMethod(_app(obj), MUIM_Application_ReturnID, it->split ? (ULONG)it->split : split_id(it->id));
       else if (it->kind == K_DROP || it->kind == K_FIELD || it->kind == K_GALLERY) open_list(d, obj, k);
@@ -1709,6 +1908,337 @@ static ULONG events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent *m)
     return MUI_EventHandlerRC_Eat;
   }
   return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* WP26 Customization and discoverability (docs/wordcraft-gap.md; amiga/wp_custom.h): what the user
+   changed (hidden tabs and groups, the custom tab, the Quick Access Toolbar), the commands for Tell Me
+   and the customizing lists, KeyTips, the right-button menu, opening a tool's list by its command,
+   and the check that every tab fits */
+#define MAXRIB 16
+static Object *ribbons[MAXRIB];          /* every ribbon made (one a document window), to redraw them all */
+static ULONG ctx_cmd;                    /* the command right-clicked last */
+ULONG ribbon_ctx_command(void) { return ctx_cmd; }
+/* an item for command id: the quick access defaults', then the tabs' (split buttons by their own command too) */
+const Item *ribbon_item_of(ULONG id)
+{
+  int t, g, i;
+  for (i = 0; i < NQA; i++) if (g_undo[i].id == id) return &g_undo[i];
+  for (t = 0; t < NTABS; t++)
+    for (g = 0; g < alltabs[t].n; g++)
+      for (i = 0; i < alltabs[t].groups[g].n; i++) {
+        const Item *it = &alltabs[t].groups[g].items[i];
+        if (it->kind != K_LABEL && it->id == id) return it;
+      }
+  return NULL;
+}
+int ribbon_is_list(ULONG id)
+{
+  const Item *it = ribbon_item_of(id);
+  return it && (it->kind == K_DROP || it->kind == K_FIELD || it->kind == K_GALLERY) && !(it->flags & F_SPLIT);
+}
+/* an item's name (English): its label, else its help up to a shortcut in brackets or a colon */
+void ribbon_item_name(const Item *it, char *out, size_t cap)
+{
+  const char *h;
+  size_t n;
+  if (!cap) return;
+  out[0] = 0;
+  if (!it) return;
+  if (it->label) { strncpy(out, it->label, cap - 1); out[cap - 1] = 0; return; }
+  if (it->kind == K_GALLERY) { strncpy(out, "Styles", cap - 1); out[cap - 1] = 0; return; }
+  h = it->help ? it->help : "";
+  n = strcspn(h, "(:");
+  while (n && h[n - 1] == ' ') n--;
+  if (n >= cap) n = cap - 1;
+  memcpy(out, h, n); out[n] = 0;
+}
+int ribbon_tab_count(void) { return NTABS; }
+const char *ribbon_tab_name(int t) { return t > TAB_FILE && t < NTABS && t != TAB_CUSTOM && alltabs[t].n ? basetabs[t].name : NULL; }
+int ribbon_tab_contextual(int t) { return t >= 0 && t < NTABS ? basetabs[t].contextual != 0 : 0; }
+int ribbon_tab_groups(int t, const char **names, int max)
+{
+  int g, n = 0;
+  if (t < 0 || t >= NTABS || t == TAB_CUSTOM) return 0;
+  for (g = 0; g < alltabs[t].n && n < max; g++) names[n++] = alltabs[t].groups[g].name;
+  return n;
+}
+/* every command on the tabs, once, at its first place (labels are pointers into the tables: no copies) */
+int ribbon_commands(RibbonCmd *out, int max)
+{
+  int t, g, i, k, n = 0;
+  for (t = 0; t < NTABS; t++) {
+    if (t == TAB_CUSTOM) continue;
+    for (g = 0; g < alltabs[t].n; g++)
+      for (i = 0; i < alltabs[t].groups[g].n && n < max; i++) {
+        const Item *it = &alltabs[t].groups[g].items[i];
+        if (it->kind == K_LABEL || !it->id) continue;
+        for (k = 0; k < n && out[k].id != it->id; k++) ;
+        if (k < n) continue;
+        out[n].id = it->id; out[n].label = it->label; out[n].tab = basetabs[t].name; out[n].group = alltabs[t].groups[g].name; out[n].it = it;
+        n++;
+      }
+  }
+  for (i = 0; i < NQA && n < max; i++) {
+    for (k = 0; k < n && out[k].id != g_undo[i].id; k++) ;
+    if (k == n) { out[n].id = g_undo[i].id; out[n].label = g_undo[i].label; out[n].tab = NULL; out[n].group = NULL; out[n].it = &g_undo[i]; n++; }
+  }
+  return n;
+}
+/* the Quick Access Toolbar's buttons from the user's list: each command's ribbon item, or a plain
+   button named by the command (the menus' commands) */
+static void qa_build(void)
+{
+  ULONG ids[MAXQA];
+  int n = wp26_qat(ids, MAXQA), i;
+  nqa = 0;
+  for (i = 0; i < n; i++) {
+    const Item *it = ribbon_item_of(ids[i]);
+    Item *q = &qaitem[nqa];
+    if (!ids[i]) continue;
+    if (it) *q = *it;
+    else { memset(q, 0, sizeof *q); q->kind = K_BUTTON; q->size = S_SMALL; q->id = (UWORD)ids[i]; q->help = wp26_cmd_name(ids[i]); }
+    q->size = S_SMALL; q->flags &= (u8)~(F_ROW1 | F_NEWCOL | F_CHECK);
+    nqa++;
+  }
+}
+/* the tabs made again from the user's choices, and every ribbon drawn again */
+void ribbon_rebuild(void)
+{
+  int i;
+  build_tabs();
+  for (i = 0; i < MAXRIB; i++)
+    if (ribbons[i]) {
+      struct RData *d = INST_DATA(rcls->mcc_Class, ribbons[i]);
+      if (d->tab >= NTABS || !tabs[d->tab].n) d->tab = 1;
+      if (d->shown && _win(ribbons[i])) MUI_Redraw(ribbons[i], MADF_DRAWOBJECT);
+    }
+}
+
+/* ---- KeyTips (F10, as in Word with Alt or F10). Level 1: a code on each tab, each Quick Access
+   button (1-9) and the Tell Me box (Q); level 2: on each tool of the tab chosen. Typing a code acts:
+   a tab is shown, a button pressed, a list opened; Esc goes back a level */
+static void kt_tabcodes(struct RData *d)
+{
+  const char *names[TAB_N];
+  char codes[TAB_N][3];
+  int t, i;
+  for (t = 0; t < NTABS; t++) names[t] = d->tabbox[t].x0 >= 0 ? tr(tabs[t].name) : NULL;
+  keytips_assign(names, NTABS, codes);
+  for (t = 0; t < NTABS; t++) strcpy(d->ktab[t], codes[t]);
+  /* the Quick Access buttons are numbered, and the Tell Me box is Q unless a tab has it */
+  for (i = 0; i < MAXQA + 2; i++) d->ktab[NTABS + i][0] = 0;
+  for (i = 0; i < nqa && i < 9; i++) if (d->qa[i].x0 >= 0) { d->ktab[NTABS + i][0] = (char)('1' + i); d->ktab[NTABS + i][1] = 0; }
+  if (d->tell.x0 >= 0) {
+    int clash = 0;
+    for (t = 0; t < NTABS; t++) if (d->ktab[t][0] == 'Q') clash = 1;
+    if (!clash) strcpy(d->ktab[NTABS + MAXQA], "Q");
+  }
+}
+static void kt_itemcodes(struct RData *d)
+{
+  static char nm[MAXI][48];
+  const char *names[MAXI];
+  int k;
+  for (k = 0; k < d->nitem; k++) {
+    const Item *it = d->kitem[k];
+    if (!it) strncpy(nm[k], tr(tabs[d->tab].groups[d->kgroup[k]].name), sizeof nm[k] - 1);
+    else if (it->kind == K_LABEL) nm[k][0] = 0;
+    else { char e[48]; ribbon_item_name(it, e, sizeof e); strncpy(nm[k], tr(e), sizeof nm[k] - 1); }
+    nm[k][sizeof nm[k] - 1] = 0;
+    names[k] = nm[k][0] ? nm[k] : NULL;
+  }
+  keytips_assign(names, d->nitem, d->kcode);
+}
+/* a code's badge under the middle of a box */
+static void kt_badge(struct RastPort *rp, const RBox *b, const char *code, int dim, int top)
+{
+  LONG w = theme_textlen(rp, theme_font(), code) + 6, h = fh() + 2, cx = (b->x0 + b->x1) / 2, y = top ? b->y0 + 2 : b->y1 - h + 3;
+  theme_fill(rp, cx - w / 2, y, cx - w / 2 + w - 1, y + h - 1, tpen(dim ? T_RIBBON : T_TEXT));
+  theme_rect(rp, cx - w / 2, y, cx - w / 2 + w - 1, y + h - 1, tpen(T_BORDER2));
+  theme_text(rp, theme_font(), cx - w / 2 + 3, y + 1, code, tpen(dim ? T_DIM : T_WHITE));
+}
+static void kt_draw(struct RData *d, Object *obj)
+{
+  struct RastPort *rp = _rp(obj);
+  size_t tl = strlen(d->ktyped);
+  int t, k;
+  if (d->kt == 1) {
+    for (t = 0; t < NTABS + MAXQA + 1; t++) {
+      const RBox *b = t < NTABS ? &d->tabbox[t] : t < NTABS + MAXQA ? &d->qa[t - NTABS] : &d->tell;
+      if (!d->ktab[t][0] || b->x0 < 0 || strncmp(d->ktab[t], d->ktyped, tl)) continue;
+      kt_badge(rp, b, d->ktab[t], 0, 0);
+    }
+  } else if (d->kt == 2) {
+    for (k = 0; k < d->nitem; k++) {
+      if (!d->kcode[k][0] || strncmp(d->kcode[k], d->ktyped, tl)) continue;
+      kt_badge(rp, &d->item[k], d->kcode[k], d->kitem[k] && !item_enabled(d, d->kitem[k]), 0);
+    }
+  }
+}
+/* the tool placed at k pressed (by a KeyTip or by its command: a list opens, a button acts) */
+static void press_item(struct RData *d, Object *obj, int k)
+{
+  const Item *it = nth_item(d, k, NULL);
+  if (is_group_button(d, k)) { open_group(d, obj, k); return; }
+  if (!it || !item_enabled(d, it) || it->kind == K_LABEL) return;
+  if (it->kind == K_DROP || it->kind == K_FIELD || it->kind == K_GALLERY) open_list(d, obj, k);
+  else DoMethod(_app(obj), MUIM_Application_ReturnID, (ULONG)it->id);
+}
+static LONG keytip(struct RData *d, Object *obj, LONG key)
+{
+  int m, len;
+  if (key == KT_STOP) { if (d->kt) { d->kt = 0; MUI_Redraw(obj, MADF_DRAWOBJECT); } return 0; }
+  if (key == KT_START) { d->kt = 1; d->ktyped[0] = 0; kt_tabcodes(d); MUI_Redraw(obj, MADF_DRAWOBJECT); return 1; }
+  if (!d->kt) return 0;
+  if (key == 27) {                                        /* Esc: a level back, or out */
+    if (d->ktyped[0]) d->ktyped[0] = 0; else if (d->kt == 2) { d->kt = 1; kt_tabcodes(d); } else d->kt = 0;
+    MUI_Redraw(obj, MADF_DRAWOBJECT);
+    return d->kt != 0;
+  }
+  key = fold_latin1((int)key);
+  if (key >= 'a' && key <= 'z') key -= 32;
+  if (!((key >= 'A' && key <= 'Z') || (key >= '0' && key <= '9'))) return 1;
+  len = (int)strlen(d->ktyped);
+  if (len >= 2) len = 0;
+  d->ktyped[len] = (char)key; d->ktyped[len + 1] = 0;
+  if (d->kt == 1) {
+    m = keytips_match(d->ktab, NTABS + MAXQA + 2, d->ktyped);
+    if (m == -1) { MUI_Redraw(obj, MADF_DRAWOBJECT); return 1; }
+    d->ktyped[0] = 0;
+    if (m == -2) { MUI_Redraw(obj, MADF_DRAWOBJECT); return 1; }
+    if (m == TAB_FILE) { d->kt = 0; DoMethod(_app(obj), MUIM_Application_ReturnID, ID_FILETAB); MUI_Redraw(obj, MADF_DRAWOBJECT); return 0; }
+    if (m < NTABS) {
+      d->tab = m; d->kt = 2;
+      layout_ribbon(d, obj);
+      kt_itemcodes(d);
+      MUI_Redraw(obj, MADF_DRAWOBJECT);
+      return 1;
+    }
+    d->kt = 0;
+    MUI_Redraw(obj, MADF_DRAWOBJECT);
+    if (m == NTABS + MAXQA) { struct Window *w = _window(obj); if (w) wp26_tellme_open(w->LeftEdge + d->tell.x0, w->TopEdge + d->tell.y1 + 1); }
+    else if (m - NTABS < nqa) {
+      const Item *qi = &qaitem[m - NTABS];
+      if (item_enabled(d, qi)) {
+        if ((qi->kind == K_DROP || qi->kind == K_FIELD || qi->kind == K_GALLERY) && !(qi->flags & F_SPLIT)) { d->popgroup = -1; open_list_box(d, obj, qi, &d->qa[m - NTABS], item_list(qi)); }
+        else DoMethod(_app(obj), MUIM_Application_ReturnID, (qi->flags & F_SPLIT) ? (qi->split ? (ULONG)qi->split : split_id(qi->id)) : (ULONG)qi->id);
+      }
+    }
+    return 0;
+  }
+  m = keytips_match(d->kcode, d->nitem, d->ktyped);
+  if (m == -1) { MUI_Redraw(obj, MADF_DRAWOBJECT); return 1; }
+  d->ktyped[0] = 0;
+  if (m == -2) { MUI_Redraw(obj, MADF_DRAWOBJECT); return 1; }
+  d->kt = 0;
+  MUI_Redraw(obj, MADF_DRAWOBJECT);
+  press_item(d, obj, m);
+  return 0;
+}
+
+/* ---- a tool's list opened by its command (Tell Me, a Quick Access or custom button standing for a
+   list): its tab shown (the current one if it has it) and the list opened under it; a command on no
+   shown tab just runs */
+static void open_by_id(struct RData *d, Object *obj, ULONG id)
+{
+  int pass, t, k, was = d->tab;
+  for (pass = 0; pass < 2; pass++)
+    for (t = pass ? 1 : d->tab; t < NTABS; t++) {
+      if (!tab_visible(d, t) || t == TAB_FILE) { if (!pass) break; continue; }
+      d->tab = t;
+      layout_ribbon(d, obj);
+      for (k = 0; k < d->nitem; k++) {
+        const Item *it = d->kitem[k];
+        int i;
+        if (it && it->id == id) { MUI_Redraw(obj, MADF_DRAWOBJECT); press_item(d, obj, k); return; }
+        if (!it && is_group_button(d, k)) {
+          const Group *gr = &tabs[t].groups[d->kgroup[k]];
+          for (i = 0; i < gr->n; i++)
+            if (gr->items[i].id == id && gr->items[i].kind != K_LABEL) {
+              MUI_Redraw(obj, MADF_DRAWOBJECT);
+              d->popgroup = -1;
+              if (gr->items[i].kind == K_BUTTON) DoMethod(_app(obj), MUIM_Application_ReturnID, id);
+              else open_list_box(d, obj, &gr->items[i], &d->item[k], item_list(&gr->items[i]));
+              return;
+            }
+        }
+      }
+      if (!pass) break;
+    }
+  d->tab = was;
+  DoMethod(_app(obj), MUIM_Application_ReturnID, id);
+}
+
+/* ---- the right-button menu over the ribbon: the tool under the pointer to the Quick Access Toolbar
+   (or off it), and the customizing panes */
+enum { RC_QAADD = 1, RC_QAREMOVE, RC_QACUST, RC_RIBCUST, RC_TELLME };
+static void rctx_item(Object *menu, const char *title, ULONG ud, int en)
+{
+  Object *it = MenuitemObject, MUIA_Menuitem_Title, (ULONG)title, MUIA_UserData, ud, MUIA_Menuitem_Enabled, en, End;
+  if (it) DoMethod(menu, MUIM_Family_AddTail, (ULONG)it);
+}
+static Object *ctx_build(struct RData *d, Object *obj, LONG mx, LONG my)
+{
+  int k = hit(d, (WORD)mx, (WORD)my), onqa = k >= 200 && k < 200 + nqa;
+  const Item *it = onqa ? &qaitem[k - 200] : k >= 0 && k < 100 ? nth_item(d, k, NULL) : NULL;
+  if (!d->ctxstrip) return NULL;
+  if (d->ctxmenu) { DoMethod(d->ctxstrip, MUIM_Family_Remove, (ULONG)d->ctxmenu); MUI_DisposeObject(d->ctxmenu); d->ctxmenu = NULL; }
+  if (!(d->ctxmenu = MenuObject, MUIA_Menu_Title, (ULONG)tr("Ribbon"), End)) return NULL;
+  ctx_cmd = it && it->kind != K_LABEL ? (it->flags & F_SPLIT ? (it->split ? it->split : split_id(it->id)) : it->id) : 0;
+  if (it && it->kind == K_GALLERY) ctx_cmd = it->id;
+  if (onqa) { ctx_cmd = it->id; rctx_item(d->ctxmenu, tr("Remove from Quick Access Toolbar"), RC_QAREMOVE, 1); }
+  else rctx_item(d->ctxmenu, tr("Add to Quick Access Toolbar"), RC_QAADD, ctx_cmd != 0);
+  rctx_item(d->ctxmenu, (const char *)NM_BARLABEL, 0, 1);
+  rctx_item(d->ctxmenu, tr("Customize Quick Access Toolbar..."), RC_QACUST, 1);
+  rctx_item(d->ctxmenu, tr("Customize the Ribbon..."), RC_RIBCUST, 1);
+  rctx_item(d->ctxmenu, (const char *)NM_BARLABEL, 0, 1);
+  rctx_item(d->ctxmenu, tr("Tell Me..."), RC_TELLME, 1);
+  DoMethod(d->ctxstrip, MUIM_Family_AddTail, (ULONG)d->ctxmenu);
+  return d->ctxstrip;
+}
+static void ctx_choice(struct RData *d, Object *obj, Object *item)
+{
+  ULONG ud = 0;
+  if (!item) return;
+  get(item, MUIA_UserData, &ud);
+  switch (ud) {
+  case RC_QAADD: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_WP26_FIRST + 1); break;      /* (wp_custom.c: ID_CU_QAADD) */
+  case RC_QAREMOVE: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_WP26_FIRST + 2); break;   /* ID_CU_QAREMOVE */
+  case RC_QACUST: wp_options_open(OP_QAT); break;
+  case RC_RIBCUST: wp_options_open(OP_RIBBON); break;
+  case RC_TELLME: { struct Window *w = _window(obj); if (w) wp26_tellme_open(w->LeftEdge + (d->tell.x0 >= 0 ? d->tell.x0 : _mright(obj) - 200), w->TopEdge + _mtop(obj) + tabh()); break; }
+  }
+}
+
+/* ---- the fit check (SetEnv QUILLFIT 1): every tab laid out in every language at this ribbon's
+   width, a line each: what its groups need, whether they fit (and how many were collapsed) */
+static void fit_check(struct RData *d, Object *obj, FILE *f)
+{
+  int lang, t, g, keep = d->tab, keeplang = lang_current(), bad = 0;
+  if (!f || !_rp(obj)) return;
+  d->measuring = 1;
+  for (lang = 0; lang < UI_NLANG; lang++) {
+    lang_set(lang);
+    for (t = 1; t < NTABS; t++) {
+      LONG right = 0, strip;
+      int nc = 0;
+      if (!tabs[t].n) continue;
+      d->tab = t;
+      layout_ribbon(d, obj);
+      for (g = 0; g < d->ngroup; g++) { if (d->group[g].x1 > right) right = d->group[g].x1; nc += d->collapsed[g]; }
+      if (right > _mright(obj)) bad++;
+      strip = 0;
+      for (g = 0; g < NTABS; g++) if (d->tabbox[g].x1 > strip) strip = d->tabbox[g].x1;
+      fprintf(f, "%s %-16s groups %2d collapsed %d squeezed %d right %4ld of %4ld %s; tabs end %ld, cut %ld\n", lang_code(lang), tabs[t].name, d->ngroup, nc, squeeze,
+              (long)(right - _mleft(obj) + 1), (long)_mwidth(obj), right > _mright(obj) ? "OVERFLOW" : "fits", (long)(strip - _mleft(obj) + 1), (long)d->tabcap);
+    }
+  }
+  fprintf(f, "%d overflowing\n", bad);
+  lang_set(keeplang);
+  d->measuring = 0;
+  d->tab = keep;
+  MUI_Redraw(obj, MADF_DRAWOBJECT);
 }
 
 /* the ribbon class's dispatcher. MUI sends every method here and what isn't handled goes to Area;
@@ -1727,11 +2257,27 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     d->tab = 1; d->hot = d->pressed = -1;
     d->penwidth = 1;                                             /* half a point */
     d->ehn.ehn_Object = obj; d->ehn.ehn_Class = cl; d->ehn.ehn_Events = IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE;
+    d->popgroup = -1;
+    {
+      /* (WP26) known to ribbon_rebuild; the right-button menu's strip (made with a menu in it: MUI
+         turns it into Intuition menus when the window opens, and an empty one isn't safe there) */
+      int i;
+      for (i = 0; i < MAXRIB && ribbons[i]; i++) ;
+      if (i < MAXRIB) ribbons[i] = obj;
+      d->ctxstrip = MenustripObject,
+        MUIA_Family_Child, d->ctxmenu = MenuObject, MUIA_Menu_Title, (ULONG)"Ribbon",
+          MUIA_Family_Child, MenuitemObject, MUIA_Menuitem_Title, (ULONG)"Tell Me...", MUIA_UserData, RC_TELLME, End,
+        End,
+      End;
+      if (d->ctxstrip) set(obj, MUIA_ContextMenu, (ULONG)d->ctxstrip);
+    }
     return (ULONG)obj;
   case OM_DISPOSE: {
     int i;
     d = INST_DATA(cl, obj);
     for (i = 0; i < MAXGAL; i++) if (d->galfont[i]) theme_close_font(d->galfont[i]);
+    for (i = 0; i < MAXRIB; i++) if (ribbons[i] == obj) ribbons[i] = NULL;
+    if (d->ctxstrip) { set(obj, MUIA_ContextMenu, 0); MUI_DisposeObject(d->ctxstrip); d->ctxstrip = d->ctxmenu = NULL; }
     break;
   }
   case OM_GET: {
@@ -1746,6 +2292,7 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     d = INST_DATA(cl, obj);
     while ((t = NextTagItem(&tags)))
       if (t->ti_Tag == MUIA_Ribbon_Tab && t->ti_Data < NTABS) { d->tab = (int)t->ti_Data; if (_win(obj)) MUI_Redraw(obj, MADF_DRAWOBJECT); }
+      else if (t->ti_Tag == MUIA_Ribbon_Value) d->value = (LONG)t->ti_Data;     /* (WP26: the mini toolbar's colours) */
     break;
   }
   case MUIM_AskMinMax: {
@@ -1768,7 +2315,32 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     break;
   case MUIM_Draw:
     DoSuperMethodA(cl, obj, msg);
-    if (((struct MUIP_Draw *)msg)->flags & (MADF_DRAWOBJECT | MADF_DRAWUPDATE)) draw_all(INST_DATA(cl, obj), obj);
+    if (((struct MUIP_Draw *)msg)->flags & (MADF_DRAWOBJECT | MADF_DRAWUPDATE)) {
+      draw_all(INST_DATA(cl, obj), obj);
+      if (((struct RData *)INST_DATA(cl, obj))->kt) kt_draw(INST_DATA(cl, obj), obj);   /* (WP26) */
+    }
+    return 0;
+  case MUIM_ContextMenuBuild: {                                   /* (WP26) */
+    struct MUIP_ContextMenuBuild *m = (struct MUIP_ContextMenuBuild *)msg;
+    return (ULONG)ctx_build(INST_DATA(cl, obj), obj, m->mx, m->my);
+  }
+  case MUIM_ContextMenuChoice:
+    ctx_choice(INST_DATA(cl, obj), obj, ((struct MUIP_ContextMenuChoice *)msg)->item);
+    return 0;
+  case MUIM_Ribbon_KeyTip:
+    return (ULONG)keytip(INST_DATA(cl, obj), obj, ((struct MUIP_Ribbon_KeyTip *)msg)->key);
+  case MUIM_Ribbon_OpenId:
+    d = INST_DATA(cl, obj);
+    if (_win(obj) && d->shown) open_by_id(d, obj, ((struct MUIP_Ribbon_OpenId *)msg)->id);
+    else DoMethod(_app(obj), MUIM_Application_ReturnID, ((struct MUIP_Ribbon_OpenId *)msg)->id);
+    return 0;
+  case MUIM_Ribbon_Deferred:
+    d = INST_DATA(cl, obj);
+    if (d->defer && _win(obj)) { const Item *it = d->defer; d->defer = NULL; d->popgroup = -1; open_list_box(d, obj, it, &d->deferbox, item_list(it)); }
+    return 0;
+  case MUIM_Ribbon_FitCheck:
+    d = INST_DATA(cl, obj);
+    if (_win(obj) && d->shown) fit_check(d, obj, (FILE *)((struct MUIP_Ribbon_FitCheck *)msg)->file);
     return 0;
   case MUIM_Show: ((struct RData *)INST_DATA(cl, obj))->shown = 1; break;
   case MUIM_Hide: ((struct RData *)INST_DATA(cl, obj))->shown = 0; break;
@@ -1786,7 +2358,10 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     int g, k;
     d = INST_DATA(cl, obj);
     k = hit(d, (WORD)m->mx, (WORD)m->my);
-    if (k >= 200 && k < 200 + NQA) it = &g_undo[k - 200];
+    if (k >= 200 && k < 200 + nqa) it = &qaitem[k - 200];
+    else if (k == QA_MORE) { snprintf(help, sizeof help, "\33b%s\33n\n%s", tr("Customize Quick Access Toolbar"), tr("Choose the commands these buttons give.")); return (ULONG)help; }
+    else if (k == QA_TELL) { snprintf(help, sizeof help, "\33b%s\33n  (Help)\n%s", tr("Tell me what you want to do"), tr("Type a few words to find a command and use it.")); return (ULONG)help; }
+    else if (is_group_button(d, k)) { snprintf(help, sizeof help, "\33b%s\33n\n%s", tr(tabs[d->tab].groups[d->kgroup[k]].name), tr("Its tools, in a list (the window is too narrow to show them).")); return (ULONG)help; }
     else if (k < 0 || k >= 100 || !(it = nth_item(d, k, &g)) || !(it->help || it->label)) return 0;
     h = it->help ? tr(it->help) : "";
     keys[0] = 0;
@@ -1849,6 +2424,7 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
         m->right == d->st.right && m->before == d->st.before && m->after == d->st.after && m->font && !strcmp(m->font, d->font) &&
         !memcmp(m->wpon, d->st.wpon, sizeof m->wpon)) return 0;
     d->st = *m;
+    d->kt = 0;                                  /* (WP26: KeyTips end when anything changes) */
     if (m->font) { strncpy(d->font, m->font, sizeof d->font - 1); d->font[sizeof d->font - 1] = 0; }
     d->st.font = d->font;
     if (restyle) { gallery_styles(d); gallery_fonts(d); d->galfirst = 0; }
