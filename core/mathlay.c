@@ -8,6 +8,7 @@
 #include <string.h>
 #include "math.h"
 #include "ttraster.h"
+#include "mathedit.h"     /* WP14b: numbered equations */
 
 /* ------------------------------------------------------------------ */
 /* the outline readers (one per face used), and glyph boxes measured once */
@@ -229,6 +230,9 @@ typedef struct {
   int rec;
   struct { u32 item; i32 x, asc, desc; } brk[64]; int nbrk;
   i32 segasc, segdesc;
+  /* WP14b: the numbered row of a numbered display equation (its # starts the number), the line's
+     width (0 unknown) and the equation's justification (MPJC_) */
+  MNode *eqno; i32 eqroom; int eqjc;
 } Ctx;
 static i32 em_of(Ctx *c, St s)
 {
@@ -877,7 +881,7 @@ static Bx lay_rad(Ctx *c, MNode *n, St st)
 {
   i32 em = em_of(c, st), t = EM(50), xh = EM(c->xh1000), clr, top, bot, h, sw, x0 = 0;
   u32 ia, ie, da = 0, de = 0;
-  int hasdeg = n->pv[P_RAD_DEGHIDE] != MB_ON && n->kid[0] && !(n->kid[0]->nkid == 0);
+  int hasdeg = n->pv[P_RAD_DEGHIDE] != MB_ON && n->kid[0];      /* (WP14b: an empty degree shown, as its placeholder) */
   St ist = st; Bx in, dg = empty_box(), r = empty_box();
   ist.cr = 1;
   in = sub_row(c, n->kid[1], with_sz(n->kid[1], ist), &ia, &ie);
@@ -1350,7 +1354,7 @@ static Atom *more_atoms(Ctx *c, Atom *at, int na, int *cap)
 static Bx lay_row(Ctx *c, MNode *row, St st)
 {
   Atom *at = NULL;
-  int na = 0, cap = 0, i, rec = c->rec;
+  int na = 0, cap = 0, i, rec = c->rec, hash = 0;
   i32 em = em_of(c, st), x = 0;
   u16 k;
   Bx r = empty_box();
@@ -1380,6 +1384,7 @@ static Bx lay_row(Ctx *c, MNode *row, St st)
         memset(&at[na], 0, sizeof at[na]);
         at[na].a = c->L->n;
         if (cp == '&' && rec) at[na].mark = 1;                  /* an equation array's alignment point */
+        else if (cp == '#' && c->eqno == row && !hash) { at[na].mark = 3; hash = na + 1; }   /* WP14b: an equation number follows */
         else at[na].b = lay_char(c, n, cp, rem);
         at[na].e = c->L->n; at[na].n = o == 0 ? n : NULL;
         o += (size_t)used;
@@ -1412,6 +1417,8 @@ static Bx lay_row(Ctx *c, MNode *row, St st)
   c->segasc = c->segdesc = 0;
   for (i = 0; i < na; i++) {
     if (at[i].mark) {
+      if (at[i].n) { at[i].n->x = x; at[i].n->y = 0; }      /* (a run starting with the mark: still somewhere) */
+      if (at[i].mark == 3) { at[i].x = x; continue; }
       if (rec && c->nbrk < 64) { c->brk[c->nbrk].item = at[i].a; c->brk[c->nbrk].x = x; c->brk[c->nbrk].asc = c->segasc; c->brk[c->nbrk].desc = c->segdesc; c->nbrk++; }
       at[i].x = x;
       c->segasc = c->segdesc = 0;
@@ -1438,6 +1445,24 @@ static Bx lay_row(Ctx *c, MNode *row, St st)
     if (at[i].b.asc > c->segasc) c->segasc = at[i].b.asc;
     if (at[i].b.desc > c->segdesc) c->segdesc = at[i].b.desc;
   }
+  if (hash) {
+    /* WP14b: a numbered equation: the equation as justified in the line, its number at the right */
+    int hk = hash - 1;
+    i32 xh = at[hk].x, numw = x - xh, gap = EM(600), room = c->eqroom, mx, nx;
+    if (room > 0 && room >= xh + gap + numw) {
+      nx = room - numw;
+      mx = c->eqjc == MPJC_LEFT ? 0 : c->eqjc == MPJC_RIGHT ? nx - gap - xh : (room - xh) / 2;
+      if (mx + xh > nx - gap) mx = nx - gap - xh;
+      if (mx < 0) mx = 0;
+    } else { mx = 0; nx = xh + gap; }
+    for (i = 0; i < na; i++) {
+      i32 dx = i < hk ? mx : nx - xh;
+      shift(c->L, at[i].a, at[i].e, dx, 0);
+      at[i].x += dx;
+      if (at[i].n) at[i].n->x += dx;
+    }
+    x = nx + numw;
+  }
   /* runs: from their first character to the end of their last */
   for (i = 0; i < na; i++) if (at[i].n && at[i].n->kind == MK_RUN) {
     int j = i + 1;
@@ -1448,6 +1473,16 @@ static Bx lay_row(Ctx *c, MNode *row, St st)
       if (at[i + k].b.asc > n->asc) n->asc = at[i + k].b.asc;
       if (at[i + k].b.desc > n->desc) n->desc = at[i + k].b.desc;
     }
+    /* WP14b: each character's x (the editor's caret); a normal-text run is one atom */
+    if (n->pv[P_R_NOR] != MB_ON && n->text) {
+      int nc = j - i, q;
+      if (n->ncx < nc + 1) { free(n->cx); n->ncx = 0; if ((n->cx = (i32 *)malloc((size_t)(nc + 1) * sizeof(i32)))) n->ncx = (u16)(nc + 1); }
+      if (n->cx && n->ncx >= nc + 1) {
+        for (q = 0; q < nc; q++) n->cx[q] = at[i + q].x - at[i].x;
+        n->cx[nc] = n->w;
+        n->ncx = (u16)(nc + 1);
+      }
+    } else if (n->cx) { free(n->cx); n->cx = NULL; n->ncx = 0; }
   }
   if (na) {
     r.lc = 0xFF; r.rc = 0xFF;
@@ -1458,6 +1493,11 @@ static Bx lay_row(Ctx *c, MNode *row, St st)
   r.w = x;
   free(at);
   c->rec = rec;
+  if (!r.w && !r.asc && !r.desc) {
+    /* WP14b: an empty argument (or equation) keeps room for its placeholder, a letter's size */
+    for (k = 0; k < row->nkid && row->kid[k]->kind == MK_RUN && (!row->kid[k]->text || !row->kid[k]->text[0]); k++) ;
+    if (k == row->nkid) { r.w = em * 55 / 100; r.asc = em * 68 / 100; r.desc = em * 8 / 100; r.lc = r.rc = C_ORD; c->segasc = r.asc; c->segdesc = r.desc; }
+  }
   row->w = r.w; row->asc = r.asc; row->desc = r.desc;
   return r;
 }
@@ -1478,7 +1518,8 @@ const MLay *math_layout(FontSet *fs, Doc *d, int k, const CharFmt *f)
   int nln = 0, j;
   u32 ln_i0;
   if (!e) { memset(&none, 0, sizeof none); return &none; }
-  if (e->lay && e->laysize == f->size && e->laycolor == f->color && e->layver == e->ver && e->layfs == (void *)fs && e->laydisp == e->display && e->layfont == f->font)
+  if (e->lay && e->laysize == f->size && e->laycolor == f->color && e->layver == e->ver && e->layfs == (void *)fs && e->laydisp == e->display && e->layfont == f->font &&
+      e->layroom == e->room)
     return e->lay;
   math_lay_free(e->lay); e->lay = NULL;
   if (!(L = (MLay *)calloc(1, sizeof(MLay)))) return NULL;
@@ -1506,6 +1547,10 @@ const MLay *math_layout(FontSet *fs, Doc *d, int k, const CharFmt *f)
   }
   st.lvl = (u8)(e->display ? 0 : 1); st.cr = 0; st.sz = 0;
   em = c.base;
+  if (math_numbered(e)) {           /* WP14b: a numbered display equation spans the line */
+    c.eqno = e->line[0]->kid[0]->kid[0]; c.eqroom = e->room;
+    c.eqjc = e->jc ? e->jc - 1 : c.mp.defjc ? c.mp.defjc - 1 : MPJC_CENTERGROUP;
+  }
   for (i = 0; i < e->nline; i++) {
     Bx b;
     int nb, s;
@@ -1539,5 +1584,6 @@ const MLay *math_layout(FontSet *fs, Doc *d, int k, const CharFmt *f)
   L->w = W; L->asc = firstasc > 0 ? firstasc : 0; L->desc = y + lastdesc;
   if (L->desc < 0) L->desc = 0;
   e->lay = L; e->laysize = f->size; e->laycolor = f->color; e->layver = e->ver; e->layfs = (void *)fs; e->laydisp = e->display; e->layfont = f->font;
+  e->layroom = e->room;
   return L;
 }
