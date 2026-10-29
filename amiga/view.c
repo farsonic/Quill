@@ -48,6 +48,7 @@
 #include "wp_charpara.h"                /* (WP9, WP10) */
 #include "theme.h"
 #include "lang.h"
+#include "wp_protect.h"                 /* (WP7) Restrict Editing */
 
 /* (not in the public MUI 3.8 headers) */
 #ifndef MUIM_GoActive
@@ -1169,6 +1170,15 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
       }
     }
   }
+  /* (WP7) the regions Restrict Editing lets the user edit, shaded */
+  if (wp7_shade(d->doc))
+    for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
+      Box *b = &pl->boxes[k];
+      if (b->w > 0 && b->f.perm && prot_perm_mine(d->doc, b->f.perm)) {
+        SetAPen(rp, pen_bg(d, obj, 0xFFF4B0));
+        RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1);
+      }
+    }
   /* highlighting behind the text (not trailing spaces); page fields on grey, as Word shades fields */
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *b = &pl->boxes[k];
@@ -2442,10 +2452,10 @@ static int flat_range(Doc *doc, Pos a, Pos b)
   return 0;
 }
 /* tracking changes: deletions are marked, insertions carry the author's mark */
-static int tracking(struct Data *d) { return d->tb && (d->tb->uibits & RBIT(RB_TRACK)); }
+static int tracking(struct Data *d) { return (d->tb && (d->tb->uibits & RBIT(RB_TRACK))) || prot_forces_tracking(d->doc); }   /* (WP7: tracked changes only) */
 /* the revision (author and date, from the options) new changes are marked with, added if new; vdelete:
    a deletion within a paragraph or across plain ones, only marked while tracking */
-static int rev_id(struct Data *d) { return doc_add_rev(d->doc, d->tb && d->tb->author ? d->tb->author : "", d->tb && d->tb->revdate ? d->tb->revdate : ""); }
+static int rev_id(struct Data *d) { return doc_add_rev(d->doc, d->tb && d->tb->author ? d->tb->author : prot_user, d->tb && d->tb->revdate ? d->tb->revdate : ""); }
 static void vdelete(struct Data *d, Pos a, Pos b)
 {
   if (tracking(d)) doc_track_delete(d->doc, a, b, rev_id(d));

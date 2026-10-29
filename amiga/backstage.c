@@ -23,6 +23,7 @@
 #include "theme.h"
 #include "ids.h"
 #include "wp_info.h"   /* (WP24) */
+#include "wp_protect.h"   /* (WP7) */
 #include "lang.h"
 #include "../core/template.h"
 
@@ -44,6 +45,7 @@ enum { H_NONE, H_BACK, H_SIDE, H_TEMPLATE, H_RECENT, H_BROWSE, H_PDF, H_TEXT, H_
        H_AUTOSAVE, H_INFO0 };   /* (WP24: AutoSave in Options; H_INFO0 + n: the Info page's buttons) */
 /* (WP24) the Info page's commands: Properties, Check for Issues, Version History, Manage Document */
 static const struct { int icon; const char *title, *sub; ULONG id; } infobtn[] = {
+  { IC_TRACK, "Protect Document", "Encrypt it, or restrict editing", ID_PROT_DOC },   /* (WP7) */
   { IC_INFO, "Properties", "Title, author, keywords and your own", ID_INFO_PROPS },
   { IC_FIND, "Inspect Document", "Comments, changes, personal information", ID_INFO_INSPECT },
   { IC_ALTTEXT, "Check Accessibility", "What makes it hard to read", ID_INFO_ACC },

@@ -117,7 +117,6 @@ int prot_insert_ok(Doc *d, Pos at, const char *s, u32 n)
 int prot_range_ok(Doc *d, Pos a, Pos b, int format)
 {
   u32 pi;
-  (void)format;
   if (unchecked(d)) return allow(d);
   if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
   if (prot_enforced(d) == PR_COMMENTS && a.para == b.para && b.off == a.off + 4 && a.para < d->np && a.off + 4 <= d->p[a.para]->len &&

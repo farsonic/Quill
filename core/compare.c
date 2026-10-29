@@ -97,12 +97,11 @@ static int add_tok(Side *s, const Tok *t)
 /* the end of the stretch of text from off with the same tracked-change state (a token never crosses one) */
 static u32 state_end(const Para *p, u32 off, u8 *rev, u16 *rid)
 {
-  u32 i, start = 0;
-  for (i = 0; i < p->nr; start = p->r[i].end, i++) {
+  u32 i;
+  for (i = 0; i < p->nr; i++) {
     if (p->r[i].end <= off) continue;
     *rev = p->r[i].f.rev; *rid = p->r[i].f.rid;
     while (i + 1 < p->nr && p->r[i + 1].f.rev == *rev && p->r[i + 1].f.rid == *rid) i++;
-    (void)start;
     return p->r[i].end;
   }
   *rev = 0; *rid = 0;
@@ -605,11 +604,10 @@ static void emit_o(Build *b, const Side *O, const Tok *t, int rev, int rid)
     return;
   }
   {
-    u32 k = t->off, e = t->off + t->len, i, start = 0;
-    for (i = 0; i < p->nr && k < e; start = p->r[i].end, i++) {
+    u32 k = t->off, e = t->off + t->len, i;
+    for (i = 0; i < p->nr && k < e; i++) {
       u32 re = p->r[i].end < e ? p->r[i].end : e;
       CharFmt f;
-      (void)start;
       if (re <= k) continue;
       f = o_fmt(b, &p->r[i].f);
       f.rev = (u8)rev; f.rid = (u16)rid;
@@ -675,7 +673,7 @@ static void emit_r(Build *b, const Side *R, const Tok *t, int rev, int rid, cons
 }
 /* the tokens of a side from *at up to k that aren't compared: insertions (marked by their author) and
    tokens carried along (the revised document's kept as they are, the original's dropped) */
-static void flush(Build *b, const Side *S, u32 *at, u32 k, int isr, const Side *O)
+static void flush(Build *b, const Side *S, u32 *at, u32 k, int isr)
 {
   for (; *at < k; (*at)++) {
     const Tok *t = &S->t[*at];
@@ -684,7 +682,6 @@ static void flush(Build *b, const Side *S, u32 *at, u32 k, int isr, const Side *
     if (isr) emit_r(b, S, t, REV_INS, rid_of(b, b->r, t->rid), NULL, NULL);
     else emit_o(b, S, t, REV_INS, rid_of(b, b->o, t->rid));
   }
-  (void)O;
 }
 /* the story rp/rnp (the revised side's, replaced) built again from op/onp and itself */
 static int merge_story(Doc *o, Doc *r, const CompareOpts *opt, Para **op, u32 onp, Para ***rp, u32 *rnp, int accepted, int label)
@@ -716,39 +713,39 @@ static int merge_story(Doc *o, Doc *r, const CompareOpts *opt, Para **op, u32 on
         j++;
       }
       for (k = i; k <= last; k++) {
-        flush(&b, &O, &io, O.base[s.o[k].i], 0, &O);
+        flush(&b, &O, &io, O.base[s.o[k].i], 0);
         emit_o(&b, &O, &O.t[O.base[s.o[k].i]], REV_DEL, label);
         io = O.base[s.o[k].i] + 1;
       }
       for (k = i; k <= last; k++) {
-        flush(&b, &R, &ir, R.base[s.o[k].j], 1, &O);
+        flush(&b, &R, &ir, R.base[s.o[k].j], 1);
         emit_r(&b, &R, &R.t[R.base[s.o[k].j]], REV_INS, label, NULL, NULL);
         ir = R.base[s.o[k].j] + 1;
       }
       i = last;
     } else if (x->op == OP_EQ) {
       const Tok *ot = &O.t[O.base[x->i]], *rt = &R.t[R.base[x->j]];
-      flush(&b, &O, &io, O.base[x->i], 0, &O);
-      flush(&b, &R, &ir, R.base[x->j], 1, &O);
+      flush(&b, &O, &io, O.base[x->i], 0);
+      flush(&b, &R, &ir, R.base[x->j], 1);
       if (ot->rev == REV_DEL && rt->kind != TK_PARA) emit_r(&b, &R, rt, REV_DEL, rid_of(&b, o, ot->rid), NULL, NULL);
       else if (rt->rev == REV_DEL) emit_r(&b, &R, rt, REV_DEL, rid_of(&b, r, rt->rid), NULL, NULL);
       else emit_r(&b, &R, rt, 0, 0, &O, ot);
       io = O.base[x->i] + 1; ir = R.base[x->j] + 1;
     } else if (x->op == OP_DEL) {
       const Tok *ot = &O.t[O.base[x->i]];
-      flush(&b, &O, &io, O.base[x->i], 0, &O);
+      flush(&b, &O, &io, O.base[x->i], 0);
       emit_o(&b, &O, ot, REV_DEL, ot->rev == REV_DEL ? rid_of(&b, o, ot->rid) : label);
       io = O.base[x->i] + 1;
     } else {
       const Tok *rt = &R.t[R.base[x->j]];
-      flush(&b, &R, &ir, R.base[x->j], 1, &O);
+      flush(&b, &R, &ir, R.base[x->j], 1);
       if (rt->kind == TK_PARA) emit_r(&b, &R, rt, 0, 0, NULL, NULL);       /* (a new paragraph: its break can't be marked) */
       else if (rt->rev != REV_DEL) emit_r(&b, &R, rt, REV_INS, label, NULL, NULL);
       ir = R.base[x->j] + 1;
     }
   }
-  flush(&b, &O, &io, O.n, 0, &O);
-  flush(&b, &R, &ir, R.n, 1, &O);
+  flush(&b, &O, &io, O.n, 0);
+  flush(&b, &R, &ir, R.n, 1);
   if (b.cur) {
     /* text after the revised side's last paragraph mark (what only the original had at its end) */
     if (b.nout) {

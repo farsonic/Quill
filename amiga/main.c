@@ -70,6 +70,7 @@ extern struct WBStartup *_WBenchMsg;
 #include "wphooks.h"
 #include "wp_charpara.h"                /* (WP9, WP10) */
 #include "wp_find.h"                  /* WP12: its ids, for Find's, Select's and Go To's entries */
+#include "../core/protect.h"          /* (WP7) Restrict Editing: tracking can't be turned off */
 void wp12_note(ULONG id, LONG v);       /* WP12 (wp_find.c): each command as it starts, for Repeat */
 
 static struct NewMenu menus[] = {
@@ -3229,6 +3230,7 @@ static void command(ULONG id)
     /* tracking on: changes from now on are the user's, dated now */
     static char au[200], when[24];
     int on = !(uibits & RBIT(RB_TRACK));
+    if (!on && prot_forces_tracking(doc)) { DisplayBeep(NULL); break; }   /* (WP7: Restrict Editing wants every change tracked) */
     latin1_utf8(username[0] ? username : "Quill", au, sizeof au);
     iso_now(when);
     tb.author = au; tb.revdate = when;
