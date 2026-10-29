@@ -759,30 +759,33 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
    round the box's centre (cx, cy twips on the page at pl, pt) */
 static void draw_text_turned(struct Data *d, Object *obj, struct RastPort *rp, const Image *src, const Image *t, i32 cx, i32 cy, LONG pl, LONG pt, Furn *f)
 {
-  int a = (t->rot + (src->fx.vert == TV_VERT ? 900 : src->fx.vert == TV_VERT270 ? 2700 : 0)) % 3600, pass;
+  int a = (t->rot + (src->fx.vert == TV_VERT ? 900 : src->fx.vert == TV_VERT270 ? 2700 : 0)) % 3600, pass, depth, k;
   i32 tw = src->fx.vert ? t->cy : t->cx, th = src->fx.vert ? t->cx : t->cy;
-  LONG W = tx(d, tw) + 2, H = tx(d, th) + 2, depth = GetBitMapAttr(rp->BitMap, BMA_DEPTH), x, y, c = icos(a), sn = isin(a), R, ox, oy, bw, bh;
-  struct BitMap *bm, *tbm = NULL;
-  struct Layer_Info *li;
-  struct Layer *ly;
-  struct RastPort trp;
+  LONG W = tx(d, tw) + 2, H = tx(d, th) + 2, x, y, c = icos(a), sn = isin(a), R, ox, oy, bw, bh, bpr;
+  struct BitMap *bm = NULL;
+  struct Layer_Info *li = NULL;
+  struct Layer *ly = NULL;
   UBYTE *buf[2] = { NULL, NULL }, *row = NULL;
   Pos none;
   u32 j, ln;
-  if (W < 2 || H < 2 || W * H > 1000000) return;
-  if (!(bm = AllocBitMap((ULONG)W, (ULONG)H, (ULONG)depth, BMF_CLEAR, rp->BitMap))) return;
-  if (!(li = NewLayerInfo())) { FreeBitMap(bm); return; }
-  if (!(ly = CreateUpfrontLayer(li, bm, 0, 0, W - 1, H - 1, LAYERSIMPLE, NULL))) { DisposeLayerInfo(li); FreeBitMap(bm); return; }
-  buf[0] = (UBYTE *)AllocVec((ULONG)(((W + 15) & ~15) * H), MEMF_ANY); buf[1] = (UBYTE *)AllocVec((ULONG)(((W + 15) & ~15) * H), MEMF_ANY);
-  tbm = AllocBitMap((ULONG)((W + 15) & ~15), 1, (ULONG)depth, 0, rp->BitMap);
-  row = (UBYTE *)AllocVec((ULONG)(2 * (W + H) + 16), MEMF_ANY);
-  none.para = 0xFFFFFFFFUL; none.off = 0;
-  if (buf[0] && buf[1] && tbm && row) {
+  if (W < 2 || H < 2 || W * H > 600000) return;
+  /* a bitmap of our own as the printing code makes them (planar when it can be: its planes then read
+     directly, else pixel by pixel), with a layer to clip the text to it */
+  depth = (int)GetBitMapAttr(rp->BitMap, BMA_DEPTH);
+  if (depth > 8) depth = 8;
+  if ((bm = AllocBitMap((ULONG)W, (ULONG)H, (ULONG)depth, BMF_CLEAR, NULL)) && (li = NewLayerInfo()) &&
+      (ly = CreateUpfrontLayer(li, bm, 0, 0, W - 1, H - 1, LAYERSIMPLE, NULL)) &&
+      (buf[0] = (UBYTE *)AllocVec((ULONG)(W * H), MEMF_ANY)) && (buf[1] = (UBYTE *)AllocVec((ULONG)(W * H), MEMF_ANY)) &&
+      (row = (UBYTE *)AllocVec((ULONG)(2 * (W + H) + 16), MEMF_ANY))) {
     LONG b0 = d->band0, b1 = d->band1;
+    int planar = (GetBitMapAttr(bm, BMA_FLAGS) & BMF_STANDARD) != 0;
+    bpr = bm->BytesPerRow;
+    none.para = 0xFFFFFFFFUL; none.off = 0;
     d->band0 = 0; d->band1 = 0;                 /* (inline pictures in the box: drawn whole) */
-    InitRastPort(&trp); trp.BitMap = tbm;
     for (pass = 0; pass < 2; pass++) {
-      SetRast(ly->rp, (ULONG)(pass ? d->pen_shadow : d->pen_page));
+      SetAPen(ly->rp, (ULONG)(pass ? d->pen_shadow : d->pen_page));
+      SetDrMd(ly->rp, JAM1);
+      RectFill(ly->rp, 0, 0, W - 1, H - 1);
       for (j = 0; j < f->n; j++) {
         Placed fp;
         memset(&fp, 0, sizeof fp);
@@ -793,7 +796,15 @@ static void draw_text_turned(struct Data *d, Object *obj, struct RastPort *rp, c
           fp.y += f->f[j].pl.lines[ln].height;
         }
       }
-      ReadPixelArray8(ly->rp, 0, 0, (ULONG)(W - 1), (ULONG)(H - 1), buf[pass], &trp);
+      WaitBlit();
+      for (y = 0; y < H; y++)
+        for (x = 0; x < W; x++) {
+          UBYTE v = 0, m = (UBYTE)(0x80 >> (x & 7));
+          LONG o = y * bpr + (x >> 3);
+          if (planar) { for (k = 0; k < depth; k++) if (((UBYTE *)bm->Planes[k])[o] & m) v |= (UBYTE)(1 << k); }
+          else v = (UBYTE)ReadPixel(ly->rp, x, y);
+          buf[pass][y * W + x] = v;
+        }
     }
     d->band0 = b0; d->band1 = b1;
     /* each pixel of the turned frame from the upright one: across in steps of (cos, -sin) */
@@ -809,7 +820,7 @@ static void draw_text_turned(struct Data *d, Object *obj, struct RastPort *rp, c
           long dx = 2 * x + 1 - R, dy = 2 * y + 1 - R, u = (dx * c + dy * sn) / TRIG_ONE, v = (dy * c - dx * sn) / TRIG_ONE;   /* (doubled) */
           LONG su = (LONG)((u + W) >> 1), sv = (LONG)((v + H) >> 1), xx = ox + x;
           if (su >= 0 && sv >= 0 && su < W && sv < H && xx >= 0 && xx < bw) {
-            LONG o = sv * ((W + 15) & ~15) + su;
+            LONG o = sv * W + su;
             if (buf[0][o] == buf[1][o]) { on = 1; row[x] = buf[0][o]; }
           }
         }
@@ -821,8 +832,9 @@ static void draw_text_turned(struct Data *d, Object *obj, struct RastPort *rp, c
   if (row) FreeVec(row);
   if (buf[0]) FreeVec(buf[0]);
   if (buf[1]) FreeVec(buf[1]);
-  if (tbm) FreeBitMap(tbm);
-  DeleteLayer(0, ly); DisposeLayerInfo(li); FreeBitMap(bm);
+  if (ly) DeleteLayer(0, ly);
+  if (li) DisposeLayerInfo(li);
+  if (bm) { WaitBlit(); FreeBitMap(bm); }
 }
 /* a simple object (pt: as obj_parts gives it) with its centre at cx, cy twips on the page at (pl, pt) */
 static void draw_leaf(struct Data *d, Object *obj, struct RastPort *rp, const ObjPart *part, LONG pl, LONG pt, i32 cx, i32 cy)

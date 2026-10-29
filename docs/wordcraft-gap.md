@@ -308,7 +308,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Pictures (Illustrations) `insert.picture` — `ID_PICTURE` (PNG, JPEG only)
 - ➖ Online Pictures (Illustrations) `insert.onlinePicture` — WordCraft doesn't have it either (online service)
 - ✅ Shapes (Illustrations) `insert.shape` — `ID_SHAPESDD` (24 presets, `SH_` in doc.h)
-- ⬜ Icons (Illustrations) `insert.icon` [WP18]
+- ✅ Icons (Illustrations) `insert.icon` — `ID_SH_ICONS` (amiga/wp_shapes.c): a window of 52 icons in six categories, drawn in Quill's own icon language (core/shapex.c), inserted as a shape in its own colour; saved as `a:custGeom` named "Icon: …" in `wp:docPr`, which LibreOffice and Word draw and Quill reads back as the icon [WP18]
 - ➖ 3D Models (Illustrations) `insert.model3d` — WordCraft doesn't have it either
 - ⬜ SmartArt (Illustrations) `insert.smartArt` [WP15c]
 - ⬜ Chart (Illustrations) `insert.chart` [WP15b]
@@ -607,38 +607,38 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Convert to Text (Data) `table.toText` — `ID_TOTEXT`
 - ✅ Formula (Data) `table.formula` — `ID_FORMULA`
 
-### Picture Format (14: ✅ 5 · 🟨 0 · ⬜ 9 · ➖ 0)
+### Picture Format (14: ✅ 14 · 🟨 0 · ⬜ 0 · ➖ 0)
 
-- ⬜ Remove Background (Adjust) `picture.removeBackground` [WP17]
-- ⬜ Corrections (Adjust) `picture.corrections` [WP17]
-- ⬜ Color (Adjust) `picture.color` [WP17]
-- ⬜ Artistic Effects (Adjust) `picture.effects` [WP17]
-- ⬜ Transparency (Adjust) `picture.transparency` [WP17]
-- ⬜ Compress Pictures (Adjust) `picture.compress` [WP17]
-- ⬜ Change Picture (Adjust) `picture.change` [WP17]
-- ⬜ Reset Picture (Adjust) `picture.reset` [WP17]
-- ⬜ Picture Styles (Picture Styles) `picture.style` — Quill's "Picture Styles" group holds only Border/Weight/Dashes; no style presets (frames, shadows, soft edges) [WP17]
+- ✅ Remove Background (Adjust) `picture.removeBackground` — `ID_PIC_REMOVEBG` (amiga/wp_picture.c): the corner colour and those near it made transparent (`ObjFx.bgkey`); saved drawn into the picture with `a14:backgroundRemoval`, Set Transparent Color as `a:clrChange` [WP17]
+- ✅ Corrections (Adjust) `picture.corrections` — `ID_PIC_CORRDD` (sharpen/soften, brightness, contrast) and the Format Picture pane's sliders; `a:lum`, `a14:sharpenSoften` [WP17]
+- ✅ Color (Adjust) `picture.color` — `ID_PIC_COLORDD`: saturation, temperature, greyscale, sepia, washout, black and white, recolour dark/light, Set Transparent Color; `a:grayscl`, `a:biLevel`, `a:duotone`, `a:clrChange`, `a14:saturation`, `a14:colorTemperature` [WP17]
+- ✅ Artistic Effects (Adjust) `picture.effects` — `ID_PIC_ARTDD`: blur, pencil greyscale, line drawing, photocopy, cutout, film grain, glow edges, mosaic (core/objfx.c); saved drawn into the picture with the original as `a14:imgLayer`, as Word does [WP17]
+- ✅ Transparency (Adjust) `picture.transparency` — `ID_PIC_ALPHADD`, `a:alphaModFix`; see-through on the screen (ordered pattern) and in PDFs (soft mask) [WP17]
+- ✅ Compress Pictures (Adjust) `picture.compress` — `ID_PIC_COMPRESS`: 220/150/96 ppi, delete cropped areas, this picture or all; JPEG and PNG writers from Easel (core/picfmt.c) [WP17]
+- ✅ Change Picture (Adjust) `picture.change` — `ID_PIC_CHANGE` (size and formatting kept) [WP17]
+- ✅ Reset Picture (Adjust) `picture.reset` — `ID_PIC_RESETDD` (Reset Picture, Reset Picture & Size) [WP17]
+- ✅ Picture Styles (Picture Styles) `picture.style` — `ID_PIC_STYLEDD`: 14 presets (frames, drop and centre shadows, rounded and snipped corners, ovals, soft edges, metal, rotated), and Picture Effects `ID_PIC_EFFECTSDD`; the picture's geometry (`a:prstGeom`) and `a:effectLst` read and written [WP17]
 - ✅ Picture Border (Picture Styles) `picture.border` — `ID_OBJLINEDD`, `ID_OBJWEIGHTDD`, `ID_OBJDASHDD`
 - ✅ Alt Text (Accessibility) `picture.altText` — `ID_ALTTEXT`
-- ✅ Crop (Size) `picture.crop` — `ID_OBJCROP` (by numbers; no crop by dragging)
+- ✅ Crop (Size) `picture.crop` — `ID_OBJCROP` (by numbers); WP17: crop by dragging the handles (`ID_PIC_CROP`, crop marks on the frame), Crop to Shape, Aspect Ratio
 - ✅ Size (Size) `picture.size` — `ID_OBJSIZE`
 - ✅ Rotation (Size) `arrange.rotation` — `ID_OBJROTDD`, round handle
 
-### Shape Format (13: ✅ 3 · 🟨 1 · ⬜ 9 · ➖ 0)
+### Shape Format (13: ✅ 9 · 🟨 0 · ⬜ 4 · ➖ 0)
 
 - ✅ Alt Text (Accessibility) `object.altText` — `ID_ALTTEXT` (Shape Format's Accessibility group, `o_salt`)
 - ✅ Shape Fill (Shape Styles) `shape.fill` — `ID_OBJFILLDD` (solid colours)
-- ⬜ Shape Fill Gradient (Shape Styles) `shape.fill` [WP18]
-- 🟨 Format Shape Pane (Shape Styles) `view.formatShapePane` — Format window `ID_OBJLAYOUT` (`open_object()`: size, rotation, crop, position, wrapping, alt text) is a window, and has no fill, line or effects [WP18]
+- ✅ Shape Fill Gradient (Shape Styles) `shape.fill` — `ID_SH_GRADDD` (light and dark variations, linear, radial, from the corners), the pane's gradient settings; picture fills `ID_SH_PICFILL`; `a:gradFill`, a shape's `a:blipFill` [WP18]
+- ✅ Format Shape Pane (Shape Styles) `view.formatShapePane` — `ID_SH_PANE`: a pane window beside the page that follows the selection and changes the object as you set it (fill, line, shadow, glow, soft edges, size, rotation, text box alignment, direction and margins; for a picture its corrections, colour, transparency and artistic effect) [WP18]
 - ✅ Shape Outline (Shape Styles) `shape.outline` — `ID_OBJLINEDD`
-- ⬜ Shape Effects (Shape Styles) `shape.effects` [WP18]
+- ✅ Shape Effects (Shape Styles) `shape.effects` — `ID_SH_EFFECTSDD`: shadows, glows, soft edges (`a:outerShdw`, `a:glow`, `a:softEdge`), drawn on the screen and in PDFs [WP18]
 - ⬜ WordArt Quick Styles (WordArt Styles) `wordArt.style` [WP19]
 - ⬜ Text Fill (WordArt Styles) `wordArt.textFill` [WP19]
 - ⬜ Text Outline (WordArt Styles) `wordArt.textOutline` [WP19]
 - ⬜ Text Effects Transform (WordArt Styles) `wordArt.transform` [WP19]
-- ⬜ Text Direction (Text) `shape.textDirection` [WP18]
-- ⬜ Align Text (Text) `shape.alignText` — no text anchoring (top/middle/bottom) in text boxes [WP18]
-- ⬜ Create Link (Text) `shape.link` — no linked text boxes [WP18]
+- ✅ Text Direction (Text) `shape.textDirection` — `ID_SH_TEXTDIRDD` (`bodyPr vert`: across, turned 90° or 270°, drawn turned on the screen and in PDFs) [WP18]
+- ✅ Align Text (Text) `shape.alignText` — `ID_SH_ALIGNDD` (`bodyPr anchor`: top, middle, bottom; core/objtext.c) [WP18]
+- ✅ Create Link (Text) `shape.link` — `ID_SH_LINK` (then click the empty box) and Break Link `ID_SH_UNLINK`; the chain's text flows from box to box (core/objtext.c), `wps:txbx id`/`wps:linkedTxbx` read and written [WP18]
 
 ### Header & Footer (5: ✅ 5 · 🟨 0 · ⬜ 0 · ➖ 0)
 
@@ -784,7 +784,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ⬜ **Export page as image (.png)** — WordCraft `file.exportPng`; Quill none (an IFF ILBM export would suit the Amiga too).
 - ⬜ **Encrypted .docx (open and save with a password)** — WordCraft crates/docx/src/crypt (ECMA-376 agile AES-256, standard encryption). Quill none.
 - ⬜ **Spreadsheets (.xlsx, .xls, .ods, .csv) as mail-merge recipient lists** — WordCraft crates/formats/src/sheet. Quill has no mail merge.
-- 🟨 **Picture formats for Insert › Picture** — Quill: PNG and JPEG (baseline, progressive, CMYK; core/image.c). WordCraft also GIF, WebP, BMP, WMF and EMF (crates/metafile). An Amiga user would also expect IFF ILBM.
+- 🟨 **Picture formats for Insert › Picture** — Quill: PNG and JPEG (baseline, progressive, CMYK; core/image.c); WP17: GIF, BMP and IFF ILBM (EHB, HAM6/8, deep, PBM; readers from Easel in core/picfmt.c), GIF and BMP saved as they are, ILBM as PNG. Not yet: WebP, WMF and EMF (WordCraft has them).
 - ➖ **.json document model** — WordCraft's format for agents (control protocol, left out on purpose).
 
 ### 2.2 DOCX features
@@ -806,7 +806,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ⬜ **WordArt text effects (`w14:textFill`, `w14:textOutline`, `w14:shadow`, `w14:glow`, `w14:reflection`)** — not read.
 - ⬜ **Legacy font effects (`w:outline`, `w:shadow`, `w:emboss`, `w:imprint`)** — not read.
 - ⬜ **OpenType ligatures (`w14:ligatures`)** — not read.
-- 🟨 **DrawingML shapes and text boxes (`wps:`)** — 24 presets (`SH_` in doc.h), solid fill and outline, theme colours with tints and shades, text box text. WordCraft: many more presets (callouts, flowchart), gradient and picture fills, effects, outline caps, `bodyPr` vertical text and anchoring, linked text boxes (`wps:linkedTxbx`); Quill reads rarer presets as rectangles.
+- 🟨 **DrawingML shapes and text boxes (`wps:`)** — 24 presets (`SH_` in doc.h), solid fill and outline, theme colours with tints and shades, text box text; WP18: 69 more presets (basic, block arrows, flowchart, callouts, stars and explosions; core/shapex.c), gradient and picture fills, shadow/glow/soft edge effects, `bodyPr` vertical text, anchoring and insets, linked text boxes, icons (`a:custGeom`). Not yet: outline caps and arrowhead kinds, adjust handles (`a:avLst` values), presets with inner lines (cube, can, smiley) still come in as rectangles, custom geometry in general (WP20).
 - ⬜ **Freeform shapes (`a:custGeom`) and ink** — not read.
 - 🟨 **Group shapes and drawing canvas** — groups (`wpg:`), nested, ✅; drawing canvases (`wpc:`) not read (README roadmap).
 - 🟨 **VML (`w:pict`, `v:shape`, `v:textbox`)** — only Word's text watermark is read and written (docx.c line 927); VML pictures, text boxes and shapes are not read (README "Not read yet"). WordCraft reads VML pictures, text boxes, lines, rectangles, ovals and presets.
@@ -841,7 +841,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ✅ **Section breaks of each kind, each section with its own page setup and headers/footers**.
 - ✅ **Text boxes and shapes with text** — edited in place.
 - 🟨 **Wrap types** — square, tight round the outline, top and bottom, behind, in front ✅; through ⬜; wrap on one side only ⬜.
-- 🟨 **Turned text** — objects turn by any angle, but text in shapes and text boxes stays upright (README 0.11).
+- ✅ **Turned text** — WP18: text in shapes and text boxes turns with them, and turns a quarter for vertical text, on the screen (drawn upright into a bitmap of its own and copied turned, amiga/view.c `draw_text_turned`) and in PDFs.
 - 🟨 **Line numbering** — ✅ for the document (start, count by, distance, restart); per-section line numbers ⬜ (README roadmap).
 - ✅ **Drop caps** — dropped or in the margin, 1-10 lines.
 - 🟨 **Tables across pages** — rows break, heading rows repeat ✅; floating tables ⬜.

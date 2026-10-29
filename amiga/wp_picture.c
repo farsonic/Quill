@@ -130,17 +130,17 @@ static const RibbonList aspect_list = { aspect_labels, 7, PL_TEXT, NULL };
 #define XI_ASPECT "ci R 1 4 14 11 ca L 3 6 3 9 L 12 6 12 9 L 3 6 5 6 L 10 9 12 9"
 
 static const Item p_adjust[] = {
-  { K_BUTTON, S_LARGE, 0, 0, "Remove Background", ID_PIC_REMOVEBG, RB_WP(WPI_17, SB_BG), RB_PICSEL, 0, 0, "The picture's background (the colour round its edges) made transparent, or back", NULL, XI_REMOVEBG },
-  { K_DROP, S_SMALL, 0, 0, "Corrections", ID_PIC_CORRDD, 0, RB_PICSEL, F_NEWCOL, 0, "Sharper or softer, brighter or darker, more or less contrast", &corr_list, XI_CORR },
+  { K_BUTTON, S_SMALL, 0, 0, "Remove Background", ID_PIC_REMOVEBG, RB_WP(WPI_17, SB_BG), RB_PICSEL, 0, 0, "The picture's background (the colour round its edges) made transparent, or back", NULL, XI_REMOVEBG },
+  { K_DROP, S_SMALL, 0, 0, "Corrections", ID_PIC_CORRDD, 0, RB_PICSEL, 0, 0, "Sharper or softer, brighter or darker, more or less contrast", &corr_list, XI_CORR },
   { K_DROP, S_SMALL, 0, 0, "Color", ID_PIC_COLORDD, 0, RB_PICSEL, 0, 0, "Saturation, tone, or the picture in grey, sepia or another colour", &color_list, XI_COLOR },
-  { K_DROP, S_SMALL, 0, 0, "Artistic Effects", ID_PIC_ARTDD, 0, RB_PICSEL, 0, 0, "The picture as a pencil sketch, a photocopy, blurred...", &art_list, XI_ART },
-  { K_DROP, S_SMALL, 0, 0, "Transparency", ID_PIC_ALPHADD, 0, RB_PICSEL, F_NEWCOL, 0, "How much shows through the picture", &alpha_list, XI_ALPHA },
+  { K_DROP, S_SMALL, 0, 0, "Artistic Effects", ID_PIC_ARTDD, 0, RB_PICSEL, F_NEWCOL, 0, "The picture as a pencil sketch, a photocopy, blurred...", &art_list, XI_ART },
+  { K_DROP, S_SMALL, 0, 0, "Transparency", ID_PIC_ALPHADD, 0, RB_PICSEL, 0, 0, "How much shows through the picture", &alpha_list, XI_ALPHA },
   { K_BUTTON, S_SMALL, 0, 0, "Compress Pictures", ID_PIC_COMPRESS, 0, RB_PICSEL, 0, 0, "Pictures made smaller: fewer pixels, cropped parts deleted", NULL, XI_COMPRESS },
-  { K_BUTTON, S_SMALL, 0, 0, "Change Picture", ID_PIC_CHANGE, 0, RB_PICSEL, 0, 0, "Another picture in its place, keeping its size and formatting", NULL, XI_CHANGE },
+  { K_BUTTON, S_SMALL, 0, 0, "Change Picture", ID_PIC_CHANGE, 0, RB_PICSEL, F_NEWCOL, 0, "Another picture in its place, keeping its size and formatting", NULL, XI_CHANGE },
   { K_DROP, S_SMALL, 0, 0, "Reset Picture", ID_PIC_RESETDD, 0, RB_PICSEL, F_SPLIT, 0, "The picture's formatting (and size) undone", &reset_list, XI_RESET, ID_PIC_RESET } };
 static const Item p_styles[] = {
-  { K_DROP, S_LARGE, 0, 0, "Picture Styles", ID_PIC_STYLEDD, 0, RB_PICSEL, 0, 0, "A frame, shadow, rounded corners or soft edges", &style_list, XI_STYLES },
-  { K_DROP, S_SMALL, 0, 0, "Picture Effects", ID_PIC_EFFECTSDD, 0, RB_PICSEL, F_NEWCOL, 0, "A shadow, a glow or soft edges", &peff_list, XI_PEFFECTS },
+  { K_DROP, S_SMALL, 0, 0, "Picture Styles", ID_PIC_STYLEDD, 0, RB_PICSEL, 0, 0, "A frame, shadow, rounded corners or soft edges", &style_list, XI_STYLES },
+  { K_DROP, S_SMALL, 0, 0, "Picture Effects", ID_PIC_EFFECTSDD, 0, RB_PICSEL, 0, 0, "A shadow, a glow or soft edges", &peff_list, XI_PEFFECTS },
   { K_BUTTON, S_SMALL, 0, 0, "Format Picture", ID_PIC_FORMAT, 0, RB_PICSEL, 0, 0, "The Format Picture pane: corrections, colour, effects, size", NULL, "ci R 1 1 14 14 L 10 1 10 14 ca F 11 3 13 4 F 11 6 13 7 F 11 9 13 10" } };
 static const Item p_crop[] = {
   { K_BUTTON, S_SMALL, 0, 0, "Crop by Dragging", ID_PIC_CROP, RB_WP(WPI_17, SB_CROP), RB_PICSEL, 0, 0, "The handles crop the picture instead of sizing it (click again to stop)", NULL, XI_CROPDRAG },

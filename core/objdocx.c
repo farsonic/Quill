@@ -204,7 +204,6 @@ int objfx_read(void *xv, Image *im, ObjRead *s, ObjColourFn colour, void *ctx)
 void objfx_read_end(void *xv, Image *im, ObjRead *s)
 {
   Xml *x = (Xml *)xv;
-  (void)im;
   if (!strcmp(x->name, "blip")) s->inblip = 0;
 }
 int objfx_read_finish(Image *im, ObjRead *s)

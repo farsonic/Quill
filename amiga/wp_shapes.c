@@ -180,14 +180,13 @@ static const RibbonList align_list = { align_labels, 3, PL_TEXT, NULL };
 static const Item i_icons[] = {
   { K_BUTTON, S_LARGE, 0, 0, "Icons", ID_SH_ICONS, 0, 0, 0, 0, "A picture from the icon library, drawn as a shape you can colour", NULL, XI_ICONS },
   { K_BUTTON, S_SMALL, 0, 0, "More Shapes", ID_SH_MORE, 0, 0, F_NEWCOL, 0, "Word's other shapes: callouts, flowchart, block arrows, stars", NULL, XI_MORE } };
-static const Item s_more[] = {
-  { K_BUTTON, S_LARGE, 0, 0, "More Shapes", ID_SH_MORE, 0, 0, 0, 0, "Word's other shapes: callouts, flowchart, block arrows, stars", NULL, XI_MORE },
-  { K_BUTTON, S_SMALL, 0, 0, "Icons", ID_SH_ICONS, 0, 0, F_NEWCOL, 0, "A picture from the icon library", NULL, XI_ICONS } };
 static const Item s_fx[] = {
-  { K_DROP, S_LARGE, 0, 0, "Gradient", ID_SH_GRADDD, 0, RB_ONESHAPE, 0, 0, "The shape filled with colours running into each other", &grad_list, XI_GRAD },
-  { K_DROP, S_LARGE, 0, 0, "Shape Effects", ID_SH_EFFECTSDD, 0, RB_SHAPESEL, 0, 0, "A shadow, a glow or soft edges", &fx_list, XI_EFFECTS },
-  { K_BUTTON, S_SMALL, 0, 0, "Picture Fill", ID_SH_PICFILL, 0, RB_ONESHAPE, F_NEWCOL, 0, "A picture stretched over the shape", NULL, XI_PICFILL },
-  { K_BUTTON, S_SMALL, 0, 0, "Format Pane", ID_SH_PANE, RB_WP(WPI_18, SB_PANE), 0, 0, 0, "The Format Shape pane: fill, line, effects, size and text box beside the page", NULL, XI_PANE } };
+  { K_DROP, S_SMALL, 0, 0, "Gradient", ID_SH_GRADDD, 0, RB_ONESHAPE, 0, 0, "The shape filled with colours running into each other", &grad_list, XI_GRAD },
+  { K_DROP, S_SMALL, 0, 0, "Shape Effects", ID_SH_EFFECTSDD, 0, RB_SHAPESEL, 0, 0, "A shadow, a glow or soft edges", &fx_list, XI_EFFECTS },
+  { K_BUTTON, S_SMALL, 0, 0, "Picture Fill", ID_SH_PICFILL, 0, RB_ONESHAPE, 0, 0, "A picture stretched over the shape", NULL, XI_PICFILL },
+  { K_BUTTON, S_SMALL, 0, 0, "Format Pane", ID_SH_PANE, RB_WP(WPI_18, SB_PANE), 0, F_NEWCOL, 0, "The Format Shape pane: fill, line, effects, size and text box beside the page", NULL, XI_PANE },
+  { K_BUTTON, S_SMALL, 0, 0, "More Shapes", ID_SH_MORE, 0, 0, 0, 0, "Word's other shapes: callouts, flowchart, block arrows, stars", NULL, XI_MORE },
+  { K_BUTTON, S_SMALL, 0, 0, "Icons", ID_SH_ICONS, 0, 0, 0, 0, "A picture from the icon library", NULL, XI_ICONS } };
 static const Item s_text[] = {
   { K_DROP, S_SMALL, 0, 0, "Text Direction", ID_SH_TEXTDIRDD, 0, RB_WP(WPI_18, SB_TEXT), 0, 0, "The text across, or turned to run down", &dir_list, XI_TEXTDIR },
   { K_DROP, S_SMALL, 0, 0, "Align Text", ID_SH_ALIGNDD, 0, RB_WP(WPI_18, SB_TEXT), 0, 0, "The text at the top, in the middle or at the bottom of the box", &align_list, XI_ALIGN },
@@ -195,9 +194,8 @@ static const Item s_text[] = {
   { K_BUTTON, S_SMALL, 0, 0, "Break Link", ID_SH_UNLINK, 0, RB_WP(WPI_18, SB_LINKED), F_NEWCOL, 0, "The text stops at this box", NULL, XI_UNLINK } };
 static const WpGroup groups[] = {
   { TAB_INSERT, 3, { "Icons", G_COLS, i_icons, 2 } },
-  { TAB_SHAPE, 1, { "More Shapes", G_COLS, s_more, 2 } },
-  { TAB_SHAPE, 2, { "Fill & Effects", G_COLS, s_fx, 4 } },
-  { TAB_SHAPE, 4, { "Text", G_COLS, s_text, 4 } } };
+  { TAB_SHAPE, 2, { "Fill & Effects", G_COLS, s_fx, 6 } },
+  { TAB_SHAPE, 2, { "Text", G_COLS, s_text, 4 } } };
 static const WpMenu menus[] = {
   { WM_INSERT, { NM_ITEM, NM_BARLABEL, 0, 0, 0, 0 } },
   { WM_INSERT, { NM_ITEM, (STRPTR)"Icons...", 0, 0, 0, (APTR)ID_SH_ICONS } },
@@ -814,6 +812,6 @@ static void cleanup(void)
 const WpPackage wp18_package = {
   "WP18", ID_WP18_FIRST, ID_WP18_LAST,
   wp18_command, state, NULL, ctxmenu, NULL, NULL, cleanup,
-  groups, 4,
+  groups, 3,
   menus, NMENUS
 };
