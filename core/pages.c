@@ -641,10 +641,11 @@ void pages_read_setting(Doc *d, Xml *x)
    w:pgBorders has none (where the document has one) */
 void pages_read_done(Doc *d)
 {
-  int k;
+  int k, lastk = d->np ? (int)d->p[d->np - 1]->pf.sect - 1 : -1;
   for (k = 0; k < d->nsects; k++) {
     SectFmt *s = &d->sects[k];
-    if (s->pbown == 2) s->pbown = (u8)(memcmp(&s->pb, &d->border, sizeof s->pb) != 0);
+    if (k == lastk) s->pbown = 0;           /* (the last section's is the document's) */
+    else if (s->pbown == 2) s->pbown = (u8)(memcmp(&s->pb, &d->border, sizeof s->pb) != 0);
     else if (d->border.style != PB_NONE) { memset(&s->pb, 0, sizeof s->pb); s->pbown = 1; }
     else s->pbown = 0;
   }

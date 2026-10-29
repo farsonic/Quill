@@ -98,13 +98,13 @@ static const char *const papers[] = { "A4  21 x 29.7 cm", "Letter  8.5 x 11 in",
                                       "A6  10.5 x 14.8 cm", "B5  17.6 x 25 cm", "Executive  7.25 x 10.5 in", "Tabloid  11 x 17 in", "More Paper Sizes..." };
 static const char *const breaks[] = { "Page break", "Column break", "Line break (text wrapping)", "Section break: next page",
                                       "Section break: continuous", "Section break: even page", "Section break: odd page" };
-static const char *const columns[] = { "One", "Two", "Three", "Line Between" };
+static const char *const columns[] = { "One", "Two", "Three", "Line Between", "Left", "Right", "More Columns..." };   /* (WP22a: the last three) */
 static const char *const linenums[] = { "None", "Continuous", "Restart Each Page", "Restart Each Section", "Line Numbering Options..." };
-static const char *const hyphens[] = { "None", "Automatic" };
-static const char *const pagealigns[] = { "Top", "Centre", "Bottom" };
+static const char *const hyphens[] = { "None", "Automatic", "Manual...", "Hyphenation Options..." };   /* (WP22a: the last two) */
+static const char *const pagealigns[] = { "Top", "Centre", "Bottom", "Justified" };   /* (WP22a: Justified) */
 static const char *const dropcaps[] = { "None", "Dropped", "In Margin", "Drop Cap Options..." };
 static const char *const watermarks[] = { "No Watermark", "DRAFT", "CONFIDENTIAL", "SAMPLE", "DO NOT COPY", "URGENT", "Custom Watermark..." };
-static const char *const pageborders[] = { "No Border", "Box", "Double Box", "Thick Box", "Dotted Box", "Dashed Box" };
+static const char *const pageborders[] = { "No Border", "Box", "Double Box", "Thick Box", "Dotted Box", "Dashed Box", "Page Borders..." };   /* (WP22a) */
 static const char *const indents[] = { "0 cm", "0.5 cm", "1 cm", "1.5 cm", "2 cm", "2.5 cm", "3 cm", "4 cm" };
 static const char *const spaces[] = { "0 pt", "3 pt", "6 pt", "8 pt", "10 pt", "12 pt", "18 pt", "24 pt" };
 static const char *const zooms[] = { "Page width", "50%", "75%", "100%", "125%", "150%", "200%" };

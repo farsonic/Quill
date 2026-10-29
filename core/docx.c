@@ -946,17 +946,23 @@ static int parse_watermark(Xml *x, Ctx *c)
       const char *id = xml_attr(x, "id"), *st = xml_attr(x, "style"), *fc = xml_attr(x, "fillcolor");
       if (id && (strstr(id, "WaterMark") || strstr(id, "Watermark"))) is = 1;
       if (st && strstr(st, "rotation:315")) w.horizontal = 0;
-      if (st && strstr(st, "width:")) wpt = (i32)(atof(strstr(st, "width:") + 6) * 20);      /* (WP22a: a picture's size, twips) */
+      if (st && strstr(st, "width:")) {                 /* (WP22a: a picture's size, twips; no floating point) */
+        const char *q = strstr(st, "width:") + 6;
+        i32 whole = 0, frac = 0, div = 1;
+        while (*q >= '0' && *q <= '9') whole = whole * 10 + (*q++ - '0');
+        if (*q == '.') { q++; while (*q >= '0' && *q <= '9' && div < 1000) { frac = frac * 10 + (*q++ - '0'); div *= 10; } }
+        wpt = whole * 20 + frac * 20 / div;
+      }
       if (fc && fc[0] == '#') w.color = hexcolor(fc + 1) == COLOR_AUTO ? 0xC0C0C0 : hexcolor(fc + 1);
       else if (fc && !strncmp(fc, "gray", 4)) w.color = 0x808080;
     } else if (!strcmp(x->name, "imagedata")) {
       /* (WP22a) a picture watermark: its picture, and whether it is washed out */
       const char *r = xml_attr(x, "id"), *g = xml_attr(x, "gain");
       if (r) { strncpy(rid, r, sizeof rid - 1); rid[sizeof rid - 1] = 0; }
-      if (g && atof(g) > 0 && atof(g) < 40000) washout = 1;
+      if (g && strtol(g, NULL, 10) > 0 && strtol(g, NULL, 10) < 40000) washout = 1;
     } else if (!strcmp(x->name, "fill")) {
       const char *op = xml_attr(x, "opacity");
-      if (op && atof(op) < 0.99 && atof(op) > 0) opaque = 0;
+      if (op && (op[0] == '.' || (op[0] == '0' && op[1] == '.') || (op[strlen(op) - 1] == 'f' && strtol(op, NULL, 10) < 65000))) opaque = 0;
     } else if (!strcmp(x->name, "textpath")) {
       const char *str = xml_attr(x, "string"), *st = xml_attr(x, "style"), *ff;
       if (str) { strncpy(w.text, str, sizeof w.text - 1); w.text[sizeof w.text - 1] = 0; }
