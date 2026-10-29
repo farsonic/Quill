@@ -117,7 +117,7 @@ Sizes are for one engineer-agent; "ribbon" counts the ⬜ and 🟨 commands of s
 - **WP15b Insert Chart and Chart Design** (ribbon 6; 4-5 h; after WP15a). Insert Chart with a small data grid, chart types, title, legend, data labels, written as `c:chartSpace` with literal data. Files: core/chart.c, core/docx.c, new amiga/wp_chart.c, amiga/ribbon.c.
 - **WP15c Insert SmartArt and SmartArt Design** (ribbon 8; 4-5 h; after WP15a). A few layouts (list, process, cycle, hierarchy), text pane, add shape, promote/demote, colours, reset, written with a drawing part Word can show. Files: core/smartart.c, core/docx.c, new amiga/wp_smartart.c, amiga/ribbon.c.
 - **WP19 WordArt and signature line** (ribbon 6; 3-4 h; after WP9 and WP18). WordArt text effects (`w14:textFill`, `textOutline`, `shadow`, `glow`, `reflection`), Insert WordArt, Quick Styles, Text Fill, Text Outline, a few Transform warps; Signature Line. Files: core/doc.h, core/docx.c, amiga/view.c, core/pdf.c, new amiga/wp_wordart.c.
-- **WP20 Draw tab and drawing canvas** (ribbon 12; 4-6 h). Pens, pencil, highlighter, eraser, lasso, Add Pen, Ink to Shape, Ink Replay, Hide Ink; ink saved as freeform shapes (`a:custGeom`, which also reads Word's freeforms); Drawing Canvas (`wpc:`, README roadmap). Files: core/doc.h (OBJ_INK, OBJ_CANVAS), core/docx.c, amiga/view.c (pen input), core/pdf.c, new amiga/wp_draw.c, amiga/ribbon.c (its tab from WP0).
+- **WP20 Draw tab and drawing canvas** (ribbon 12; 4-6 h). Pens, pencil, highlighter, eraser, lasso, Add Pen, Ink to Shape, Ink Replay, Hide Ink; ink saved as freeform shapes (`a:custGeom`, which also reads Word's freeforms); Drawing Canvas (`wpc:`, README roadmap). Files: core/doc.h (OBJ_INK, OBJ_CANVAS), core/docx.c, amiga/view.c (pen input), core/pdf.c, new amiga/wp_draw.c, amiga/ribbon.c (its tab from WP0). **Done** (branch draw): all 12 lines ✅. Model: `Image.ff` (a `Freeform`: paths, pen, drawing order, Word's own ink kept), `Image.canvas`, `SH_FREEFORM` (core/ink.h, core/ink.c): `a:custGeom` read (lines, Béziers, arcs, several paths each in its own space: Word's freeforms) and written; Word's ink (`w14:contentPart` in a drawing, a group or a canvas, its `mc:Fallback` picture left out) kept as written with its InkML part (kept by WP0's customXml keeping) and drawn from the part's traces (InkML differences decoded, brush colour and width); drawing canvases `wpc:wpc`. UI: amiga/wp_draw.c (Draw tab, Review › Ink, Insert and Review menu items, right-button items), amiga/wp_draw_view.h (included by view.c: drawing, eraser, lasso, replay). Ink to Text ➖: handwriting recognition needs a recogniser Quill doesn't have (and Word's uses a cloud service). Tests in tests/test_wp20.c.
 - **WP26 Customization and discoverability** (ribbon 4; 4-5 h). Options in panes (General, Display, Proofing, Save, Language, Advanced) for the settings the other packages add; Customize Ribbon and the quick access buttons; Customize Keyboard (a key map in Quill.prefs); command search (Tell Me); KeyTips; a mini toolbar; the missing keyboard shortcuts of section 2.7 where Amiga keys allow. Files: amiga/ribbon.c, amiga/main.c, amiga/backstage.c, new amiga/wp_custom.c.
 - **WP27 Right-to-left and East Asian** (ribbon 9; 8+ h, split into bidi and East Asian). UAX #9 bidi, right-to-left paragraphs, sections and tables, Arabic and Hebrew shaping, numerals; vertical text, document grid, Asian typography, ruby (Phonetic Guide). Needs fonts and an interface encoding beyond Latin-1; lowest priority for an Amiga word processor. Files: core/layout.c, core/doc.h, core/docx.c, core/fonts.c, core/ttraster.c, amiga/view.c.
 - **WP28b ODT** (beyond-ribbon 1; 4-5 h). Read and write .odt (styles, lists, tables, pictures, headers and footers, notes). Files: new core/odt.c (core/zip.c already reads deflated entries), a row in the format table.
@@ -313,7 +313,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ SmartArt (Illustrations) `insert.smartArt` [WP15c]
 - ⬜ Chart (Illustrations) `insert.chart` [WP15b]
 - ➖ Screenshot (Illustrations) `insert.screenshot` — WordCraft doesn't have it either
-- ⬜ Drawing Canvas (Illustrations) `insert.canvas` — README roadmap [WP20]
+- ✅ Drawing Canvas (Illustrations) `insert.canvas` — `ID_DR_CANVAS` (Draw › Insert, Insert › Drawing Canvas): an empty canvas the column's width in line; a canvas is a group whose first object is its background (`Image.canvas`, core/ink.h), read and written as `wpc:wpc` with `wpc:bg`/`wpc:whole` and its shapes, pictures, groups (`wpg:wgp`) and ink; moves as one; shapes added from its right-button menu (Add Shape to Canvas), ink drawn on it goes into it [WP20]
 - ➖ Get Add-ins (Add-ins) `addins.get` — WordCraft doesn't have it either (online store)
 - ➖ Online Video (Media) `insert.video` — WordCraft doesn't have it either (online)
 - ✅ Link (Links) `insert.link` — `ID_LINK` (`open_link()`)
@@ -351,19 +351,19 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Nonbreaking Hyphen (Symbols) `text.nbHyphen` — U+2011 (`ID_P_NBHYPHEN`, Ctrl-Shift-minus): drawn and measured as a hyphen, never broken at (lines now break after ordinary hyphens), `w:noBreakHyphen` read and written [WP10]
 - ✅ Optional Hyphen (Symbols) `text.optionalHyphen` — U+00AD (`ID_P_SOFTHYPHEN`, Ctrl-minus): no room and not drawn unless a line breaks there (then a hyphen), ¬ with formatting marks, `w:softHyphen` read and written [WP10]
 
-### Draw (11: ✅ 0 · 🟨 0 · ⬜ 10 · ➖ 1)
+### Draw (11: ✅ 10 · 🟨 0 · ⬜ 0 · ➖ 1)
 
-- ⬜ Select (Tools) `draw.select` — no ink tools (objects are selected by clicking, but there is no Draw tab) [WP20]
-- ⬜ Lasso Select (Tools) `draw.lasso` [WP20]
-- ⬜ Eraser (Tools) `draw.eraser` [WP20]
-- ⬜ Pen (Pens) `draw.pen` [WP20]
-- ⬜ Pencil (Pens) `draw.pencil` [WP20]
-- ⬜ Highlighter (Pens) `draw.highlighter` [WP20]
-- ⬜ Add Pen (Pens) `draw.addPen` [WP20]
-- ⬜ Ink to Shape (Convert) `draw.inkToShape` [WP20]
+- ✅ Select (Tools) `draw.select` — `ID_DR_SELECT` (or Esc): back to selecting text and objects [WP20]
+- ✅ Lasso Select (Tools) `draw.lasso` — `ID_DR_LASSO`: a loop drawn on the page chooses the strokes most of whose points are in it (and shapes whose centre is), shown with dotted frames; dragging inside them moves them (one undo step), Del deletes them, Color recolours them, Convert makes shapes of them (`ink_in_lasso`, amiga/wp_draw_view.h) [WP20]
+- ✅ Eraser (Tools) `draw.eraser` — `ID_DR_ERASER` split button: Stroke Eraser (whole strokes) and Point Eraser (the bits under it, strokes split: `ff_erase`), also on ink in canvases; one undo step per drag [WP20]
+- ✅ Pen (Pens) `draw.pen` — black, red and blue pens (`ID_DR_PEN0-2`); drawing with the mouse on the page (Print Layout), the stroke shown as it goes, then smoothed (jitter averaged, Douglas-Peucker, Chaikin: `ink_smooth`) into an ink object floating on the page; Thickness (0.25-6 mm) and Color lists; drawn on the screen and in PDFs (`ff_pdf`); saved as `wps:wsp` with `a:custGeom`, named "Ink Pen 3 #12" (pen and drawing order, as WordCraft names ink), which LibreOffice and Word show as freeforms [WP20]
+- ✅ Pencil (Pens) `draw.pencil` — `ID_DR_PEN3`, grey, "Ink Pencil" [WP20]
+- ✅ Highlighter (Pens) `draw.highlighter` — `ID_DR_PEN4`: yellow, 12 pt, behind the text (so the text shows through on the Amiga's screen and in PDFs), written with `a:alpha` 50 % for Word and LibreOffice [WP20]
+- ✅ Add Pen (Pens) `draw.addPen` — `ID_DR_ADDPEN`: a pen of your own like the one in use (up to 8), chosen from My Pens; Thickness and Color change it (for the session, not saved) [WP20]
+- ✅ Ink to Shape (Convert) `draw.inkToShape` — `ID_DR_INKSHAPE` toggle (strokes drawn while on become shapes) and Convert (`ID_DR_CONVERT`, also on the right-button menu) for the strokes chosen: lines (snapped level or upright), arrows (drawn in one stroke, either end first), rectangles, squares, ellipses, circles, isosceles and right triangles, diamonds, other polygons of up to 8 corners as freeform shapes (`ink_recognise`, core/ink.c, after WordCraft's recogniser); scribbles stay ink [WP20]
 - ➖ Ink to Math (Convert) `draw.inkToMath` — WordCraft doesn't have it either
 - ⬜ Drawing Canvas (Insert) `insert.canvas` [WP20]
-- ⬜ Ink Replay (Replay) `draw.replay` [WP20]
+- ✅ Ink Replay (Replay) `draw.replay` — `ID_DR_REPLAY`: every stroke drawn again point by point in the order it was drawn (`Freeform.order`, saved in the name), strokes from other files first; a click stops it [WP20]
 
 ### Design (10: ✅ 7 · 🟨 2 · ⬜ 1 · ➖ 0)
 
@@ -489,7 +489,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Combine (Compare) `review.combine` [WP6]
 - ➖ Block Authors (Protect) `review.blockAuthors` — WordCraft doesn't have it either (co-authoring service)
 - ⬜ Restrict Editing (Protect) `review.restrict` [WP7]
-- ⬜ Hide Ink (Ink) `review.hideInk` — (no ink) [WP20]
+- ✅ Hide Ink (Ink) `review.hideInk` — `ID_DR_HIDE` (Review › Ink, Review menu) hides and shows all ink; Delete All Ink (`ID_DR_DELALL`) beside it [WP20]
 
 ### View (29: ✅ 17 · 🟨 3 · ⬜ 4 · ➖ 5)
 

@@ -4,6 +4,13 @@ Quill 0.14 is a native word processor for AmigaOS with a MUI interface. It reads
 
 ![Quill with the Welcome template](docs/quill-home.png)
 
+## Drawing and ink (work package 20)
+
+- **The Draw tab:** Select, Lasso Select, an eraser (whole strokes, or just the bits under it), a black, red and blue pen, a pencil and a highlighter, Add Pen (pens of your own, under My Pens), Thickness and Color. Drag on the page (Print Layout) to draw: the stroke shows as you draw and is then smoothed into an ink object floating on the page. The highlighter lies behind the text, so the text shows through. Esc puts the pen down.
+- **Ink to Shape:** turn it on and strokes that look like a line, an arrow, a rectangle, an ellipse, a triangle, a diamond or another polygon become that shape; Convert does it to strokes chosen with the lasso. **Ink Replay** draws the ink again in the order it was drawn; **Hide Ink** and **Delete All Ink** are on the Review tab.
+- **Drawing canvases:** Draw › Drawing Canvas (or Insert › Drawing Canvas) puts one in the text; shapes are added from its right-button menu, ink drawn on it goes into it, and it moves as one. Word's canvases (wpc:wpc) are read and written.
+- **In Word files** ink is saved as freeform shapes (a:custGeom), which Word and LibreOffice show, and Word's own freeform shapes now come in. Word's own ink (InkML) is drawn and kept as Word wrote it.
+
 ## Character and paragraph formatting (work packages 9 and 10)
 
 - **Text effects:** hidden text (shown, with a dotted line under it, only while formatting marks are on, and left out of PDFs), outline, shadow, emboss and engrave, a colour for the underline of its own, and character shading kept apart from the highlight. They are in the Font window, the Font group's Text Effects list, the Format menu and the right-button menu, and go to and from Word. Word 2010's other text effects (glow, reflection, gradient fills), ligatures and number forms are kept through a save.
