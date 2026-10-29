@@ -6,58 +6,58 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 ## Summary
 
-- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 500 of them applicable to Quill. Quill has **236** (✅), **32** partly (🟨) and lacks **232** (⬜); 31 are ➖. So Quill covers 47% of the applicable commands fully and 54% at least in part.
-- **Beyond the ribbon (section 2):** 152 features: ✅ 27, 🟨 51, ⬜ 57, ➖ 17.
+- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 500 of them applicable to Quill. Quill has **331** (✅), **10** partly (🟨) and lacks **159** (⬜); 31 are ➖. So Quill covers 66% of the applicable commands fully and 68% at least in part.
+- **Beyond the ribbon (section 2):** 152 features: ✅ 53, 🟨 44, ⬜ 38, ➖ 17.
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
 - **Missing whole:** Mailings (22), the Equation tab and equations (21), Outline view and Outlining (14), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
-- **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; content controls, charts, SmartArt, equations, OLE objects, VML pictures and formatting revisions are dropped; no AutoSave or recovery (WP24 adds them). These are in priority 1 below.
+- **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; content controls, charts, SmartArt, equations, OLE objects and VML pictures are dropped (formatting revisions are kept since WP5); no AutoSave or recovery (WP24 adds them). These are in priority 1 below.
 - **Other formats:** Quill reads and writes .docx and plain text and exports PDF; WordCraft also reads .doc and reads/writes .rtf, .odt, .html, .md, .tex and Word XML (WP28a-d).
 
 | Tab | Commands | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|---|
-| File | 23 | 9 | 2 | 10 | 2 |
-| Quick Access | 5 | 2 | 0 | 3 | 0 |
+| File | 23 | 16 | 1 | 4 | 2 |
+| Quick Access | 5 | 5 | 0 | 0 | 0 |
 | Title Bar | 1 | 0 | 0 | 1 | 0 |
-| Home | 105 | 72 | 11 | 21 | 1 |
-| Insert | 53 | 27 | 3 | 17 | 6 |
+| Home | 105 | 96 | 2 | 6 | 1 |
+| Insert | 53 | 35 | 0 | 12 | 6 |
 | Draw | 11 | 0 | 0 | 10 | 1 |
-| Design | 10 | 7 | 2 | 1 | 0 |
-| Layout | 22 | 16 | 3 | 3 | 0 |
-| References | 25 | 6 | 2 | 16 | 1 |
+| Design | 10 | 9 | 0 | 1 | 0 |
+| Layout | 22 | 19 | 0 | 3 | 0 |
+| References | 25 | 9 | 1 | 14 | 1 |
 | Mailings | 23 | 0 | 0 | 22 | 1 |
-| Review | 31 | 13 | 2 | 14 | 2 |
-| View | 29 | 17 | 3 | 4 | 5 |
+| Review | 31 | 24 | 1 | 4 | 2 |
+| View | 29 | 18 | 2 | 4 | 5 |
 | Read Mode | 3 | 0 | 0 | 2 | 1 |
 | Developer | 11 | 0 | 0 | 11 | 0 |
 | Zotero | 7 | 0 | 0 | 0 | 7 |
 | Help | 4 | 1 | 0 | 0 | 3 |
 | Table Design | 8 | 4 | 0 | 4 | 0 |
 | Table Layout | 33 | 26 | 1 | 6 | 0 |
-| Picture Format | 14 | 5 | 0 | 9 | 0 |
-| Shape Format | 13 | 3 | 1 | 9 | 0 |
+| Picture Format | 14 | 14 | 0 | 0 | 0 |
+| Shape Format | 13 | 9 | 0 | 4 | 0 |
 | Header & Footer | 5 | 5 | 0 | 0 | 0 |
 | Equation | 22 | 1 | 0 | 20 | 1 |
 | Outlining | 13 | 0 | 0 | 13 | 0 |
 | SmartArt Design | 7 | 0 | 0 | 7 | 0 |
 | Chart Design | 5 | 0 | 0 | 5 | 0 |
-| Editing | 41 | 23 | 2 | 16 | 0 |
-| Tools | 7 | 1 | 0 | 6 | 0 |
-| **All** | **531** | **238** | **32** | **230** | **31** |
+| Editing | 41 | 37 | 2 | 2 | 0 |
+| Tools | 7 | 3 | 0 | 4 | 0 |
+| **All** | **531** | **331** | **10** | **159** | **31** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
-| 2.1 File formats | 1 | 5 | 10 | 3 |
-| 2.2 DOCX features | 3 | 18 | 16 | 1 |
-| 2.3 Layout | 9 | 10 | 5 | 0 |
-| 2.4 Editing | 4 | 11 | 12 | 7 |
-| 2.5 Interface: panes, toolbars and the window | 9 | 2 | 6 | 2 |
-| 2.6 The Options dialog | 1 | 3 | 4 | 1 |
+| 2.1 File formats | 5 | 5 | 6 | 3 |
+| 2.2 DOCX features | 9 | 15 | 13 | 1 |
+| 2.3 Layout | 16 | 3 | 5 | 0 |
+| 2.4 Editing | 11 | 11 | 5 | 7 |
+| 2.5 Interface: panes, toolbars and the window | 10 | 2 | 5 | 2 |
+| 2.6 The Options dialog | 1 | 5 | 2 | 1 |
 | 2.7 Keyboard shortcuts | 1 | 0 | 2 | 0 |
 | 2.8 Interface and proofing languages | 0 | 3 | 0 | 0 |
 | 2.9 Zotero | 0 | 0 | 0 | 1 |
 | 2.10 Control protocol, MCP, command line, scripting | 0 | 0 | 0 | 1 |
 | 2.11 Network and cloud features (left out on purpose) | 0 | 0 | 0 | 1 |
-| **All** | **28** | **52** | **55** | **17** |
+| **All** | **53** | **44** | **38** | **17** |
 
 ## Work packages
 
@@ -98,14 +98,14 @@ Sizes are for one engineer-agent; "ribbon" counts the ⬜ and 🟨 commands of s
 - **WP4 Mail merge, envelopes, labels** (ribbon 22; 6-8 h, may split into merge core and envelopes/labels). Recipients from CSV (and tab-separated; spreadsheets later), Edit/Filter/Sort Recipients, Insert Merge Field, Address Block, Greeting Line, Rules (IF, SKIPIF, NEXT, NEXTIF, ASK, FILLIN, SET), Match Fields, Highlight Merge Fields, Preview with first/previous/next/last/go to/find, Check for Errors, Finish & Merge to a new document or a PDF; Envelopes and Labels (common Avery sizes). Files: new core/merge.c, core/docx.c (`w:mailMerge` settings, MERGEFIELD through WP1), new amiga/wp_mailings.c, amiga/ribbon.c (its tab from WP0).
 - **WP6 Compare and Combine** (ribbon 2; 3-4 h). A word-level diff of two documents into tracked changes, with the author named; Combine merges two reviewers' revisions. Files: new core/compare.c, new amiga/wp_compare.c.
 - **WP7 Protection and encryption** (ribbon 3; 4-6 h). Restrict Editing (read only, comments only, tracked changes only, filling in forms, exceptions by `w:permStart`/`w:permEnd`, SHA-512 password hash) enforced in the edit paths; Protect Document / Encrypt with Password: ECMA-376 agile encryption (AES-256-CBC, SHA-512) in an OLE compound file, read and written. Files: new core/crypt.c, new core/cfb.c (compound file, shared with WP28d), core/docx.c, core/doc.c (edit checks), new amiga/wp_protect.c.
-- **WP8 Proofing: grammar, thesaurus, AutoCorrect, AutoFormat, Read Aloud** (ribbon 4; 4-6 h). Grammar checks for English (repeated word, a/an, sentence capital, space before punctuation, double space), Spelling & Grammar window; a thesaurus from a word list with a compatible licence, also on the right-click menu; AutoCorrect with Options (replacement list, two initial capitals, sentence capitals, days, Caps Lock, exceptions); AutoFormat as you type (smart quotes, dashes, fractions, ordinals, `* `/`1. ` lists, `---` lines, links); Read Aloud through translator.library and narrator.device. Files: core/spell.c, new core/grammar.c, new core/autocorrect.c, new core/thesaurus.c, dict/ (data and licences), amiga/view.c (typing hook), new amiga/wp_proof.c.
+- **WP8 Proofing: grammar, thesaurus, AutoCorrect, AutoFormat, Read Aloud** (ribbon 4; 4-6 h). Grammar checks for English (repeated word, a/an, sentence capital, space before punctuation, double space), Spelling & Grammar window; a thesaurus from a word list with a compatible licence, also on the right-click menu; AutoCorrect with Options (replacement list, two initial capitals, sentence capitals, days, Caps Lock, exceptions); AutoFormat as you type (smart quotes, dashes, fractions, ordinals, `* `/`1. ` lists, `---` lines, links); Read Aloud through translator.library and narrator.device. Files: core/spell.c, new core/grammar.c, new core/autocorrect.c, new core/thesaurus.c, dict/ (data and licences), amiga/view.c (typing hook), new amiga/wp_proof.c. **Done** (branch proof): Spelling & Grammar, Thesaurus, AutoCorrect Options ✅, Read Aloud 🟨 (its speaking untested: no narrator.device in the test emulator); section 2's AutoCorrect, AutoFormat, Grammar, Thesaurus ✅. Core: core/grammar.c, core/thesaurus.c (dict/th_en.dat from WordNet, tools/mkthes.py), core/autocorrect.c; UI: amiga/wp_proof.c (+ wp_proof.h for view.c's grammar marks and typing hook, main.c's ID_SPELL); tests in tests/test_wp8.c.
 - **WP11 Outline view and outline levels** (ribbon 19; 4-5 h). A paragraph outline level (`w:outlineLvl`, in the Paragraph window and styles), used by the navigation pane and the TOC; Outline view with the Outlining tab (promote, demote, to Heading 1, to body text, move up/down, expand, collapse, show level, show formatting, first line only, close); Alt+Shift+arrows to move paragraphs and promote/demote everywhere. Files: core/doc.h (ParaFmt), core/docx.c, core/toc.c, core/layout.c (`VM_OUTLINE`), amiga/view.c, amiga/panes.c, amiga/ribbon.c (its tab from WP0), new amiga/wp_outline.c.
 - **WP13 Styles and themes** (ribbon 3; 3-4 h). Office themes: theme1.xml colours and fonts read, theme colours kept on runs and shapes (`w:themeColor`), the document's theme written back; Design › Effects; a docked Styles pane with previews; Style Inspector / Reveal Formatting; Modify Style with tab stops, borders and numbering (README roadmap); linked styles. Files: core/docx.c, core/doc.c, core/doc.h, amiga/main.c (`open_style()`), amiga/panes.c, new amiga/wp_styles.c.
 - **WP17 Pictures** (ribbon 9; 4-5 h). Corrections (brightness, contrast, sharpen), Colour (greyscale, sepia, washout, recolour, saturation), Transparency, a few Artistic Effects, Picture Styles presets (frame, shadow, rounded, soft edge), Change Picture, Reset Picture, Compress Pictures, a simple Remove Background (by the corner colour, as Tight wrapping already finds); crop by dragging; GIF, BMP and IFF ILBM pictures; .docx `a:lum`, `a:grayscl`, `a:alphaModFix`, `a:duotone`, `a:clrChange`. Files: core/image.c, core/image.h, core/docx.c, core/pdf.c, amiga/view.c (crop handles), new amiga/wp_picture.c.
 - **WP18 Shapes and text boxes** (ribbon 7; 4-5 h). Gradient and picture fills, shadow/glow/soft edge effects, a Format Shape pane (fill, line, effects, size, text box), text direction and vertical anchoring in text boxes (`bodyPr vert`, `anchor`), linked text boxes (`wps:linkedTxbx`, Create/Break Link), turned text in shapes (README roadmap), more preset shapes (callouts, flowchart, block arrows), Icons (a library drawn in code). Files: core/doc.h (Image), core/docx.c, core/layout.c (text box flow), amiga/view.c, core/pdf.c, new amiga/wp_shapes.c.
 - **WP21a Table styles and quick tables** (ribbon 6; 3-4 h). New/Modify/Delete Table Style (README roadmap "a table style editor"), custom table styles written to .docx, Border Painter, Quick Tables (calendar, tabular list, matrix), Insert Spreadsheet (a table from CSV text). Files: core/tstyle.c, core/tstyle.h, core/docx.c, core/template.c, new amiga/wp_tables.c.
 - **WP21b Table drawing and cell options** (ribbon 7; 4-5 h). Draw Table and Eraser with the mouse, Delete Cells (shift left/up), 9-way cell alignment, text direction in cells (README roadmap), per-cell margins, table alt text (`w:tblCaption`/`w:tblDescription`), floating tables with text round them (`w:tblpPr`). Files: core/table.c, core/doc.h (Cell, Table), core/docx.c, core/layout.c, amiga/view.c, new amiga/wp_tables2.c.
-- **WP22a Pages, sections and columns** (ribbon 5; 4-5 h). Columns window (unequal widths, Left/Right presets, apply from here), balanced columns before a continuous break, per-section line numbers and page borders (README roadmap), page border sides and art-free styles, picture watermarks, Page Setup with gutter, mirror margins, 2 pages per sheet, vertical alignment Justified, hyphenation options (zone, caps, consecutive limit, manual hyphenation). Files: core/doc.h (SectFmt, PageBorder, Watermark), core/layout.c, core/docx.c, core/hyph.c, amiga/main.c (`open_pagesetup()`, `open_watermark()`), new amiga/wp_pages.c.
+- **WP22a Pages, sections and columns** (ribbon 5; 4-5 h). Columns window (unequal widths, Left/Right presets, apply from here), balanced columns before a continuous break, per-section line numbers and page borders (README roadmap), page border sides and art-free styles, picture watermarks, Page Setup with gutter, mirror margins, 2 pages per sheet, vertical alignment Justified, hyphenation options (zone, caps, consecutive limit, manual hyphenation). Files: core/doc.h (SectFmt, PageBorder, Watermark), core/layout.c, core/docx.c, core/hyph.c, amiga/main.c (`open_pagesetup()`, `open_watermark()`), new amiga/wp_pages.c. **Done** (branch pages): new core/pages.c/.h, amiga/wp_pages.c/.h, tests/test_wp22a.c; the [WP22a] lines below say what each does. Left as they are: Word's art borders are drawn as a repeated pattern, not their pictures; balancing is for equal columns holding only lines; settings.xml's `w:mirrorMargins` and the like are written by docx_save itself right after `w:displayBackgroundShape` (before the packages' slot 1, as the schema orders them), and WP22a added slot 4 (after `w:evenAndOddHeaders`) for `w:bookFoldPrinting` and `w:printTwoOnOne`.
 - **WP23 Templates, building blocks, inserting files** (ribbon 7; 3-4 h). .dotx/.dotm opened as templates (an untitled document), Save as Template, a personal templates folder on the File page's New list, Templates and Add-ins (attached template), Quick Parts and AutoText (the glossary document, `w:docPart`), Insert › Text from File / Object (another .docx or .txt at the caret). Files: core/template.c, core/docx.c, amiga/backstage.c, new amiga/wp_templates.c.
 - **WP25 Views and windows** (ribbon 7; 3-4 h). New Window on the same document (a shared Doc with a reference count), Split, a Window menu listing open documents (README roadmap), Side to Side page movement, Multiple Pages with a choice of how many, a Zoom window, Read Mode options (column width, page colour sepia/inverse, text size, line spacing). Files: amiga/main.c (`win_new()`, DocWin), amiga/view.c, amiga/panes.c, new amiga/wp_windows.c.
 - **WP28a RTF** (beyond-ribbon 1; 4-5 h). Read and write .rtf: text, character and paragraph formatting, styles, lists, tables, pictures, fields, code pages. Files: new core/rtf.c, a row in WP0's format table. **Done** (§2.1): core/rtf.c, core/codepage.c, core/fmtio.c (shared with WP28c), amiga/wp_rtf.c (File > Save As Rich Text...), tests/test_wp28a.c, tools/lo_formats.sh.
@@ -123,7 +123,7 @@ Sizes are for one engineer-agent; "ribbon" counts the ⬜ and 🟨 commands of s
 - **WP28b ODT** (beyond-ribbon 1; 4-5 h). Read and write .odt (styles, lists, tables, pictures, headers and footers, notes). Files: new core/odt.c (core/zip.c already reads deflated entries), a row in the format table.
 - **WP28d Word 97-2003 .doc reader** (beyond-ribbon 1; 8-12 h, two agents: text/formatting/styles, then tables/pictures/notes/fields). Files: new core/docbin.c, core/cfb.c (from WP7, or written here first).
 - **WP30 More interface languages** (beyond-ribbon 1; 2-3 h for Latin-1 ones). Dutch, Swedish, Danish, Brazilian Portuguese first (Latin-1 fonts suffice); then Latin-2 screen fonts (tools/mkamigafonts.py) for Polish, Czech, Hungarian, Croatian, Slovenian, Romanian. Files: amiga/lang_table.h, amiga/lang.c, tools/mklang.py, tools/mkamigafonts.py, fonts-amiga/.
-- **WP31 Proofing languages** (ribbon 2; 4-6 h). A language on each run (`w:lang`, read and written; Review › Language and Set Proofing Language), a Hunspell .aff/.dic reader so installed dictionaries work, more hyphenation patterns (German, Italian, Portuguese, Polish with compatible licences). Files: core/spell.c, core/hyph.c, core/doc.h (CharFmt.lang), core/docx.c, dict/, amiga/panes.c (the language on the status bar).
+- **WP31 Proofing languages** (ribbon 2; 4-6 h). A language on each run (`w:lang`, read and written; Review › Language and Set Proofing Language), a Hunspell .aff/.dic reader so installed dictionaries work, more hyphenation patterns (German, Italian, Portuguese, Polish with compatible licences). Files: core/spell.c, core/hyph.c, core/doc.h (CharFmt.lang), core/docx.c, dict/, amiga/panes.c (the language on the status bar). **Done** (branch proof): Language and Set Proofing Language ✅. `CharFmt.lang`/`langea`/`langbidi`/`noproof` (CM_LANG 0x04000000, CM_NOPROOF 0x02000000, in CM_LOOK), core/proflang.c (languages, dictionaries per language, `proof_spell()`), core/hunspell.c (the .aff/.dic reader), core/docx_lang.c, hyphenation by language in core/hyph.c with dict/hyph_{de_DE,fr_FR,es_ES,it_IT,pt_PT,nl_NL,pl_PL}.dic (tools/mkhyph.py); UI amiga/wp_proflang.c, the status bar's language (panes.c); tests in tests/test_wp31.c.
 
 ### Order and parallel lanes
 
@@ -149,7 +149,7 @@ core/docx.c is touched by most lanes. Each package should add its reading and wr
 
 In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help tabs from its ribbon code. Each line: the mark, WordCraft's command (its group) and command id, Quill's evidence or what is missing, and the work package. WordCraft has no separate Header & Footer tab (those tools are in its catalogue as a pseudo-tab, shown here as such); Quill has Header & Footer and Edit Text contextual tabs of its own. Editing and Tools are WordCraft's keyboard and dialog commands that have no ribbon button.
 
-### File (23: ✅ 9 · 🟨 2 · ⬜ 10 · ➖ 2)
+### File (23: ✅ 16 · 🟨 1 · ⬜ 4 · ➖ 2)
 
 - ✅ New (Backstage) `file.new` — `ID_NEW` (File menu Amiga-N, File page New)
 - ✅ Open (Backstage) `file.open` — `ID_OPEN`
@@ -175,7 +175,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Save as Template (Backstage) `file.saveTemplate` — no .dotx writing [WP23]
 - ⬜ Personal Templates (Backstage) `file.listTemplates` [WP23]
 
-### Quick Access (5: ✅ 2 · 🟨 0 · ⬜ 3 · ➖ 0)
+### Quick Access (5: ✅ 5 · 🟨 0 · ⬜ 0 · ➖ 0)
 
 - ✅ Undo (Toolbar) `edit.undo` — `ID_UNDO` (Amiga-Z, tab strip button)
 - ✅ Undo List (Toolbar) `edit.undoTo` — Edit › Find and Select › Undo List... / Redo List... (`ID_FX_UNDOLIST`, wp_find.c): the steps named by `doc_undo_step()` (Typing, Delete, Formatting, Replace All...), choosing one undoes it and those after it [WP12]
@@ -187,7 +187,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 
 - ⬜ Search (Tell Me) (Search) `tools.search` — no command search [WP26]
 
-### Home (105: ✅ 72 · 🟨 11 · ⬜ 21 · ➖ 1)
+### Home (105: ✅ 96 · 🟨 2 · ⬜ 6 · ➖ 1)
 
 - ✅ Paste (Clipboard) `edit.paste` — `ID_PASTEDD` split button / `ID_PASTE`
 - ✅ Paste Keep Text Only (Clipboard) `edit.pasteText` — `ID_PASTETEXT` (`CMD_PASTEAS`)
@@ -295,7 +295,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Dictate (Voice) `tools.dictate` — WordCraft doesn't have it either (cloud speech service)
 - ✅ Editor (Editor) `review.editor` — WordCraft's Editor runs Spelling: Quill `ID_SPELL`
 
-### Insert (53: ✅ 27 · 🟨 3 · ⬜ 17 · ➖ 6)
+### Insert (53: ✅ 35 · 🟨 0 · ⬜ 12 · ➖ 6)
 
 - ✅ Cover Page (Pages) `insert.coverPage` — `ID_COVERDD` (3 designs, remove)
 - ✅ Blank Page (Pages) `insert.blankPage` — `ID_BLANKPAGE`
@@ -308,7 +308,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Pictures (Illustrations) `insert.picture` — `ID_PICTURE` (PNG, JPEG only)
 - ➖ Online Pictures (Illustrations) `insert.onlinePicture` — WordCraft doesn't have it either (online service)
 - ✅ Shapes (Illustrations) `insert.shape` — `ID_SHAPESDD` (24 presets, `SH_` in doc.h)
-- ⬜ Icons (Illustrations) `insert.icon` [WP18]
+- ✅ Icons (Illustrations) `insert.icon` — `ID_SH_ICONS` (amiga/wp_shapes.c): a window of 52 icons in six categories, drawn in Quill's own icon language (core/shapex.c), inserted as a shape in its own colour; saved as `a:custGeom` named "Icon: …" in `wp:docPr`, which LibreOffice and Word draw and Quill reads back as the icon [WP18]
 - ➖ 3D Models (Illustrations) `insert.model3d` — WordCraft doesn't have it either
 - ⬜ SmartArt (Illustrations) `insert.smartArt` [WP15c]
 - ⬜ Chart (Illustrations) `insert.chart` [WP15b]
@@ -336,12 +336,12 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Text Box (Text) `insert.textBox` — `ID_TEXTBOX`
 - ⬜ Quick Parts (Text) `insert.quickParts` — no building blocks / glossary [WP23]
 - ⬜ AutoText (Text) `insert.autoText` [WP23]
-- ⬜ Document Property (Text) `insert.docProperty` [WP1]
-- ⬜ Field (Text) `insert.field` — no Insert Field: only PAGE/NUMPAGES/PAGEREF/REF/HYPERLINK/TOC are understood (docx.c `field_kind()`) [WP1]
+- ✅ Document Property (Text) `insert.docProperty` — WP1: the Document Property list (References › Fields; the Insert tab is full at 640 pixels) and window (Insert menu) (`ID_FLD_DOCPROP`, `ID_FLD_PROPWIN`, amiga/wp_fields.c) put in a DOCPROPERTY field; Word's built-in names and the file's custom properties [WP1]
+- ✅ Field (Text) `insert.field` — WP1: the Field window (`ID_FLD_INSERT`, Ctrl-F9): 63 of Word's fields by category with descriptions, argument, \\* format, \\@ date picture, Preserve formatting, and the code itself to type (nested fields as { }); core/field.c `field_insert()` [WP1]
 - ⬜ WordArt (Text) `insert.wordArt` [WP19]
 - ✅ Drop Cap (Text) `insert.dropCap` — `ID_DROPCAPDD`, `ID_DROPCAPDLG`
 - ⬜ Signature Line (Text) `insert.signatureLine` [WP19]
-- 🟨 Date & Time (Text) `insert.dateTime` — `ID_DATE` types today's date as text in one format (`today_text()`); no format choice, no DATE field that updates [WP1]
+- ✅ Date & Time (Text) `insert.dateTime` — WP1: the Date and Time window (`ID_FLD_DATETIME`): 16 formats with today's date in the interface's language, as text or (Update automatically) a DATE/TIME field with that picture; `ID_DATE` still types today's date at once [WP1]
 - ⬜ Object (Text) `insert.object` — WordCraft's inserts a file's text [WP23]
 - ⬜ Text from File (Text) `insert.textFromFile` [WP23]
 - ✅ Equation (Symbols) `insert.equation` — Insert › Equation (Insert menu, and the Equation button of Insert › Symbols, amiga/wp_math.c): the equation typed in linear format (UnicodeMath subset: a/b, x^2, x_i, √(…), ∑_(i=1)^n▒…, brackets, functions, accents, ■ matrices, █ arrays, □ ▭ ⟡ boxes, "text"; characters outside Latin-1 as \control words), a display equation when the paragraph is empty as in Word; with an equation selected (or "Edit Equation..." on the right-button menu) it is changed. Checked: tests/test_wp14a.c (linear format in and out), emulator screenshot of the dialog [WP14a]
@@ -365,7 +365,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Drawing Canvas (Insert) `insert.canvas` [WP20]
 - ⬜ Ink Replay (Replay) `draw.replay` [WP20]
 
-### Design (10: ✅ 7 · 🟨 2 · ⬜ 1 · ➖ 0)
+### Design (10: ✅ 9 · 🟨 0 · ⬜ 1 · ➖ 0)
 
 - ✅ Themes (Document Formatting) `design.theme` — `ID_THEMEDD` (8 Quill themes setting style set, fonts and colours; not Office theme parts)
 - ✅ Style Set (Document Formatting) `design.styleSet` — `ID_STYLESETDD` (6)
@@ -374,21 +374,21 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Paragraph Spacing (Document Formatting) `design.paragraphSpacing` — `ID_PSPACINGDD` (6)
 - ⬜ Effects (Document Formatting) `design.effects` [WP13]
 - ✅ Set as Default (Document Formatting) `design.setDefault` — `ID_SETDEFAULT` (kept in Quill.prefs)
-- 🟨 Watermark (Page Background) `design.watermark` — `ID_WATERMARKDD`/`open_watermark()`: text only; no picture watermark [WP22a]
+- ✅ Watermark (Page Background) `design.watermark` — `ID_WATERMARKDD`, WP22a's Printed Watermark (`ID_PG_WATERMARK`, amiga/wp_pages.c): a picture (PNG/JPEG, scale, washout: Word's `WordPictureWatermark` VML in the header, read and written) or words (font, colour, semitransparent, diagonal/horizontal); drawn on screen and in PDF (core/pages.c `pages_wm_box`, `pages_washout`) [WP22a]
 - ✅ Page Color (Page Background) `design.pageColor` — `ID_PAGECOLORDD`
-- 🟨 Page Borders (Page Background) `design.pageBorders` — `ID_BORDERDD`: one kind of line on all four sides; no per-side, art, or per-section borders [WP22a]
+- ✅ Page Borders (Page Background) `design.pageBorders` — `ID_BORDERDD` and WP22a's Page Borders window (`ID_PG_BORDERS`): each side on or off with its own space, Word's 25 art-free line kinds and art borders (drawn as a pattern, kept by name), colour, width, measured from the text or the page's edge, whole document / this section / its first page only / all but its first, surround header and footer, in front or behind (core/pages.c `pages_border_rects`, `w:pgBorders` with `w:display`, `w:zOrder`) [WP22a]
 
-### Layout (22: ✅ 16 · 🟨 3 · ⬜ 3 · ➖ 0)
+### Layout (22: ✅ 19 · 🟨 0 · ⬜ 3 · ➖ 0)
 
 - ✅ Margins (Page Setup) `layout.margins` — `ID_MARGINSDD` (5 presets + custom)
 - ✅ Orientation (Page Setup) `layout.orientation` — `ID_ORIENTDD`
 - ✅ Size (Page Setup) `layout.size` — `ID_PAPERDD` (9 sizes + more)
-- 🟨 Columns (Page Setup) `layout.columns` — `ID_COLUMNSDD`: one to three equal columns, line between; no Left/Right presets, unequal widths, or Columns dialog; no balancing [WP22a]
+- ✅ Columns (Page Setup) `layout.columns` — `ID_COLUMNSDD` (One, Two, Three, Line Between, Left, Right, More Columns...) and WP22a's Columns window (`ID_PG_COLUMNS`): presets, 1-6 columns of their own widths and spacing (`w:cols w:equalWidth="0"` with `w:col`), line between, Apply to whole document / this section / this point forward / selected text; each line laid out as wide as its column; balanced before a continuous break (layout.c `balance_cols`) [WP22a]
 - ✅ Breaks (Page Setup) `layout.break` — `ID_BREAKSDD` (page, column, text wrapping, 4 section kinds)
-- ✅ Line Numbers (Page Setup) `layout.lineNumbers` — `ID_LINENUMDD`, `ID_LINENUMDLG`
-- 🟨 Hyphenation (Page Setup) `layout.hyphenation` — `ID_HYPHENDD` automatic on/off only (British English patterns); no manual hyphenation, zone, limit, caps options [WP22a]
-- 🟨 Page Setup Dialog (Page Setup) `layout.pageSetup` — `ID_PAGESETUPDLG` (`open_pagesetup()`): size, margins, header/footer distance; no gutter, mirror margins, 2 pages per sheet, layout tab, apply to "this point forward" [WP22a]
-- ✅ Vertical Alignment (Page Setup) `layout.verticalAlign` — `ID_PAGEALIGNDD` (top, centre, bottom; no justified)
+- ✅ Line Numbers (Page Setup) `layout.lineNumbers` — `ID_LINENUMDD`, `ID_LINENUMDLG` (WP22a: with Apply to whole document / this section / this point forward / selected text)
+- ✅ Hyphenation (Page Setup) `layout.hyphenation` — `ID_HYPHENDD` (None, Automatic, Manual..., Hyphenation Options...): WP22a's options window (zone, hyphenate words in CAPS, limit consecutive hyphens; `w:hyphenationZone`, `w:doNotHyphenateCaps`, `w:consecutiveHyphenLimit`) and Manual Hyphenation (each word that could break at a line's end, the place chosen, an optional hyphen U+00AD inserted; laid out by WP10's optional hyphens) [WP22a]
+- ✅ Page Setup Dialog (Page Setup) `layout.pageSetup` — `ID_PAGESETUPDLG` → WP22a's Page Setup (`ID_PG_SETUP`): Margins (gutter left/top, inside/outside, orientation, multiple pages: normal, mirror margins, 2 pages per sheet, book fold with sheets per booklet), Paper, Layout (section start, different odd/even and first page, header/footer distance, vertical alignment), Apply to whole document / this section / this point forward; laid out mirrored and halved (core/pages.c `pages_effective`) [WP22a]
+- ✅ Vertical Alignment (Page Setup) `layout.verticalAlign` — `ID_PAGEALIGNDD` (top, centre, bottom, justified: WP22a, layout.c `justify_page`, `w:vAlign w:val="both"`)
 - ⬜ Document Grid (Page Setup) `layout.documentGrid` [WP27]
 - ⬜ Section Direction (Page Setup) `layout.sectionRtl` [WP27]
 - ⬜ Text Direction (Page Setup) `layout.textDirection` [WP27]
@@ -403,7 +403,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Group (Arrange) `arrange.group` — `ID_GROUPDD`, `ID_GROUP`, `ID_UNGROUP`
 - ✅ Rotate (Arrange) `arrange.rotate` — `ID_OBJROTDD`
 
-### References (25: ✅ 6 · 🟨 2 · ⬜ 16 · ➖ 1)
+### References (25: ✅ 9 · 🟨 1 · ⬜ 14 · ➖ 1)
 
 - 🟨 Table of Contents (Table of Contents) `references.toc` — `ID_TOCDD`/`ID_TOC` (one built-in format, levels 1-3); no Custom Table of Contents dialog (levels, leaders, page numbers, styles) [WP2]
 - ✅ Add Text (Table of Contents) `references.addText` — `ID_ADDTEXTDD` (`add_text()`)
@@ -429,7 +429,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Mark Citation (Table of Authorities) `references.markCitation` [WP2]
 - ⬜ Insert Table of Authorities (Table of Authorities) `references.tableOfAuthorities` [WP2]
 - ⬜ Update Table (Table of Authorities) `references.updateAuthorities` — (Table of Authorities) [WP2]
-- 🟨 Update Fields (Fields) `references.updateFields` — page fields, PAGEREF cross-references and page numbers update themselves; the TOC through `ID_TOCUPDATE`; no general Update Fields (F9) [WP1]
+- ✅ Update Fields (Fields) `references.updateFields` — WP1: `ID_FLD_UPDATE` (F9, References › Fields, the field menu): the selected fields, the one at the caret, or (nothing chosen) every field in the text, headers, footers, notes, comments and text boxes; core/field.c `field_update()`/`field_update_all()` evaluate DATE, TIME, CREATEDATE, SAVEDATE, PRINTDATE, EDITTIME, AUTHOR, TITLE, SUBJECT, KEYWORDS, COMMENTS, LASTSAVEDBY, TEMPLATE, REVNUM, FILENAME, NUMPAGES, NUMWORDS, NUMCHARS, PAGE, SECTION, SECTIONPAGES, PAGEREF, REF, SEQ (\\r \\c \\h \\s), DOCPROPERTY, INFO, MERGEFIELD, IF, QUOTE, SYMBOL, USERNAME, USERINITIALS with \\* \\# \\@; locked fields and the rest (ADDIN, INDEX, CITATION...) keep their results; one undo step; the TOC still through `ID_TOCUPDATE` [WP1]
 
 ### Mailings (23: ✅ 0 · 🟨 0 · ⬜ 22 · ➖ 1)
 
@@ -457,28 +457,28 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Finish & Merge (Finish) `mailings.finish` [WP4]
 - ➖ Print Documents (Finish) `mailings.printDocuments` — printing left out on purpose (merging to a new document or PDF is part of Finish & Merge)
 
-### Review (31: ✅ 13 · 🟨 2 · ⬜ 14 · ➖ 2)
+### Review (31: ✅ 24 · 🟨 1 · ⬜ 4 · ➖ 2)
 
-- 🟨 Spelling & Grammar (Proofing) `review.spelling` — `ID_SPELL` spelling only (British English, core/spell.c); no grammar [WP8]
-- ⬜ Thesaurus (Proofing) `review.thesaurus` [WP8]
+- ✅ Spelling & Grammar (Proofing) `review.spelling` — `ID_SPELL`/F7: the Spelling and Grammar window (amiga/wp_proof.c `wp8_spelling()`): each word by its own language's dictionary, English grammar by core/grammar.c, Ignore Once/All, Add, Change, Change All, AutoCorrect, grammar and style switches [WP8]
+- ✅ Thesaurus (Proofing) `review.thesaurus` — Review > Proofing and Shift-F7: the Thesaurus window (meanings, synonyms, look up, insert), core/thesaurus.c with dict/th_en.dat (WordNet); Synonyms on the right-click menu [WP8]
 - ✅ Word Count (Proofing) `review.wordCount` — `ID_WORDCOUNT` (`word_count()`)
-- ⬜ Read Aloud (Speech) `review.readAloud` — (narrator.device/translator.library could speak it offline) [WP8]
+- 🟨 Read Aloud (Speech) `review.readAloud` — Review > Speech: translator.library + narrator.device, a sentence at a time with the sentence selected, click again to stop; a message when the Amiga hasn't them. The speaking itself is untested: the test emulator (AROS) has translator.library but no narrator.device [WP8]
 - ✅ Check Accessibility (Accessibility) `file.accessibility` — Review › Accessibility, `ID_INFO_ACC` [WP24]
 - ✅ Alt Text (Accessibility) `view.altTextPane` — `ID_INFO_ALTPANE` / `ID_ALTTEXT`: Alt Text pane following the selected object, Mark as decorative (`adec:decorative` read and written); table alt text is WP21b's (`table.altText`) [WP24]
 - ➖ Translate (Language) `review.translate` — needs an online service; WordCraft doesn't have it either
-- ⬜ Language (Language) `review.language` — no proofing language per text; one British English dictionary [WP31]
+- ✅ Language (Language) `review.language` — Review > Language: Set Proofing Language (the Language window, amiga/wp_proflang.c) and Do Not Check Spelling or Grammar; a language on each run (`CharFmt.lang`, `w:lang` read and written), Hunspell dictionaries from the Dict drawer [WP31]
 - ✅ New Comment (Comments) `review.newComment` — `ID_COMMENT`
 - ✅ Delete (Comments) `review.deleteComment` — `ID_DELCOMMENT`
 - ✅ Previous (Comments) `review.previousComment` — `ID_PREVCOMMENT`
 - ✅ Next (Comments) `review.nextComment` — `ID_NEXTCOMMENT`
 - ✅ Show Comments (Comments) `review.comments` — `ID_SHOWCOMMENTS`
-- ⬜ Resolve (Comments) `review.resolveComment` — no resolved state (no commentsExtended) [WP5]
-- ⬜ Reply (Comments) `review.reply` — README roadmap "replies to comments" [WP5]
+- ✅ Resolve (Comments) `review.resolveComment` — `ID_RV_RESOLVE` (amiga/wp_review.c, `rv_set_done()`): the whole thread, dimmed in its balloon and the Comments pane, read and written as `w15:done` in commentsExtended.xml (tests/test_wp5.c) [WP5]
+- ✅ Reply (Comments) `review.reply` — `ID_RV_REPLY` (`rv_reply()`, the Reply window, the right-button menu, the Comments pane): replies drawn in their thread's balloon, kept with `w15:paraIdParent`, durable ids (commentsIds) and UTC times (commentsExtensible) [WP5]
 - ✅ Track Changes (Tracking) `review.trackChanges` — `ID_TRACK`
-- ⬜ Display for Review (Tracking) `review.markup` — no Simple/All/No Markup/Original [WP5]
-- ⬜ Show Markup (Tracking) `review.showMarkup` — no markup filters (comments, insertions, formatting, balloons) [WP5]
-- ⬜ Reviewing Pane (Tracking) `review.changes` [WP5]
-- ⬜ Track Changes Options (Tracking) `review.trackingOptions` [WP5]
+- ✅ Display for Review (Tracking) `review.markup` — `ID_RV_MARKUP` (a field with Simple Markup, All Markup, No Markup, Original; Review menu): the layout hides deletions or insertions (`BX_REVHIDE`, `rv_show_run()`), Original shows the old formatting, Simple Markup red change bars [WP5]
+- ✅ Show Markup (Tracking) `review.showMarkup` — `ID_RV_SHOWMARKUP`: comments, insertions and deletions, formatting (kept as `w:revisionView`), balloons (revisions in balloons, comments and formatting only, all inline), Specific People (a Reviewers window) [WP5]
+- ✅ Reviewing Pane (Tracking) `review.changes` — `ID_RV_RPANE`: a window with a summary (revisions by kind, comments) and every change and comment, chosen to go to it, Accept and Reject [WP5]
+- ✅ Track Changes Options (Tracking) `review.trackingOptions` — `ID_RV_OPTIONS`: insertion, deletion, formatting and move marks, colours by author or fixed, changed lines (left, right, outside), comment colours, Track moves and Track formatting (the document's `w:doNotTrackMoves`/`w:doNotTrackFormatting`), balloons; kept in PROGDIR:Quill.review [WP5]
 - ✅ Accept (Changes) `review.accept` — `ID_ACCEPTDD` (`CMD_RESOLVE`)
 - ✅ Reject (Changes) `review.reject` — `ID_REJECTDD`
 - ✅ Accept All (Changes) `review.acceptAll` — `ID_ACCEPTDD` "Accept All Changes"
@@ -491,7 +491,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Restrict Editing (Protect) `review.restrict` [WP7]
 - ⬜ Hide Ink (Ink) `review.hideInk` — (no ink) [WP20]
 
-### View (29: ✅ 17 · 🟨 3 · ⬜ 4 · ➖ 5)
+### View (29: ✅ 18 · 🟨 2 · ⬜ 4 · ➖ 5)
 
 - ✅ Read Mode (Views) `view.readMode` — `ID_VREAD`
 - ✅ Print Layout (Views) `view.printLayout` — `ID_VPRINT`
@@ -551,7 +551,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Add/Edit Bibliography (Bibliography) `ui.zotero.addEditBibliography` — (as above)
 - ➖ Refresh (Document) `ui.zotero.refresh` — (as above)
 - ➖ Document Preferences (Document) `ui.zotero.setDocPrefs` — (as above)
-- ➖ Unlink Citations (Document) `ui.zotero.removeCodes` — (as above; keeping Zotero's ADDIN fields through a save is in WP1)
+- ➖ Unlink Citations (Document) `ui.zotero.removeCodes` — (as above; Zotero's ADDIN fields are now kept through a save by WP1, and Unlink Fields turns them into plain text)
 
 ### Help (4: ✅ 1 · 🟨 0 · ⬜ 0 · ➖ 3)
 
@@ -607,38 +607,38 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Convert to Text (Data) `table.toText` — `ID_TOTEXT`
 - ✅ Formula (Data) `table.formula` — `ID_FORMULA`
 
-### Picture Format (14: ✅ 5 · 🟨 0 · ⬜ 9 · ➖ 0)
+### Picture Format (14: ✅ 14 · 🟨 0 · ⬜ 0 · ➖ 0)
 
-- ⬜ Remove Background (Adjust) `picture.removeBackground` [WP17]
-- ⬜ Corrections (Adjust) `picture.corrections` [WP17]
-- ⬜ Color (Adjust) `picture.color` [WP17]
-- ⬜ Artistic Effects (Adjust) `picture.effects` [WP17]
-- ⬜ Transparency (Adjust) `picture.transparency` [WP17]
-- ⬜ Compress Pictures (Adjust) `picture.compress` [WP17]
-- ⬜ Change Picture (Adjust) `picture.change` [WP17]
-- ⬜ Reset Picture (Adjust) `picture.reset` [WP17]
-- ⬜ Picture Styles (Picture Styles) `picture.style` — Quill's "Picture Styles" group holds only Border/Weight/Dashes; no style presets (frames, shadows, soft edges) [WP17]
+- ✅ Remove Background (Adjust) `picture.removeBackground` — `ID_PIC_REMOVEBG` (amiga/wp_picture.c): the corner colour and those near it made transparent (`ObjFx.bgkey`); saved drawn into the picture with `a14:backgroundRemoval`, Set Transparent Color as `a:clrChange` [WP17]
+- ✅ Corrections (Adjust) `picture.corrections` — `ID_PIC_CORRDD` (sharpen/soften, brightness, contrast) and the Format Picture pane's sliders; `a:lum`, `a14:sharpenSoften` [WP17]
+- ✅ Color (Adjust) `picture.color` — `ID_PIC_COLORDD`: saturation, temperature, greyscale, sepia, washout, black and white, recolour dark/light, Set Transparent Color; `a:grayscl`, `a:biLevel`, `a:duotone`, `a:clrChange`, `a14:saturation`, `a14:colorTemperature` [WP17]
+- ✅ Artistic Effects (Adjust) `picture.effects` — `ID_PIC_ARTDD`: blur, pencil greyscale, line drawing, photocopy, cutout, film grain, glow edges, mosaic (core/objfx.c); saved drawn into the picture with the original as `a14:imgLayer`, as Word does [WP17]
+- ✅ Transparency (Adjust) `picture.transparency` — `ID_PIC_ALPHADD`, `a:alphaModFix`; see-through on the screen (ordered pattern) and in PDFs (soft mask) [WP17]
+- ✅ Compress Pictures (Adjust) `picture.compress` — `ID_PIC_COMPRESS`: 220/150/96 ppi, delete cropped areas, this picture or all; JPEG and PNG writers from Easel (core/picfmt.c) [WP17]
+- ✅ Change Picture (Adjust) `picture.change` — `ID_PIC_CHANGE` (size and formatting kept) [WP17]
+- ✅ Reset Picture (Adjust) `picture.reset` — `ID_PIC_RESETDD` (Reset Picture, Reset Picture & Size) [WP17]
+- ✅ Picture Styles (Picture Styles) `picture.style` — `ID_PIC_STYLEDD`: 14 presets (frames, drop and centre shadows, rounded and snipped corners, ovals, soft edges, metal, rotated), and Picture Effects `ID_PIC_EFFECTSDD`; the picture's geometry (`a:prstGeom`) and `a:effectLst` read and written [WP17]
 - ✅ Picture Border (Picture Styles) `picture.border` — `ID_OBJLINEDD`, `ID_OBJWEIGHTDD`, `ID_OBJDASHDD`
 - ✅ Alt Text (Accessibility) `picture.altText` — `ID_ALTTEXT`
-- ✅ Crop (Size) `picture.crop` — `ID_OBJCROP` (by numbers; no crop by dragging)
+- ✅ Crop (Size) `picture.crop` — `ID_OBJCROP` (by numbers); WP17: crop by dragging the handles (`ID_PIC_CROP`, crop marks on the frame), Crop to Shape, Aspect Ratio
 - ✅ Size (Size) `picture.size` — `ID_OBJSIZE`
 - ✅ Rotation (Size) `arrange.rotation` — `ID_OBJROTDD`, round handle
 
-### Shape Format (13: ✅ 3 · 🟨 1 · ⬜ 9 · ➖ 0)
+### Shape Format (13: ✅ 9 · 🟨 0 · ⬜ 4 · ➖ 0)
 
 - ✅ Alt Text (Accessibility) `object.altText` — `ID_ALTTEXT` (Shape Format's Accessibility group, `o_salt`)
 - ✅ Shape Fill (Shape Styles) `shape.fill` — `ID_OBJFILLDD` (solid colours)
-- ⬜ Shape Fill Gradient (Shape Styles) `shape.fill` [WP18]
-- 🟨 Format Shape Pane (Shape Styles) `view.formatShapePane` — Format window `ID_OBJLAYOUT` (`open_object()`: size, rotation, crop, position, wrapping, alt text) is a window, and has no fill, line or effects [WP18]
+- ✅ Shape Fill Gradient (Shape Styles) `shape.fill` — `ID_SH_GRADDD` (light and dark variations, linear, radial, from the corners), the pane's gradient settings; picture fills `ID_SH_PICFILL`; `a:gradFill`, a shape's `a:blipFill` [WP18]
+- ✅ Format Shape Pane (Shape Styles) `view.formatShapePane` — `ID_SH_PANE`: a pane window beside the page that follows the selection and changes the object as you set it (fill, line, shadow, glow, soft edges, size, rotation, text box alignment, direction and margins; for a picture its corrections, colour, transparency and artistic effect) [WP18]
 - ✅ Shape Outline (Shape Styles) `shape.outline` — `ID_OBJLINEDD`
-- ⬜ Shape Effects (Shape Styles) `shape.effects` [WP18]
+- ✅ Shape Effects (Shape Styles) `shape.effects` — `ID_SH_EFFECTSDD`: shadows, glows, soft edges (`a:outerShdw`, `a:glow`, `a:softEdge`), drawn on the screen and in PDFs [WP18]
 - ⬜ WordArt Quick Styles (WordArt Styles) `wordArt.style` [WP19]
 - ⬜ Text Fill (WordArt Styles) `wordArt.textFill` [WP19]
 - ⬜ Text Outline (WordArt Styles) `wordArt.textOutline` [WP19]
 - ⬜ Text Effects Transform (WordArt Styles) `wordArt.transform` [WP19]
-- ⬜ Text Direction (Text) `shape.textDirection` [WP18]
-- ⬜ Align Text (Text) `shape.alignText` — no text anchoring (top/middle/bottom) in text boxes [WP18]
-- ⬜ Create Link (Text) `shape.link` — no linked text boxes [WP18]
+- ✅ Text Direction (Text) `shape.textDirection` — `ID_SH_TEXTDIRDD` (`bodyPr vert`: across, turned 90° or 270°, drawn turned on the screen and in PDFs) [WP18]
+- ✅ Align Text (Text) `shape.alignText` — `ID_SH_ALIGNDD` (`bodyPr anchor`: top, middle, bottom; core/objtext.c) [WP18]
+- ✅ Create Link (Text) `shape.link` — `ID_SH_LINK` (then click the empty box) and Break Link `ID_SH_UNLINK`; the chain's text flows from box to box (core/objtext.c), `wps:txbx id`/`wps:linkedTxbx` read and written [WP18]
 
 ### Header & Footer (5: ✅ 5 · 🟨 0 · ⬜ 0 · ➖ 0)
 
@@ -707,7 +707,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Legend (Chart Layouts) `chart.legend` [WP15b]
 - ⬜ Data Labels (Chart Layouts) `chart.dataLabels` [WP15b]
 
-### Editing (41: ✅ 23 · 🟨 2 · ⬜ 16 · ➖ 0)
+### Editing (41: ✅ 37 · 🟨 2 · ⬜ 2 · ➖ 0)
 
 - ✅ Type Text (Keyboard) `text.insert` — view.c `key()`, `CMD_TEXT`
 - ✅ New Paragraph (Keyboard) `text.newParagraph` — Return
@@ -742,19 +742,19 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Select Paragraph (Selection) `select.paragraph` — `CMD_SELUNIT` 1, triple-click
 - ✅ Extend Selection (F8) (Selection) `select.extend` — F8 on, again a word, sentence, paragraph, section, the document; Shift-F8 shrinks; the cursor keys and clicks extend, a typed character extends to the next like it; Esc ends it (status bar says so) [WP12]
 - ✅ Column Selection (Selection) `select.column` — Ctrl-Shift-F8 or Alt-click/drag (`fx_block()`): a block of the lines between the corners, drawn as such; Copy/Cut/Delete/Backspace and character and paragraph formatting act on each line's part [WP12]
-- ⬜ Show Field Codes (Fields) `view.fieldCodes` — field codes are not kept [WP1]
-- ⬜ Toggle Field Codes (Fields) `fields.toggleCode` [WP1]
-- ⬜ Edit Field Code (Fields) `fields.setCode` [WP1]
-- ⬜ Unlink Fields (Fields) `fields.unlink` [WP1]
-- ⬜ Lock Fields (Fields) `fields.lock` [WP1]
-- ⬜ Unlock Fields (Fields) `fields.unlock` [WP1]
-- ⬜ Next Field (Fields) `fields.next` [WP1]
-- ⬜ Previous Field (Fields) `fields.previous` [WP1]
+- ✅ Show Field Codes (Fields) `view.fieldCodes` — WP1: `ID_FLD_SHOWCODES` (Alt-F9, References › Fields › Show Codes, View › Field Codes): every field shows { code } in place of its result (layout.c `make_boxes`; a result over several paragraphs hides only its first paragraph's part); the PDF still shows the results [WP1]
+- ✅ Toggle Field Codes (Fields) `fields.toggleCode` — WP1: `ID_FLD_TOGGLE` (Shift-F9, field menu): the selected fields, or the one at the caret, the other way round [WP1]
+- ✅ Edit Field Code (Fields) `fields.setCode` — WP1: `ID_FLD_EDIT` (field menu): the Field window with the field's code, `field_set_code()` then an update; undoable [WP1]
+- ✅ Unlink Fields (Fields) `fields.unlink` — WP1: `ID_FLD_UNLINK` (Ctrl-Shift-F9, Ctrl-6): results become plain text, page fields their page's number [WP1]
+- ✅ Lock Fields (Fields) `fields.lock` — WP1: `ID_FLD_LOCK` (Ctrl-3; Ctrl-F11 where the keyboard has F11), saved as `w:fldLock` [WP1]
+- ✅ Unlock Fields (Fields) `fields.unlock` — WP1: `ID_FLD_UNLOCK` (Ctrl-4; Ctrl-Shift-F11) [WP1]
+- ✅ Next Field (Fields) `fields.next` — WP1: `ID_FLD_NEXT` (References › Fields, Insert › Fields submenu; F11 where the keyboard has one: Amiga keyboards stop at F10) selects it [WP1]
+- ✅ Previous Field (Fields) `fields.previous` — WP1: `ID_FLD_PREV` (Shift-F11 likewise) [WP1]
 
-### Tools (7: ✅ 1 · 🟨 0 · ⬜ 6 · ➖ 0)
+### Tools (7: ✅ 3 · 🟨 0 · ⬜ 4 · ➖ 0)
 
-- ⬜ AutoCorrect Options (Proofing) `tools.autocorrect` — no AutoCorrect [WP8]
-- ⬜ Set Proofing Language (Proofing) `review.language` [WP31]
+- ✅ AutoCorrect Options (Proofing) `tools.autocorrect` — Review > Proofing > AutoCorrect Options: the AutoCorrect and AutoFormat As You Type pages, the replacement list, Exceptions (core/autocorrect.c, PROGDIR:Quill.autocorrect) [WP8]
+- ✅ Set Proofing Language (Proofing) `review.language` — the Language window (mark the selection, do not check, Set As Default), also from the status bar's language [WP31]
 - ⬜ Customize Ribbon (Customize) `tools.customizeRibbon` [WP26]
 - ⬜ Customize Keyboard (Customize) `tools.customizeKeyboard` [WP26]
 - ⬜ Encrypt with Password (Protection) `file.encrypt` [WP7]
@@ -784,29 +784,29 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ✅ **Export page as image (.png)** — WP29: Export Image writes PNG or IFF ILBM pages (core/pngwrite.c, core/raster.c), with Export Options for the pages and resolution [WP29]
 - ⬜ **Encrypted .docx (open and save with a password)** — WordCraft crates/docx/src/crypt (ECMA-376 agile AES-256, standard encryption). Quill none.
 - ⬜ **Spreadsheets (.xlsx, .xls, .ods, .csv) as mail-merge recipient lists** — WordCraft crates/formats/src/sheet. Quill has no mail merge.
-- 🟨 **Picture formats for Insert › Picture** — Quill: PNG and JPEG (baseline, progressive, CMYK; core/image.c). WordCraft also GIF, WebP, BMP, WMF and EMF (crates/metafile). An Amiga user would also expect IFF ILBM.
+- 🟨 **Picture formats for Insert › Picture** — Quill: PNG and JPEG (baseline, progressive, CMYK; core/image.c); WP17: GIF, BMP and IFF ILBM (EHB, HAM6/8, deep, PBM; readers from Easel in core/picfmt.c), GIF and BMP saved as they are, ILBM as PNG. Not yet: WebP, WMF and EMF (WordCraft has them).
 - ➖ **.json document model** — WordCraft's format for agents (control protocol, left out on purpose).
 
 ### 2.2 DOCX features
 
-- 🟨 **Run and paragraph properties, styles, numbering, sections** — Quill reads and writes the common set (core/docx.c). Missing: complex-script properties (`w:rtl`, `w:cs`, `w:szCs`, `w:bCs`) and East Asian font slots (`w:eastAsia`), languages (`w:lang`, none read), every `ST_NumberFormat` beyond decimal/letters/roman (`NF_` in doc.h), indents in characters, more than 8 tab stops a paragraph (`ParaFmt.tabs[8]`), hidden, emboss, imprint, outline, shadow, underline colour, `w:outlineLvl`.
+- 🟨 **Run and paragraph properties, styles, numbering, sections** — Quill reads and writes the common set (core/docx.c). Missing: complex-script properties (`w:rtl`, `w:cs`, `w:szCs`, `w:bCs`) and East Asian font slots (`w:eastAsia`), every `ST_NumberFormat` beyond decimal/letters/roman (`NF_` in doc.h), indents in characters, more than 8 tab stops a paragraph (`ParaFmt.tabs[8]`), hidden, emboss, imprint, outline, shadow, underline colour, `w:outlineLvl`.
 - 🟨 **Positional tabs (`w:ptab`)** — read as an ordinary tab (docx.c line 1355), not placed by alignment/margin.
 - 🟨 **Tables** — widths, merges, borders, shading, styles with conditional formatting, nested tables (one level), cantSplit, heading rows: ✅. Floating tables (`w:tblpPr`) are placed in the text (README roadmap); row exceptions (`w:tblPrEx`) and right-to-left tables (`w:bidiVisual`) not read; tables in headers and footers come in as their text (README roadmap).
-- 🟨 **Headers/footers, page borders, line numbers, gutter, mirror margins** — first/even/odd, per section, link to previous: ✅. Gutter is written as 0 and not read; `w:mirrorMargins` not read; page borders one kind on all sides, document-wide only.
-- 🟨 **Hyphenation settings** — `w:autoHyphenation` ✅; `w:hyphenationZone`, `w:doNotHyphenateCaps`, `w:consecutiveHyphenLimit` not read (zone fixed at 360 twips, layout.c `HYPH_ZONE`).
-- 🟨 **Footnotes, endnotes, comments** — read and written. Note options (`w:footnotePr`/`w:endnotePr`) and the document's own separators and continuation notice read and written (WP22b ✅). Missing: comments' replies, resolved state and durable ids (`commentsExtended`, `commentsIds`, `commentsExtensible`, `people.xml`).
+- ✅ **Headers/footers, page borders, line numbers, gutter, mirror margins** — first/even/odd, per section, link to previous: ✅. WP22a: `w:pgMar w:gutter`, `w:rtlGutter`, `w:gutterAtTop`, `w:mirrorMargins`, `w:printTwoOnOne`, `w:bookFoldPrinting`/`w:bookFoldRevPrinting`/`w:bookFoldPrintingSheets`, `w:bordersDoNotSurroundHeader/Footer`; page borders per section and per side (`w:pgBorders` every attribute), read and written (tests/test_wp22a.c).
+- ✅ **Hyphenation settings** — `w:autoHyphenation`, `w:hyphenationZone`, `w:doNotHyphenateCaps`, `w:consecutiveHyphenLimit` read, written and laid out (WP22a: core/pages.c `pages_hyph_zone`, `pages_hyph_allowed`).
+- ✅ **Footnotes, endnotes, comments** — read and written. Note options (`w:footnotePr`/`w:endnotePr`) and the document's own separators and continuation notice read and written (WP22b ✅). Comments' replies, resolved state, durable ids and UTC times, and the people (`commentsExtended`, `commentsIds`, `commentsExtensible`, `people.xml`, each person's own entry kept) ✅ (WP5, core/docx.c `wp5_read_parts()`, `wp5_write_parts()`).
 - ✅ **Tracked insertions and deletions** — `w:ins`/`w:del` with author and date (docx.c, `REV_INS`/`REV_DEL`).
-- ⬜ **Formatting revisions (`w:rPrChange`, `w:pPrChange`, `w:sectPrChange`, table ones, `w:numberingChange`)** — not read or kept (README roadmap "tracked formatting changes").
-- 🟨 **Move tracking (`w:moveFrom`/`w:moveTo`)** — read as a plain deletion and insertion (docx.c line 1462) and written so; ranges and the move link are lost.
-- 🟨 **Fields** — understood: PAGE, NUMPAGES/SECTIONPAGES, REF, PAGEREF, HYPERLINK, the TOC (core/docx.c `field_kind()`, `ref_field()`, `hyperlink_field()`). Every other field keeps only its result as plain text: the code is dropped, so DATE, SEQ, MERGEFIELD, ADDIN (Zotero/Mendeley citations), IF, DOCPROPERTY, INDEX, XE, TC… don't survive a save as fields. WordCraft keeps every code and its cached result and evaluates most of them.
+- 🟨 **Formatting revisions (`w:rPrChange`, `w:pPrChange`, `w:sectPrChange`, table ones, `w:numberingChange`)** — WP5: a run's and a paragraph's (`CharFmt.frev`, `ParaFmt.prev`, core/review.c) read with the old formatting (and its XML kept verbatim), shown (balloons, bars, Original), accepted and rejected, recorded while tracking (every formatting command) and written; `w:tblPrChange`, `w:tblGridChange`, `w:trPrChange`, `w:tcPrChange`, inserted and deleted rows and cells, `w:sectPrChange` kept verbatim with their table, row, cell or section (accepted by dropping them; rejecting them is refused). Missing: the legacy `w:numberingChange` and revisions inside style definitions (styles.xml) are dropped; a paragraph mark's own insertion, deletion and formatting change are not kept.
+- ✅ **Move tracking (`w:moveFrom`/`w:moveTo`)** — WP5: read as a deletion and an insertion that are one move (`CharFmt.move`, by the name of its `w:moveFromRangeStart`/`w:moveToRangeStart`), drawn in the move colour and marks, written back as `w:moveFrom`/`w:moveTo` inside named ranges (LibreOffice reads them as a move). Quill's own cut and paste while tracking is recorded as a deletion and an insertion, not a move.
+- ✅ **Fields** — WP1 (core/field.h): every field is kept with its code and cached result (marks round the result in the text, `Doc.fields`), from `w:fldChar`/`w:instrText` and `w:fldSimple`, nested (in results and in codes), with `w:fldLock`, `w:dirty`, no separator (XE, TC) and `w:ffData` verbatim, in the body, headers, footers, notes, comments and text boxes, and written back as complex fields: DATE, SEQ, MERGEFIELD, ADDIN (Zotero ZOTERO_ITEM/ZOTERO_BIBL, Mendeley, EndNote), IF, DOCPROPERTY, INDEX, XE, TC, REF, PAGEREF, HYPERLINK... survive a save; most are evaluated (see Update Fields); the TOC keeps its code; docProps core.xml, app.xml and custom.xml are read for the properties fields show, and core.xml's are written back. Checked: tests/test_wp1.c (82 checks), a document with 18 kinds of field round-tripped twice byte-stable and opened in LibreOffice with the same results.
 - ⬜ **Content controls (`w:sdt`)** — Quill reads their content and drops the controls (docx.c treats `sdt`/`sdtContent` as transparent); WordCraft keeps and edits every kind (rich/plain text, checkbox, combo, drop-down, date, picture, building block, repeating section, data binding kept verbatim).
 - ⬜ **Restrict Editing (`w:documentProtection`, `w:permStart`/`w:permEnd`, locked styles)** — not read or kept.
-- ⬜ **Legacy form fields (`w:ffData`: FORMTEXT, FORMCHECKBOX, FORMDROPDOWN)** — WordCraft keeps and draws them; Quill keeps only the result text.
+- 🟨 **Legacy form fields (`w:ffData`: FORMTEXT, FORMCHECKBOX, FORMDROPDOWN)** — WP1 keeps them as fields with their `w:ffData` verbatim and their results, through a save; they are not drawn as boxes or filled in (WP16).
 - 🟨 **DrawingML pictures, inline and anchored, wrapping** — ✅ for square, tight (with `wp:wrapPolygon`), top and bottom, behind, in front; `wrapThrough` is read as tight (docx.c line 1264); `wrapText` sides (left/right/largest) not kept.
 - ⬜ **WordArt text effects (`w14:textFill`, `w14:textOutline`, `w14:shadow`, `w14:glow`, `w14:reflection`)** — not read.
 - ⬜ **Legacy font effects (`w:outline`, `w:shadow`, `w:emboss`, `w:imprint`)** — not read.
 - ⬜ **OpenType ligatures (`w14:ligatures`)** — not read.
-- 🟨 **DrawingML shapes and text boxes (`wps:`)** — 24 presets (`SH_` in doc.h), solid fill and outline, theme colours with tints and shades, text box text. WordCraft: many more presets (callouts, flowchart), gradient and picture fills, effects, outline caps, `bodyPr` vertical text and anchoring, linked text boxes (`wps:linkedTxbx`); Quill reads rarer presets as rectangles.
+- 🟨 **DrawingML shapes and text boxes (`wps:`)** — 24 presets (`SH_` in doc.h), solid fill and outline, theme colours with tints and shades, text box text; WP18: 69 more presets (basic, block arrows, flowchart, callouts, stars and explosions; core/shapex.c), gradient and picture fills, shadow/glow/soft edge effects, `bodyPr` vertical text, anchoring and insets, linked text boxes, icons (`a:custGeom`). Not yet: outline caps and arrowhead kinds, adjust handles (`a:avLst` values), presets with inner lines (cube, can, smiley) still come in as rectangles, custom geometry in general (WP20).
 - ⬜ **Freeform shapes (`a:custGeom`) and ink** — not read.
 - 🟨 **Group shapes and drawing canvas** — groups (`wpg:`), nested, ✅; drawing canvases (`wpc:`) not read (README roadmap).
 - 🟨 **VML (`w:pict`, `v:shape`, `v:textbox`)** — only Word's text watermark is read and written (docx.c line 927); VML pictures, text boxes and shapes are not read (README "Not read yet"). WordCraft reads VML pictures, text boxes, lines, rectangles, ovals and presets.
@@ -826,31 +826,31 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ➖ **`w:altChunk`, sub-documents** — WordCraft doesn't have them either.
 - ⬜ **Page background picture (`v:background`/`v:fill`)** — not read; the page colour (`w:background`) ✅.
 - ✅ **Document defaults (`w:docDefaults`)** — read and written (docx.c `pPrDefault`/`rPrDefault`).
-- 🟨 **Preserving what isn't modelled** — WordCraft keeps unknown parts, settings and custom XML through a save; Quill writes only what it models, so anything else in a file is dropped on save (it warns about tables, pictures, notes and comments it couldn't read, not about fields, content controls, charts' data or settings).
+- 🟨 **Preserving what isn't modelled** — WordCraft keeps unknown parts, settings and custom XML through a save; Quill writes only what it models, so anything else in a file is dropped on save (it warns about tables, pictures, notes and comments it couldn't read, not about content controls, charts' data or settings). Fields are kept since WP1.
 
 ### 2.3 Layout
 
 - ✅ **Justification** — `AL_JUSTIFY`.
-- 🟨 **Hyphenation** — automatic, Liang patterns, British English only (core/hyph.c, dict/hyph_en_GB.dic), fixed zone. WordCraft: English, Polish, Portuguese, Italian, German, Russian, Turkish patterns or rules, zone/caps/limit honoured, manual hyphenation.
+- 🟨 **Hyphenation** — automatic, Liang patterns by each run's language (core/hyph.c, WP31): British English, German, French, Spanish, Italian, Portuguese, Dutch, Polish (dict/hyph_*.dic from hyph-utf8, MIT/BSD), any other Hyphen .dic in the Dict drawer. WordCraft also has Russian and Turkish (their hyph-utf8 patterns are LPPL, so not shipped; a user's own file works); zone/caps/limit are WP22a's.
 - ⬜ **Kerning** — not applied (core/fonts.c measures "without kerning").
 - ⬜ **Ligatures and OpenType features** — none (WordCraft shapes text with HarfRust).
 - ✅ **Widow/orphan control, keep with next, keep lines together, page break before** — layout.c.
 - ⬜ **Bidirectional text (UAX #9), Arabic shaping, right-to-left paragraphs, sections and tables** — none.
 - ⬜ **East Asian: vertical text, kinsoku line breaking, document grid, ruby, two lines in one** — none (WordCraft has vertical text, kinsoku, grid and ruby).
-- 🟨 **Columns** — 1-6 read, 1-3 offered, equal width only, line between; no unequal widths, no balancing before a continuous break (README 0.3 "Not yet").
+- ✅ **Columns** — 1-6 read and offered, equal or of their own widths, line between, balanced before a continuous break (WP22a; balancing is done for equal columns holding only lines: none with tables, paragraph borders or floating objects anchored in them).
 - ✅ **Section breaks of each kind, each section with its own page setup and headers/footers**.
 - ✅ **Text boxes and shapes with text** — edited in place.
 - 🟨 **Wrap types** — square, tight round the outline, top and bottom, behind, in front ✅; through ⬜; wrap on one side only ⬜.
-- 🟨 **Turned text** — objects turn by any angle, but text in shapes and text boxes stays upright (README 0.11).
-- 🟨 **Line numbering** — ✅ for the document (start, count by, distance, restart); per-section line numbers ⬜ (README roadmap).
+- ✅ **Turned text** — WP18: text in shapes and text boxes turns with them, and turns a quarter for vertical text, on the screen (drawn upright into a bitmap of its own and copied turned, amiga/view.c `draw_text_turned`) and in PDFs.
+- ✅ **Line numbering** — start, count by, distance, restart, for each section on its own (WP22a: Apply to in the Line Numbers window).
 - ✅ **Drop caps** — dropped or in the margin, 1-10 lines.
 - 🟨 **Tables across pages** — rows break, heading rows repeat ✅; floating tables ⬜.
 - ✅ **Footnotes** — at the foot of the page that refers to them or beneath its text; a long note continues on the next page under the continuation separator (with the document's continuation notice); endnotes at the document's or each section's end; numbering by format, start, restart each section/page (WP22b).
 - ✅ **Tab stops** — left, centre, right, decimal, leaders (at most 8 a paragraph).
 - ✅ **Contextual spacing, line spacing rules (auto/at least/exactly)**.
-- ✅ **Vertical alignment of the page** — top, centre, bottom.
-- 🟨 **Page borders** — one kind on all four sides; no art borders, no per-section borders.
-- 🟨 **Watermarks** — text ✅; picture watermarks ⬜.
+- ✅ **Vertical alignment of the page** — top, centre, bottom, justified (WP22a: the room shared out between the paragraphs; a page in several columns stays at the top).
+- ✅ **Page borders** — per section, per side, Word's line kinds, art borders drawn as a repeated square pattern (Word's pictures are not drawn), first page only / all but the first, round the header and footer or not (WP22a).
+- ✅ **Watermarks** — text (solid or half transparent) and pictures (scaled, washed out) on screen and in PDF (WP22a).
 - ⬜ **Character effects in layout and drawing** — hidden text (and showing it with marks), outline/shadow/emboss/engrave, enclosed characters, WordArt transforms.
 - ✅ **Equations, charts, SmartArt drawn on the page** — charts and SmartArt ✅ [WP15a] (see 2.2); equations ✅ (WP14a: TeX build-up rules with Quill's fonts, glyphs the fonts lack drawn as outlines or from look-alike glyphs, growing delimiters, radicals, braces and arrows drawn; inline equations in the line, display ones on lines of their own as their justification says; on screen from the fonts' outlines, in PDFs as text or outlines).
 - ✅ **Metric-compatible fonts** — Liberation, Carlito, Caladea measured from their TrueType metrics, as WordCraft does (WordCraft also ships its own substitutes for more families).
@@ -859,14 +859,14 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 
 - 🟨 **Find and Replace** — match case, whole words, backwards, replace one or all (`QFind`, `FIND_CASE`/`FIND_WORD`/`FIND_BACK`). Missing: find and replace formatting and styles, special characters (^p, ^t, ^m, ^^), wildcards / pattern matching (WordCraft cmd/find_pattern.rs), find in the selection, Highlight All, Find in headers, notes and comments.
 - ✅ **Navigation pane search results** — the Results tab lists each match with its context (panes.c).
-- ⬜ **AutoCorrect** — WordCraft: a replacement list with options (two initial caps, capitalize sentences, cells, days, Caps Lock) and exceptions (cmd/tools/autocorrect.rs). Quill none.
-- 🟨 **AutoFormat as you type** — Quill: Return in an empty list item ends the list, Tab/Shift-Tab change the level. Missing: smart quotes, dashes, fractions, ordinals, *bold*/_italic_, automatic bulleted and numbered lists from `* ` and `1. `, border lines from `---`, automatic links (WordCraft cmd/text/autoformat.rs).
+- ✅ **AutoCorrect** — core/autocorrect.c (WP8): the replacement list (symbols and common slips, English text only), TWo INitial CApitals, sentence capitals, table cells, days, cAPS LOCK, first-letter and initial-caps exceptions, the AutoCorrect submenu on a misspelt word; each correction its own undo step, tracked when tracking.
+- ✅ **AutoFormat as you type** — core/autocorrect.c (WP8): smart quotes, en and em dashes, ½ ¼ ¾, superscript ordinals, `* `/`- `/`> ` bulleted and `1. `/`a) ` numbered lists (at their number), border lines from `---` `===` `___` `***` `~~~`, links from web and mail addresses, *bold* and _italic_; Format > AutoFormat Now does the same to the selection or the document (one undo step). Return in an empty list item ends the list, Tab/Shift-Tab change the level.
 - ➖ **AutoComplete** — WordCraft doesn't have it either.
-- 🟨 **Spelling** — British English (SCOWL word list, core/spell.c), wavy lines as you type, suggestions ranked by typing errors, Change/Change All/Ignore/Ignore All/Add, your own words in Quill.words, right-click suggestions. Missing: other languages and per-run languages, "ignore words in capitals / with numbers / addresses" options, turning checking as you type off, marking text "do not check".
-- ⬜ **Grammar** — WordCraft: repeated word, a/an, sentence capital, space before punctuation, double space (more per language). Quill none.
-- ⬜ **Thesaurus** — WordCraft has a small built-in one (cmd/review/proofing.rs) and synonyms on the right-click menu. Quill none.
+- 🟨 **Spelling** — British English (SCOWL word list, core/spell.c) and any language with a Hunspell dictionary in the Dict drawer (core/hunspell.c, WP31), each run by its language; wavy lines as you type (switchable: Review > Proofing), suggestions ranked by typing errors, Change/Change All/Ignore/Ignore All/Add/AutoCorrect, your own words in Quill.words, right-click suggestions, text marked "do not check". Missing: the "ignore words in capitals / addresses" options (words with digits are never flagged).
+- ✅ **Grammar** — core/grammar.c (WP8), English: repeated word, a/an (by sound: an hour, a unicorn, an FBI), sentence capital (abbreviations known), space before punctuation and none after, two spaces, commonly confused words (could of, their is, more then...); optional style checks (passive voice, wordy phrases). Blue double line as you type (dotted gold for style), in the Spelling and Grammar window and on the right-click menu. Other languages' grammar rules missing (WordCraft has a few per language).
+- ✅ **Thesaurus** — core/thesaurus.c (WP8): MyThes .dat thesauri (dict/th_en.dat made from WordNet, 36,834 words; an installed th_xx_YY.dat for other languages), base forms looked up (cities, stopped), the Thesaurus window and Synonyms on the right-click menu.
 - ✅ **Word count** — pages, words, characters with and without spaces, paragraphs, lines (`word_count()`); live count on the status bar.
-- ⬜ **Read Aloud** — WordCraft speaks through the system's voices (crates/engine/src/speech). Not network: on the Amiga, translator.library and narrator.device could do it.
+- 🟨 **Read Aloud** — WP8: translator.library and narrator.device, a sentence at a time; a message if they are missing. Untested speaking (no narrator.device in the test emulator); no voice or speed settings.
 - ➖ **Dictate** — speech recognition service; WordCraft doesn't have it either.
 - ➖ **Translate** — online service; WordCraft doesn't have it either.
 - ➖ **Smart Lookup / Researcher** — online service; WordCraft only reports that it needs one.
@@ -890,7 +890,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Clipboard** — Quill's own formatted clipboard between Quill documents, text through clipboard.device to other programs (amiga/clip.c). Missing: formatted paste from other programs (WordCraft takes RTF/HTML from the system clipboard), pasting pictures, the Clipboard pane.
 - 🟨 **Format painter** — `ID_BRUSH` one shot; no double-click to keep it on, no Ctrl+Shift+C/V.
 - ⬜ **Spike, Go Back, Extend Selection (F8), column (block) selection, Alt+X** — see the Editing tab.
-- 🟨 **Right-click menus** — Quill (`ID_CTXPICK`): misspelled word, picture/shape/group, text (with table Insert/Delete/Merge/Split/Properties), link. Missing against WordCraft: synonyms, Paste options on the text menu, field menu (Update Field, Edit Field, Toggle Field Codes), table of contents menu (Update, Remove), picture menu's Change Picture, Reset Picture, Insert Caption, table menu's Distribute, AutoFit, Text Direction and Insert Caption (the equation menu has Edit Equation... since WP14a).
+- 🟨 **Right-click menus** — Quill (`ID_CTXPICK`): misspelled word, picture/shape/group, text (with table Insert/Delete/Merge/Split/Properties), link, field (Update Field, Edit Field, Toggle Field Codes: WP1). Synonyms ✅ (WP8, with grammar suggestions and an AutoCorrect submenu). Missing against WordCraft: Paste options on the text menu, table of contents menu (Update, Remove), picture menu's Change Picture, Reset Picture, Insert Caption, table menu's Distribute, AutoFit, Text Direction and Insert Caption, equation menu. (the equation menu has Edit Equation... since WP14a)
 
 ### 2.5 Interface: panes, toolbars and the window
 
@@ -900,13 +900,13 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ⬜ **KeyTips (Alt/F10 letters on the ribbon)** — WordCraft crates/ui-egui/src/keytips.
 - ⬜ **Mini toolbar on a selection** — WordCraft crates/ui-egui/src/mini_toolbar.
 - ⬜ **Command search (Tell Me, Alt+Q)** — WordCraft `tools.search`.
-- ✅ **Status bar** — page, words, language, Focus, view buttons, zoom slider (panes.c).
+- ✅ **Status bar** — page, words, language (the caret's: WP31, a click opens the Language window), Focus, view buttons, zoom slider (panes.c).
 - ✅ **Rulers** — horizontal and vertical, indents, tab stops, table column edges, margins.
 - ✅ **Navigation pane** — Headings, Pages, Results.
-- 🟨 **Comments** — balloons beside the page; no Comments pane (WordCraft panes/comments.rs) listing threads with replies.
+- ✅ **Comments** — balloons beside the page with replies in their thread's balloon and resolved threads dimmed; the Comments pane (WP5 `ID_RV_CPANE`, a window) lists the threads with their replies, with Reply, Resolve and Delete.
 - 🟨 **Styles pane** — a Styles window (Manage); not docked, no previews, no Style Inspector or Reveal Formatting (WordCraft panes/inspector.rs).
 - ✅ **Selection pane** — `open_selpane()` (a window).
-- 🟨 **Alt Text pane, Format Shape pane, Reviewing pane, Accessibility pane, Restrict Editing pane, Clipboard pane** — Alt Text and Accessibility panes ✅ (WP24, windows that stay open and follow the selection); the others none.
+- 🟨 **Alt Text pane, Format Shape pane, Reviewing pane, Accessibility pane, Restrict Editing pane, Clipboard pane** — Alt Text and Accessibility panes ✅ (WP24, windows that stay open and follow the selection); the Reviewing pane ✅ (WP5, a window: see Review › Reviewing Pane); the others none.
 - ⬜ **Alignment guides when moving objects** — WordCraft crates/ui-egui/src/guides.rs.
 - ✅ **Start page** — File page Home with templates and recent documents (backstage.c).
 - ✅ **Dark interface and dark page** — `ID_THEME`, `ID_DARKPAGE`.
@@ -920,9 +920,9 @@ WordCraft's Options has eight panes (crates/ui-egui/src/options.rs). Quill's Opt
 
 - 🟨 **General** — WordCraft: mini toolbar, dark page, community button, start screen, user name and initials, interface theme, interface size. Quill: user name ✅, theme ✅, text size ✅, dark page (View) ✅; initials ⬜ (comments get them only from files), start screen choice ⬜, mini toolbar ➖ (no mini toolbar).
 - ⬜ **Display** — which formatting marks show even when ¶ is off (tabs, spaces, paragraph marks, hidden text), show rulers by default, print page colour, update fields before printing. Quill: rulers are remembered (`ID_RULER`), the rest ⬜ (printing ones ➖).
-- ⬜ **Proofing** — AutoCorrect Options, ignore capitals/numbers/addresses, check spelling as you type on/off, mark grammar, custom dictionary editor, dictionaries folder and per-language dictionary status. Quill: none of these settings (the custom dictionary exists as Quill.words but can't be edited in Quill).
+- 🟨 **Proofing** — AutoCorrect Options ✅, check spelling as you type and mark grammar errors on/off ✅ (Review > Proofing, PROGDIR:Quill.proof), style checks ✅ (Spelling and Grammar window), which languages have a dictionary ✅ (the Language window). Missing: ignore capitals/addresses, a custom dictionary editor (Quill.words is a text file).
 - 🟨 **Save** — AutoSave ✅ (File › Options, WP24); personal information removed through Inspect Document ✅, not automatically on each save ⬜.
-- 🟨 **Language** — interface language ✅ (5 languages); proofing language ⬜; region ⬜.
+- 🟨 **Language** — interface language ✅ (5 languages); proofing language ✅ (WP31: the Language window's Set As Default, PROGDIR:Quill.lang); region ⬜.
 - ⬜ **Accessibility** — animation effects, Read Aloud voice and speed, skip citations.
 - 🟨 **Advanced** — measurement units: Quill cm/in ✅ (WordCraft also mm, pt, pi); alignment guides ⬜; recent documents count ⬜ (Quill keeps a fixed number); region and decimal separator ⬜; KeyTips ⬜; caret animation ➖; user templates folder ⬜; customize keyboard and ribbon ⬜.
 - ➖ **Agents** — MCP and control channel: left out on purpose.
@@ -933,18 +933,18 @@ WordCraft's Options has eight panes (crates/ui-egui/src/options.rs). Quill's Opt
 WordCraft binds 126 commands to keys (counted from the `.key(...)` of every `CommandSpec` in crates/engine/src); Quill has about 45 (README "Keys", menu shortcuts in main.c `menus[]`, view.c `key()`). Amiga conventions differ (Amiga-L selects all, Amiga-A is Save As, Ctrl-Left/Right go to the line's ends, Alt-Left/Right by words), so this lists functions, not identical keys.
 
 - ✅ **Present in Quill:** cursor movement by character, word (Alt), line end (Ctrl or Home/End), paragraph (Alt-Up/Down), screen, document; Backspace/Del and by word; Return, Shift-Return; Tab and Shift-Tab (lists, cells); Esc; New, Open, Save, Save As, Close, Quit, Next Window; Export PDF; Undo, Redo, Cut, Copy, Paste, Select All; Find, Find Next; Bold, Italic, Underline, Superscript, Subscript; Align left, centre, right, justify; single, 1.5 and double spacing; indent and outdent; page break; grow and shrink font; formatting marks; spelling; insert table; edit header; fit page width.
-- ⬜ **Missing (by WordCraft command):** Copy/Paste Formatting (`edit.copyFormat`/`edit.pasteFormat`), Paste Special (`edit.pasteSpecial`), Paste Text (`edit.pasteText`), Repeat F4 (`edit.repeat`), Go Back Shift+F5 (`edit.goBack`), Go To F5 (`edit.goto`, the command exists without a key), Spike and Insert Spike (Ctrl+F3, Ctrl+Shift+F3), field keys (F9 update, Shift+F9 toggle, Ctrl+F9 insert field, Alt+F9 all codes, F11/Shift+F11 next/previous field, Ctrl+F11/Ctrl+Shift+F11 lock/unlock, Ctrl+Shift+F9 unlink), Change Case Shift+F3, Double Underline, Word Underline, Small Caps, All Caps (command exists without a key), Strikethrough (exists without a key), Hidden, Font dialog Ctrl+D (exists without a key), font name and size boxes (Ctrl+Shift+F/P), grow/shrink by 1 pt (Ctrl+]/[), Bookmark Ctrl+Shift+F5, Equation Alt+=, Link Ctrl+K, outline keys (Alt+Shift+1-9, A, +, -), Add Space Before Ctrl+0, Bullets Ctrl+Shift+L, Distributed Ctrl+Shift+J, Hanging Indent Ctrl+T and Remove Hanging Ctrl+Shift+T, Heading 1-3 Ctrl+Alt+1-3, Normal Ctrl+Shift+N, Footnote Ctrl+Alt+F, Read Aloud, Thesaurus Shift+F7, Track Changes Ctrl+Shift+E, Column Selection Ctrl+Shift+F8, Extend Selection F8, Style Inspector Shift+F1, Styles pane, Column Break Ctrl+Shift+Return, © ® ™ … — (Ctrl+Alt+C/R/T/., Ctrl+Alt+-), Nonbreaking Hyphen and Space, Optional Hyphen, Draft/Outline/Print Layout views (Ctrl+Alt+N/O/P), Split Ctrl+Alt+S, Macros Alt+F8 (➖), Search Alt+Q, Move paragraph up/down and promote/demote (Alt+Shift+arrows).
+- ⬜ **Missing (by WordCraft command):** Copy/Paste Formatting (`edit.copyFormat`/`edit.pasteFormat`), Paste Special (`edit.pasteSpecial`), Paste Text (`edit.pasteText`), Repeat F4 (`edit.repeat`), Go Back Shift+F5 (`edit.goBack`), Go To F5 (`edit.goto`, the command exists without a key), Spike and Insert Spike (Ctrl+F3, Ctrl+Shift+F3), field keys (done by WP1: F9 update, Shift+F9 toggle, Ctrl+F9 the Field window, Alt+F9 all codes, Ctrl+Shift+F9 and Ctrl+6 unlink, Ctrl+3/Ctrl+4 lock/unlock, F11/Shift+F11/Ctrl+F11/Ctrl+Shift+F11 where the keyboard sends F11), Change Case Shift+F3, Double Underline, Word Underline, Small Caps, All Caps (command exists without a key), Strikethrough (exists without a key), Hidden, Font dialog Ctrl+D (exists without a key), font name and size boxes (Ctrl+Shift+F/P), grow/shrink by 1 pt (Ctrl+]/[), Bookmark Ctrl+Shift+F5, Equation Alt+=, Link Ctrl+K, outline keys (Alt+Shift+1-9, A, +, -), Add Space Before Ctrl+0, Bullets Ctrl+Shift+L, Distributed Ctrl+Shift+J, Hanging Indent Ctrl+T and Remove Hanging Ctrl+Shift+T, Heading 1-3 Ctrl+Alt+1-3, Normal Ctrl+Shift+N, Footnote Ctrl+Alt+F, Read Aloud, Thesaurus Shift+F7, Track Changes Ctrl+Shift+E, Column Selection Ctrl+Shift+F8, Extend Selection F8, Style Inspector Shift+F1, Styles pane, Column Break Ctrl+Shift+Return, © ® ™ … — (Ctrl+Alt+C/R/T/., Ctrl+Alt+-), Nonbreaking Hyphen and Space, Optional Hyphen, Draft/Outline/Print Layout views (Ctrl+Alt+N/O/P), Split Ctrl+Alt+S, Macros Alt+F8 (➖), Search Alt+Q, Move paragraph up/down and promote/demote (Alt+Shift+arrows).
 - ⬜ **Customize Keyboard** — WordCraft keeps a user key map (engine/src/keymap.rs). Quill none.
 
 ### 2.8 Interface and proofing languages
 
 - 🟨 **Interface languages** — WordCraft offers 27 (en, zh-hans, zh-hant, ja, ko, uk, es, pt-br, sr, sr-latn, pl, cs, et, de, ru, tr, it, hu, fr, bg, vi, sv, hr, nl, da, ro, sl; crates/ui-egui/src/i18n.rs, catalogs in storytold/craft-i18n). Quill offers 5: English, German, French, Spanish, Italian (amiga/lang.c `ui_languages`, amiga/lang_table.h). Missing 22. Quill's interface fonts are Latin-1, so Dutch, Swedish, Danish and Brazilian Portuguese need only translations. Polish, Czech, Croatian, Hungarian, Slovenian, Romanian, Estonian, Serbian (Latin) and Turkish need Latin-2 (or Latin-5/Latin-4) screen fonts. Russian, Ukrainian, Bulgarian and Serbian need Cyrillic fonts. Chinese, Japanese, Korean and Vietnamese are out of reach of the current font pipeline.
 - 🟨 **Menus follow the language change only after a restart** — README 0.2 (WordCraft changes everything at once).
-- 🟨 **Proofing languages** — Quill: British English spelling and hyphenation. WordCraft: English (US, GB, CA spellings, Moby list), Russian, Polish, Portuguese, Czech, Italian, Turkish, Indonesian, Spanish (system Hunspell dictionaries through its own affix engine), grammar rules per language, hyphenation for English, Polish, Portuguese, Italian, German, Russian and Turkish. Quill has no Hunspell affix reader, no per-run languages, no grammar.
+- 🟨 **Proofing languages** — Quill (WP31): a language on each run (`w:lang`, its eastAsia and bidi kept; `w:noProof`), the Language window, the status bar showing the caret's language; British English built in and any Hunspell dictionary (.aff/.dic: SET, FLAG char/long/num/UTF-8, AF, PFX/SFX with conditions, cross products, two suffixes, NEEDAFFIX, FORBIDDENWORD, KEEPCASE, ONLYINCOMPOUND, compounds with COMPOUNDFLAG/BEGIN/MIDDLE/END, TRY/REP suggestions; checked against LibreOffice's en_US, de_DE_frami, es_ES, it_IT, pt_PT, nl_NL and pl_PL); hyphenation for eight languages. WordCraft: the same Hunspell idea, grammar rules per language and Russian/Turkish hyphenation, which Quill lacks (grammar is English only).
 
 ### 2.9 Zotero
 
-- ➖ **Zotero integration** (WordCraft crates/zotero, the Zotero tab, docs/zotero.md) — talks to the Zotero desktop app through its local HTTP connector; there is no Zotero for AmigaOS. What Quill should still do is keep Zotero's and Mendeley's `ADDIN ZOTERO_ITEM`/`ADDIN ZOTERO_BIBL` fields and their results through a save, so a document can go back to a machine with Zotero: that is part of WP1 (fields).
+- ➖ **Zotero integration** (WordCraft crates/zotero, the Zotero tab, docs/zotero.md) — talks to the Zotero desktop app through its local HTTP connector; there is no Zotero for AmigaOS. What Quill should still do is keep Zotero's and Mendeley's `ADDIN ZOTERO_ITEM`/`ADDIN ZOTERO_BIBL` fields and their results through a save, so a document can go back to a machine with Zotero: WP1 does (tests/test_wp1.c).
 
 ### 2.10 Control protocol, MCP, command line, scripting
 
@@ -980,4 +980,4 @@ WP0 (the scaffolding, branch wp0) lets the packages above be built side by side 
 
 **.docx hooks.** core/docx.c has hook functions with one marker line for each package that touches .docx: `docx_read_block_ext` (a body-level element Quill doesn't read), `docx_read_elem_ext` (one inside a paragraph), `docx_read_setting_ext` (each element of settings.xml), `docx_read_parts_ext` (after everything is read: other parts), `docx_write_parts_ext` (parts, content types and relationships through `docx_out_part()`) and `docx_write_settings_ext` (settings.xml at the four places the schema's order allows: first; before `w:defaultTabStop`; after `w:autoHyphenation`; after `w:compat`). Write your own `read_*`/`write_*` function (in docx.c next to the hooks, or in a core file of your own when it needs only public types) and put one call to it on a new line right after your marker (the 27 packages whose files list core/docx.c have markers; another one adds its own marker line, then its call, after the last marker). New Doc fields go at the end of `struct Doc` (core/doc.h has a comment there).
 
-**Parts kept verbatim.** core/keep.c keeps .docx parts Quill doesn't read and writes them back with their relationships and content types (`Doc.kept`): custom XML (with its own .rels and item properties), the glossary document, people.xml, and the package's extended and custom properties. The thumbnail and digital signatures are dropped on purpose (they would be wrong after an edit). A package that starts reading such a part calls `keep_remove()`; one that keeps a part the text refers to (a chart, say) calls `keep_add()` and writes the relationship id it returns (ids Quill uses itself are never handed out). `xml_raw()` (core/xml.h) gives an element's exact text, for keeping elements verbatim inside a package's own model. Checked: word.docx and lo.docx keep all their custom XML and property parts byte for byte through two saves, and LibreOffice opens the result unchanged.
+**Parts kept verbatim.** core/keep.c keeps .docx parts Quill doesn't read and writes them back with their relationships and content types (`Doc.kept`): custom XML (with its own .rels and item properties), the glossary document, people.xml (until WP5, which reads and writes it), and the package's extended and custom properties. The thumbnail and digital signatures are dropped on purpose (they would be wrong after an edit). A package that starts reading such a part calls `keep_remove()`; one that keeps a part the text refers to (a chart, say) calls `keep_add()` and writes the relationship id it returns (ids Quill uses itself are never handed out). `xml_raw()` (core/xml.h) gives an element's exact text, for keeping elements verbatim inside a package's own model. Checked: word.docx and lo.docx keep all their custom XML and property parts byte for byte through two saves, and LibreOffice opens the result unchanged.

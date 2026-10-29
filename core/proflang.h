@@ -18,7 +18,7 @@
 /* the CM_ bits of the two fields (in CM_LOOK and CM_ALL, so styles, the format painter and clearing
    formatting treat them as Word does) */
 #define CM_LANG    0x04000000U
-#define CM_NOPROOF 0x08000000U
+#define CM_NOPROOF 0x02000000U
 
 u16  plang_find(const char *tag);       /* the number for a tag (case and '_' or '-' alike), added if new; 0 for NULL or "" */
 u16  plang_known(const char *tag);      /* the same, but 0 if it isn't one already known */

@@ -201,7 +201,10 @@ void test_wp31(void)
     show(plang_find("nl-NL"), "woordafbreking", out);
     ok("wp31: Dutch", !strcmp(out, "woord-af-bre-king"));
     show(plang_find("pl-PL"), "przeniesienie", out);
-    ok("wp31: no Polish patterns: no breaks", !strchr(out, '-'));
+    printf("pl: %s\n", out);
+    ok("wp31: Polish", !strcmp(out, "prze-nie-sie-nie"));
+    show(plang_find("sv-SE"), "avstavning", out);
+    ok("wp31: no Swedish patterns: no breaks", !strchr(out, '-'));
     hyph_set_loader(NULL);
   }
 }
