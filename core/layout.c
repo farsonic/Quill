@@ -12,6 +12,7 @@
 #include "charfx.h"
 #include "notes.h"   /* (WP22b) */
 #include "math.h"     /* WP14a: equations */
+#include "mathedit.h" /* WP14b: numbered equations */
 #include "review.h"
 
 #define DEFAULT_TAB 720                 /* half an inch, as Word */
@@ -681,6 +682,7 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
       if (b->kind == BX_SPACE) { b->x = (i32)x; x += b->w; word = i + 1; continue; }
       if (b->kind == BX_BREAK) { b->x = (i32)x; i++; brk = 2; break; }     /* a line break ends the line */
       if (b->kind == BX_MATH) {                 /* WP14a: an equation, as a picture; a display one has a line of its own */
+        if (b->nspace) b->w = math_fit(L->fs, L->d, math_index(p->t + b->off), &b->f, room) * QFINE;   /* WP14b: a numbered one spans its line */
         if (i > ls && (b->nspace || x + b->w > (u32)room * QFINE)) { brk = 1; break; }
         b->x = (i32)x; x += b->w; word = i + 1;
         if (b->nspace) { i++; brk = 2; break; }

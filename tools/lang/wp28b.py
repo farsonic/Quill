@@ -4,4 +4,6 @@
 # changing it run python3 tools/mklang.py, which writes these rows into WP28b's section of
 # amiga/lang_table.h.
 W = [
+("Save As OpenDocument Text...", "Als OpenDocument-Text speichern...", "Enregistrer en texte OpenDocument...", "Guardar como texto de OpenDocument...", "Salva come testo OpenDocument..."),
+("Save as OpenDocument Text", "Als OpenDocument-Text speichern", "Enregistrer au format Texte OpenDocument", "Guardar como texto de OpenDocument", "Salva come testo OpenDocument"),
 ]
