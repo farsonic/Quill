@@ -87,6 +87,8 @@ typedef struct MNode {
   /* where the last layout put it (twips, x from the equation's left, y its baseline below the
      equation's): rows and runs, for an editor's caret */
   i32 x, y, w, asc, desc;
+  /* WP14b: a run's characters' x from its own x (ncx = characters + 1), for the editor's caret */
+  i32 *cx; u16 ncx;
 } MNode;
 
 typedef struct MLay MLay;
@@ -98,6 +100,8 @@ typedef struct MathEq {
   u32 ver;                  /* bumped by an editor that changes it in place */
   /* the last layout (math_layout's cache) */
   MLay *lay; u16 laysize; u32 laycolor, layver; void *layfs; u8 laydisp; u8 layfont;
+  /* WP14b: the width of the line a numbered display equation spans (math_fit), and the layout's */
+  i32 room, layroom;
 } MathEq;
 
 MNode *mn_new(int kind);                    /* empty, properties unset; NULL if out of memory */

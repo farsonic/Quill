@@ -16,6 +16,7 @@
 
 PdfOpts pdf_options = { 0, 0, 1, "", "", 150, PIMG_PNG };
 #include "math.h"     /* WP14a: equations */
+#include "ink.h"      /* WP20 */
 
 /* Windows-1252's 0x80-0x9F (0: not used) */
 static const u16 cp1252_hi[32] = {
@@ -743,6 +744,7 @@ static void pdf_leaf(Pdf *p, Buf *b, const ObjPart *pt, i32 cx, i32 cy)
 {
   const Image *im = pt->im;
   if (im->pack) { pdf_pack(p, b, im, cx - pt->cx / 2, cy - pt->cy / 2, pt->cx, pt->cy); return; }   /* (WP15a) */
+  if (im->ff && im->kind == OBJ_SHAPE) { ff_pdf(b, pt, cx, cy); return; }     /* WP20: freeforms and ink */
   i32 w = pt->cx, h = pt->cy, lw = im->lwidth * 5 / 2, c = icos(pt->rot), sn = isin(pt->rot);
   int fx = pt->flip & 1 ? -1 : 1, fy = pt->flip & 2 ? -1 : 1, ri;
   int outline = im->lstyle != PB_NONE && im->lwidth;
@@ -938,6 +940,14 @@ static void page_content(Pdf *p, u32 page, Buf *b)
     Line *ln = &pl->lines[pc->line];
     i32 lx = pg->left + pc->x + ln->left, base = H - (pc->y + ln->ascent);
     if (pc->page != page) continue;
+    if (pc->turn) {
+      /* WP21b: turned text in a table cell, drawn through a turned frame (the line laid out across) */
+      if (pc->turn == TD_DOWN) buf_printf(b, "q 0 -1 1 0 %ld %ld cm\n", (long)(pg->left + pc->x + ln->height), (long)(H - pc->y - pc->tshift));
+      else buf_printf(b, "q 0 1 -1 0 %ld %ld cm\n", (long)(pg->left + pc->x), (long)(H - pc->y - pc->tlen + pc->tshift));
+      pdf_line(p, b, pl, pc->line, ln->left, -ln->ascent);
+      buf_adds(b, "Q\n");
+      continue;
+    }
     pdf_line(p, b, pl, pc->line, lx, base);
     if (p->tocto && pc->para < d->np && p->tocto[pc->para] >= 0 && ln->width > 0)      /* a table of contents entry: to its heading */
       link_area(p, LK_PARA, (u32)p->tocto[pc->para], lx, H - pc->y - ln->height, lx + ln->width, H - pc->y);
@@ -1004,13 +1014,12 @@ static void pdf_text(Buf *b, const char *s)
   }
   buf_addc(b, '>');
 }
-/* the outline level of a heading paragraph (a "heading N" style, as the table of contents takes
+/* the outline level of a heading paragraph (WP11: its outline level, as the table of contents takes
    them), 0 for any other */
 static int heading_level(const Doc *d, const Para *pp)
 {
-  const Style *st = &d->styles[pp->pf.style < d->nstyles ? pp->pf.style : 0];
-  if (!strncmp(st->name, "heading ", 8) || !strncmp(st->name, "Heading ", 8)) return st->name[8] >= '1' && st->name[8] <= '9' ? st->name[8] - '0' : 1;
-  return 0;
+  (void)d;
+  return pp->pf.outlvl <= 9 ? pp->pf.outlvl : 0;
 }
 /* a paragraph's words (n bytes of t) for an outline title or to match a table of contents entry:
    tabs and breaks as spaces, pictures, notes, marks and fields left out, no spaces at the ends */
