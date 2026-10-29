@@ -562,7 +562,7 @@ int refs_target(Doc *d, u32 pi, u32 a, u32 b, int exact, const char *prefix, cha
 
 /* ------------------------------------------------------------------ */
 /* evaluating REF, NOTEREF, STYLEREF, PAGEREF \p */
-static const char *above_below(Doc *d, Pos at, Pos target) { (void)d; return refs_word(refs_lang, pos_cmp(target, at) < 0 ? RW_ABOVE : RW_BELOW); }
+static const char *above_below(Doc *d, Pos at, Pos target) { return refs_word(refs_lang, pos_cmp(target, at) < 0 ? RW_ABOVE : RW_BELOW); }
 /* a note's number as its section's options show it, counted in the text up to its reference at p */
 static void note_number(Doc *d, Pos p, int end, char *out)
 {
@@ -746,7 +746,6 @@ int refs_insert_caption(Doc *d, Pos *at, int li, const char *text, int pos, cons
   }
   at->para = ip; at->off = d->p[ip]->len;
   doc_end(d, *at);
-  (void)k1;
   return 1;
 }
 void refs_caption_preview(Doc *d, Pos at, int li, char *out, size_t cap)
@@ -995,7 +994,7 @@ static void ta_code(const char *longc, const char *shortc, int cat, char *code, 
 }
 int refs_mark_citation(Doc *d, Pos *at, const char *longc, const char *shortc, int cat)
 {
-  char code[1000];
+  char code[1400];
   Pos p = *at;
   int k;
   if ((!longc || !longc[0]) && (!shortc || !shortc[0])) return -1;
@@ -1007,7 +1006,7 @@ int refs_mark_citation(Doc *d, Pos *at, const char *longc, const char *shortc, i
 }
 int refs_mark_all_citations(Doc *d, const char *longc, const char *shortc, int cat)
 {
-  char lcode[1000], scode[700];
+  char lcode[1400], scode[1400];
   int n = 0;
   ta_code(longc, shortc, cat, lcode, sizeof lcode);
   ta_code(NULL, shortc && shortc[0] ? shortc : longc, cat, scode, sizeof scode);

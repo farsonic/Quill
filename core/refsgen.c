@@ -323,7 +323,7 @@ static int gen_index(Gen *g)
 {
   Doc *d = g->d;
   char v[64], esep[64] = ", ", psep[64] = ", ", rsep[64] = "\xE2\x80\x93", ksep[64] = ". ", head[32], ftype[16], letters[16], nm[16];
-  int runin, hashead, hasf, cols = 1, n = 0, cap = 0, i, j, plo = 0, phi = 255, lastgroup = -1, tabsep;
+  int runin, hashead, hasf, cols = 1, n = 0, cap = 0, i, plo = 0, phi = 255, lastgroup = -1, tabsep;
   XEnt *x = NULL;
   u32 pi, o;
   i32 colw;
@@ -443,7 +443,6 @@ static int gen_index(Gen *g)
     }
     i += nx;
   }
-  (void)j;
   free(x);
   return !g->out.oom;
 }

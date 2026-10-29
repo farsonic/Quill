@@ -6,10 +6,10 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 ## Summary
 
-- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **385** (✅), **5** partly (🟨) and lacks **111** (⬜); 30 are ➖. So Quill covers 77% of the applicable commands fully and 78% at least in part.
+- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **396** (✅), **4** partly (🟨) and lacks **101** (⬜); 30 are ➖. So Quill covers 79% of the applicable commands fully and 80% at least in part.
 - **Beyond the ribbon (section 2):** 152 features: ✅ 54, 🟨 43, ⬜ 38, ➖ 17.
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
-- **Missing whole:** Mailings (22), the Equation tab and equations (21), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
+- **Missing whole:** Mailings (22), the Equation tab and equations (21), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and References' citations and bibliography (WP3; captions, index, authorities and the custom TOC are done: WP2).
 - **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; content controls, charts, SmartArt, equations, OLE objects and VML pictures are dropped (formatting revisions are kept since WP5); no AutoSave or recovery (WP24 adds them). These are in priority 1 below.
 - **Other formats:** Quill reads and writes .docx and plain text and exports PDF; WordCraft also reads .doc and reads/writes .rtf, .odt, .html, .md, .tex and Word XML (WP28a-d).
 
@@ -23,7 +23,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Draw | 11 | 0 | 0 | 10 | 1 |
 | Design | 10 | 9 | 0 | 1 | 0 |
 | Layout | 22 | 19 | 0 | 3 | 0 |
-| References | 25 | 9 | 1 | 14 | 1 |
+| References | 25 | 20 | 0 | 4 | 1 |
 | Mailings | 23 | 0 | 0 | 22 | 1 |
 | Review | 31 | 24 | 1 | 4 | 2 |
 | View | 29 | 25 | 0 | 0 | 4 |
@@ -42,7 +42,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Chart Design | 5 | 5 | 0 | 0 | 0 |
 | Editing | 41 | 41 | 0 | 0 | 0 |
 | Tools | 7 | 3 | 0 | 4 | 0 |
-| **All** | **531** | **385** | **5** | **111** | **30** |
+| **All** | **531** | **396** | **4** | **101** | **30** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
@@ -93,7 +93,7 @@ Sizes are for one engineer-agent; "ribbon" counts the ⬜ and 🟨 commands of s
 
 **Priority 2: the rest of Word's writing tools**
 
-- **WP2 Captions, tables of figures, index, authorities, custom TOC** (ribbon 11; 4-5 h; after WP1). Insert Caption (SEQ fields, labels, numbering with chapter numbers), Insert/Update Table of Figures, Mark Entry (XE), Insert/Update Index (columns, run-in, page ranges), Mark Citation (TA), Insert/Update Table of Authorities, a Custom Table of Contents window (levels, leaders, page numbers, from styles and TC fields); cross-references to captions and notes. Files: core/toc.c, new core/refs.c, core/docx.c (writing the fields), new amiga/wp_refs.c.
+- **WP2 Captions, tables of figures, index, authorities, custom TOC** (ribbon 11; 4-5 h; after WP1). Insert Caption (SEQ fields, labels, numbering with chapter numbers), Insert/Update Table of Figures, Mark Entry (XE), Insert/Update Index (columns, run-in, page ranges), Mark Citation (TA), Insert/Update Table of Authorities, a Custom Table of Contents window (levels, leaders, page numbers, from styles and TC fields); cross-references to captions and notes. Files: core/toc.c, new core/refs.c, core/docx.c (writing the fields), new amiga/wp_refs.c. **Done** (branch refs): all 11 lines ✅ (and Cross-reference made Word's). Model: core/refs.h (captions, block fields TOC/INDEX/TOA whose result is whole paragraphs between the field's marks, made afresh by Update; REF \n \r \w \p \d, NOTEREF, STYLEREF, PAGEREF \p evaluated through a hook in field.c; XE/TC/TA shown as codes with the formatting marks through one line in layout.c), core/refs.c, core/refsgen.c, core/toc.c (the TOC is a TOC field now; docx reads it as a field, old documents' toc paragraphs are taken over), amiga/wp_refs.c, tests/test_wp2.c. Left as it is: Quill keeps one bookmark per character, so a reference whose stretch partly has another (not a _Toc) bookmark is refused with a message (e.g. Entire caption after Only label and number on the same caption); the TOC/TOF entries' tab leader is direct formatting as Word writes it; TOA category names are kept for the session (Word keeps them in Normal.dotm).
 - **WP3 Citations and bibliography** (ribbon 4; 4-5 h; after WP1). Sources (Manage Sources, Create Source, Word's `b:Sources` part and Sources.xml), Insert Citation (CITATION fields), styles APA, MLA, Chicago, Harvard, IEEE (WordCraft has all 12 of Word's), Bibliography (BIBLIOGRAPHY field). Files: new core/cite.c, core/docx.c (customXml bibliography part), new amiga/wp_cite.c.
 - **WP4 Mail merge, envelopes, labels** (ribbon 22; 6-8 h, may split into merge core and envelopes/labels). Recipients from CSV (and tab-separated; spreadsheets later), Edit/Filter/Sort Recipients, Insert Merge Field, Address Block, Greeting Line, Rules (IF, SKIPIF, NEXT, NEXTIF, ASK, FILLIN, SET), Match Fields, Highlight Merge Fields, Preview with first/previous/next/last/go to/find, Check for Errors, Finish & Merge to a new document or a PDF; Envelopes and Labels (common Avery sizes). Files: new core/merge.c, core/docx.c (`w:mailMerge` settings, MERGEFIELD through WP1), new amiga/wp_mailings.c, amiga/ribbon.c (its tab from WP0).
 - **WP6 Compare and Combine** (ribbon 2; 3-4 h). A word-level diff of two documents into tracked changes, with the author named; Combine merges two reviewers' revisions. Files: new core/compare.c, new amiga/wp_compare.c.
@@ -403,11 +403,11 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Group (Arrange) `arrange.group` — `ID_GROUPDD`, `ID_GROUP`, `ID_UNGROUP`
 - ✅ Rotate (Arrange) `arrange.rotate` — `ID_OBJROTDD`
 
-### References (25: ✅ 9 · 🟨 1 · ⬜ 14 · ➖ 1)
+### References (25: ✅ 20 · 🟨 0 · ⬜ 4 · ➖ 1)
 
-- 🟨 Table of Contents (Table of Contents) `references.toc` — `ID_TOCDD`/`ID_TOC` (one built-in format, levels 1-3); no Custom Table of Contents dialog (levels, leaders, page numbers, styles) [WP2]
+- ✅ Table of Contents (Table of Contents) `references.toc` — `ID_TOCDD`/`ID_TOC`; WP2: the table is a real TOC field whose result Update makes afresh (core/refs.h block fields; an old run of "toc N" paragraphs is taken over), entries linked to hidden _Toc bookmarks with live page numbers; the list's Custom Table of Contents... (`ID_RF_CUSTOMTOC`, also Insert › References): levels 1-9, page numbers on/off, right-aligned or not (\p), tab leader (none, dots, dashes, line), Word's formats, hyperlinks (\h), built from outline levels (\u), heading styles (\o) and other styles (\t), table entry fields (TC, \f \l) [WP2]
 - ✅ Add Text (Table of Contents) `references.addText` — `ID_ADDTEXTDD` (`add_text()`)
-- ⬜ Update Table (Table of Contents) `references.updateToc` — (Table of Authorities) [WP2]
+- ✅ Update Table (Table of Contents) `references.updateToc` — `ID_TOCUPDATE`, Update Fields (F9) and the right button's Update Table: the TOC field's paragraphs made afresh (`refs_block_update`) [WP2]
 - ✅ Remove Table of Contents (Table of Contents) `references.removeToc` — `ID_REMOVETOC`
 - ✅ Insert Footnote (Footnotes) `references.footnote` — `ID_NOTE`
 - ✅ Insert Endnote (Footnotes) `references.endnote` — `ID_ENDNOTE`
@@ -419,16 +419,16 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Manage Sources (Citations) `references.sources` [WP3]
 - ⬜ Style (Citations) `references.citationStyle` [WP3]
 - ⬜ Bibliography (Citations) `references.bibliography` [WP3]
-- ⬜ Insert Caption (Captions) `references.caption` [WP2]
-- ⬜ Insert Table of Figures (Captions) `references.tableOfFigures` [WP2]
-- ⬜ Update Table of Figures (Captions) `references.updateFigures` [WP2]
-- ✅ Cross-reference (Captions) `insert.crossReference` — `ID_XREF`
-- ⬜ Mark Entry (Index) `references.markEntry` [WP2]
-- ⬜ Insert Index (Index) `references.index` [WP2]
-- ⬜ Update Index (Index) `references.updateIndex` [WP2]
-- ⬜ Mark Citation (Table of Authorities) `references.markCitation` [WP2]
-- ⬜ Insert Table of Authorities (Table of Authorities) `references.tableOfAuthorities` [WP2]
-- ⬜ Update Table (Table of Authorities) `references.updateAuthorities` — (Table of Authorities) [WP2]
+- ✅ Insert Caption (Captions) `references.caption` — WP2 `ID_RF_CAPTION` (References › Captions, Insert › References, right button on a picture or table): the Caption window (labels Figure, Table, Equation and new ones, New/Delete Label, position above/below the selected table or picture, exclude label, numbering 1/a/A/i/I with the chapter number from Heading 1-9 and a separator: `STYLEREF n \s`-`SEQ Label \* ARABIC \s n`), AutoCaption (a caption when a table or picture goes in; off until chosen); labels kept in settings.xml w:captions/w:autoCaptions; every caption of the label renumbered (core/refs.c, tests/test_wp2.c) [WP2]
+- ✅ Insert Table of Figures (Captions) `references.tableOfFigures` — WP2 `ID_RF_TOF`: by caption label (TOC \c, or \a without label and number) or by style (\t), page numbers, right-aligned, leaders, formats, hyperlinks; entries link to the captions, live page numbers [WP2]
+- ✅ Update Table of Figures (Captions) `references.updateFigures` — WP2 `ID_RF_TOF_UPDATE` (also F9) [WP2]
+- ✅ Cross-reference (Captions) `insert.crossReference` — `ID_XREF`; WP2 made it Word's window (`ID_RF_XREF`): numbered items, headings, bookmarks, footnotes, endnotes and every caption label; text, page, number (relative, no context, full context), above/below, note number (formatted), entire caption, label and number, caption text; as a hyperlink, with above/below, numbers separated; REF/PAGEREF/NOTEREF fields to hidden _Ref bookmarks, evaluated by Update Fields (core/refs.c `refs_eval`) [WP2]
+- ✅ Mark Entry (Index) `references.markEntry` — WP2 `ID_RF_MARK` (Alt-Shift-X): main entry, subentry, cross-reference (\t "See ..."), current page, page range bookmark (\r), bold/italic page numbers (\b \i); Mark and Mark All (the first occurrence in each paragraph); XE fields hidden, shown as codes with the formatting marks; AutoMark (`ID_RF_AUTOMARK`) from a concordance file (.docx table or tab-separated text) [WP2]
+- ✅ Insert Index (Index) `references.index` — WP2 `ID_RF_INDEX`: indented or run-in (\r), columns (\c, a continuous section of their own, balanced), language (\z: English, German, French, Spanish, Italian sorting and words), right-aligned page numbers with leaders (\e tab), letter headings (\h), page ranges, cross-references, bold/italic numbers, entry types (\f), letter ranges (\p) [WP2]
+- ✅ Update Index (Index) `references.updateIndex` — WP2 `ID_RF_INDEX_UPDATE` (twice, so the pages the index itself moves come right), F9 [WP2]
+- ✅ Mark Citation (Table of Authorities) `references.markCitation` — WP2 `ID_RF_CITE` (Alt-Shift-I): long and short citation, 16 categories (Word's seven named, renamable), the long citations so far, Mark, Mark All (the first occurrence gets the long citation), Next Citation (v., In re, Id., §, U.S.C. ...); TA fields [WP2]
+- ✅ Insert Table of Authorities (Table of Authorities) `references.tableOfAuthorities` — WP2 `ID_RF_TOA`: a category or all (a TOA field for each), category headings (\h), passim for five pages or more (\p), keep formatting (\f), leaders [WP2]
+- ✅ Update Table (Table of Authorities) `references.updateAuthorities` — WP2 `ID_RF_TOA_UPDATE`, F9 [WP2]
 - ✅ Update Fields (Fields) `references.updateFields` — WP1: `ID_FLD_UPDATE` (F9, References › Fields, the field menu): the selected fields, the one at the caret, or (nothing chosen) every field in the text, headers, footers, notes, comments and text boxes; core/field.c `field_update()`/`field_update_all()` evaluate DATE, TIME, CREATEDATE, SAVEDATE, PRINTDATE, EDITTIME, AUTHOR, TITLE, SUBJECT, KEYWORDS, COMMENTS, LASTSAVEDBY, TEMPLATE, REVNUM, FILENAME, NUMPAGES, NUMWORDS, NUMCHARS, PAGE, SECTION, SECTIONPAGES, PAGEREF, REF, SEQ (\\r \\c \\h \\s), DOCPROPERTY, INFO, MERGEFIELD, IF, QUOTE, SYMBOL, USERNAME, USERINITIALS with \\* \\# \\@; locked fields and the rest (ADDIN, INDEX, CITATION...) keep their results; one undo step; the TOC still through `ID_TOCUPDATE` [WP1]
 
 ### Mailings (23: ✅ 0 · 🟨 0 · ⬜ 22 · ➖ 1)
