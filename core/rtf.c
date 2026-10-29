@@ -29,6 +29,7 @@
 #include "fmtio.h"
 #include "codepage.h"
 #include "image.h"
+#include "notes.h"
 
 /* ================================================================== */
 /* reading */
@@ -498,7 +499,8 @@ static void sec_reset(R *r)
 }
 static int sec_plain(const SectFmt *s)
 {
-  return s->start == SB_NEXT && s->cols == 1 && !s->colline && s->valign == VA_TOP && s->linenum == LN_NONE && s->colgap == 720;
+  return s->start == SB_NEXT && s->cols == 1 && !s->colline && s->valign == VA_TOP && s->linenum == LN_NONE && s->colgap == 720 &&
+         !s->fnpr.set && !s->enpr.set;
 }
 /* \sect: the section ends with the last paragraph */
 static void sect_end(R *r)
@@ -788,6 +790,34 @@ static void fldrslt_start(R *r)
     g->cf = save;
     g->rsltskip = 1;                     /* the result is what Quill shows by itself */
   }
+}
+
+/* ---- footnote and endnote options (WP22b's NotePr): \ftn... and \aftn... for the document's,
+   \sftn... and \saftn... for the section's */
+static int note_word(R *r, const char *w, int has, long v)
+{
+  NotePr *pr;
+  const char *k = w;
+  int sect = 0, end = 0;
+  if (!strncmp(k, "s", 1) && (!strncmp(k + 1, "ftn", 3) || !strncmp(k + 1, "aftn", 4))) { sect = 1; k++; }
+  if (!strncmp(k, "aftn", 4)) { end = 1; k += 4; }
+  else if (!strncmp(k, "ftn", 3)) k += 3;
+  else if (!strcmp(w, "aendnotes") || !strcmp(w, "aenddoc")) { r->d->enpr.pos = (u8)(w[4] == 'n' ? NPOS_SECTEND : NPOS_DOCEND); r->d->enpr.set |= NPS_POS; return 1; }
+  else return 0;
+  pr = sect ? (end ? &r->sec.enpr : &r->sec.fnpr) : (end ? &r->d->enpr : &r->d->fnpr);
+  if (!strcmp(k, "bj")) { pr->pos = NPOS_PAGEBOTTOM; pr->set |= NPS_POS; }
+  else if (!strcmp(k, "tj")) { pr->pos = NPOS_BENEATHTEXT; pr->set |= NPS_POS; }
+  else if (!strcmp(k, "start") && has) { pr->start = (u16)(v > 0 ? v : 1); pr->set |= NPS_START; }
+  else if (!strcmp(k, "rstcont")) { pr->restart = NRS_CONT; pr->set |= NPS_RESTART; }
+  else if (!strcmp(k, "restart")) { pr->restart = NRS_SECTION; pr->set |= NPS_RESTART; }
+  else if (!strcmp(k, "rstpg")) { pr->restart = NRS_PAGE; pr->set |= NPS_RESTART; }
+  else if (!strncmp(k, "n", 1) && k[1] && k[2] && !k[4]) {
+    static const struct { const char *n; u8 f; } nf[] = { { "nar", NNF_DECIMAL }, { "nalc", NNF_LOWER_LETTER }, { "nauc", NNF_UPPER_LETTER },
+      { "nrlc", NNF_LOWER_ROMAN }, { "nruc", NNF_UPPER_ROMAN }, { "nchi", NNF_SYMBOL } };
+    int i;
+    for (i = 0; i < 6; i++) if (!strcmp(k, nf[i].n)) { pr->fmt = nf[i].f; pr->set |= NPS_FMT; }
+  } else return 0;
+  return 1;
 }
 
 /* ---- control words */
@@ -1116,6 +1146,7 @@ static void control(R *r, const char *w, int has, long v, int star)
   if (kw(w, "pgbrdropt") && has) { d->border.frompage = (u8)((v & 32) == 0); return; }
   if (kw(w, "revtim") || kw(w, "creatim")) return;
   if (kw(w, "fet")) return;
+  if (note_word(r, w, has, v)) return;
 
   /* ---- breaks and special characters */
   if (dst == D_BODY) {
@@ -2027,6 +2058,18 @@ static void wbody(W *w, Para **p, u32 a, u32 b)
     w->col = 0;
   }
 }
+/* note options: the ones set (prefix "" or "a" for the document's, "s" or "sa" for a section's) */
+static void wnotepr(Buf *b, const NotePr *pr, const char *pre, int end)
+{
+  static const char *const nf[NNF_N] = { "nar", "nalc", "nauc", "nrlc", "nruc", "nchi", "nar" };
+  if (pr->set & NPS_POS) {
+    if (!end) buf_printf(b, "\\%sftn%s", pre, pr->pos == NPOS_BENEATHTEXT ? "tj" : "bj");
+    else if (!pre[0] || !strcmp(pre, "a")) buf_adds(b, pr->pos == NPOS_SECTEND ? "\\aendnotes" : "\\aenddoc");
+  }
+  if (pr->set & NPS_START) buf_printf(b, "\\%sftnstart%d", pre, pr->start ? pr->start : 1);
+  if (pr->set & NPS_RESTART) buf_printf(b, "\\%sftn%s", pre, pr->restart == NRS_PAGE ? "rstpg" : pr->restart == NRS_SECTION ? "restart" : "rstcont");
+  if (pr->set & NPS_FMT) buf_printf(b, "\\%sftn%s", pre, nf[pr->fmt < NNF_N ? pr->fmt : 0]);
+}
 static void wsect(W *w, const SectFmt *s, int last)
 {
   Buf *b = w->b;
@@ -2052,6 +2095,8 @@ static void wsect(W *w, const SectFmt *s, int last)
     buf_adds(b, s->linenum == LN_PAGE ? "\\lineppage" : s->linenum == LN_SECTION ? "\\linerestart" : "\\linecont");
   }
   if (sect_titlepg(d, s, last)) buf_adds(b, "\\titlepg");
+  wnotepr(b, &s->fnpr, "s", 0);
+  wnotepr(b, &s->enpr, "sa", 1);
   if (d->pgstart > 1) buf_printf(b, "\\pgnstarts%d\\pgnrestart", (int)d->pgstart);
   switch (d->pgfmt) {
   case NF_UPPER_ROMAN: buf_adds(b, "\\pgnucrm"); break;
@@ -2216,9 +2261,12 @@ static u8 *rtf_save(Doc *d, size_t *len)
   color_index(&w, 0);
   /* the body into its own buffer, then the tables that come before it */
   w.b = &body;
-  buf_printf(&body, "\\paperw%ld\\paperh%ld\\margl%ld\\margr%ld\\margt%ld\\margb%ld%s%s\\deftab720\\widowctrl\\ftnbj\\aenddoc\\fet%d\\viewkind1\n",
+  buf_printf(&body, "\\paperw%ld\\paperh%ld\\margl%ld\\margr%ld\\margt%ld\\margb%ld%s%s\\deftab720\\widowctrl\\fet%d\\viewkind1",
              (long)d->page.width, (long)d->page.height, (long)d->page.left, (long)d->page.right, (long)d->page.top, (long)d->page.bottom,
              d->evenodd ? "\\facingp" : "", d->page.width > d->page.height ? "\\landscape" : "", d->nenotes ? 2 : 0);
+  wnotepr(&body, &d->fnpr, "", 0);
+  wnotepr(&body, &d->enpr, "a", 1);
+  buf_addc(&body, '\n');
   a = 0;
   for (i = 0; i < d->np; i++) {
     int last = i + 1 >= d->np;

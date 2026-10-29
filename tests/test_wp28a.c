@@ -113,6 +113,8 @@ static void rtf_everything(void)
   story_set_text(d, &d->hdr[HF_DEFAULT], "Header page {page} of {pages}", 0, AL_RIGHT);
   story_set_text(d, &d->ftr[HF_DEFAULT], "Footer", 0, AL_CENTER);
   strcpy(d->title, "Everything"); strcpy(d->author, "Quill Tester");
+  d->fnpr.set = NPS_FMT | NPS_RESTART | NPS_POS; d->fnpr.fmt = 3; d->fnpr.restart = 2; d->fnpr.pos = 1;     /* (lower roman, each page, beneath the text) */
+  d->sects[d->p[d->np - 2]->pf.sect - 1].enpr.set = NPS_START; d->sects[d->p[d->np - 2]->pf.sect - 1].enpr.start = 5;
   /* a tracked insertion */
   {
     int r = doc_add_rev(d, "Ada", "2026-10-24T10:30:00Z");
@@ -156,6 +158,8 @@ static void rtf_everything(void)
        e->ftr[HF_DEFAULT].np == 1 && !strcmp(e->ftr[HF_DEFAULT].p[0]->t, "Footer"));
     free(h);
   }
+  ok("rtf: footnote and endnote options, the document's and a section's", e->fnpr.set == d->fnpr.set && e->fnpr.fmt == 3 && e->fnpr.restart == 2 && e->fnpr.pos == 1 &&
+     doc_sect(e, 15)->enpr.set == NPS_START && doc_sect(e, 15)->enpr.start == 5);
   ok("rtf: title and author", !strcmp(e->title, "Everything") && !strcmp(e->author, "Quill Tester"));
   ok("rtf: tracked insertion with author and date", para_fmt_at(e->p[2], 0)->rev == REV_INS && para_fmt_at(e->p[2], 5)->rev == REV_NONE &&
      !strcmp(e->revs[para_fmt_at(e->p[2], 0)->rid].author, "Ada") && !strncmp(e->revs[para_fmt_at(e->p[2], 0)->rid].date, "2026-10-24T10:30", 16));
