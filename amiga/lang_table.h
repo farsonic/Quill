@@ -2171,7 +2171,6 @@
   { { "_Set Defaults", "_Standard festlegen", "_D\351finir par d\351faut", "_Establecer predeterminados", "_Imposta predefiniti" } },
   { { "Organizer", "Organisieren", "Organiser", "Organizador", "Organizzatore" } },
   { { "In this document:", "In diesem Dokument:", "Dans ce document :", "En este documento:", "In questo documento:" } },
-  { { "_Copy ->", "_Kopieren ->", "_Copier ->", "_Copiar ->", "_Copia ->" } },
   { { "<- C_opy", "<- K_opieren", "<- C_opier", "<- C_opiar", "<- C_opia" } },
   { { "D_elete", "L_\366schen", "_Supprimer", "_Eliminar", "_Elimina" } },
   { { "Open _File...", "_Datei \366ffnen...", "Ouvrir le _fichier...", "Abrir _archivo...", "Apri _file..." } },
