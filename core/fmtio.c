@@ -299,7 +299,9 @@ void tb_mark(TableBld *t, ParaFmt *pf)
   pf->cell.col = (u8)t->col;
   pf->cell.span = (u8)(t->incell & 0xFF ? t->incell & 0xFF : 1);
   pf->cell.vmerge = (u8)((t->incell & 0x100) ? VM_START : VM_NONE);
-  pf->list = 0;
+  pf->cell.borders = t->borders ? BD_ALL : 0;
+  pf->cell.shade = COLOR_AUTO;
+  pf->cell.bcolor[0] = pf->cell.bcolor[1] = pf->cell.bcolor[2] = pf->cell.bcolor[3] = COLOR_AUTO;
 }
 static int cell_cmp(const Para *a, const Para *b)
 {
@@ -344,9 +346,6 @@ int tb_end(TableBld *t, Doc *d, ParaList *l, i32 width)
         while (k < n && cells[k]->pf.cell.row == r && cells[k]->pf.cell.col == c) {
           Para *p = cells[k++];
           p->pf.cell.table = (u16)num;
-          p->pf.cell.borders = t->borders ? BD_ALL : 0;
-          p->pf.cell.shade = COLOR_AUTO;
-          p->pf.cell.bcolor[0] = p->pf.cell.bcolor[1] = p->pf.cell.bcolor[2] = p->pf.cell.bcolor[3] = COLOR_AUTO;
           p->pf.cell.header = (u8)(r == 0 && t->header0);
           pl_add(&out, p);
         }
@@ -437,7 +436,6 @@ i32 css_twips(const char *s, size_t n, int *ok)
   long whole = 0, frac = 0, fd = 1;
   int neg = 0, any = 0;
   size_t i = 0;
-  double v;
   *ok = 0;
   while (i < n && (s[i] == ' ' || s[i] == '\t')) i++;
   if (i < n && (s[i] == '-' || s[i] == '+')) neg = s[i++] == '-';
@@ -448,7 +446,6 @@ i32 css_twips(const char *s, size_t n, int *ok)
   {
     long per = 15000;                                   /* px (96 dpi) */
     long t;
-    (void)v;
     if (i + 1 < n || i < n) {
       const char *u = s + i;
       size_t un = n - i;

@@ -62,7 +62,8 @@ typedef struct {
 void tb_begin(TableBld *t, u32 first, int borders);
 void tb_row(TableBld *t);
 void tb_cell(TableBld *t, int colspan, int rowspan, int header);
-/* a paragraph added to the list is in the cell being filled (call for each, before pl_add) */
+/* a paragraph added to the list is in the cell being filled (call for each, before pl_add): its cell
+   (borders as tb_begin said, no shading), which the caller may change */
 void tb_mark(TableBld *t, ParaFmt *pf);
 int  tb_end(TableBld *t, Doc *d, ParaList *l, i32 width);
 /* the width between the page's margins */
