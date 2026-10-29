@@ -6,7 +6,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 ## Summary
 
-- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **405** (✅), **5** partly (🟨) and lacks **91** (⬜); 30 are ➖. So Quill covers 81% of the applicable commands fully and 82% at least in part.
+- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **416** (✅), **5** partly (🟨) and lacks **80** (⬜); 30 are ➖. So Quill covers 83% of the applicable commands fully and 84% at least in part.
 - **Beyond the ribbon (section 2):** 152 features: ✅ 55, 🟨 43, ⬜ 37, ➖ 17.
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
 - **Missing whole:** Mailings (22), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
@@ -19,13 +19,13 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Quick Access | 5 | 5 | 0 | 0 | 0 |
 | Title Bar | 1 | 0 | 0 | 1 | 0 |
 | Home | 105 | 97 | 2 | 5 | 1 |
-| Insert | 53 | 40 | 0 | 7 | 6 |
-| Draw | 11 | 0 | 0 | 10 | 1 |
+| Insert | 53 | 41 | 0 | 6 | 6 |
+| Draw | 11 | 9 | 0 | 1 | 1 |
 | Design | 10 | 9 | 0 | 1 | 0 |
 | Layout | 22 | 19 | 0 | 3 | 0 |
 | References | 25 | 9 | 1 | 14 | 1 |
 | Mailings | 23 | 0 | 0 | 22 | 1 |
-| Review | 31 | 24 | 1 | 4 | 2 |
+| Review | 31 | 25 | 1 | 3 | 2 |
 | View | 29 | 25 | 0 | 0 | 4 |
 | Read Mode | 3 | 2 | 0 | 0 | 1 |
 | Developer | 11 | 0 | 0 | 11 | 0 |
@@ -42,7 +42,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Chart Design | 5 | 5 | 0 | 0 | 0 |
 | Editing | 41 | 41 | 0 | 0 | 0 |
 | Tools | 7 | 3 | 0 | 4 | 0 |
-| **All** | **531** | **405** | **5** | **91** | **30** |
+| **All** | **531** | **416** | **5** | **80** | **30** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
@@ -295,7 +295,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Dictate (Voice) `tools.dictate` — WordCraft doesn't have it either (cloud speech service)
 - ✅ Editor (Editor) `review.editor` — WordCraft's Editor runs Spelling: Quill `ID_SPELL`
 
-### Insert (53: ✅ 40 · 🟨 0 · ⬜ 7 · ➖ 6)
+### Insert (53: ✅ 41 · 🟨 0 · ⬜ 6 · ➖ 6)
 
 - ✅ Cover Page (Pages) `insert.coverPage` — `ID_COVERDD` (3 designs, remove)
 - ✅ Blank Page (Pages) `insert.blankPage` — `ID_BLANKPAGE`
@@ -351,7 +351,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Nonbreaking Hyphen (Symbols) `text.nbHyphen` — U+2011 (`ID_P_NBHYPHEN`, Ctrl-Shift-minus): drawn and measured as a hyphen, never broken at (lines now break after ordinary hyphens), `w:noBreakHyphen` read and written [WP10]
 - ✅ Optional Hyphen (Symbols) `text.optionalHyphen` — U+00AD (`ID_P_SOFTHYPHEN`, Ctrl-minus): no room and not drawn unless a line breaks there (then a hyphen), ¬ with formatting marks, `w:softHyphen` read and written [WP10]
 
-### Draw (11: ✅ 10 · 🟨 0 · ⬜ 0 · ➖ 1)
+### Draw (11: ✅ 9 · 🟨 0 · ⬜ 1 · ➖ 1)
 
 - ✅ Select (Tools) `draw.select` — `ID_DR_SELECT` (or Esc): back to selecting text and objects [WP20]
 - ✅ Lasso Select (Tools) `draw.lasso` — `ID_DR_LASSO`: a loop drawn on the page chooses the strokes most of whose points are in it (and shapes whose centre is), shown with dotted frames; dragging inside them moves them (one undo step), Del deletes them, Color recolours them, Convert makes shapes of them (`ink_in_lasso`, amiga/wp_draw_view.h) [WP20]
@@ -457,7 +457,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Finish & Merge (Finish) `mailings.finish` [WP4]
 - ➖ Print Documents (Finish) `mailings.printDocuments` — printing left out on purpose (merging to a new document or PDF is part of Finish & Merge)
 
-### Review (31: ✅ 24 · 🟨 1 · ⬜ 4 · ➖ 2)
+### Review (31: ✅ 25 · 🟨 1 · ⬜ 3 · ➖ 2)
 
 - ✅ Spelling & Grammar (Proofing) `review.spelling` — `ID_SPELL`/F7: the Spelling and Grammar window (amiga/wp_proof.c `wp8_spelling()`): each word by its own language's dictionary, English grammar by core/grammar.c, Ignore Once/All, Add, Change, Change All, AutoCorrect, grammar and style switches [WP8]
 - ✅ Thesaurus (Proofing) `review.thesaurus` — Review > Proofing and Shift-F7: the Thesaurus window (meanings, synonyms, look up, insert), core/thesaurus.c with dict/th_en.dat (WordNet); Synonyms on the right-click menu [WP8]
