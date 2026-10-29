@@ -2610,6 +2610,7 @@ void doc_free(Doc *d)
   for (i = 0; i < HF_N; i++) { story_free(&d->hdr[i]); story_free(&d->ftr[i]); }
   undo_free(d->undo);
   keep_free(d);
+  free(d->wm.pic);          /* (WP22a) */
   free(d);
 }
 
@@ -2980,6 +2981,7 @@ int doc_story_begin(Doc *d, int kind, int index, int sect, u32 fpage, u32 fpages
   e->p = d->p; e->np = d->np; e->pcap = d->pcap; e->undo = d->undo; e->page = d->page;
   e->wm = (u8)d->wm.text[0]; d->wm.text[0] = 0;
   e->border = d->border.style; d->border.style = PB_NONE;
+  e->wmpic = d->wm.pic; d->wm.pic = NULL;          /* (WP22a) */
   memcpy(e->hdr, d->hdr, sizeof e->hdr); memcpy(e->ftr, d->ftr, sizeof e->ftr);
   memset(d->hdr, 0, sizeof d->hdr); memset(d->ftr, 0, sizeof d->ftr);
   d->p = np; d->np = n; d->pcap = n; d->undo = u; d->page = pg;
@@ -3001,6 +3003,7 @@ int doc_story_end(Doc *d, int keep)
   undo_free(d->undo);
   d->p = e->p; d->np = e->np; d->pcap = e->pcap; d->undo = e->undo; d->page = e->page;
   d->wm.text[0] = (char)e->wm; d->border.style = e->border;
+  d->wm.pic = e->wmpic; e->wmpic = NULL;           /* (WP22a) */
   memcpy(d->hdr, e->hdr, sizeof d->hdr); memcpy(d->ftr, e->ftr, sizeof d->ftr);
   e->kind = SK_NONE; e->p = NULL; e->np = 0; e->undo = NULL;
   s = keep && changed_ ? doc_story(d, kind, e->index, e->sect) : NULL;

@@ -108,6 +108,8 @@ typedef struct Layout {
   u32 laid;                   /* paragraphs laid out afresh by the last update (for tests and timing) */
   struct { u32 key; FaceSize *z; } fcache[64];      /* format -> metrics (font substitution is slow) */
   int nfcache;
+  /* WP22a: the pages as laid out (core/pages.c's pages_eff: gutter, mirror margins, two to a sheet) */
+  PageSetup *epg; u32 nepg;
 } Layout;
 
 /* a header or footer laid out for one page (its page fields filled in) */

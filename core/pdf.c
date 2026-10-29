@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "pdf.h"
+#include "pages.h"
 #include "zip.h"
 #include "docx.h"
 #include "image.h"
@@ -61,6 +62,7 @@ typedef struct {
   struct PLink { u32 page; i32 x0, y0, x1, y1; u8 kind; u32 target; } *links; int nlinks, linkcap;
   PDest *fnote, *fref, *enote, *eref;     /* each footnote's and endnote's text and reference */
   int *tocto;                             /* each paragraph of a table of contents: its heading's paragraph, -1 */
+  Image wmimg;                            /* (WP22a) the picture watermark, as a picture to draw */
 } Pdf;
 /* a link's area (twips, as the content stream draws) noted for the page being written; a box
    just right of the last area of the same link on the same line joins it */
@@ -432,7 +434,7 @@ static void watermark(Pdf *p, Buf *b)
   if (!(z = fonts_size(p->L->fs, d->wm.font[0] ? d->wm.font : "Calibri", 0, 0, (u16)size))) return;
   w = (long)(fonts_text(z, d->wm.text, n) / QFINE);
   cx = pg->left + bw / 2; cy = H - (pg->top + bh / 2);
-  colour(b, wm_colour(d->wm.color), "rg");
+  colour(b, d->wm.opaque ? d->wm.color : wm_colour(d->wm.color), "rg");      /* (WP22a: or solid) */
   if (d->wm.horizontal) { x0 = cx - w / 2; y0 = cy - size * 10 * 7 / 20; buf_printf(b, "BT /F%d %ld Tf %ld %ld Td ", font_index(p, z->face), size * 10, x0, y0); }
   else {
     /* along the diagonal: start half the width back, half the capital's height down (rotated) */
@@ -444,27 +446,34 @@ static void watermark(Pdf *p, Buf *b)
   show(p, b, font_index(p, z->face), cps, k);
   buf_adds(b, "ET\n");
 }
-/* the page border: a rectangle round the text (or in from the page's edge) */
+/* the page border (WP22a: the page's section's, each side its own kind: core/pages.c's rectangles) */
 static void page_border(Pdf *p, Buf *b)
+{
+  PBRect *r = NULL;
+  const PageSetup *pg = lay_page(p->L, p->page);
+  int n = pages_border_rects(p->L, p->page, &r), i;
+  u32 last = 0xFFFFFFFF;
+  for (i = 0; i < n; i++) {
+    if (r[i].color != last) { colour(b, r[i].color, "rg"); last = r[i].color; }
+    buf_printf(b, "%ld %ld %ld %ld re f\n", (long)r[i].x0, (long)(pg->height - r[i].y1), (long)(r[i].x1 - r[i].x0), (long)(r[i].y1 - r[i].y0));
+  }
+  free(r);
+}
+/* (WP22a) the picture watermark, centred on the text area, behind everything (washed out: the
+   picture's samples mapped to its pale end, by /Decode or, decoded, pages_washout) */
+static void wm_picture(Pdf *p, Buf *b)
 {
   Doc *d = p->L->d;
   const PageSetup *pg = lay_page(p->L, p->page);
-  PageBorder *pb = &d->border;
-  i32 H = pg->height, lw = pb->width * 5 / 2, x0, y0, x1, y1, i, n = pb->style == PB_DOUBLE ? 2 : 1;
-  if (pb->style == PB_NONE) return;
-  if (pb->style == PB_THICK) lw *= 3;
-  if (lw < 5) lw = 5;
-  if (pb->frompage) { x0 = pb->space; y0 = pb->space; x1 = pg->width - pb->space; y1 = pg->height - pb->space; }
-  else { x0 = pg->left - pb->space; y0 = pg->top - pb->space; x1 = pg->width - pg->right + pb->space; y1 = pg->height - pg->bottom + pb->space; }
-  colour(b, pb->color, "RG");
-  buf_printf(b, "%ld w 0 J ", (long)lw);
-  if (pb->style == PB_DOTTED) buf_printf(b, "[%ld %ld] 0 d ", (long)lw, (long)lw * 2);
-  else if (pb->style == PB_DASHED) buf_printf(b, "[%ld %ld] 0 d ", (long)lw * 6, (long)lw * 4);
-  for (i = 0; i < n; i++) {
-    i32 o = i * lw * 3;
-    buf_printf(b, "%ld %ld %ld %ld re S\n", (long)(x0 + o), (long)(H - y1 + o), (long)(x1 - x0 - 2 * o), (long)(y1 - y0 - 2 * o));
-  }
-  buf_adds(b, "[] 0 d\n");
+  i32 x, y, w, h;
+  int ri;
+  pages_wm_box(d, pg, &x, &y, &w, &h);
+  memset(&p->wmimg, 0, sizeof p->wmimg);
+  p->wmimg.data = d->wm.pic; p->wmimg.len = d->wm.piclen; p->wmimg.type = d->wm.pictype; p->wmimg.pw = d->wm.pw; p->wmimg.ph = d->wm.ph;
+  p->wmimg.cx = w; p->wmimg.cy = h; p->wmimg.shared = 1;
+  pages_wash_mark(d->wm.washout ? d->wm.pic : NULL);
+  if ((ri = img_ref(p, &p->wmimg)) < 0) return;
+  buf_printf(b, "q %ld 0 0 %ld %ld %ld cm /Im%d Do Q\n", (long)w, (long)h, (long)x, (long)(pg->height - y - h), ri);
 }
 /* one edge (E_) of a table cell, from (x0, y0) to (x1, y1) in PDF space */
 static void cell_edge(Buf *b, const CellBox *c, int e, i32 x0, i32 y0, i32 x1, i32 y1)
@@ -611,6 +620,7 @@ static void page_content(Pdf *p, u32 page, Buf *b)
     buf_printf(b, "0 0 %ld %ld re f\n", (long)pg->width, (long)H);
   }
   if (d->wm.text[0]) watermark(p, b);
+  else if (d->wm.pic) wm_picture(p, b);       /* (WP22a) */
   page_border(p, b);
   /* objects behind the text: the headers' first */
   {
@@ -1103,8 +1113,9 @@ u8 *pdf_export_opts(Layout *L, const PdfOpts *o, size_t *len)
     int dec = 0, nc = im->type == IMG_JPEG ? img_jpeg_components(im->data, im->len, &dec) : 3;
     if (im->type == IMG_JPEG && (nc == 1 || nc == 3)) {
       obj_start(&p, on);
-      buf_printf(&p.o, "<</Type /XObject /Subtype /Image /Width %lu /Height %lu /ColorSpace /%s /BitsPerComponent 8 /Filter /DCTDecode /Length %lu>>\nstream\n",
-                 (unsigned long)im->pw, (unsigned long)im->ph, nc == 1 ? "DeviceGray" : "DeviceRGB", (unsigned long)im->len);
+      const char *dec = !pages_wash_is(im->data) ? "" : nc == 1 ? "/Decode [0.7 1] " : "/Decode [0.7 1 0.7 1 0.7 1] ";   /* (WP22a: washed out) */
+      buf_printf(&p.o, "<</Type /XObject /Subtype /Image /Width %lu /Height %lu /ColorSpace /%s /BitsPerComponent 8 %s/Filter /DCTDecode /Length %lu>>\nstream\n",
+                 (unsigned long)im->pw, (unsigned long)im->ph, nc == 1 ? "DeviceGray" : "DeviceRGB", dec, (unsigned long)im->len);
       buf_add(&p.o, im->data, im->len);
       buf_adds(&p.o, "\nendstream\nendobj\n");
     } else {
@@ -1115,6 +1126,7 @@ u8 *pdf_export_opts(Layout *L, const PdfOpts *o, size_t *len)
       if (!w) w = 1;
       if (!h) h = 1;
       if ((rgb = img_decode(im->data, im->len, w, h))) {
+        if (pages_wash_is(im->data)) pages_washout(rgb, w * h);      /* (WP22a) */
         sprintf(dict, "/Type /XObject /Subtype /Image /Width %lu /Height %lu /ColorSpace /DeviceRGB /BitsPerComponent 8", (unsigned long)w, (unsigned long)h);
         stream(&p, on, dict, rgb, (size_t)w * h * 3);
         free(rgb);

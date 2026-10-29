@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "docx.h"
+#include "pages.h"
 #include "toc.h"
 #include "xml.h"
 #include "zip.h"
@@ -933,6 +934,9 @@ static int parse_watermark(Xml *x, Ctx *c)
 {
   int d0 = x->depth, is = 0;
   Watermark w;
+  char rid[64] = "";
+  i32 wpt = 0;
+  int washout = 0, opaque = 1;
   memset(&w, 0, sizeof w);
   w.color = 0xC0C0C0; w.horizontal = 1;
   while (xml_next(x) != XT_EOF) {
@@ -940,10 +944,19 @@ static int parse_watermark(Xml *x, Ctx *c)
     if (x->type != XT_START) continue;
     if (!strcmp(x->name, "shape")) {
       const char *id = xml_attr(x, "id"), *st = xml_attr(x, "style"), *fc = xml_attr(x, "fillcolor");
-      if (id && strstr(id, "WaterMark")) is = 1;
+      if (id && (strstr(id, "WaterMark") || strstr(id, "Watermark"))) is = 1;
       if (st && strstr(st, "rotation:315")) w.horizontal = 0;
+      if (st && strstr(st, "width:")) wpt = (i32)(atof(strstr(st, "width:") + 6) * 20);      /* (WP22a: a picture's size, twips) */
       if (fc && fc[0] == '#') w.color = hexcolor(fc + 1) == COLOR_AUTO ? 0xC0C0C0 : hexcolor(fc + 1);
       else if (fc && !strncmp(fc, "gray", 4)) w.color = 0x808080;
+    } else if (!strcmp(x->name, "imagedata")) {
+      /* (WP22a) a picture watermark: its picture, and whether it is washed out */
+      const char *r = xml_attr(x, "id"), *g = xml_attr(x, "gain");
+      if (r) { strncpy(rid, r, sizeof rid - 1); rid[sizeof rid - 1] = 0; }
+      if (g && atof(g) > 0 && atof(g) < 40000) washout = 1;
+    } else if (!strcmp(x->name, "fill")) {
+      const char *op = xml_attr(x, "opacity");
+      if (op && atof(op) < 0.99 && atof(op) > 0) opaque = 0;
     } else if (!strcmp(x->name, "textpath")) {
       const char *str = xml_attr(x, "string"), *st = xml_attr(x, "style"), *ff;
       if (str) { strncpy(w.text, str, sizeof w.text - 1); w.text[sizeof w.text - 1] = 0; }
@@ -957,7 +970,29 @@ static int parse_watermark(Xml *x, Ctx *c)
     }
   }
   if (!is) { c->lost |= LOST_PICTURES; return 1; }
-  if (w.text[0] && !c->d->wm.text[0]) c->d->wm = w;
+  w.opaque = (u8)opaque;
+  if (w.text[0] && !c->d->wm.text[0] && !c->d->wm.pic) c->d->wm = w;
+  else if (rid[0] && !c->d->wm.text[0] && !c->d->wm.pic && c->rels && c->z) {
+    char path[300];
+    size_t len = 0;
+    u8 *data;
+    rel_by_id(c->rels, c->rn, rid, c->base, path, sizeof path);
+    if (path[0] && (data = (u8 *)zip_read(c->z, zip_find(c->z, path), &len))) {
+      if (pages_wm_picture(c->d, data, (u32)len)) {
+        PageSetup *pg = &c->d->page;
+        i32 x0, y0, fw, fh;
+        c->d->wm.washout = (u8)washout;
+        /* its scale: as it fits the text area (auto), else its size against its natural one */
+        c->d->wm.scale = 0;
+        pages_wm_box(c->d, pg, &x0, &y0, &fw, &fh);
+        if (wpt > 0 && (wpt * 50 < fw * 49 || wpt * 50 > fw * 51) && c->d->wm.pw) {
+          long sc = (long)wpt * 100 / ((long)c->d->wm.pw * 15);
+          c->d->wm.scale = (u16)(sc < 1 ? 1 : sc > 2000 ? 2000 : sc);
+        }
+      } else c->lost |= LOST_PICTURES;
+      free(data);
+    } else c->lost |= LOST_PICTURES;
+  }
   return 1;
 }
 /* a DrawingML colour element (srgbClr, schemeClr, sysClr, prstClr) with its shade, tint and luminance changes */
@@ -1770,6 +1805,7 @@ static void parse_sect(Xml *x, Ctx *c, SectFmt *sf, int body)
     if (x->type == XT_END && x->depth < d0) break;
     if (x->type != XT_START) continue;
     v = xml_attr(x, "val");
+    if (pages_read_sect(x, c->d, sf, pg, body)) continue;        /* (WP22a: columns, borders, margins with the gutter, vAlign) */
     if (!strcmp(x->name, "type") && v)
       sf->start = (u8)(!strcmp(v, "continuous") ? SB_CONT : !strcmp(v, "evenPage") ? SB_EVEN : !strcmp(v, "oddPage") ? SB_ODD : SB_NEXT);
     else if (!strcmp(x->name, "cols")) {
@@ -2241,6 +2277,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
   /* WP21a: */
   /* WP21b: */
   /* WP22a: */
+  pages_read_setting(c->d, x);
   /* WP22b: */
   /* WP23: */
   /* WP24: */
@@ -2390,6 +2427,7 @@ static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_
   /* WP21a: */
   /* WP21b: */
   /* WP22a: */
+  pages_read_done(c->d);
   /* WP22b: */
   /* WP23: */
   /* WP24: */
@@ -3218,6 +3256,7 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
 static void w_watermark(Buf *o, Doc *d)
 {
   static int shapes = 1025;
+  if (d->wm.pic) { pages_write_wm_picture(o, d); return; }     /* (WP22a: a picture) */
   i32 body = d->page.width - d->page.left - d->page.right;
   long n = (long)strlen(d->wm.text), wpt, hpt;
   char col[8];
@@ -3238,7 +3277,8 @@ static void w_watermark(Buf *o, Doc *d)
   buf_printf(o, "<v:shape id=\"PowerPlusWaterMarkObject%d\" o:spid=\"_x0000_s%d\" type=\"#_x0000_t136\" style=\"position:absolute;margin-left:0;margin-top:0;"
                 "width:%ldpt;height:%ldpt;%sz-index:-251654144;mso-position-horizontal:center;mso-position-horizontal-relative:margin;"
                 "mso-position-vertical:center;mso-position-vertical-relative:margin\" o:allowincell=\"f\" fillcolor=\"#%s\" stroked=\"f\">"
-                "<v:fill opacity=\".5\"/><v:textpath style=\"font-family:&quot;", shapes, shapes, wpt, hpt, d->wm.horizontal ? "" : "rotation:315;", col);
+                "%s<v:textpath style=\"font-family:&quot;", shapes, shapes, wpt, hpt, d->wm.horizontal ? "" : "rotation:315;", col,
+                d->wm.opaque ? "" : "<v:fill opacity=\".5\"/>");
   shapes++;
   xml_escape(o, font, strlen(font));
   buf_adds(o, "&quot;;font-size:1pt\" string=\"");
@@ -3367,7 +3407,7 @@ static int part_written(Doc *d, int g, int k)
   if (!set_used(d, g)) return 0;
   tp = g ? d->sects[g - 1].titlepg : d->titlepg;
   if (set_story(d, g, k)->np || save_slot[k]) return 1;
-  return k < HF_N && d->wm.text[0] && (k == HF_DEFAULT || (k == HF_FIRST && tp) || (k == HF_EVEN && d->evenodd));
+  return k < HF_N && pages_wm_on(d) && (k == HF_DEFAULT || (k == HF_FIRST && tp) || (k == HF_EVEN && d->evenodd));
 }
 /* a section's w:sectPr: g its headers' and footers' set; last: the last section (whose page setup and
    first page are the document's) */
@@ -3376,8 +3416,6 @@ static void w_sectpr(Buf *o, Doc *d, const SectFmt *s, int g, int last)
   const PageSetup *pg = sect_page(d, s, last);
   static const char *const types[4] = { "nextPage", "continuous", "evenPage", "oddPage" };
   static const char *const restart[4] = { "newPage", "newPage", "newSection", "continuous" };
-  static const char *const pbs[6] = { "none", "single", "double", "thick", "dotted", "dashed" };
-  static const char *const va[3] = { "top", "center", "bottom" };
   int k;
   buf_adds(o, "<w:sectPr>");
   if (!set_used(d, g)) g = 0;
@@ -3386,18 +3424,8 @@ static void w_sectpr(Buf *o, Doc *d, const SectFmt *s, int g, int last)
   if (s->start != SB_NEXT) buf_printf(o, "<w:type w:val=\"%s\"/>", types[s->start & 3]);
   buf_printf(o, "<w:pgSz w:w=\"%ld\" w:h=\"%ld\"%s/>", (long)pg->width, (long)pg->height,
              pg->width > pg->height ? " w:orient=\"landscape\"" : "");
-  buf_printf(o, "<w:pgMar w:top=\"%ld\" w:right=\"%ld\" w:bottom=\"%ld\" w:left=\"%ld\" w:header=\"%ld\" w:footer=\"%ld\" w:gutter=\"0\"/>",
-             (long)pg->top, (long)pg->right, (long)pg->bottom, (long)pg->left, (long)pg->header, (long)pg->footer);
-  if (d->border.style != PB_NONE) {
-    static const char *const sides[4] = { "top", "left", "bottom", "right" };
-    char col[8];
-    long sp = d->border.space / 20;
-    if (d->border.color == COLOR_AUTO) strcpy(col, "auto"); else sprintf(col, "%06lX", (unsigned long)(d->border.color & 0xFFFFFF));
-    buf_printf(o, "<w:pgBorders w:offsetFrom=\"%s\">", d->border.frompage ? "page" : "text");
-    for (k = 0; k < 4; k++)
-      buf_printf(o, "<w:%s w:val=\"%s\" w:sz=\"%u\" w:space=\"%ld\" w:color=\"%s\"/>", sides[k], pbs[d->border.style % 6], (unsigned)d->border.width, sp > 31 ? 31L : sp, col);
-    buf_adds(o, "</w:pgBorders>");
-  }
+  pages_write_pgmar(o, pg);                         /* (WP22a: with the gutter) */
+  pages_write_pgborders(o, d, s, last);             /* (WP22a: the section's, each side its own) */
   if (s->linenum != LN_NONE) {
     buf_printf(o, "<w:lnNumType w:countBy=\"%u\" w:distance=\"%ld\" w:restart=\"%s\"", (unsigned)s->lnby, (long)s->lndist, restart[s->linenum & 3]);
     if (s->lnstart > 1) buf_printf(o, " w:start=\"%u\"", (unsigned)(s->lnstart - 1));
@@ -3409,9 +3437,10 @@ static void w_sectpr(Buf *o, Doc *d, const SectFmt *s, int g, int last)
     if (d->pgstart > 1) buf_printf(o, " w:start=\"%u\"", (unsigned)d->pgstart);
     buf_adds(o, "/>");
   }
-  buf_printf(o, "<w:cols w:num=\"%u\" w:space=\"%ld\"%s/>", (unsigned)s->cols, (long)s->colgap, s->colline && s->cols > 1 ? " w:sep=\"1\"" : "");
-  if (s->valign != VA_TOP) buf_printf(o, "<w:vAlign w:val=\"%s\"/>", va[s->valign % 3]);
+  pages_write_cols(o, s);                           /* (WP22a: columns of their own widths) */
+  pages_write_valign(o, s);                         /* (WP22a: and Justified) */
   if (sect_titlepg(d, s, last)) buf_adds(o, "<w:titlePg/>");
+  pages_write_sect_tail(o, s);                      /* (WP22a) */
   buf_adds(o, "</w:sectPr>");
 }
 /* document.xml: the body's paragraphs with the tables round them, a table of contents wrapped in a
@@ -3607,6 +3636,7 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
   /* WP21a: */
   /* WP21b: */
   /* WP22a: */
+  { const char *ct = NULL, *nm = pages_wm_part(d, &ct); if (nm[0]) docx_out_part(o, nm, ct, NULL, NULL, NULL, d->wm.pic, d->wm.piclen); }
   /* WP22b: */
   /* WP23: */
   /* WP24: */
@@ -3617,7 +3647,8 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
    (w:writeProtection, w:view, w:zoom ...), 1 after w:displayBackgroundShape and before
    w:defaultTabStop (w:trackRevisions, w:documentProtection ...), 2 after w:autoHyphenation (hyphenation
    zone and limits; w:evenAndOddHeaders comes after), 3 after w:compat (w:docVars, w:rsids, m:mathPr,
-   w:attachedTemplate, w:mailMerge ...) */
+   w:attachedTemplate, w:mailMerge ...), 4 after w:evenAndOddHeaders and before w:footnotePr (w:bookFoldPrinting,
+   w:printTwoOnOne ...; WP22a added it) */
 static void docx_write_settings_ext(Doc *d, Buf *b, int where)
 {
   (void)d; (void)b; (void)where;
@@ -3643,6 +3674,7 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   /* WP21a: */
   /* WP21b: */
   /* WP22a: */
+  pages_write_settings(d, b, where);
   /* WP22b: */
   /* WP23: */
   /* WP24: */
@@ -3822,6 +3854,7 @@ u8 *docx_save(Doc *d, size_t *len)
     if (d->hyphenate) buf_adds(&st, "<w:autoHyphenation/>");
     docx_write_settings_ext(d, &st, 2);
     if (d->evenodd) buf_adds(&st, "<w:evenAndOddHeaders/>");
+    docx_write_settings_ext(d, &st, 4);
     if (save_notes) buf_adds(&st, "<w:footnotePr><w:footnote w:id=\"-1\"/><w:footnote w:id=\"0\"/></w:footnotePr>");
     if (save_enotes) buf_adds(&st, "<w:endnotePr><w:endnote w:id=\"-1\"/><w:endnote w:id=\"0\"/></w:endnotePr>");
     buf_adds(&st, "<w:compat><w:compatSetting w:name=\"compatibilityMode\" w:uri=\"http://schemas.microsoft.com/office/word\" w:val=\"15\"/></w:compat>");
@@ -3837,11 +3870,11 @@ u8 *docx_save(Doc *d, size_t *len)
       if (!part_written(d, g, pk)) continue;
       st = set_story(d, g, pk);
       sprintf(name, "word/%s%d.xml", pk < HF_N ? "header" : "footer", g * HF_N + pk % HF_N + 1);
-      if (!(x = w_story(d, st, pk >= HF_N, pk < HF_N && d->wm.text[0], &xl))) { ok = 0; break; }
+      if (!(x = w_story(d, st, pk >= HF_N, pk < HF_N && pages_wm_on(d), &xl))) { ok = 0; break; }
       ok = zip_add(&z, name, x, xl);
       free(x);
-      if (ok && save_nml) {
-        /* a header's pictures: the same media, through its own relationships */
+      if (ok && (save_nml || (pk < HF_N && d->wm.pic))) {
+        /* a header's pictures: the same media, through its own relationships (and the picture watermark's, WP22a) */
         Buf hr;
         int i;
         buf_init(&hr);
@@ -3850,6 +3883,9 @@ u8 *docx_save(Doc *d, size_t *len)
         for (i = 0; i < save_nml; i++)
           buf_printf(&hr, "<Relationship Id=\"rIdImg%d\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image%d.%s\"/>",
                      i + 1, i + 1, save_ml[i].type == IMG_PNG ? "png" : "jpeg");
+        if (pk < HF_N && d->wm.pic)
+          buf_printf(&hr, "<Relationship Id=\"" PAGES_WM_RELID "\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"%s\"/>",
+                     pages_wm_part(d, NULL) + 5);
         buf_adds(&hr, "</Relationships>");
         sprintf(name, "word/_rels/%s%d.xml.rels", pk < HF_N ? "header" : "footer", g * HF_N + pk % HF_N + 1);
         ok = !hr.oom && zip_add(&z, name, hr.data, hr.len);
