@@ -2919,11 +2919,13 @@ static void w_tbl_start(Buf *o, Doc *d, const Table *t)
 }
 /* open a row, with the row properties its cells carry: height (negative means exact), heading
    row, can't split */
-static void w_tr_start(Buf *o, const Cell *c)
+static void w_tr_start(Buf *o, const Cell *c, int before, int after)
 {
   buf_adds(o, "<w:tr>");
-  if (c->rowh || c->header || c->cantsplit) {
+  if (c->rowh || c->header || c->cantsplit || before || after) {
     buf_adds(o, "<w:trPr>");
+    if (before > 0) buf_printf(o, "<w:gridBefore w:val=\"%d\"/>", before);     /* WP21b: rows that start late or end short */
+    if (after > 0) buf_printf(o, "<w:gridAfter w:val=\"%d\"/>", after);
     if (c->cantsplit) buf_adds(o, "<w:cantSplit/>");
     if (c->rowh) buf_printf(o, "<w:trHeight w:val=\"%d\" w:hRule=\"%s\"/>", c->rowh < 0 ? -c->rowh : c->rowh, c->rowh < 0 ? "exact" : "atLeast");
     if (c->header) buf_adds(o, "<w:tblHeader/>");
@@ -2961,6 +2963,20 @@ static int cell_path(Doc *d, const ParaFmt *pf, const Cell **v)
 }
 /* whether two cell references are the same cell (the other fields, such as its lines, may differ) */
 static int same_c(const Cell *a, const Cell *b) { return a->table == b->table && a->row == b->row && a->col == b->col; }
+/* WP21b: the grid columns a row leaves empty before its first cell and after its last (a row whose
+   cells were deleted with the rest shifting left ends short): from paragraph i, the row's first */
+static void row_grid_wp21(Doc *d, u32 i, const Cell *c, const Table *t, int *before, int *after)
+{
+  int end = 0;
+  u32 j;
+  *before = c->col; *after = 0;
+  for (j = i; j < d->np; j++) {
+    const Cell *x = cell_in(&d->p[j]->pf, c->table);
+    if (!x || x->row != c->row) break;
+    if (x->col + x->span > end) end = x->col + x->span;
+  }
+  if (end < t->ncols) *after = t->ncols - end;
+}
 /* table structure around paragraph i: the starts of tables, rows and cells before it (as far as the
    paragraph before isn't in them already), the ends after it */
 static void w_table_open(Buf *o, Doc *d, u32 i)
@@ -2973,7 +2989,7 @@ static void w_table_open(Buf *o, Doc *d, u32 i)
     int tblopen = l == k && l < np && pv[l]->table == cv[l]->table;
     int rowopen = tblopen && pv[l]->row == cv[l]->row;
     if (!tblopen) w_tbl_start(o, d, t);
-    if (!rowopen) w_tr_start(o, cv[l]);
+    if (!rowopen) { int gb, ga; row_grid_wp21(d, i, cv[l], t, &gb, &ga); w_tr_start(o, cv[l], gb, ga); }
     w_tc_start(o, t, cv[l]);
   }
 }

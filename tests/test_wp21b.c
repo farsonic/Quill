@@ -113,6 +113,11 @@ static void delete_cells(void)
   Pos c = P(2, 0);
   ok("delete cells: shift left", tbl_delete_cells(d, P(2, 0), P(2, 0), DC_LEFT, &c) && row_cells(d, 0) == 2 && !strcmp(cell_at(d, 0, 0), "A") &&
      !strcmp(cell_at(d, 0, 1), "C") && row_cells(d, 1) == 3 && !strcmp(cell_at(d, 1, 1), "E"));
+  {
+    Doc *e = docx_again(d, NULL);
+    ok("delete cells: a short row saved (w:gridAfter) and read back", e && same_doc(d, e) && row_cells(e, 0) == 2);
+    doc_free(e);
+  }
   doc_undo(d, &c);
   c = P(5, 0);
   ok("delete cells: shift up", tbl_delete_cells(d, P(5, 0), P(5, 0), DC_UP, &c) && !strcmp(cell_at(d, 1, 1), "H") && !strcmp(cell_at(d, 2, 1), "") &&
