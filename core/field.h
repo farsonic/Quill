@@ -40,7 +40,7 @@
 struct Layout;
 
 /* ---- the marks */
-#define FIELD_MAX 16384
+#define FIELD_MAX 12288             /* (the marks of 12288 and up are WP16's content controls, core/sdt.h) */
 #define IS_FSTART(t) ((u8)(t)[0] == 0xF4 && ((u8)(t)[1] & 0xFC) == 0x84)
 #define IS_FEND(t)   ((u8)(t)[0] == 0xF4 && ((u8)(t)[1] & 0xFC) == 0x88)
 #define IS_FMARK(t)  ((u8)(t)[0] == 0xF4 && (u8)(t)[1] >= 0x84 && (u8)(t)[1] <= 0x8B)       /* either */

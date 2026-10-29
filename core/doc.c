@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include "doc.h"
 #include "field.h"
+#include "sdt.h"    /* (WP16) */
 #include "objfx.h"
 #include "keep.h"
 #include "image.h"
@@ -567,6 +568,7 @@ int doc_insert(Doc *d, Pos *at, const char *s, u32 n, const CharFmt *f)
   p = d->p[at->para];
   if (at->off > p->len) at->off = p->len;
   fmt = f ? *f : *para_fmt_before(p, at->off);
+  if (!sdt_insert_ok(d, *at)) return 0;          /* (WP16: content controls' locks) */
   /* typing one character in a run of typing: no new undo step, the paragraph's copy is saved */
   single = n > 0 && n <= 4 && memchr(s, '\n', n) == NULL && memchr(s, '\r', n) == NULL;
   {
@@ -622,6 +624,7 @@ int doc_delete(Doc *d, Pos a, Pos b)
   Step *st;
   if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
   a = pos_clamp(d, a); b = pos_clamp(d, b);
+  if (!sdt_delete_ok(d, a, b)) return 0;          /* (WP16: content controls' locks) */
   if (!pos_cmp(a, b)) return 0;
   if (!(st = rec(d, a.para, b.para - a.para + 1, b))) { close_auto(d); return 0; }
   if (a.para == b.para) para_delete_text(d->p[a.para], a.off, b.off);
@@ -2118,6 +2121,7 @@ int doc_paste(Doc *d, Pos *at, const Fragment *f, int mode)
   if (!n) return 0;
   where = *at = pos_clamp(d, *at);
   dp = d->p[at->para];
+  if (!sdt_insert_ok(d, *at)) return 0;         /* (WP16: content controls' locks) */
   off = at->off;
   dst = *para_fmt_before(dp, off);
   if (!(nw = (Para **)calloc(n, sizeof(Para *)))) return 0;
@@ -2723,6 +2727,7 @@ void doc_free(Doc *d)
   undo_free(d->undo);
   keep_free(d);
   field_free_all(d);
+  sdt_free_all(d);               /* (WP16) */
   free(d->wm.pic);          /* (WP22a) */
   notes_free(d);                 /* (WP22b) */
   info_free(d);                  /* (WP24) */

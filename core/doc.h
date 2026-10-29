@@ -589,6 +589,7 @@ typedef struct Doc {
   struct Field *fields; int nfields;
   u8 fieldcodes;
   struct FieldInfo *finfo;
+  struct SdtSet *sdt;       /* (WP16) content controls (core/sdt.h): their records, Design Mode; NULL: none */
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */

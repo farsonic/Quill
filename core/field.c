@@ -12,6 +12,14 @@
 #include "layout.h"
 #include "xml.h"
 #include "info.h"
+#include "sdt.h"
+/* (WP16) content controls' marks share the top of the field marks' range (core/sdt.h): not fields here */
+#undef IS_FSTART
+#undef IS_FEND
+#undef IS_FMARK
+#define IS_FSTART(t) ((u8)(t)[0] == 0xF4 && ((u8)(t)[1] & 0xFC) == 0x84 && (u8)(t)[1] != 0x87)
+#define IS_FEND(t)   ((u8)(t)[0] == 0xF4 && ((u8)(t)[1] & 0xFC) == 0x88 && (u8)(t)[1] != 0x8B)
+#define IS_FMARK(t)  (IS_FSTART(t) || IS_FEND(t))
 
 /* ------------------------------------------------------------------ */
 /* the marks and the records */
@@ -1442,7 +1450,9 @@ int field_codes_any(const Doc *d)
 }
 int field_code_shown(const Doc *d, int k)
 {
+  char box[64];
   if (k < 0 || k >= d->nfields) return 0;
+  if ((d->fieldcodes != 0) == (d->fields[k].showcode != 0) && ff_box(d, k, box, sizeof box)) return 1;   /* (WP16: a form field's box) */
   return (d->fieldcodes != 0) != (d->fields[k].showcode != 0);
 }
 void field_code_display(const Doc *d, int k, char *out, size_t cap)
@@ -1451,6 +1461,7 @@ void field_code_display(const Doc *d, int k, char *out, size_t cap)
   const char *s = c, *e;
   size_t n;
   if (cap < 8) { if (cap) out[0] = 0; return; }
+  if (k >= 0 && k < d->nfields && (d->fieldcodes != 0) == (d->fields[k].showcode != 0) && ff_box(d, k, out, cap)) return;   /* (WP16) */
   field_code_text(k >= 0 && k < d->nfields ? d->fields[k].code : "", c, sizeof c);
   while (*s == ' ') s++;
   e = s + strlen(s);
