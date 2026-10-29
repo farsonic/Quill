@@ -2322,7 +2322,6 @@
   { { "Cycle", "Zyklus", "Cycle", "Ciclo", "Ciclo" } },
   { { "Hierarchy", "Hierarchie", "Hi\351rarchie", "Jerarqu\355a", "Gerarchia" } },
   { { "Relationship", "Beziehung", "Relation", "Relaci\363n", "Relazione" } },
-  { { "Matrix", "Matrix", "Matrice", "Matriz", "Matrice" } },
   { { "Pyramid", "Pyramide", "Pyramide", "Pir\341mide", "Piramide" } },
   { { "Basic Block List", "Einfache Blockliste", "Liste de blocs simple", "Lista de bloques b\341sica", "Elenco a blocchi di base" } },
   { { "Vertical Bullet List", "Vertikale Aufz\344hlung", "Liste \340 puces verticale", "Lista de vi\361etas vertical", "Elenco puntato verticale" } },
@@ -2737,9 +2736,7 @@
 /* ---- begin WP19 (tools/lang/wp19.py) */
 /* ---- end WP19 */
 /* ---- begin WP20 (tools/lang/wp20.py) */
-  { { "Tools", "Tools", "Outils", "Herramientas", "Strumenti" } },
   { { "Pens", "Stifte", "Stylets", "L\341pices", "Penne" } },
-  { { "Convert", "Konvertieren", "Convertir", "Convertir", "Converti" } },
   { { "Replay", "Wiedergabe", "Relecture", "Reproducir", "Riproduci" } },
   { { "Ink", "Freihand", "Entr\351e manuscrite", "Entrada de l\341piz", "Input penna" } },
   { { "Lasso Select", "Lassoauswahl", "S\351lection Lasso", "Selecci\363n de lazo", "Selezione lazo" } },
