@@ -178,9 +178,9 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 ### Quick Access (5: ✅ 2 · 🟨 0 · ⬜ 3 · ➖ 0)
 
 - ✅ Undo (Toolbar) `edit.undo` — `ID_UNDO` (Amiga-Z, tab strip button)
-- ⬜ Undo List (Toolbar) `edit.undoTo` — no list of undo steps to undo to [WP12]
+- ✅ Undo List (Toolbar) `edit.undoTo` — Edit › Find and Select › Undo List... / Redo List... (`ID_FX_UNDOLIST`, wp_find.c): the steps named by `doc_undo_step()` (Typing, Delete, Formatting, Replace All...), choosing one undoes it and those after it [WP12]
 - ✅ Redo (Toolbar) `edit.redo` — `ID_REDO`
-- ⬜ Repeat (Toolbar) `edit.repeat` — no Repeat (F4) [WP12]
+- ✅ Repeat (Toolbar) `edit.repeat` — F4 (`ID_FX_REPEAT`): the last command that made an undo step again (main.c `wp12_note`/`wp12_replay`, lists with their entry), or the text typed since it (`doc_undo_typed()`) [WP12]
 - ⬜ AutoSave (Toolbar) `file.autosave` [WP24]
 
 ### Title Bar (1: ✅ 0 · 🟨 0 · ⬜ 1 · ➖ 0)
@@ -285,13 +285,13 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Find (Editing) `edit.find` — `ID_FINDDD` / `ID_FIND` (`open_find()`)
 - ✅ Find Next (Editing) `edit.findNext` — `ID_FINDNEXT` (Amiga-G)
 - ✅ Find Previous (Editing) `edit.findPrevious` — `ID_FINDPREV` (Find window button, `FIND_BACK`)
-- 🟨 Advanced Find (Editing) `edit.advancedFind` — Find window has match case and whole words only (`FIND_CASE`, `FIND_WORD`); no find formatting, special characters (^p, ^t), wildcards, find in selection/highlight all [WP12]
+- ✅ Advanced Find (Editing) `edit.advancedFind` — Find › Advanced Find... and Edit › Find and Select (`ID_FX_ADVFIND`, wp_find.c; engine core/findx.c): ^p ^t ^l ^m ^n ^b ^? ^# ^$ ^w ^^ ^+ ^= ^s ^~ ^- ^% ^v ^g ^f ^e ^a ^d and ^13/^0151/^u8212 codes; Word's wildcards (? * [ ] [! ] {n,m} @ < > ( ) \x, \1-\9 and ^& ^c in Replace with); match case, whole words, prefix, suffix, ignore punctuation and white space; Search All/Down/Up; Find in the current selection; Format.../Replace Format... (font, size, bold... small caps, highlight, colour, alignment, paragraph and character style; No Formatting); Special list; Highlight All / Clear Highlighting (drawn by the view, not saved). Tests: tests/test_wp12.c [WP12]
 - ✅ Replace (Editing) `edit.replace` — `ID_REPLACE`, `ID_REPLACE1`
 - ✅ Replace All (Editing) `edit.replaceAll` — `ID_REPLACEALL` (one undo step)
-- 🟨 Go To (Editing) `edit.goto` — `ID_GOTO` goes to a page number only; no section, line, bookmark, comment, footnote, field, table, heading targets [WP12]
+- ✅ Go To (Editing) `edit.goto` — F5 / `ID_GOTO` opens the Go To page (`fx_goto()`): page, section, line, bookmark (name or number), comment (number or reviewer's name), footnote, endnote, field, table, graphic, object, heading; n, +n, -n, Previous/Next. (Equation: WP14a's equations don't exist yet) [WP12]
 - ✅ Select All (Editing) `select.all` — `ID_SELALL`
-- ⬜ Select Objects (Editing) `select.objects` [WP12]
-- ⬜ Select Similar Formatting (Editing) `select.similar` — README roadmap [WP12]
+- ✅ Select Objects (Editing) `select.objects` — Select › Select Objects (`CMD_FV_OBJECTS`, wp_find_view.h): a mode where dragging round floating objects chooses them together (for grouping), Esc ends it [WP12]
+- ✅ Select Similar Formatting (Editing) `select.similar` — Select › Select Similar Formatting (`fx_similar()`, `CMD_FV_SIMILAR`): every stretch formatted like the caret's is selected at once; formatting commands, Copy, Cut and Delete act on all of them [WP12]
 - ➖ Dictate (Voice) `tools.dictate` — WordCraft doesn't have it either (cloud speech service)
 - ✅ Editor (Editor) `review.editor` — WordCraft's Editor runs Spelling: Quill `ID_SPELL`
 
@@ -723,9 +723,9 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Move Paragraph Down (Keyboard) `para.moveDown` [WP11]
 - 🟨 Promote (Keyboard) `para.promote` — Shift-Tab raises a list item's level; headings can't be promoted [WP11]
 - 🟨 Demote (Keyboard) `para.demote` — Tab lowers a list item's level; headings can't be demoted [WP11]
-- ⬜ Toggle Unicode Character (Keyboard) `text.toggleUnicode` — no Alt+X [WP12]
-- ⬜ Spike (Keyboard) `edit.spike` [WP12]
-- ⬜ Insert Spike (Keyboard) `edit.insertSpike` [WP12]
+- ✅ Toggle Unicode Character (Keyboard) `text.toggleUnicode` — Ctrl-X (Alt-X types a character on Amiga keymaps), `fx_toggle_unicode()`: hex code (up to six digits, U+ allowed) to character and back (00E9, U+ after hex digits) [WP12]
+- ✅ Spike (Keyboard) `edit.spike` — Ctrl-F3 (`ID_FX_SPIKE`): the selection cut and added, with its formatting, to the Spike (a document of its own; the clipboard is untouched) [WP12]
+- ✅ Insert Spike (Keyboard) `edit.insertSpike` — Ctrl-Shift-F3 (`ID_FX_INSSPIKE`): the Spike pasted with its formatting and emptied [WP12]
 - ✅ Word Left (Navigation) `caret.wordLeft` — Alt-Left
 - ✅ Word Right (Navigation) `caret.wordRight` — Alt-Right
 - ✅ Line Start (Navigation) `caret.home` — Home, Ctrl-Left
@@ -736,12 +736,12 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Document End (Navigation) `caret.docEnd` — Ctrl-End, Ctrl-Alt-Down
 - ✅ Page Up (Navigation) `caret.pageUp` — Page Up
 - ✅ Page Down (Navigation) `caret.pageDown` — Page Down
-- ⬜ Go Back (Navigation) `edit.goBack` [WP12]
+- ✅ Go Back (Navigation) `edit.goBack` — Shift-F5 or Ctrl-Alt-Z (`ID_FX_GOBACK`): the last four places edited (from the undo history) in turn [WP12]
 - ✅ Select Word (Selection) `select.word` — double-click (view.c)
 - ✅ Select Sentence (Selection) `select.sentence` — `ID_SELECTDD` → `CMD_SELUNIT` 0
 - ✅ Select Paragraph (Selection) `select.paragraph` — `CMD_SELUNIT` 1, triple-click
-- ⬜ Extend Selection (F8) (Selection) `select.extend` — no function keys handled in view.c [WP12]
-- ⬜ Column Selection (Selection) `select.column` [WP12]
+- ✅ Extend Selection (F8) (Selection) `select.extend` — F8 on, again a word, sentence, paragraph, section, the document; Shift-F8 shrinks; the cursor keys and clicks extend, a typed character extends to the next like it; Esc ends it (status bar says so) [WP12]
+- ✅ Column Selection (Selection) `select.column` — Ctrl-Shift-F8 or Alt-click/drag (`fx_block()`): a block of the lines between the corners, drawn as such; Copy/Cut/Delete/Backspace and character and paragraph formatting act on each line's part [WP12]
 - ⬜ Show Field Codes (Fields) `view.fieldCodes` — field codes are not kept [WP1]
 - ⬜ Toggle Field Codes (Fields) `fields.toggleCode` [WP1]
 - ⬜ Edit Field Code (Fields) `fields.setCode` [WP1]
