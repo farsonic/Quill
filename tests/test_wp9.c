@@ -123,7 +123,6 @@ static void enclose_docx(void)
      ENCLOSURE(at(d, 0, "A")) == EN_SQUARE && !(at(d, 0, "A")->fx2 & FX2_ENLARGE) && !ENCLOSURE(at(d, 0, "No")));
   if (!d) return;
   xml = wp9_saved_xml(d, "word/document.xml");
-  if (getenv("WP9DUMP")) puts(xml);
   ok("enclose: written as Word's field", xml && strstr(xml, "<w:instrText xml:space=\"preserve\"> eq \\o\\ac(\xE2\x97\x8B</w:instrText>") &&
      strstr(xml, "<w:instrText xml:space=\"preserve\">12</w:instrText>") && strstr(xml, "<w:position w:val=\"-4\"/><w:sz w:val=\"30\"/>"));
   free(xml);
@@ -229,7 +228,6 @@ static void hidden_layout(void)
   pdf = pdf_export(L, &n);
   {
     char *st = pdf ? wp9_pdf_streams(pdf, n) : NULL;
-    if (getenv("WP9DUMP") && st) puts(st);
     ok("PDF: outline stroked, shadow grey, the enclosure drawn", st && strstr(st, "2 Tr") && strstr(st, "0.501 0.501 0.501 rg") && strstr(st, " c S"));
     free(st);
   }

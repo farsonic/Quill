@@ -469,11 +469,11 @@ static void shape_line(i32 y, i32 est, i32 left, i32 right, i32 *start, i32 *roo
    each character gets the same extra spacing after it, what is left over goes to the spaces */
 static void wp10_distribute(Para *p, Work *w, u32 ls, u32 lend, u32 i, i32 extra, Line *ln)
 {
-  u32 k, chars = 0, nsp = 0, done = 0;
+  u32 k, chars = 0, nsp = 0, done = 0, lastt = i;
   i32 per, rem, add = 0;
   for (k = ls; k < lend; k++) {
     Box *b = &w->b[k];
-    if (b->kind == BX_TEXT) { u32 o; for (o = b->off; o < b->off + b->len; o = (u32)utf8_next(p->t, b->off + b->len, o)) chars++; }
+    if (b->kind == BX_TEXT) { u32 o; for (o = b->off; o < b->off + b->len; o = (u32)utf8_next(p->t, b->off + b->len, o)) chars++; lastt = k; }
     else if (b->kind == BX_SPACE) { chars += b->nspace; nsp += b->nspace; }
   }
   if (chars < 2) return;
@@ -488,6 +488,7 @@ static void wp10_distribute(Para *p, Work *w, u32 ls, u32 lend, u32 i, i32 extra
       u32 o, n = 0;
       for (o = b->off; o < b->off + b->len; o = (u32)utf8_next(p->t, b->off + b->len, o)) n++;
       b->f.spacing = (i16)(b->f.spacing + per);
+      if (k == lastt) n--;                          /* (the last character's spacing is past the line's end) */
       b->w += per * (i32)n; add += per * (i32)n;
     } else if (b->kind == BX_SPACE) {
       i32 grow = per * b->nspace;

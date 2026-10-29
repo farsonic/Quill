@@ -2366,7 +2366,7 @@ static void style_shown(int i, char *out, size_t cap)
    dialogs it is made afresh each time, as its Based on and Following lists change */
 static void open_style(int k, int newtype)
 {
-  static const char *const types[] = { "Paragraph", "Character", NULL }, *const aligns[] = { "Left", "Centred", "Right", "Justified", NULL },
+  static const char *const types[] = { "Paragraph", "Character", NULL }, *const aligns[] = { "Left", "Centred", "Right", "Justified", "Distributed", NULL },
                *const lines[] = { "Single", "1.15", "1.5 lines", "Double", NULL };
   static const char *t_al[6], *t_ln[6], *t_col[14];
   static const i32 linevals[4] = { 240, 276, 360, 480 };
@@ -2445,7 +2445,7 @@ static void open_style(int k, int newtype)
   set(sy_color, MUIA_Cycle_Active, col_index(s->cf.color));
   set(sy_bold, MUIA_Selected, (s->cf.flags & CF_BOLD) != 0); set(sy_italic, MUIA_Selected, (s->cf.flags & CF_ITALIC) != 0);
   set(sy_ul, MUIA_Selected, (s->cf.flags & CF_UNDERLINE) != 0);
-  set(sy_align, MUIA_Cycle_Active, s->pf.align & 3);
+  set(sy_align, MUIA_Cycle_Active, s->pf.align <= AL_DISTRIBUTE ? s->pf.align : 0);
   for (i = 0; i < 4 && linevals[i] != s->pf.line; i++) ;
   set(sy_line, MUIA_Cycle_Active, i < 4 ? i : 0);
   pt_text(s->pf.before, b); set_str(sy_before, b);

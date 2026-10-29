@@ -63,6 +63,17 @@ u16 rx_edit(u16 rx, const char *name, const char *add)
   return r;
 }
 
+u16 rx_typography(u16 rx, int kind)
+{
+  switch (kind) {
+  case TY_LIG_STD: return rx_edit(rx, "w14:ligatures", "<w14:ligatures w14:val=\"standard\"/>");
+  case TY_LIG_NONE: return rx_edit(rx, "w14:ligatures", NULL);
+  case TY_NUM_OLD: return rx_edit(rx, "w14:numForm", "<w14:numForm w14:val=\"oldStyle\"/>");
+  case TY_NUM_LINING: return rx_edit(rx, "w14:numForm", "<w14:numForm w14:val=\"lining\"/>");
+  }
+  return rx;
+}
+
 /* ------------------------------------------------------------------ */
 /* enclosed characters */
 static const char *const en_sym[5] = { "", "\xE2\x97\x8B", "\xE2\x96\xA1", "\xE2\x96\xB3", "\xE2\x97\x87" };   /* ○ □ △ ◇ */

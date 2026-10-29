@@ -21,6 +21,11 @@ const char *rx_text(u16 rx);
    (if not NULL or empty) appended: the number of the result (0: nothing left) */
 u16  rx_edit(u16 rx, const char *name, const char *add);
 
+/* rx with a typography setting Word 2010 keeps in w14 (TY_): standard ligatures or none, old-style or
+   lining numbers; the number of the result */
+enum { TY_LIG_STD, TY_LIG_NONE, TY_NUM_OLD, TY_NUM_LINING };
+u16  rx_typography(u16 rx, int kind);
+
 /* ---- enclosed characters, as Word stores them: a field eq \o\ac(SYMBOL,TEXT), with "\* enlarge"
    when the symbol is enlarged (else the text is shrunk). The symbols by EN_ (UTF-8) */
 const char *enclose_symbol(int shape);

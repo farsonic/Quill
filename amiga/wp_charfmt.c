@@ -29,8 +29,9 @@
 #define Label2(l)  QLabel(l, MUIO_Label_DoubleFrame)
 
 /* ---- the lists */
-static const char *const effects[C_EF_N] = { "Outline", "Shadow", "Emboss", "Engrave", "Hidden", "Standard Ligatures", "No Ligatures",
-                                             "Old-style Numbers", "Lining Numbers", "Clear Text Effects" };
+static const char *const effects[C_EF_N] = { "Outline", "Shadow", "Emboss", "Engrave", "Hidden", "Character Shading", "Underline Colour...",
+                                             "Enclose Characters...", "Standard Ligatures", "No Ligatures", "Old-style Numbers", "Lining Numbers",
+                                             "Clear Text Effects" };
 const RibbonList wp9_effects_list = { effects, C_EF_N, PL_TEXT, NULL };
 static const char *const ulcolors[] = { "Automatic", "Black", "Dark Red", "Red", "Orange", "Gold", "Green", "Teal", "Blue", "Dark Blue", "Purple", "Grey" };
 static const ULONG ulvals[] = { 0xFF000000, 0x000000, 0xC00000, 0xFF0000, 0xFFA500, 0xBF9000, 0x00B050, 0x008080, 0x0070C0, 0x002060, 0x7030A0, 0x808080 };
@@ -81,11 +82,11 @@ static void toggle(u16 bit)
   else if (on && (bit & (FX2_OUTLINE | FX2_SHADOW))) mask = (u16)(bit | FX2_EMBOSS | FX2_ENGRAVE);
   set_fx2(on ? bit : 0, mask);
 }
-/* a typography setting kept for Word (w14): the element named replaced by add (NULL: taken out) */
-static void typography(const char *name, const char *add)
+/* a typography setting kept for Word (w14, TY_) */
+static void typography(int kind)
 {
   CharFmt v = *cur_fmt();
-  v.rx = rx_edit(v.rx, name, add);
+  v.rx = rx_typography(v.rx, kind);
   charfmt(CM_RX, &v);
 }
 
@@ -245,10 +246,13 @@ int wp9_command(ULONG id, LONG value)
     case C_EF_EMBOSS: toggle(FX2_EMBOSS); break;
     case C_EF_ENGRAVE: toggle(FX2_ENGRAVE); break;
     case C_EF_HIDDEN: toggle(FX2_HIDDEN); break;
-    case C_EF_LIGSTD: typography("w14:ligatures", "<w14:ligatures w14:val=\"standard\"/>"); break;
-    case C_EF_LIGNONE: typography("w14:ligatures", NULL); break;
-    case C_EF_OLDSTYLE: typography("w14:numForm", "<w14:numForm w14:val=\"oldStyle\"/>"); break;
-    case C_EF_LINING: typography("w14:numForm", "<w14:numForm w14:val=\"lining\"/>"); break;
+    case C_EF_SHADE: return wp9_command(ID_C_SHADETOGGLE, WPV_NONE);
+    case C_EF_ULCOLOR: return wp9_command(ID_C_FONTWIN, WPV_NONE);
+    case C_EF_ENCLOSE: return wp9_command(ID_C_ENCLOSE, WPV_NONE);
+    case C_EF_LIGSTD: typography(TY_LIG_STD); break;
+    case C_EF_LIGNONE: typography(TY_LIG_NONE); break;
+    case C_EF_OLDSTYLE: typography(TY_NUM_OLD); break;
+    case C_EF_LINING: typography(TY_NUM_LINING); break;
     case C_EF_CLEAR:
       /* the relief effects and the kept text effects off (hidden and enclosures stay) */
       v.fx2 = 0; v.fx2mask = FX2_RELIEF; v.rx = 0;

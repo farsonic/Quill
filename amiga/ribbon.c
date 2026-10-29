@@ -231,17 +231,14 @@ static const Item g_font[] = {
   { K_DROP, S_ICON, IC_CASE, L_CASE, NULL, ID_CASE, 0, 0, 0, 0, "Change case" },
   { K_BUTTON, S_ICON, IC_CLEAR, 0, NULL, ID_CLEARFMT, 0, 0, 0, 0, "Clear all formatting" },
   { K_BUTTON, S_ICON, IC_CBORDER, 0, NULL, ID_CBORDER, 0, 0, 0, 0, "Character border" },
-  { K_BUTTON, S_ICON, 0, 0, NULL, ID_C_ENCLOSE, 0, 0, 0, 0, "Enclose characters", NULL, WP9_ICON_ENCLOSE },   /* (WP9) */
   { K_BUTTON, S_ICON, IC_BOLD, 0, NULL, ID_BOLD, RB_BOLD, 0, F_ROW1, 0, "Bold (Amiga-B)" },
   { K_BUTTON, S_ICON, IC_ITALIC, 0, NULL, ID_ITALIC, RB_ITALIC, 0, F_ROW1, 0, "Italic (Amiga-I)" },
   { K_DROP, S_ICON, IC_UNDERLINE, L_UNDERLINES, NULL, ID_UNDERLINEDD, RB_UNDERLINE, 0, F_ROW1 | F_SPLIT, 0, "Underline (Amiga-U)" },
-  { K_DROP, S_ICON, 0, 0, NULL, ID_C_ULCOLOR, 0, 0, F_ROW1, 0, "Underline colour", &wp9_ulcolor_list, WP9_ICON_ULCOLOR },   /* (WP9) */
   { K_BUTTON, S_ICON, IC_STRIKE, 0, NULL, ID_STRIKE, RB_STRIKE, 0, F_ROW1, 0, "Strikethrough" },
   { K_BUTTON, S_ICON, IC_SUB, 0, NULL, ID_SUB, RB_SUB, 0, F_ROW1, 0, "Subscript (Amiga--)" },
   { K_BUTTON, S_ICON, IC_SUPER, 0, NULL, ID_SUPER, RB_SUPER, 0, F_ROW1, 0, "Superscript (Amiga-+)" },
   { K_DROP, S_ICON, IC_HIGHLIGHT, L_HIGHLIGHT, NULL, ID_HIGHLIGHT, 0, 0, F_ROW1, 0, "Text highlight colour" },
   { K_DROP, S_ICON, IC_FONTCOLOR, L_COLORS, NULL, ID_FONTCOLOR, 0, 0, F_ROW1, 0, "Font colour" },
-  { K_DROP, S_ICON, 0, 0, NULL, ID_C_SHADE, 0, 0, F_ROW1 | F_SPLIT, 0, "Character shading", &wp9_shade_list, WP9_ICON_SHADE, ID_C_SHADETOGGLE },   /* (WP9) */
   { K_DROP, S_ICON, 0, 0, NULL, ID_C_EFFECTS, 0, 0, F_ROW1, 0, "Text effects and typography", &wp9_effects_list, WP9_ICON_EFFECTS },   /* (WP9) */
   { K_BUTTON, S_ICON, IC_FONTDLG, 0, NULL, ID_FONTDLG, 0, 0, F_ROW1, 0, "Font: effects, underlines, character spacing" },
 };
@@ -257,7 +254,6 @@ static const Item g_para[] = {
   { K_BUTTON, S_ICON, IC_CENTER, 0, NULL, ID_CENTER, RB_ALIGN1, 0, F_ROW1, 0, "Centre (Amiga-E)" },
   { K_BUTTON, S_ICON, IC_RIGHT, 0, NULL, ID_RIGHT, RB_ALIGN2, 0, F_ROW1, 0, "Align right (Amiga-])" },
   { K_BUTTON, S_ICON, IC_JUSTIFY, 0, NULL, ID_JUSTIFY, RB_ALIGN3, 0, F_ROW1, 0, "Justify (Amiga-J)" },
-  { K_BUTTON, S_ICON, 0, 0, NULL, ID_P_DISTRIBUTE, RB_WP(WPI_10, P_ST_DISTRIBUTE), 0, F_ROW1, 0, "Distributed (Ctrl-Shift-J)", NULL, WP10_ICON_DISTRIBUTE },   /* (WP10) */
   { K_DROP, S_ICON, IC_SPACING, L_SPACING, NULL, ID_SPACINGDD, 0, 0, F_ROW1, 0, "Line spacing" },
   { K_DROP, S_ICON, IC_PSHADE, L_SHADING, NULL, ID_PSHADEDD, 0, 0, F_ROW1, 0, "Shading behind the paragraph" },
   { K_DROP, S_ICON, IC_PBORDERS, L_PBORDERS, NULL, ID_PBORDERDD, 0, 0, F_ROW1, 0, "Borders round the paragraph" },
@@ -306,8 +302,7 @@ static const struct { UWORD id; const char *tip; } tips[] = {
   { ID_INDENT, "Moves the paragraph further in from the margin; in a list, down a level." },
   { ID_SORT, "Puts the selected paragraphs in order: alphabetically, by number or by date, by the whole paragraph or by a field of it." },
   { ID_C_ENCLOSE, "Puts one or two characters in a circle, square, triangle or diamond." },
-  { ID_C_ULCOLOR, "The colour of the underline, apart from the text's colour." },
-  { ID_C_SHADE, "Shades the background of the selected characters (grey, or the colour chosen with the arrow)." },
+  { ID_C_SHADETOGGLE, "Shades the background of the selected characters (grey, or the colour chosen with the arrow)." },
   { ID_C_EFFECTS, "Outline, shadow, emboss and engrave; hidden text; ligatures and number forms Word uses." },
   { ID_P_DISTRIBUTE, "Spreads the characters of every line evenly between the margins, the last line too." },
   { ID_P_BULLETLIB, "Starts a bulleted list. The arrow offers other bullets and Define New Bullet." },

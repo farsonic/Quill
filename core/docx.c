@@ -2776,8 +2776,8 @@ static void w_tcond(Buf *o, Doc *d, const TableStyle *ts, int k)
   static const char *const edges[TE_N] = { "top", "left", "bottom", "right", "insideH", "insideV" };
   const TCond *c = &ts->c[k];
   int e, any = 0;
-  static const char *const jc[4] = { "left", "center", "right", "both" };
-  if (c->align_set) buf_printf(o, "<w:pPr><w:jc w:val=\"%s\"/></w:pPr>", jc[c->align & 3]);
+  static const char *const jc[5] = { "left", "center", "right", "both", "distribute" };   /* (AL_DISTRIBUTE: WP10) */
+  if (c->align_set) buf_printf(o, "<w:pPr><w:jc w:val=\"%s\"/></w:pPr>", jc[c->align <= AL_DISTRIBUTE ? c->align : 0]);
   if (c->cmask) w_rpr_mask(o, d, c->cmask, &c->cf);
   for (e = 0; e < TE_N; e++) if (c->b[e].set) any = 1;
   if (any || (k == TC_WHOLE && ts->mar_set)) {

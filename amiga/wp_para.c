@@ -125,7 +125,17 @@ static const ListDef *caret_list(int *level)
   *level = pf->level;
   return pf->list && pf->list <= d->nlists ? &d->lists[pf->list - 1] : NULL;
 }
-static void apply_list(const ListDef *l) { DoMethod(wp_view(), MUIM_Quill_Command, CMD_LISTDEF, (ULONG)l); }
+/* the list to the selected paragraphs, as a list of its own (a new id: numId 0 would mean none) */
+static void apply_list(const ListDef *l)
+{
+  static ListDef c;
+  Doc *d = wp_doc();
+  int k, maxid = 0;
+  c = *l;
+  for (k = 0; k < d->nlists; k++) if (d->lists[k].id > maxid) maxid = d->lists[k].id;
+  c.id = (u16)(maxid + 1);
+  DoMethod(wp_view(), MUIM_Quill_Command, CMD_LISTDEF, (ULONG)&c);
+}
 /* the selected paragraphs out of their list */
 static void list_none(void)
 {
@@ -425,7 +435,7 @@ static void open_symbol(int forbullet)
     if (!sy_show) return;
     for (i = 0; i < SYM_N; i++) if ((sy_btn[i] = sym_button(sy_lab[i], sym_code(i), sy_show))) DoMethod(grid, OM_ADDMEMBER, (ULONG)sy_btn[i]);
     for (i = 0; i < SYM_RECENT; i++) if ((sy_rec[i] = sym_button(sy_reclab[i], ' ', sy_show))) DoMethod(rec, OM_ADDMEMBER, (ULONG)sy_rec[i]);
-    for (i = 0; i < NSPECIAL; i++) { snprintf(special_rows[i], sizeof special_rows[i], "%s\t%s", tr(specials[i].name), specials[i].key); special_ptrs[i] = special_rows[i]; }
+    for (i = 0; i < NSPECIAL; i++) { snprintf(special_rows[i], sizeof special_rows[i], specials[i].key[0] ? "%s   (%s)" : "%s", tr(specials[i].name), specials[i].key[0] ? tr(specials[i].key) : ""); special_ptrs[i] = special_rows[i]; }
     special_ptrs[NSPECIAL] = NULL;
     pages[0] = tr("Symbols"); pages[1] = tr("Special Characters"); pages[2] = NULL;
     c = sy_reg = RegisterGroup(pages), MUIA_CycleChain, 1,
@@ -442,8 +452,7 @@ static void open_symbol(int forbullet)
         Child, sy_show,
       End,
       Child, VGroup,
-        Child, sy_special = ListviewObject, MUIA_CycleChain, 1, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_Format, (ULONG)"BAR,",
-          MUIA_List_SourceArray, (ULONG)special_ptrs, End, End,
+        Child, sy_special = ListviewObject, MUIA_CycleChain, 1, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_SourceArray, (ULONG)special_ptrs, End, End,
       End,
     End;
     if (!(symwin = wp_dialog("Symbol", MAKE_ID('S','Y','M','B'), c, "_Insert", ID_P_SYMINSERT))) return;
@@ -494,8 +503,39 @@ static void sym_insert(u32 cp)
 
 /* ---- Paste Special */
 static Object *pswin, *ps_list, *ps_link;
-static const char *const ps_formats[] = { "Formatted Text (Quill)", "Text with the Destination's Formatting", "Unformatted Text", NULL };
-static const char *t_ps_formats[4];
+static const char *const ps_formats[] = { "Formatted Text (Quill)", "Text with the Destination's Formatting", "Unformatted Text", "Rich Text Format (RTF)",
+                                          "HTML Format", NULL };
+static const char *t_ps_formats[6];
+/* the clipboard's text read as RTF or HTML (ext "rtf" or "htm") by the file format that reads it (WP28a,
+   WP28c), and pasted at the caret with its formatting: 0 if no format reads it or it isn't that */
+static int paste_as_format(const char *ext)
+{
+  long n = 0;
+  char *t = clip_read(&n);
+  const DocFormat *f = NULL;
+  int i, ok = 0;
+  for (i = 0; i < doc_nformats; i++) if (doc_formats[i]->load && doc_formats[i]->exts && strstr(doc_formats[i]->exts, ext)) { f = doc_formats[i]; break; }
+  if (t && f && (!f->sniff || f->sniff((const u8 *)t, (size_t)n))) {
+    unsigned lost = 0;
+    char err[80];
+    Doc *src = f->load((const u8 *)t, (size_t)n, &lost, err, sizeof err);
+    Fragment *fr = src && src->np ? doc_fragment(src, doc_start(src), doc_end_pos(src)) : NULL;
+    if (fr) {
+      Doc *d = wp_doc();
+      Pos a, b;
+      sel_range(&a, &b);
+      doc_begin(d, a);
+      if (pos_cmp(a, b)) doc_delete(d, a, b);
+      ok = doc_paste(d, &a, fr, PASTE_KEEP);
+      doc_end(d, a);
+      fragment_free(fr);
+      changed(a);
+    }
+    doc_free(src);
+  }
+  free(t);
+  return ok;
+}
 static void open_pastespecial(void)
 {
   if (!pswin) {
@@ -525,6 +565,10 @@ static void pastespecial_done(void)
   if (l) { wp_ask("OK", "%s", tr("Quill can't paste a link: paste the text instead.")); return; }
   set(pswin, MUIA_Window_Open, FALSE);
   set(wp_win(), MUIA_Window_Activate, TRUE);
+  if (a == 3 || a == 4) {
+    if (!paste_as_format(a == 3 ? "rtf" : "htm")) wp_ask("OK", "%s", tr("The clipboard holds no text in that format that Quill can read."));
+    return;
+  }
   DoMethod(wp_view(), MUIM_Quill_Command, CMD_PASTEAS, (ULONG)mode[a >= 0 && a < 3 ? a : 0]);
 }
 
@@ -632,7 +676,7 @@ static void clip_pane(void)
     clippane = VGroup, MUIA_HorizWeight, 30, MUIA_Frame, MUIV_Frame_Group, QDLG,
       Child, QTitleObject(tr("Clipboard")),
       Child, HGroup, Child, pall = QButton(tr("Paste All")), Child, clr = QButton(tr("Clear All")), End,
-      Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Click an item to paste:"), MUIA_Font, MUIV_Font_Tiny, End,
+      Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Double-click an item to paste it:"), MUIA_Font, MUIV_Font_Tiny, End,
       Child, cl_list = ListviewObject, MUIA_CycleChain, 1, MUIA_Listview_List, ListObject, InputListFrame, End, End,
       Child, HGroup, Child, pst = QButton(tr("Paste")), Child, del = QButton(tr("Delete")), End,
     End;

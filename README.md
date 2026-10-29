@@ -4,6 +4,15 @@ Quill 0.14 is a native word processor for AmigaOS with a MUI interface. It reads
 
 ![Quill with the Welcome template](docs/quill-home.png)
 
+## Character and paragraph formatting (work packages 9 and 10)
+
+- **Text effects:** hidden text (shown, with a dotted line under it, only while formatting marks are on, and left out of PDFs), outline, shadow, emboss and engrave, a colour for the underline of its own, and character shading kept apart from the highlight. They are in the Font window, the Font group's Text Effects list, the Format menu and the right-button menu, and go to and from Word. Word 2010's other text effects (glow, reflection, gradient fills), ligatures and number forms are kept through a save.
+- **Enclosed characters:** one or two characters in a circle, square, triangle or diamond, saved as Word saves them (an EQ field).
+- **Paragraphs:** Distributed alignment (Ctrl-Shift-J), Add Space Before (Ctrl-0) and Remove Space After, a Horizontal Line, Hanging Indent (Ctrl-T, Ctrl-Shift-T), and lists to choose from on the Bullets and Numbering buttons, with Define New Bullet and Define New Number Format (01, 1st, One, First as well).
+- **Sort Text:** by up to three keys, whole paragraphs or fields between tabs or commas, as text, numbers or dates, either way round.
+- **Characters:** nonbreaking spaces (Ctrl-Shift-Space, a degree sign with formatting marks), nonbreaking hyphens (Ctrl-Shift-minus) and optional hyphens (Ctrl-minus, shown only where a line breaks); lines now break after an ordinary hyphen. The Symbol window has every character the screen can show, any character by its code, the recently used ones and a page of special characters.
+- **Clipboard:** a Paste Special window, Copy and Paste Formatting (Ctrl-Shift-C, Ctrl-Shift-V), and the Clipboard pane beside the page with the last 24 things copied.
+
 ## New in 0.14: arranging, bookmarks, page numbers and the Design tab
 
 These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and Layout tabs.
@@ -31,7 +40,7 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
   - **Underline** is a split button. A click underlines. The arrow offers double, thick, dotted, dashed and wavy underlines, words only, and **More Underlines...** (the Font window). Each kind is drawn in the list.
   - **Character Border:** a thin box round the selected characters (also on the Format menu). It's saved in .docx files and drawn in PDFs.
   - The ribbon still fits a 640-pixel-wide screen. Icon buttons are two pixels narrower when space is tight, and the small buttons show their labels whenever the window has room.
-- **Not done:** WordCraft's enclosed characters (a letter in a circle). Word draws them with a font trick that Amiga fonts can't reproduce well, so they're left out for now.
+- Enclosed characters (a letter in a circle) came later: see "Character and paragraph formatting" above.
 - **Bugs fixed:** line numbering started from 1 even when a document asked for another first number.
 
 ## New in 0.13: links, right-click menus and the missing pieces
@@ -417,6 +426,12 @@ Quill draws its own window, as WordCraft does, in WordCraft's light colours, wit
 | Amiga->, Amiga-< | Grow and shrink the font |
 | Amiga-* | Formatting marks |
 | Amiga-= | Spelling |
+| Ctrl-Shift-J | Distributed alignment |
+| Ctrl-0 | Space before the paragraph on or off |
+| Ctrl-T, Ctrl-Shift-T | Hanging indent, one step more or less |
+| Ctrl-Shift-C, Ctrl-Shift-V | Copy and paste formatting |
+| Ctrl-Shift-Space | A nonbreaking space |
+| Ctrl-Shift-minus, Ctrl-minus | A nonbreaking hyphen, an optional hyphen |
 
 ## ARexx
 
