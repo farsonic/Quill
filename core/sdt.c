@@ -1474,3 +1474,4 @@ int ff_default_checked(const Doc *d, int k)
   char v[8];
   return f && ff_kind(d, k) == FF_CHECK && ff_val(f->ffdata, "default", v, sizeof v) && v[0] == '1';
 }
+int sdt_form_at(const Doc *d, Pos p) { return sdt_forms_ok((Doc *)d, p, p); }

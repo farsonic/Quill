@@ -157,6 +157,7 @@ int  sdt_delete_ok(Doc *d, Pos a, Pos b);        /* deleting a..b */
 /* Restrict Editing's "filling in forms" (WP7, core/protect.h): a..b lies in a form's fillable part
    (a content control's content that isn't locked, or a text form field's result); at p (a == b) */
 int  sdt_forms_ok(Doc *d, Pos a, Pos b);
+int  sdt_form_at(const Doc *d, Pos p);           /* the same for the character after p (WP7's prot_form_at) */
 /* the place a forms-protected document's Tab goes to from p: the next fillable part (wrapping); 0 none */
 int  sdt_forms_next(Doc *d, Pos p, int dir, Pos *a, Pos *b);
 
