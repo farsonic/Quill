@@ -672,6 +672,25 @@ int me_delete(MathEq *e, MPos *p, MPos *anchor, int *sel)
   return 0;
 }
 
+int me_split_line(MathEq *e, MPos *p)
+{
+  MNode *row, *nr, **nl;
+  int idx;
+  mp_clamp(e, p);
+  if (p->depth || !e->display || e->nline >= 64 || !(row = mp_row(e, p))) return 0;
+  idx = split_at(row, p->off);
+  if (!(nr = mn_new(MK_ROW))) return 0;
+  while (row->nkid > idx) if (!mn_insert(nr, -1, mn_remove(row, idx))) break;
+  if (!(nl = (MNode **)realloc(e->line, (e->nline + 1) * sizeof(MNode *)))) { while (nr->nkid) mn_insert(row, -1, mn_remove(nr, 0)); mn_free(nr); return 0; }
+  e->line = nl;
+  memmove(e->line + p->line + 2, e->line + p->line + 1, (e->nline - p->line - 1) * sizeof(MNode *));
+  e->line[p->line + 1] = nr;
+  e->nline++;
+  p->line++; p->off = 0;
+  me_tidy(e);
+  return 1;
+}
+
 /* ------------------------------------------------------------------ */
 /* selections */
 int me_sel_range(const MathEq *e, const MPos *a, const MPos *b, MPos *row, int *u0, int *u1)

@@ -62,7 +62,8 @@ int  me_delete(MathEq *e, MPos *p, MPos *anchor, int *sel);
 int  me_sel_range(const MathEq *e, const MPos *a, const MPos *b, MPos *row, int *u0, int *u1);
 MNode *me_cut(MathEq *e, const MPos *a, const MPos *b, MPos *p);   /* the selection taken out (a row), caret at its place */
 MNode *me_copy(const MathEq *e, const MPos *a, const MPos *b);    /* a copy of it (a row) */
-void me_tidy(MathEq *e);                                           /* empty runs gone, plain neighbours joined */
+void me_tidy(MathEq *e);
+int  me_split_line(MathEq *e, MPos *p);    /* a display equation's line broken at the caret (Shift+Return) */                                           /* empty runs gone, plain neighbours joined */
 /* autobuild-up (Word's): the plain linear text before the caret in its row built into structures
    (latex: read as LaTeX). 1 if it changed; the caret ends after what was built */
 int  me_build_up(MathEq *e, MPos *p, int latex);
