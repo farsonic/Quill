@@ -589,6 +589,8 @@ typedef struct Doc {
   struct Field *fields; int nfields;
   u8 fieldcodes;
   struct FieldInfo *finfo;
+  /* WP3 citations (core/cite.h): the document's sources (its current list) and their customXml part */
+  struct CiteDoc *cite;
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */

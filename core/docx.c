@@ -21,6 +21,7 @@
 #include "math.h"     /* WP14a: equations */
 #include "docx_lang.h"   /* WP31: languages, do not check */
 #include "review.h"
+#include "cite.h"     /* WP3: the bibliography sources part */
 
 /* ------------------------------------------------------------------ */
 /* reading: formatting as found (which fields a pPr or rPr sets) */
@@ -3146,6 +3147,7 @@ static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_
   read_field_parts(c, z);
   /* WP2: */
   /* WP3: */
+  cite_docx_read(c->d);
   /* WP4: */
   /* WP5: */
   wp5_read_parts(c, z, docrels, rn, base);

@@ -12,6 +12,7 @@
 #include "layout.h"
 #include "xml.h"
 #include "info.h"
+#include "cite.h"                   /* (WP3) CITATION and BIBLIOGRAPHY */
 
 /* ------------------------------------------------------------------ */
 /* the marks and the records */
@@ -988,6 +989,7 @@ static int eval_flat(Doc *d, Paras s, const char *flat, Pos at, const FieldEnv *
     if (!w || !field_parse_time(w, &t)) return FE_KEEP;
     return date_result(flat, &t, DEF_DATETIME, out, cap);
   }
+  if (!strcmp(nm, "CITATION")) return cite_eval(d, flat, at, out, cap);     /* (WP3, core/cite.h) */
   if (!strcmp(nm, "PAGE")) { snprintf(out, cap, "%s", FIELD_PAGE); return FE_PLACE; }
   if (!strcmp(nm, "SECTION")) { snprintf(out, cap, "%s", FIELD_PAGE); return FE_PLACE; }
   if (!strcmp(nm, "NUMPAGES") || !strcmp(nm, "SECTIONPAGES")) { snprintf(out, cap, "%s", FIELD_PAGES); return FE_PLACE; }
@@ -1217,6 +1219,7 @@ int field_update(Doc *d, Pos a, Pos b, const FieldEnv *e)
   int n;
   doc_begin(d, a);
   n = update_in(d, &s, 1, a, b, e);
+  n += cite_update_bibs(d, a, b);                  /* (WP3) bibliographies, whose results run over paragraphs */
   doc_end(d, a);
   return n;
 }

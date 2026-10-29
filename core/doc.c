@@ -15,6 +15,7 @@
 #include "math.h"     /* WP14a */
 #include "review.h"
 #include "outline.h"                  /* (WP11) heading_style_level */
+#include "cite.h"                     /* (WP3) cite_free */
 
 /* ------------------------------------------------------------------ */
 /* undo: a step replaces paragraphs [p0, p0 + nnew) with copies of what was there before the edit
@@ -2728,6 +2729,7 @@ void doc_free(Doc *d)
   info_free(d);                  /* (WP24) */
   math_doc_free(d);     /* WP14a: equations */
   rv_free(d);                                   /* (WP5) */
+  cite_free(d);                                 /* (WP3) */
   free(d);
 }
 
