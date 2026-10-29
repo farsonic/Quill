@@ -4,6 +4,13 @@ Quill 0.14 is a native word processor for AmigaOS with a MUI interface. It reads
 
 ![Quill with the Welcome template](docs/quill-home.png)
 
+## Drawing and ink (work package 20)
+
+- **The Draw tab:** Select, Lasso Select, an eraser (whole strokes, or just the bits under it), a black, red and blue pen, a pencil and a highlighter, Add Pen (pens of your own, under My Pens), Thickness and Color. Drag on the page (Print Layout) to draw: the stroke shows as you draw and is then smoothed into an ink object floating on the page. The highlighter lies behind the text, so the text shows through. Esc puts the pen down.
+- **Ink to Shape:** turn it on and strokes that look like a line, an arrow, a rectangle, an ellipse, a triangle, a diamond or another polygon become that shape; Convert does it to strokes chosen with the lasso. **Ink Replay** draws the ink again in the order it was drawn; **Hide Ink** and **Delete All Ink** are on the Review tab.
+- **Drawing canvases:** Draw › Drawing Canvas (or Insert › Drawing Canvas) puts one in the text; shapes are added from its right-button menu, ink drawn on it goes into it, and it moves as one. Word's canvases (wpc:wpc) are read and written.
+- **In Word files** ink is saved as freeform shapes (a:custGeom), which Word and LibreOffice show, and Word's own freeform shapes now come in. Word's own ink (InkML) is drawn and kept as Word wrote it.
+
 ## Character and paragraph formatting (work packages 9 and 10)
 
 - **Text effects:** hidden text (shown, with a dotted line under it, only while formatting marks are on, and left out of PDFs), outline, shadow, emboss and engrave, a colour for the underline of its own, and character shading kept apart from the highlight. They are in the Font window, the Font group's Text Effects list, the Format menu and the right-button menu, and go to and from Word. Word 2010's other text effects (glow, reflection, gradient fills), ligatures and number forms are kept through a save.
@@ -555,6 +562,7 @@ The MUI headers come from Aminet's `dev/mui/mui38dev.lha`. That archive may only
 - **Quill:** the code is new, written for this project. It borrows WordCraft's ideas but none of its code. The GIF, BMP and IFF ILBM readers and the PNG and JPEG writers (core/picfmt.c) come from Easel, the Amiga paint program by Quill's author.
 - **WordCraft:** one exception to the above: core/smartedit.c (SmartArt, WP15c) ports parts of WordCraft's SmartArt code (its diagram parts and several layouts, crates/docx/src/smart_art.rs), MIT licence, Copyright (c) 2026 ArtCraft Team and the WordCraft contributors, as the file says.
 - **Its licence:** not chosen yet; the author will choose one before the code is published.
+- **WordCraft (MIT OR Apache-2.0, © the WordCraft authors):** the equation editor (WP14b) takes its gallery templates and symbol sets from WordCraft's `math_gallery.rs` (core/mathgal.c) and follows its `math_edit.rs` rules for moving and deleting in an equation, written again in C (core/mathedit.c). WordCraft's MIT licence asks that its copyright notice and licence go with copies of that material.
 - **TrueType fonts:** Liberation (Red Hat, Google), Carlito and Caladea, under the SIL Open Font License 1.1. See `TrueType/LICENSE-fonts.txt`.
 - **Word list:** `Dict/british-english` is SCOWL's British English list (Copyright 2000-2011 Kevin Atkinson and others), used under its permissive licence: see `Dict/LICENSE-dict.txt`.
 - **Thesaurus:** `Dict/th_en.dat` is made (by `tools/mkthes.py`) from LibreOffice's `th_en_US_v2`, a MyThes thesaurus made from WordNet. WordNet is Copyright Princeton University, used under the WordNet licence: see `Dict/LICENSE-thesaurus.txt`.

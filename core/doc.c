@@ -14,6 +14,7 @@
 #include "refs.h"    /* (WP2) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a */
+#include "ink.h"      /* WP20 */
 #include "review.h"
 #include "outline.h"                  /* (WP11) heading_style_level */
 
@@ -1314,6 +1315,7 @@ int img_clone(Image *dst, const Image *src, int own)
   dst->text = NULL; dst->kids = NULL; dst->nkids = 0; dst->poly = NULL; dst->npoly = 0;
   dst->fx.raw = NULL;                         /* WP17 */
   pack_ref(dst->pack);                       /* (WP15a) a chart's parts: shared */
+  ff_ref(dst->ff);                           /* WP20: a freeform's paths: shared */
   if (own) {
     dst->data = NULL; dst->shared = 0;
     if (src->data && (dst->data = (u8 *)malloc(src->len ? src->len : 1))) memcpy(dst->data, src->data, src->len);
@@ -1350,6 +1352,7 @@ void img_release(Image *im)
   free(im->poly); im->poly = NULL; im->npoly = 0;
   free(im->fx.raw); im->fx.raw = NULL;      /* WP17 */
   pack_unref(im->pack); im->pack = NULL;     /* (WP15a) */
+  ff_unref(im->ff); im->ff = NULL;           /* WP20 */
 }
 /* an entry added that the document takes as it is (what it holds is its own) */
 int doc_take_object(Doc *d, Image *im)

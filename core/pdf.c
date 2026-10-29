@@ -16,6 +16,7 @@
 
 PdfOpts pdf_options = { 0, 0, 1, "", "", 150, PIMG_PNG };
 #include "math.h"     /* WP14a: equations */
+#include "ink.h"      /* WP20 */
 
 /* Windows-1252's 0x80-0x9F (0: not used) */
 static const u16 cp1252_hi[32] = {
@@ -743,6 +744,7 @@ static void pdf_leaf(Pdf *p, Buf *b, const ObjPart *pt, i32 cx, i32 cy)
 {
   const Image *im = pt->im;
   if (im->pack) { pdf_pack(p, b, im, cx - pt->cx / 2, cy - pt->cy / 2, pt->cx, pt->cy); return; }   /* (WP15a) */
+  if (im->ff && im->kind == OBJ_SHAPE) { ff_pdf(b, pt, cx, cy); return; }     /* WP20: freeforms and ink */
   i32 w = pt->cx, h = pt->cy, lw = im->lwidth * 5 / 2, c = icos(pt->rot), sn = isin(pt->rot);
   int fx = pt->flip & 1 ? -1 : 1, fy = pt->flip & 2 ? -1 : 1, ri;
   int outline = im->lstyle != PB_NONE && im->lwidth;
