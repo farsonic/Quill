@@ -160,6 +160,16 @@ static void render(void)
   objraster_free(&r);
   im.fx.bgkey = 0; im.shape = SH_ELLIPSE;
   okr = objfx_render(&im, 1, 15, &r);
+  {
+    /* cropping by dragging: the left side in by a quarter of the box, then back out */
+    Image c = d->images[k];
+    objfx_crop_by(&c, 360, 0, 0, 0);
+    ok("crop by dragging: a quarter cut off the left, the picture narrower", c.crop[0] == 25000 && c.cx == 1080 && c.cy == 1080);
+    objfx_crop_by(&c, -360, 0, 0, 0);
+    ok("crop by dragging: and dragged back out", c.crop[0] == 0 && c.cx == 1440);
+    c.flip = 1; objfx_crop_by(&c, 0, 0, 144, 0);
+    ok("crop by dragging: a flipped picture's right side is its left", c.crop[0] == 10000 && c.crop[2] == 0);
+  }
   ok("picture style: an oval picture (corners clear)", okr && r.px[3] == 0 && r.px[((r.h / 2) * r.w + r.w / 2) * 4 + 3] == 255);
   objraster_free(&r);
   im.shape = SH_RECT; im.fx.shadow = 1; im.fx.shdist = 60; im.fx.shdir = 450; im.fx.shblur = 60; im.fx.shcolor = 0; im.fx.shalpha = 60;

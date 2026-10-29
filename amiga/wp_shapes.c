@@ -178,8 +178,8 @@ static const RibbonList align_list = { align_labels, 3, PL_TEXT, NULL };
 #define XI_UNLINK "ci R 1 3 6 12 R 9 3 14 12 cr L 6 5 9 10 L 9 5 6 10"
 
 static const Item i_icons[] = {
-  { K_BUTTON, S_LARGE, 0, 0, "Icons", ID_SH_ICONS, 0, 0, 0, 0, "A picture from the icon library, drawn as a shape you can colour", NULL, XI_ICONS },
-  { K_BUTTON, S_SMALL, 0, 0, "More Shapes", ID_SH_MORE, 0, 0, F_NEWCOL, 0, "Word's other shapes: callouts, flowchart, block arrows, stars", NULL, XI_MORE } };
+  { K_BUTTON, S_SMALL, 0, 0, "Icons", ID_SH_ICONS, 0, 0, 0, 0, "A picture from the icon library, drawn as a shape you can colour", NULL, XI_ICONS },
+  { K_BUTTON, S_SMALL, 0, 0, "More Shapes", ID_SH_MORE, 0, 0, 0, 0, "Word's other shapes: callouts, flowchart, block arrows, stars", NULL, XI_MORE } };
 static const Item s_fx[] = {
   { K_DROP, S_SMALL, 0, 0, "Gradient", ID_SH_GRADDD, 0, RB_ONESHAPE, 0, 0, "The shape filled with colours running into each other", &grad_list, XI_GRAD },
   { K_DROP, S_SMALL, 0, 0, "Shape Effects", ID_SH_EFFECTSDD, 0, RB_SHAPESEL, 0, 0, "A shadow, a glow or soft edges", &fx_list, XI_EFFECTS },

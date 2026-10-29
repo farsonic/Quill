@@ -182,6 +182,28 @@ u32 objfx_corner_colour(const Image *im)
   free(rgb);
   return ((u32)s[0] << 16) | ((u32)s[1] << 8) | (u32)s[2];
 }
+void objfx_crop_by(Image *m, i32 dl0, i32 dt0, i32 dr0, i32 db0)
+{
+  long cl = m->crop[0], ct = m->crop[1], cr = m->crop[2], cb = m->crop[3], fw, fh, dl = dl0, dr = dr0, dt = dt0, db = db0, x;
+  if (cl + cr >= 99000) cl = cr = 0;
+  if (ct + cb >= 99000) ct = cb = 0;
+  fw = (long)m->cx * 100000L / (100000L - cl - cr); fh = (long)m->cy * 100000L / (100000L - ct - cb);
+  if (fw < 1) fw = 1;
+  if (fh < 1) fh = 1;
+  if (m->flip & 1) { x = dl; dl = dr; dr = x; }
+  if (m->flip & 2) { x = dt; dt = db; db = x; }
+  cl += dl * 100000L / fw; cr += dr * 100000L / fw; ct += dt * 100000L / fh; cb += db * 100000L / fh;
+  if (cl < 0) cl = 0;
+  if (cr < 0) cr = 0;
+  if (ct < 0) ct = 0;
+  if (cb < 0) cb = 0;
+  if (cl + cr > 98000) { cr = 98000 - cl; if (cr < 0) { cr = 0; cl = 98000; } }
+  if (ct + cb > 98000) { cb = 98000 - ct; if (cb < 0) { cb = 0; ct = 98000; } }
+  m->crop[0] = (i32)cl; m->crop[1] = (i32)ct; m->crop[2] = (i32)cr; m->crop[3] = (i32)cb;
+  m->cx = (i32)(fw * (100000L - cl - cr) / 100000L); m->cy = (i32)(fh * (100000L - ct - cb) / 100000L);
+  if (m->cx < 60) m->cx = 60;
+  if (m->cy < 60) m->cy = 60;
+}
 int objfx_rich(const Image *im)
 {
   const ObjFx *f = &im->fx;

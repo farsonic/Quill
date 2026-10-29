@@ -58,28 +58,10 @@ int wp17_cropping(int k)
   Doc *d = wp_doc();
   return crop_on && d && k >= 0 && k < d->nimages && k == cur_sel && d->images[k].kind == OBJ_PICTURE;
 }
-/* the handles moved the box's sides in (or out) by so much: as much more (or less) of the whole picture cut off */
+/* the handles moved the box's sides in (or out): objfx_crop_by cuts off as much more (or less) of the picture */
 void wp17_crop_drop(Image *m, const FloatBox *f, i32 l, i32 t, i32 r, i32 b)
 {
-  long cl = m->crop[0], ct = m->crop[1], cr = m->crop[2], cb = m->crop[3], fw, fh, dl = l - f->x, dr = f->x + f->w - r, dt = t - f->y, db = f->y + f->h - b, x;
-  if (cl + cr >= 99000) cl = cr = 0;
-  if (ct + cb >= 99000) ct = cb = 0;
-  fw = (long)m->cx * 100000L / (100000L - cl - cr); fh = (long)m->cy * 100000L / (100000L - ct - cb);
-  if (fw < 1) fw = 1;
-  if (fh < 1) fh = 1;
-  if (m->flip & 1) { x = dl; dl = dr; dr = x; }
-  if (m->flip & 2) { x = dt; dt = db; db = x; }
-  cl += dl * 100000L / fw; cr += dr * 100000L / fw; ct += dt * 100000L / fh; cb += db * 100000L / fh;
-  if (cl < 0) cl = 0;
-  if (cr < 0) cr = 0;
-  if (ct < 0) ct = 0;
-  if (cb < 0) cb = 0;
-  if (cl + cr > 98000) { cr = 98000 - cl; if (cr < 0) { cr = 0; cl = 98000; } }
-  if (ct + cb > 98000) { cb = 98000 - ct; if (cb < 0) { cb = 0; ct = 98000; } }
-  m->crop[0] = (i32)cl; m->crop[1] = (i32)ct; m->crop[2] = (i32)cr; m->crop[3] = (i32)cb;
-  m->cx = (i32)(fw * (100000L - cl - cr) / 100000L); m->cy = (i32)(fh * (100000L - ct - cb) / 100000L);
-  if (m->cx < 60) m->cx = 60;
-  if (m->cy < 60) m->cy = 60;
+  objfx_crop_by(m, l - f->x, t - f->y, f->x + f->w - r, f->y + f->h - b);
 }
 
 /* ------------------------------------------------------------------ lists */

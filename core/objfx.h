@@ -76,6 +76,9 @@ int  objfx_adjusted(const ObjFx *fx);
 void objfx_adjust(u8 *rgb, u32 w, u32 h, const ObjFx *fx);
 /* the background as Remove Background finds it: the four corners' colour (a picture's) */
 u32  objfx_corner_colour(const Image *im);
+/* a picture's sides moved in by dl, dt, dr, db twips on the page (out if negative): as much more (or less)
+   of the whole picture cropped off, its size following (flips taken into account) */
+void objfx_crop_by(Image *m, i32 dl, i32 dt, i32 dr, i32 db);
 /* whether an object needs objfx_render to be drawn: its adjustments, transparency, a fill or
    effect other than a plain colour, a picture's shape that isn't a rectangle, an icon */
 int  objfx_rich(const Image *im);
