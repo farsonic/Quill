@@ -206,7 +206,7 @@ int  lay_textbox(Layout *L, const Image *im, i32 cx, Furn *f);
 u32  shape_points(int shape, i32 w, i32 h, i32 *xy, u32 max, int *closed);
 /* SH_ARROW's head at the line's end (w, h): three points, for an outline lw twips wide */
 void shape_arrowhead(i32 w, i32 h, i32 lw, i32 *xy);
-#define SHAPE_MAXPTS 72
+#define SHAPE_MAXPTS 128                /* (WP18: 72 before more shapes came) */
 /* an object's outline in its box (twips, turned): its wrap outline, a shape's own, or the box; how many
    points (at most max), 0 if none */
 int  obj_outline(const Image *im, i32 *xy, int max);
