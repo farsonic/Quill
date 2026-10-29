@@ -188,7 +188,11 @@ static void put_code(const char *code)
   if (pos_cmp(lo, hi) > 0) { Pos t = lo; lo = hi; hi = t; }
   doc_begin(d, lo);
   if (pos_cmp(lo, hi)) doc_delete(d, lo, hi);
-  field_insert(d, &lo, code, NULL, NULL);
+  {
+    char ph[256];
+    if (merge_placeholder(code, ph, sizeof ph)) field_insert_result(d, &lo, code, ph, NULL, NULL);
+    else field_insert(d, &lo, code, NULL, NULL);
+  }
   doc_end(d, lo);
   if (d->merge && d->merge->viewmerged) merge_preview(d, 1);
   changed();

@@ -433,28 +433,28 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 
 ### Mailings (23: ✅ 0 · 🟨 0 · ⬜ 22 · ➖ 1)
 
-- ⬜ Envelopes (Create) `mailings.envelopes` — no Mailings tab at all [WP4]
-- ⬜ Labels (Create) `mailings.labels` [WP4]
-- ⬜ Start Mail Merge (Start Mail Merge) `mailings.start` [WP4]
-- ⬜ Select Recipients (Start Mail Merge) `mailings.recipients` [WP4]
-- ⬜ Edit Recipient List (Start Mail Merge) `mailings.editRecipients` [WP4]
-- ⬜ Filter Recipients (Start Mail Merge) `mailings.filterRecipients` [WP4]
-- ⬜ Sort Recipients (Start Mail Merge) `mailings.sortRecipients` [WP4]
-- ⬜ Highlight Merge Fields (Write & Insert Fields) `mailings.highlightFields` [WP4]
-- ⬜ Address Block (Write & Insert Fields) `mailings.addressBlock` [WP4]
-- ⬜ Greeting Line (Write & Insert Fields) `mailings.greetingLine` [WP4]
-- ⬜ Insert Merge Field (Write & Insert Fields) `mailings.insertField` [WP4]
-- ⬜ Rules (Write & Insert Fields) `mailings.rules` [WP4]
-- ⬜ Match Fields (Write & Insert Fields) `mailings.matchFields` [WP4]
-- ⬜ Preview Results (Preview Results) `mailings.preview` [WP4]
-- ⬜ Next Record (Preview Results) `mailings.next` [WP4]
-- ⬜ Previous Record (Preview Results) `mailings.previous` [WP4]
-- ⬜ First Record (Preview Results) `mailings.first` [WP4]
-- ⬜ Last Record (Preview Results) `mailings.last` [WP4]
-- ⬜ Go to Record (Preview Results) `mailings.goToRecord` [WP4]
-- ⬜ Find Recipient (Preview Results) `mailings.findRecipient` [WP4]
-- ⬜ Check for Errors (Preview Results) `mailings.checkErrors` [WP4]
-- ⬜ Finish & Merge (Finish) `mailings.finish` [WP4]
+- ✅ Envelopes (Create) `mailings.envelopes` — WP4: `ID_ML_ENVELOPES` (Mailings › Create, File › Mailings): the Envelopes window (delivery address taken from the selection, return address from the user's name or omitted, 13 sizes: US 6 3/4, Monarch, 9, 10, 11, 12, DL, C4, C5, C6, C6/C5, B5, B6); New Document makes the envelope a landscape page of its own (core/envlabel.c `env_doc`), Add to Document puts it before the text as a section of its own with the envelope's page setup (`env_add_to_doc`, one undo step), as Word's layout; the feed and printing are ➖ (Quill makes PDFs) [WP4]
+- ✅ Labels (Create) `mailings.labels` — WP4: `ID_ML_LABELS`: the Labels window (address, full page of the same label or a single label at row/column, Avery US Letter (5160, 5161, 5162, 5163, 5164, 5165, 5167, 5168, 5195, 5366, 5371, 5395, 8160), Avery A4/A5 (L7159, L7160, L7161, L7162, L7163, L7165, L7167, L7173, L7651, J8160, C32011) and three generic sizes, with their sheet, margins, pitch and size); a new document holding the labels as a table with gap columns and exact rows (`label_doc`); merge labels and Update Labels (`label_update`: the first label's contents copied to the others, each after a NEXT field) [WP4]
+- ✅ Start Mail Merge (Start Mail Merge) `mailings.start` — WP4: `ID_ML_START` list and File › Mailings: Letters, Envelopes (Envelope Options, the main document becomes the envelope), Labels (Label Options, the main document becomes a page of merge labels), Directory (records one after another), Normal Word Document (the merge settings dropped, the fields kept) and the Step-by-Step Mail Merge Wizard (`ID_ML_WIZARD`, six steps: type, starting document, recipients, writing, preview with Exclude, completing); E-mail Messages ➖ (no e-mail) [WP4]
+- ✅ Select Recipients (Start Mail Merge) `mailings.recipients` — WP4: Type a New List (an editor with Word's 13 columns, columns can be added; saved as CSV and linked) and Use an Existing List: CSV and tab- or semicolon-separated text (UTF-8, UTF-16 with BOM or Latin-1), .xlsx (first sheet: shared and inline strings, numbers, booleans, dates by their number formats; core/mergedata.c, written after Ledger's reader) and another .docx's first table; the path, query and Match Fields kept in settings.xml's `w:mailMerge` (core/mergedocx.c, data source through word/_rels/settings.xml.rels, read back and re-linked when the document is opened); Outlook contacts ➖ [WP4]
+- ✅ Edit Recipient List (Start Mail Merge) `mailings.editRecipients` — WP4: the Mail Merge Recipients window (a list with check marks and the first seven columns; check/uncheck, all, none; Filter and Sort; Find Duplicates and Validate Addresses (name, street, town, postcode or country present), each offering to uncheck them; Find Recipient; Edit for text lists; Refresh) [WP4]
+- ✅ Filter Recipients (Start Mail Merge) `mailings.filterRecipients` — WP4: Filter and Sort window, six conditions joined by And/Or (Equal to ... Does not contain, Is blank, Is not blank; numbers compared as numbers), written to `w:query` as SQL (`SELECT * FROM ... WHERE ...`) and read back (`merge_parse_query`) [WP4]
+- ✅ Sort Recipients (Start Mail Merge) `mailings.sortRecipients` — WP4: three sort keys, ascending or descending (stable), kept as `ORDER BY` in the query [WP4]
+- ✅ Highlight Merge Fields (Write & Insert Fields) `mailings.highlightFields` — WP4: `ID_ML_HIGHLIGHT`, the merge fields' results on grey (amiga/view.c `merge_shade`) [WP4]
+- ✅ Address Block (Write & Insert Fields) `mailings.addressBlock` — WP4: the Insert Address Block window (Word's ten name formats, company, postal address, country never/always/only if different from, a preview of each recipient, Match Fields) writes Word's ADDRESSBLOCK code (\\f groups, \\c, \\e); its result worked out from the matched columns (`merge_address`) when previewing and merging [WP4]
+- ✅ Greeting Line (Write & Insert Fields) `mailings.greetingLine` — WP4: the Insert Greeting Line window (Dear/To/none, seven name formats, comma/colon/none, the line for invalid names, preview) writes GREETINGLINE (`merge_greeting`) [WP4]
+- ✅ Insert Merge Field (Write & Insert Fields) `mailings.insertField` — WP4: the ribbon's list of the recipient list's columns (Word's address fields while there is none) and the Insert Merge Field window (database or address fields); MERGEFIELD with Word's underscores for spaces [WP4]
+- ✅ Rules (Write & Insert Fields) `mailings.rules` — WP4: the list and the Insert Word Field window: Ask, Fill-in (asked when merging, \\o once, \\d default), If...Then...Else, Merge Record #, Merge Sequence #, Next Record, Next Record If, Set Bookmark (REF or the bookmark's name shows it), Skip Record If; all worked out by `merge_build`/`merge_preview` (core/merge.c) [WP4]
+- ✅ Match Fields (Write & Insert Fields) `mailings.matchFields` — WP4: Word's 30 address fields, each matched to a column (found by Word's and common names first), saved as `w:odso/w:fieldMapData` and read back [WP4]
+- ✅ Preview Results (Preview Results) `mailings.preview` — WP4: `ID_ML_PREVIEW` puts the record's values in the merge fields' results (one undo step), and Word's «Name», «AddressBlock», «Next Record»... back when it is turned off; `w:viewMergedData` and `w:activeRecord` kept [WP4]
+- ✅ Next Record (Preview Results) `mailings.next` — WP4: `ID_ML_NEXT` (checked records only) [WP4]
+- ✅ Previous Record (Preview Results) `mailings.previous` — WP4: `ID_ML_PREV` [WP4]
+- ✅ First Record (Preview Results) `mailings.first` — WP4: `ID_ML_FIRST` [WP4]
+- ✅ Last Record (Preview Results) `mailings.last` — WP4: `ID_ML_LAST` [WP4]
+- ✅ Go to Record (Preview Results) `mailings.goToRecord` — WP4: `ID_ML_GOTO`, a record by its number [WP4]
+- ✅ Find Recipient (Preview Results) `mailings.findRecipient` — WP4: the Find Entry window (all fields or one column, Find Next, wrapping round; `merge_find`) [WP4]
+- ✅ Check for Errors (Preview Results) `mailings.checkErrors` — WP4: Word's three choices (simulate and report in a new document; merge pausing at each error; merge and report); finds merge fields no column has, Address Block/Greeting Line without a matched name, no recipients, no merge fields, and what the simulated merge reports (`merge_check`) [WP4]
+- ✅ Finish & Merge (Finish) `mailings.finish` — WP4: Edit Individual Documents (all, current record, from-to) makes a new document with each record from a new page (a section each, as Word; merge fields replaced by their text, other fields kept), Merge to PDF writes one PDF or one for each record named from a column (core/mergepdf.c); Print Documents and Send Email ➖ [WP4]
 - ➖ Print Documents (Finish) `mailings.printDocuments` — printing left out on purpose (merging to a new document or PDF is part of Finish & Merge)
 
 ### Review (31: ✅ 24 · 🟨 1 · ⬜ 4 · ➖ 2)
@@ -783,7 +783,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ➖ **PDF import** — WordCraft doesn't have it either.
 - ✅ **Export page as image (.png)** — WP29: Export Image writes PNG or IFF ILBM pages (core/pngwrite.c, core/raster.c), with Export Options for the pages and resolution [WP29]
 - ⬜ **Encrypted .docx (open and save with a password)** — WordCraft crates/docx/src/crypt (ECMA-376 agile AES-256, standard encryption). Quill none.
-- ⬜ **Spreadsheets (.xlsx, .xls, .ods, .csv) as mail-merge recipient lists** — WordCraft crates/formats/src/sheet. Quill has no mail merge.
+- 🟨 **Spreadsheets (.xlsx, .xls, .ods, .csv) as mail-merge recipient lists** — WordCraft crates/formats/src/sheet. WP4: .xlsx (first sheet), CSV/tab-separated text and a .docx's table are read (core/mergedata.c); .xls and .ods aren't (Quill says to save as .xlsx or CSV) [WP4]
 - 🟨 **Picture formats for Insert › Picture** — Quill: PNG and JPEG (baseline, progressive, CMYK; core/image.c); WP17: GIF, BMP and IFF ILBM (EHB, HAM6/8, deep, PBM; readers from Easel in core/picfmt.c), GIF and BMP saved as they are, ILBM as PNG. Not yet: WebP, WMF and EMF (WordCraft has them).
 - ➖ **.json document model** — WordCraft's format for agents (control protocol, left out on purpose).
 

@@ -137,6 +137,8 @@ typedef int (*MergeAsk)(void *ctx, const char *prompt, const char *def, char *ou
 /* the merge fields of the body shown for view row mi->rec (on), or as Word shows them without data
    («Name», «AddressBlock»...): one undo step; how many changed */
 int  merge_preview(Doc *d, int on);
+/* what a merge field with code shows without data ("\xC2\xABName\xC2\xBB"...): 1 if it is one */
+int  merge_placeholder(const char *code, char *out, size_t cap);
 /* the document merged: records from..to (indexes among merge_count's, inclusive), each from a new page
    (sections; not for MT_DIRECTORY), ASK and FILLIN through ask (NULL: their defaults). A new document,
    NULL if no record was merged; *n how many were. errs (may be NULL): what went wrong, a line each */

@@ -317,10 +317,36 @@ static int cellref(const char *r, int *col, int *row)
 }
 static void num_text(const char *v, char *out, size_t cap)
 {
+  /* a binary fraction written out in full ("0.30000000000000004") rounded to 15 significant digits,
+     in the digits (no floating point) */
+  char dg[40];
+  int n = 0, sig = 0, dot = -1, i, neg = v[0] == '-', lead = 1;
+  const char *p = v + neg;
   snprintf(out, cap, "%s", v);
-  if (strlen(v) > 15 && strchr(v, '.')) {
-    double d = strtod(v, NULL);
-    snprintf(out, cap, "%.15g", d);
+  if (strchr(v, 'E') || strchr(v, 'e') || !strchr(v, '.') || strlen(v) >= sizeof dg) return;
+  for (; *p; p++) {
+    if (*p == '.') { dot = n; continue; }
+    if (*p < '0' || *p > '9') return;
+    dg[n++] = *p;
+    if (*p != '0') lead = 0;
+    if (!lead) sig++;
+  }
+  if (sig <= 15) return;
+  /* the digit position where 15 significant ones end */
+  for (i = 0, sig = 0; i < n; i++) { if (dg[i] != '0' || sig) sig++; if (sig == 15) break; }
+  if (i + 1 < n && dg[i + 1] >= '5') {
+    int k = i;
+    while (k >= 0) { if (dg[k] == '9') { dg[k] = '0'; k--; } else { dg[k]++; break; } }
+    if (k < 0) return;                       /* (999... rounding up a place: kept as written) */
+  }
+  n = i + 1 > dot ? i + 1 : dot;
+  while (n > dot && dg[n - 1] == '0') n--;
+  {
+    size_t o = 0;
+    if (neg && o + 1 < cap) out[o++] = '-';
+    for (i = 0; i < n && o + 2 < cap; i++) { if (i == dot) { if (!i) out[o++] = '0'; out[o++] = '.'; } out[o++] = dg[i]; }
+    if (dot == 0 && n == 0 && o + 1 < cap) out[o++] = '0';
+    out[o] = 0;
   }
 }
 MergeData *md_load_xlsx(const u8 *data, size_t len, char *err, size_t errcap)
@@ -444,8 +470,12 @@ MergeData *md_load_xlsx(const u8 *data, size_t len, char *err, size_t errcap)
         else if (t && (!strcmp(t, "str") || !strcmp(t, "e"))) snprintf(out, sizeof out, "%s", v);
         else if (v[0] && sidx >= 0 && sidx < nxf && xfdate[sidx]) {
           /* a date: days since 1899-12-30 (the 1900 system) */
-          double dv = strtod(v, NULL);
-          long days = (long)dv, secs = (long)((dv - (double)days) * 86400.0 + 0.5);
+          long days = atol(v), frac = 0, secs;
+          const char *fp = strchr(v, '.');
+          int fd = 0;
+          if (fp) for (fp++; *fp >= '0' && *fp <= '9' && fd < 5; fp++, fd++) frac = frac * 10 + (*fp - '0');
+          while (fd++ < 5) frac *= 10;
+          secs = (frac * 864L + 500) / 1000;   /* (a fraction of a day in 1/100000ths, as seconds) */
           FieldTime ft;
           long z2 = days - 25569 + 719468, era, doe, yoe, doy, mp;     /* (days since 1970, then Hinnant's civil_from_days) */
           era = (z2 >= 0 ? z2 : z2 - 146096) / 146097;

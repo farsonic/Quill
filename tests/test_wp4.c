@@ -148,6 +148,22 @@ static void t_merge(void)
   ok("WP4 greeting line", !strcmp(out, "Dear Bob Jones,"));
   { MergeInfo none; memset(&none, 0, sizeof none); merge_address(&none, -1, " ADDRESSBLOCK ", out, sizeof out);
     ok("WP4 address sample", !strcmp(out, "Mr. Joshua Randall Jr.\vBlue Sky Airlines\v1 Main St.\vAny City, WA 98052")); }
+  /* the windows' codes */
+  { char code[700];
+    merge_address_code(5, 1, 1, 2, "United Kingdom", code, sizeof code);
+    merge_address(mi, 1, code, out, sizeof out);
+    ok("WP4 address code", !strcmp(out, "Bob Jones\vAcme\v2 Low Rd\vLeeds LS1"));
+    merge_address_code(7, 0, 0, 0, "", code, sizeof code);
+    merge_address(mi, 1, code, out, sizeof out);
+    ok("WP4 address code, name only", !strcmp(out, "Bob Jones"));
+    merge_greeting_code(1, 1, 1, "To whom it may concern:", code, sizeof code);
+    merge_greeting(mi, 2, code, out, sizeof out);
+    ok("WP4 greeting code", !strcmp(out, "To Cy \"C\":"));
+    { MergeInfo e2 = *mi; memset(e2.map, 0, sizeof e2.map); strcpy(e2.map[AF_FIRST], "\x01"); strcpy(e2.map[AF_LAST], "\x01");
+      merge_greeting(&e2, 2, code, out, sizeof out);
+      ok("WP4 greeting for invalid names", !strcmp(out, "To whom it may concern:")); }
+    ok("WP4 placeholders", merge_placeholder(code, out, sizeof out) && !strcmp(out, "\xC2\xAB" "GreetingLine" "\xC2\xBB") &&
+       merge_placeholder(" MERGEFIELD First_Name ", out, sizeof out) && !strcmp(out, "\xC2\xAB" "First_Name" "\xC2\xBB") && !merge_placeholder(" DATE ", out, sizeof out)); }
   /* preview */
   mi->rec = 1;
   merge_preview(d, 1);

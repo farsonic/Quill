@@ -83,20 +83,46 @@ static int ci_contains(const char *h, const char *n)
   }
   return 0;
 }
-static int is_num(const char *s, double *v)
+/* a decimal number's parts ("-12.50": negative, "12", "5"), without floating point (vbcc's maths
+   library isn't linked); 0 if s isn't one */
+typedef struct { int neg; const char *ip; int il; const char *fp; int fl; } Dec;
+static int dec(const char *s, Dec *d)
 {
-  char *e;
   while (*s == ' ') s++;
-  if (!*s) return 0;
-  *v = strtod(s, &e);
-  while (*e == ' ') e++;
-  return !*e;
+  d->neg = 0;
+  if (*s == '-' || *s == '+') { d->neg = *s == '-'; s++; }
+  while (*s == '0' && s[1] >= '0' && s[1] <= '9') s++;
+  d->ip = s; d->il = 0;
+  while (s[d->il] >= '0' && s[d->il] <= '9') d->il++;
+  s += d->il;
+  d->fp = s; d->fl = 0;
+  if (*s == '.' || *s == ',') { s++; d->fp = s; while (s[d->fl] >= '0' && s[d->fl] <= '9') d->fl++; s += d->fl; }
+  while (d->fl && d->fp[d->fl - 1] == '0') d->fl--;
+  while (*s == ' ') s++;
+  return !*s && (d->il || d->fl);
+}
+/* two numbers compared: -1, 0, 1 */
+static int dec_cmp(const Dec *a, const Dec *b)
+{
+  int r = 0, i;
+  int za = !a->fl && (!a->il || (a->il == 1 && a->ip[0] == '0')), zb = !b->fl && (!b->il || (b->il == 1 && b->ip[0] == '0'));
+  int na = a->neg && !za, nb = b->neg && !zb;
+  if (na != nb) return na ? -1 : 1;
+  if (a->il != b->il) r = a->il < b->il ? -1 : 1;
+  else {
+    for (i = 0; i < a->il && !r; i++) if (a->ip[i] != b->ip[i]) r = a->ip[i] < b->ip[i] ? -1 : 1;
+    for (i = 0; !r && (i < a->fl || i < b->fl); i++) {
+      char x = i < a->fl ? a->fp[i] : '0', y = i < b->fl ? b->fp[i] : '0';
+      if (x != y) r = x < y ? -1 : 1;
+    }
+  }
+  return na ? -r : r;
 }
 /* two values compared as Word's filter compares them: numbers as numbers, else text ignoring case */
 static int val_cmp(const char *a, const char *b)
 {
-  double x, y;
-  if (is_num(a, &x) && is_num(b, &y)) return x < y ? -1 : x > y;
+  Dec x, y;
+  if (dec(a, &x) && dec(b, &y)) return dec_cmp(&x, &y);
   return ci_cmp(a, b);
 }
 static int cond_true(const MergeInfo *mi, int row, const MergeFilter *f)
@@ -823,13 +849,11 @@ static void run_paras(MRun *r, u32 pa, u32 *pend)
   }
 }
 /* what a merge field shows without data, Word's way */
-static int placeholder(const Doc *d, int k, char *out, size_t cap)
+int merge_placeholder(const char *code, char *out, size_t cap)
 {
-  const Field *f = field_get(d, k);
   char nm[32], a[128];
-  if (!f) return 0;
-  field_name(f->code, nm, sizeof nm);
-  if (!strcmp(nm, "MERGEFIELD")) { if (!field_arg(f->code, 0, a, sizeof a)) return 0; snprintf(out, cap, "\xC2\xAB%s\xC2\xBB", a); return 1; }
+  field_name(code, nm, sizeof nm);
+  if (!strcmp(nm, "MERGEFIELD")) { if (!field_arg(code, 0, a, sizeof a)) return 0; snprintf(out, cap, "\xC2\xAB%s\xC2\xBB", a); return 1; }
   if (!strcmp(nm, "ADDRESSBLOCK")) { snprintf(out, cap, "\xC2\xAB" "AddressBlock" "\xC2\xBB"); return 1; }
   if (!strcmp(nm, "GREETINGLINE")) { snprintf(out, cap, "\xC2\xAB" "GreetingLine" "\xC2\xBB"); return 1; }
   if (!strcmp(nm, "NEXT")) { snprintf(out, cap, "\xC2\xAB" "Next Record" "\xC2\xBB"); return 1; }
@@ -838,8 +862,13 @@ static int placeholder(const Doc *d, int k, char *out, size_t cap)
   if (!strcmp(nm, "MERGEREC")) { snprintf(out, cap, "\xC2\xAB" "Merge Record #" "\xC2\xBB"); return 1; }
   if (!strcmp(nm, "MERGESEQ")) { snprintf(out, cap, "\xC2\xAB" "Merge Sequence #" "\xC2\xBB"); return 1; }
   if (!strcmp(nm, "ASK") || !strcmp(nm, "SET")) { out[0] = 0; return 1; }
-  if (!strcmp(nm, "FILLIN")) { if (!field_switch(f->code, 'd', 0, out, cap)) out[0] = 0; return 1; }
+  if (!strcmp(nm, "FILLIN")) { if (!field_switch(code, 'd', 0, out, cap)) out[0] = 0; return 1; }
   return 0;
+}
+static int placeholder(const Doc *d, int k, char *out, size_t cap)
+{
+  const Field *f = field_get(d, k);
+  return f && merge_placeholder(f->code, out, cap);
 }
 int merge_preview(Doc *d, int on)
 {
