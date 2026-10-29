@@ -446,7 +446,9 @@ int pages_hyph_allowed(const Doc *d, const char *word, u32 len, const Line *l, u
 void pages_hyph_changed(Doc *d)
 {
   u32 i;
-  for (i = 0; i < d->np; i++) d->p[i]->ver++;
+  /* (versions are stamps from a counter: a value it hasn't reached yet, or one it has passed, is
+     never one a later edit gives) */
+  for (i = 0; i < d->np; i++) d->p[i]->ver = ~d->p[i]->ver;
   d->ver++;
 }
 int pages_next_manual(Layout *L, Pos from, Pos *at, u32 *len, u8 *brk, u32 *suggest)

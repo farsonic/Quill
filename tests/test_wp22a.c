@@ -206,7 +206,7 @@ static void hyph_tests(void)
     u32 k, run = 0, maxrun = 0, len, sug;
     u8 brk[40];
     d = doc_new(); c = doc_start(d);
-    for (k = 0; k < 20; k++) doc_insert(d, &c, "Internationalisation characteristically demonstrates typographical considerations unquestionably. ", 99, NULL);
+    for (k = 0; k < 20; k++) { static const char t[] = "Internationalisation characteristically demonstrates typographical considerations unquestionably. "; doc_insert(d, &c, t, sizeof t - 1, NULL); }
     d->hyphenate = 1; d->hylimit = 1;
     L = lay_new(d, &fs); lay_update(L);
     for (k = 0; k < L->pl[0].nlines; k++) {
@@ -219,6 +219,16 @@ static void hyph_tests(void)
     d->hyphenate = 0; pages_hyph_changed(d);
     lay_update(L);
     ok("manual hyphenation: a word that could break at a line's end", pages_next_manual(L, doc_start(d), &at, &len, brk, &sug) && len >= 5 && sug > 0 && sug < len && brk[sug]);
+    {
+      /* the optional hyphen put there: the line now breaks after it (WP10's optional hyphens) */
+      Pos h = at;
+      u32 j, broke = 0;
+      h.off += sug;
+      doc_insert(d, &h, "\xC2\xAD", 2, NULL);
+      lay_update(L);
+      for (j = 0; j < L->pl[at.para].nlines; j++) if (L->pl[at.para].lines[j].end == at.off + sug + 2) broke = 1;
+      ok("manual hyphenation: the line breaks at the optional hyphen put in", broke);
+    }
     lay_free(L); doc_free(d);
   }
 }

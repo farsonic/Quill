@@ -69,6 +69,7 @@ extern struct WBStartup *_WBenchMsg;
 #include "splash.h"
 #include "sysfonts.h"
 #include "wphooks.h"
+#include "wp_charpara.h"                /* (WP9, WP10) */
 #include "wp_find.h"                  /* WP12: its ids, for Find's, Select's and Go To's entries */
 void wp12_note(ULONG id, LONG v);       /* WP12 (wp_find.c): each command as it starts, for Repeat */
 
@@ -1813,6 +1814,7 @@ static void object_done(void)
     if (neg) deg = (3600 - deg) % 3600;
     m.rot = (u16)deg;
   }
+  if (OBJ_IS_GRAPHIC(m.kind)) { m.rot = 0; m.flip = 0; }    /* (WP15a) */
   if (m.wrap != WRAP_INLINE && !m.halign && (m.rot != doc->images[k].rot || m.cx != doc->images[k].cx || m.cy != doc->images[k].cy)) {
     /* turned or sized round its centre */
     Image o = doc->images[k];
@@ -1881,6 +1883,7 @@ static void obj_choice(ULONG id, LONG v)
   case ID_OBJWEIGHTDD: if (v < 0 || v >= 7) return; m.lwidth = ribbon_penwidths[v]; if (m.lstyle == PB_NONE) m.lstyle = PB_SINGLE; break;
   case ID_OBJDASHDD: if (v < 0 || v >= 5) return; m.lstyle = (u8)(v + PB_SINGLE); if (!m.lwidth) m.lwidth = 6; break;
   case ID_OBJROTDD:
+    if (OBJ_IS_GRAPHIC(m.kind)) { DisplayBeep(NULL); return; }      /* (WP15a) charts and SmartArt don't turn */
     if (v == 0) m.rot = (u16)((m.rot + 900) % 3600);
     else if (v == 1) m.rot = (u16)((m.rot + 2700) % 3600);
     else if (v == 2) m.flip ^= 2;
@@ -2060,6 +2063,7 @@ static void open_font(void)
         Child, fo_small = CheckMark(FALSE), Child, LLabel1(tr("Small caps")),
         Child, fo_caps = CheckMark(FALSE), Child, LLabel1(tr("All caps")),
       End,
+      Child, HGroup, QFRAME, Child, wp9_font_group(), End,       /* (WP9: hidden, outline, shadow, emboss, engrave, underline colour, shading) */
       Child, QTitle(tr("Character spacing")), Child, ColGroup(3), QFRAME,
         Child, Label1(tr("Spacing")), Child, fo_spc = CycleObject, MUIA_Cycle_Entries, (ULONG)trl(spcs, t_spcs), MUIA_CycleChain, 1, End,
         Child, fo_spcby = StringObject, StringFrame, MUIA_String_MaxLen, 10, MUIA_CycleChain, 1, End,
@@ -2079,6 +2083,7 @@ static void open_font(void)
   set(fo_strike, MUIA_Selected, (f->flags & CF_STRIKE) != 0); set(fo_dstrike, MUIA_Selected, (f->fx & FX_DSTRIKE) != 0);
   set(fo_super, MUIA_Selected, (f->flags & CF_SUPER) != 0); set(fo_sub, MUIA_Selected, (f->flags & CF_SUB) != 0);
   set(fo_small, MUIA_Selected, (f->fx & FX_SMALLCAPS) != 0); set(fo_caps, MUIA_Selected, (f->flags & CF_CAPS) != 0);
+  wp9_font_fill(f);                                    /* (WP9) */
   set(fo_spc, MUIA_Cycle_Active, f->spacing > 0 ? 1 : f->spacing < 0 ? 2 : 0);
   pt_text(f->spacing < 0 ? -f->spacing : f->spacing, b); set_str(fo_spcby, f->spacing ? b : "");
   for (i = 0; i < 8 && scales[i] != (f->scale ? f->scale : 100); i++) ;
@@ -2121,7 +2126,8 @@ static void font_done(void)
   if (chk(fo_super)) n->flags = (u8)((n->flags | CF_SUPER) & ~CF_SUB); else n->flags &= (u8)~CF_SUPER;
   if (chk(fo_sub)) n->flags = (u8)((n->flags | CF_SUB) & ~CF_SUPER); else n->flags &= (u8)~CF_SUB;
   if (chk(fo_caps)) n->flags |= CF_CAPS; else n->flags &= (u8)~CF_CAPS;
-  n->fx = (u8)((chk(fo_dstrike) ? FX_DSTRIKE : 0) | (chk(fo_small) ? FX_SMALLCAPS : 0));
+  n->fx = (u8)((n->fx & ~(FX_DSTRIKE | FX_SMALLCAPS)) | (chk(fo_dstrike) ? FX_DSTRIKE : 0) | (chk(fo_small) ? FX_SMALLCAPS : 0));
+  wp9_font_read(w, n, &q.mask);                        /* (WP9) */
   q.mask |= (n->flags ^ w->flags) & 0x7F;
   if ((n->flags & CF_UNDERLINE) && n->ul != w->ul) q.mask |= CM_UL | CM_UNDERLINE;
   if ((n->fx ^ w->fx) & FX_DSTRIKE) q.mask |= CM_DSTRIKE;
@@ -2146,7 +2152,7 @@ static ParaFmt pa_was;
    240ths of a line for the automatic kinds, in twips for At least and Exactly */
 static void open_para(void)
 {
-  static const char *const aligns[] = { "Left", "Centred", "Right", "Justified", NULL }, *const specials[] = { "(none)", "First line", "Hanging", NULL },
+  static const char *const aligns[] = { "Left", "Centred", "Right", "Justified", "Distributed", NULL }, *const specials[] = { "(none)", "First line", "Hanging", NULL },
                *const lines[] = { "Single", "1.5 lines", "Double", "At least", "Exactly", "Multiple", NULL };
   static const char *t_al[6], *t_sp[5], *t_ln[8];
   const ParaFmt *pf = caret_pf();
@@ -2181,7 +2187,7 @@ static void open_para(void)
     if (!(parawin = dialog("Paragraph", MAKE_ID('P','A','R','A'), c, "_OK", ID_PARAGO))) return;
   }
   pa_was = *pf;
-  set(pa_align, MUIA_Cycle_Active, pf->align & 3);
+  set(pa_align, MUIA_Cycle_Active, pf->align <= AL_DISTRIBUTE ? pf->align : 0);
   tab_text(pf->left, b); set_str(pa_left, b);
   tab_text(pf->right, b); set_str(pa_right, b);
   set(pa_special, MUIA_Cycle_Active, pf->first > 0 ? 1 : pf->first < 0 ? 2 : 0);
@@ -2371,7 +2377,7 @@ static void style_shown(int i, char *out, size_t cap)
    dialogs it is made afresh each time, as its Based on and Following lists change */
 static void open_style(int k, int newtype)
 {
-  static const char *const types[] = { "Paragraph", "Character", NULL }, *const aligns[] = { "Left", "Centred", "Right", "Justified", NULL },
+  static const char *const types[] = { "Paragraph", "Character", NULL }, *const aligns[] = { "Left", "Centred", "Right", "Justified", "Distributed", NULL },
                *const lines[] = { "Single", "1.15", "1.5 lines", "Double", NULL };
   static const char *t_al[6], *t_ln[6], *t_col[14];
   static const i32 linevals[4] = { 240, 276, 360, 480 };
@@ -2450,7 +2456,7 @@ static void open_style(int k, int newtype)
   set(sy_color, MUIA_Cycle_Active, col_index(s->cf.color));
   set(sy_bold, MUIA_Selected, (s->cf.flags & CF_BOLD) != 0); set(sy_italic, MUIA_Selected, (s->cf.flags & CF_ITALIC) != 0);
   set(sy_ul, MUIA_Selected, (s->cf.flags & CF_UNDERLINE) != 0);
-  set(sy_align, MUIA_Cycle_Active, s->pf.align & 3);
+  set(sy_align, MUIA_Cycle_Active, s->pf.align <= AL_DISTRIBUTE ? s->pf.align : 0);
   for (i = 0; i < 4 && linevals[i] != s->pf.line; i++) ;
   set(sy_line, MUIA_Cycle_Active, i < 4 ? i : 0);
   pt_text(s->pf.before, b); set_str(sy_before, b);
@@ -3268,7 +3274,7 @@ static void command(ULONG id)
   case ID_CLEARFMT: DoMethod(view, MUIM_Quill_Command, CMD_CLEARFMT, 0); break;
   case ID_MARKS: DoMethod(view, MUIM_Quill_Command, CMD_MARKS, 0); break;
   case ID_BRUSH: DoMethod(view, MUIM_Quill_Command, CMD_BRUSH, 0); break;
-  case ID_SORT: DoMethod(view, MUIM_Quill_Command, CMD_SORT, 0); break;
+  case ID_SORT: wp_focus_kept = wp_run(ID_P_SORT, WPV_NONE) == WPR_KEEPFOCUS; break;     /* (WP10: the Sort Text window) */
   case ID_ZOOM100B: set(view, MUIA_Quill_Zoom, 100); break;
   case ID_PAGEWIDTH: set(view, MUIA_Quill_Zoom, 0); break;
   case ID_ONEPAGE: set(view, MUIA_Quill_Zoom, (ULONG)-1); break;
@@ -3607,7 +3613,7 @@ static void ribbon_pick(ULONG id, LONG v)
   case ID_AUTOFITDD: DoMethod(view, MUIM_Quill_Command, CMD_AUTOFIT, (ULONG)v); break;
   case ID_ROWH: if (v >= 0 && v < 7) DoMethod(view, MUIM_Quill_Command, CMD_ROWH, (ULONG)ribbon_rowheights[v]); break;
   case ID_COLW: if (v >= 0 && v < 10) DoMethod(view, MUIM_Quill_Command, CMD_COLW, (ULONG)ribbon_colwidths[v]); break;
-  case ID_PASTESPECDD: case ID_PASTEDD: if (v >= 0 && v < 3) DoMethod(view, MUIM_Quill_Command, CMD_PASTEAS, (ULONG)v); break;
+  case ID_PASTESPECDD: case ID_PASTEDD: if (v >= 0 && v < 3) DoMethod(view, MUIM_Quill_Command, CMD_PASTEAS, (ULONG)v); else if (v >= 3) wp10_list_extra(id, v - 3); break;
   case ID_FINDDD: if (v >= 1) wp_focus_kept = wp_run(v == 1 ? ID_FX_GOTO : ID_FX_ADVFIND, WPV_NONE) == WPR_KEEPFOCUS; else open_find(); break;   /* (WP12) */
   case ID_HEADERDD: case ID_FOOTERDD: if (v == 1) remove_headfoot(id == ID_FOOTERDD); else edit_headfoot(id == ID_FOOTERDD, -1); break;
   case ID_TOCDD: DoMethod(view, MUIM_Quill_Command, v == 1 ? CMD_TOCREMOVE : CMD_TOC, 0); break;
@@ -3619,7 +3625,7 @@ static void ribbon_pick(ULONG id, LONG v)
   case ID_PAGENUMDD: if (v >= 0 && v <= 6) page_number((int)v); else if (v == 7) open_pgfmt(); else if (v == 8) remove_page_numbers(); break;
   case ID_COVERDD: cover_page(v); break;
   case ID_MULTILISTDD: multilist_choice(v); break;
-  case ID_PBORDERDD: if (v == 8) open_borders(); else border_preset((int)v); break;
+  case ID_PBORDERDD: if (v == 8) open_borders(); else if (v == 9) wp10_list_extra(id, 0); else border_preset((int)v); break;
   case ID_PSHADEDD: shade_para(v); break;
   case ID_STYLESETDD: if (v >= 0 && v < SS_N) DoMethod(view, MUIM_Quill_Command, CMD_DOCLOOK, (ULONG)(0 << 8 | v)); break;
   case ID_THEMEFONTDD: if (v >= 0 && v < TF_N) DoMethod(view, MUIM_Quill_Command, CMD_DOCLOOK, (ULONG)(1 << 8 | v)); break;
@@ -3642,7 +3648,7 @@ static void ribbon_pick(ULONG id, LONG v)
     static const int how[3] = { 2, 0, 1 };
     if (v >= 0 && v < 3) DoMethod(view, MUIM_Quill_Command, CMD_RESOLVE, (ULONG)((how[v] << 1) | (id == ID_ACCEPTDD)));
     break; }
-  case ID_SPACINGDD: if (v >= 0 && v < 6) DoMethod(view, MUIM_Quill_Command, CMD_SPACING, (ULONG)spacings[v]); break;
+  case ID_SPACINGDD: if (v >= 0 && v < 6) DoMethod(view, MUIM_Quill_Command, CMD_SPACING, (ULONG)spacings[v]); else if (v >= 6) wp10_list_extra(id, v - 6); break;
   case ID_STYLEPICK: DoMethod(view, MUIM_Quill_Command, CMD_STYLE, (ULONG)v); break;
   case ID_SELECTDD: if (v >= 3) { wp_run(v == 3 ? ID_FX_SELOBJ : ID_FX_SIMILAR, WPV_NONE); break; }   /* (WP12) */
     if (v == 1 || v == 2) DoMethod(view, MUIM_Quill_Command, CMD_SELUNIT, (ULONG)(v - 1)); else command(ID_SELALL); break;
@@ -3700,7 +3706,7 @@ static void ribbon_pick(ULONG id, LONG v)
       char u[8];
       u[utf8_put(u, symbols[v])] = 0;
       DoMethod(view, MUIM_Quill_Command, CMD_TEXT, (ULONG)u);
-    }
+    } else if (v == (LONG)(sizeof symbols / sizeof symbols[0])) wp10_list_extra(id, 0);    /* More Symbols... (WP10) */
     break;
   case ID_DELTABLEDD: command(v == 0 ? ID_DEL_ROW : v == 1 ? ID_DEL_COL : ID_DEL_TABLE); break;
   }
@@ -4855,7 +4861,8 @@ int main(int argc, char **argv)
              id == ID_COLUMNSDD || id == ID_LINENUMDD || id == ID_HYPHENDD || id == ID_PAGEALIGNDD || id == ID_DROPCAPDD || id == ID_WATERMARKDD || id == ID_BORDERDD ||
              id == ID_TSTYLEDD || id == ID_PENSTYLE || id == ID_PENWIDTH || id == ID_PENCOLOR || id == ID_TBORDERSDD || id == ID_TSELECTDD ||
              id == ID_AUTOFITDD || id == ID_ROWH || id == ID_COLW || (id >= ID_SHAPESDD && id <= ID_OBJROTDD && id != ID_TEXTBOX) ||
-             (id >= ID_PASTESPECDD && id <= ID_PSPACINGDD) || (id >= ID_PASTEDD && id <= ID_FINDDD) || (id >= ID_FORWARDDD && id <= ID_COVERDD) || (id >= ID_THEMEDD && id <= ID_PAGECOLORDD) || id == ID_UNDERLINEDD || wp_is_list(id)) ribbon_choice(id);
+             (id >= ID_PASTESPECDD && id <= ID_PSPACINGDD) || (id >= ID_PASTEDD && id <= ID_FINDDD) || (id >= ID_FORWARDDD && id <= ID_COVERDD) || (id >= ID_THEMEDD && id <= ID_PAGECOLORDD) || id == ID_UNDERLINEDD || wp_is_list(id) ||
+             id == ID_C_EFFECTS || id == ID_C_ULCOLOR || id == ID_C_SHADE || id == ID_P_BULLETLIB || id == ID_P_NUMLIB) ribbon_choice(id);   /* (WP9/WP10's lists in Quill's own groups) */
     else if (id == ID_TITLE) set_title();
     else if (id == ID_OUTLINECHG) rebuild_nav(0);
     else if (id) {
