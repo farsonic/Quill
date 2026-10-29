@@ -216,7 +216,11 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
 - **View Gridlines:** dotted lines where cells have no borders.
 - **New ribbon tabs:** Table Design and Table Layout appear while the caret is in a table, as in Word; the Table menu has the new commands too.
 - **Word files:** table styles with their conditional formatting (w:tblStylePr), w:tblLook, cell borders with their kind, width and colour, w:jc, top and bottom cell margins, w:cantSplit, w:tblLayout and nested tables, read and written. LibreOffice opens Quill's tables with their styles, merged cells, lines and nested tables as Quill draws them.
-- **Not yet:** text direction in cells (vertical text), tables with text wrapping round them (floating tables are placed in the text), and drawing tables with the mouse.
+- **Table styles of your own:** New, Modify and Delete Table Style (Table Design, or Table > Table Styles): every part of a style, as Word's window has them (the whole table, heading and total rows, first and last columns, odd and even banded rows and columns, the four corner cells), each with bold, italic, underline, size, colour, shading, borders in any pen and a 9-way alignment, shown in a picture as you go. Changing a style changes every table in it; they are saved to Word files as custom table styles.
+- **Border Painter, Quick Tables, spreadsheets:** the Border Painter puts the Borders group's pen on cell edges you click or drag along; Insert > Quick Tables makes calendars, lists, a matrix and tables with subheadings; Insert > Spreadsheet makes a table from a CSV file.
+- **Drawing tables:** Draw Table draws a table where you drag a box, and splits cells along the lines you draw through them; the Eraser merges the cells either side of a line you click; Esc ends either.
+- **Cells:** Delete Cells (shift left, shift up, the whole row or column), a 9-way alignment, text turned to read down or up (laid out, drawn and exported turned), each cell's own margins, and a table's alternative text (title and description).
+- **Floating tables:** Table Positioning floats a table (from the column, margin or page, aligned or at a distance) with the text wrapping round it, as Word's w:tblpPr; read and written.
 
 ![Table Design: a table style, merged cells, lines of several kinds and a table inside a cell](docs/quill-tables.png)
 
@@ -522,10 +526,6 @@ The MUI headers come from Aminet's `dev/mui/mui38dev.lha`. That archive may only
 
 ## Roadmap
 
-- **Tables:**
-  - text direction in cells
-  - floating tables with text around them
-  - a table style editor
 - **Pictures and objects:**
   - editing text in grouped shapes
   - drawing canvases
