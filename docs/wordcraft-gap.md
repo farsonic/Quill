@@ -6,7 +6,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 ## Summary
 
-- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **416** (✅), **5** partly (🟨) and lacks **80** (⬜); 30 are ➖. So Quill covers 83% of the applicable commands fully and 84% at least in part.
+- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **426** (✅), **4** partly (🟨) and lacks **71** (⬜); 30 are ➖. So Quill covers 85% of the applicable commands fully and 86% at least in part.
 - **Beyond the ribbon (section 2):** 152 features: ✅ 55, 🟨 43, ⬜ 37, ➖ 17.
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
 - **Missing whole:** Mailings (22), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
@@ -15,13 +15,13 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 | Tab | Commands | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|---|
-| File | 23 | 16 | 1 | 4 | 2 |
+| File | 23 | 18 | 1 | 2 | 2 |
 | Quick Access | 5 | 5 | 0 | 0 | 0 |
 | Title Bar | 1 | 0 | 0 | 1 | 0 |
-| Home | 105 | 97 | 2 | 5 | 1 |
-| Insert | 53 | 41 | 0 | 6 | 6 |
+| Home | 105 | 99 | 1 | 4 | 1 |
+| Insert | 53 | 45 | 0 | 2 | 6 |
 | Draw | 11 | 9 | 0 | 1 | 1 |
-| Design | 10 | 9 | 0 | 1 | 0 |
+| Design | 10 | 10 | 0 | 0 | 0 |
 | Layout | 22 | 19 | 0 | 3 | 0 |
 | References | 25 | 9 | 1 | 14 | 1 |
 | Mailings | 23 | 0 | 0 | 22 | 1 |
@@ -41,8 +41,8 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | SmartArt Design | 7 | 7 | 0 | 0 | 0 |
 | Chart Design | 5 | 5 | 0 | 0 | 0 |
 | Editing | 41 | 41 | 0 | 0 | 0 |
-| Tools | 7 | 3 | 0 | 4 | 0 |
-| **All** | **531** | **416** | **5** | **80** | **30** |
+| Tools | 7 | 4 | 0 | 3 | 0 |
+| **All** | **531** | **426** | **4** | **71** | **30** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
@@ -149,7 +149,7 @@ core/docx.c is touched by most lanes. Each package should add its reading and wr
 
 In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help tabs from its ribbon code. Each line: the mark, WordCraft's command (its group) and command id, Quill's evidence or what is missing, and the work package. WordCraft has no separate Header & Footer tab (those tools are in its catalogue as a pseudo-tab, shown here as such); Quill has Header & Footer and Edit Text contextual tabs of its own. Editing and Tools are WordCraft's keyboard and dialog commands that have no ribbon button.
 
-### File (23: ✅ 16 · 🟨 1 · ⬜ 4 · ➖ 2)
+### File (23: ✅ 18 · 🟨 1 · ⬜ 2 · ➖ 2)
 
 - ✅ New (Backstage) `file.new` — `ID_NEW` (File menu Amiga-N, File page New)
 - ✅ Open (Backstage) `file.open` — `ID_OPEN`
@@ -172,8 +172,8 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Version History (Backstage) `file.versions` — `ID_INFO_VERSIONS`: each save kept in PROGDIR:Versions (a run of AutoSaves keeps its last, newest 25), Open Version / Restore / Delete (core/recover.c) [WP24]
 - ✅ Recover Unsaved (Backstage) `file.recover` — `ID_INFO_RECOVER`: recovery copies every minute in PROGDIR:Recovery, offered at the next start and listed here (Open, Delete) [WP24]
 - ✅ New from Template (Backstage) `file.newFromTemplate` — `ID_TEMPLATE` (5 built-in templates in core/template.c: Blank, Welcome, Letter, Résumé, Report)
-- ⬜ Save as Template (Backstage) `file.saveTemplate` — no .dotx writing [WP23]
-- ⬜ Personal Templates (Backstage) `file.listTemplates` [WP23]
+- ✅ Save as Template (Backstage) `file.saveTemplate` — File › Save as Template… and the File page's Export › Save as Template (`ID_TP_SAVEAS`, wp_templates.c): a .dotx/.dotm with the template content type (core/blocks.c `template_save`, rows `fmt_dotx`/`fmt_dotm` in `doc_formats[]`), by default in PROGDIR:Templates; the document keeps its own file (a copy, as Save a Copy). Tests: tests/test_wp23.c [WP23]
+- ✅ Personal Templates (Backstage) `file.listTemplates` — the File page's New list shows the templates in PROGDIR:Templates under the built-in ones (`personal_list()` in backstage.c, `wp23_personal()`); one opens as a new untitled document attached to it [WP23]
 
 ### Quick Access (5: ✅ 5 · 🟨 0 · ⬜ 0 · ➖ 0)
 
@@ -187,7 +187,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 
 - ⬜ Search (Tell Me) (Search) `tools.search` — no command search [WP26]
 
-### Home (105: ✅ 97 · 🟨 2 · ⬜ 5 · ➖ 1)
+### Home (105: ✅ 99 · 🟨 1 · ⬜ 4 · ➖ 1)
 
 - ✅ Paste (Clipboard) `edit.paste` — `ID_PASTEDD` split button / `ID_PASTE`
 - ✅ Paste Keep Text Only (Clipboard) `edit.pasteText` — `ID_PASTETEXT` (`CMD_PASTEAS`)
@@ -274,12 +274,12 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Heading 2 (Styles) `para.heading2` — from the gallery; no Ctrl+Alt+2 key
 - ✅ Heading 3 (Styles) `para.heading3` — from the gallery; no Ctrl+Alt+3 key
 - ✅ Create a Style (Styles) `styles.create` — `ID_NEWSTYLE`
-- ✅ Modify Style (Styles) `styles.modify` — `ID_MODSTYLE` (`open_style()`; no tabs/borders/numbering in it)
+- ✅ Modify Style (Styles) `styles.modify` — `ID_MODSTYLE`/`ID_NEWSTYLE` open WP13's window (`wp13_style_dialog()`): name, type (paragraph, character, linked), based on, following; font, size, bold/italic/underline, colour (theme colours with shades), alignment, line spacing, spacing; Format pages Paragraph (indents, special, keep with next, keep lines, page break, widow control, contextual spacing), Tabs, Borders (sides, line, width, colour, spacing, shading), Numbering, Frame (`w:framePr`), Language (`w:lang`), Shortcut key (Ctrl+Alt/Ctrl+Shift+digit, `customizations.xml` wne:keymaps); Add to gallery, Automatically update, New documents based on this template (written into the attached template) [WP13]
 - ✅ Update Style to Match (Styles) `styles.updateToMatch` — `ID_STYLEUPDATE`
 - ✅ Delete Style (Styles) `styles.delete` — `ID_STYLEDELETE`
-- 🟨 Styles Pane (Styles) `styles.pane` — `ID_STYLESPANE` opens a modal-less Styles window (Manage), not a docked pane with previews/options [WP13]
-- ⬜ Style Inspector (Styles) `styles.inspector` [WP13]
-- ✅ Manage Styles (Styles) `styles.manage` — `ID_STYLESPANE` (apply, modify, delete, new)
+- ✅ Styles Pane (Styles) `styles.pane` — Design › Style Tools › Styles Pane, Format › Styles and Themes, View › Styles Pane (`ID_SP_PANE`, wp_styles.c): docked at the right of the page in the window's work area, drawn by Quill; each style in its own font, size and colour (Show Preview), ¶/a/¶a kind marks, the caret's style marked, Clear All, Disable Linked Styles, New Style / Style Inspector / Manage Styles buttons, Options (show recommended / in use / in document / all; sort alphabetical / as recommended / font / based on / type; kept in the file as `w:stylePaneFormatFilter`/`w:stylePaneSortMethod`); click applies (a linked style's character half on part of a paragraph), double-click modifies, bubbles describe the style [WP13]
+- ✅ Style Inspector (Styles) `styles.inspector` — `ID_SP_INSPECT`: the paragraph and character styles at the caret and the formatting added to each (Plus:), Reset to Normal, Clear paragraph formatting, Default Paragraph Font, Clear character formatting, New Style, Reveal Formatting (`ID_SP_REVEAL`: font, effects, paragraph, breaks, tabs, borders, section; Distinguish style source; theme colours named as Word names them) [WP13]
+- ✅ Manage Styles (Styles) `styles.manage` — `ID_STYLESPANE` (main.c's Styles window) and WP13's Manage Styles (`ID_SP_MANAGE`): Edit (sort, recommended only, modify, delete, new, Import/Export = Organizer copying styles to and from another .docx/.dotx), Recommend (priority `w:uiPriority`, move, assign, show / hide until used / hide), Restrict (`w:locked`), Set Defaults (docDefaults font, size, spacing, line spacing through `doc_restyle`) [WP13]
 - ✅ Apply Styles (Styles) `styles.apply` — `ID_STYLEAPPLY` in the Styles window (no type-a-name box)
 - ✅ Character Style (Styles) `format.charStyle` — `CMD_CHARSTYLE` from the gallery
 - ✅ Find (Editing) `edit.find` — `ID_FINDDD` / `ID_FIND` (`open_find()`)
@@ -295,7 +295,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Dictate (Voice) `tools.dictate` — WordCraft doesn't have it either (cloud speech service)
 - ✅ Editor (Editor) `review.editor` — WordCraft's Editor runs Spelling: Quill `ID_SPELL`
 
-### Insert (53: ✅ 41 · 🟨 0 · ⬜ 6 · ➖ 6)
+### Insert (53: ✅ 45 · 🟨 0 · ⬜ 2 · ➖ 6)
 
 - ✅ Cover Page (Pages) `insert.coverPage` — `ID_COVERDD` (3 designs, remove)
 - ✅ Blank Page (Pages) `insert.blankPage` — `ID_BLANKPAGE`
@@ -334,16 +334,16 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Different Odd & Even (Header & Footer) `layout.differentOddEven` — `ID_HFEVEN`
 - ✅ Link to Previous (Header & Footer) `layout.linkToPrevious` — `ID_HFOWN` ("This Section's Own" is Link to Previous turned off)
 - ✅ Text Box (Text) `insert.textBox` — `ID_TEXTBOX`
-- ⬜ Quick Parts (Text) `insert.quickParts` — no building blocks / glossary [WP23]
-- ⬜ AutoText (Text) `insert.autoText` [WP23]
+- ✅ Quick Parts (Text) `insert.quickParts` — References › Quick Parts and Insert › Quick Parts menu (`ID_TP_QUICK`; the Insert tab is full at 640 pixels): the Quick Parts gallery's blocks from the document's glossary (`w:docPart`, read into `Doc.gloss`, kept verbatim and written back, core/blocks.c), PROGDIR:Templates/Building Blocks.dotx and the attached template; AutoText, Document Property (a DOCPROPERTY, TITLE, AUTHOR... field through WP1's core/field.h), Building Blocks Organizer (insert, edit properties, delete, preview), Save Selection to Quick Part Gallery (name, gallery, category, description, save in, insert as content / paragraph / page). Pictures, notes and links are left out of blocks Quill makes. Tests: tests/test_wp23.c [WP23]
+- ✅ AutoText (Text) `insert.autoText` — `ID_TP_AUTOTEXT`: the AutoText gallery (`autoTxt`) and Save Selection to AutoText Gallery; F3 replaces the word before the caret by the AutoText entry of that name [WP23]
 - ✅ Document Property (Text) `insert.docProperty` — WP1: the Document Property list (References › Fields; the Insert tab is full at 640 pixels) and window (Insert menu) (`ID_FLD_DOCPROP`, `ID_FLD_PROPWIN`, amiga/wp_fields.c) put in a DOCPROPERTY field; Word's built-in names and the file's custom properties [WP1]
 - ✅ Field (Text) `insert.field` — WP1: the Field window (`ID_FLD_INSERT`, Ctrl-F9): 63 of Word's fields by category with descriptions, argument, \\* format, \\@ date picture, Preserve formatting, and the code itself to type (nested fields as { }); core/field.c `field_insert()` [WP1]
 - ✅ WordArt (Text) `insert.wordArt` — Insert › WordArt (ribbon and Insert menu): a window with the text to use and Quill's 12 WordArt styles, each drawn as it looks; the pick becomes a floating text box with no fill or line, centred, sized to the text, its run in the style (w14 effects in `CharFmt.rx`). Effects drawn from the glyph outlines on screen and in PDFs (core/wordart.c), read and written once through .docx (tests/test_wp19.c), LibreOffice opens the file [WP19]
 - ✅ Drop Cap (Text) `insert.dropCap` — `ID_DROPCAPDD`, `ID_DROPCAPDLG`
 - ✅ Signature Line (Text) `insert.signatureLine` — Insert › Signature Line: Word's setup window (suggested signer, title, e-mail, instructions, allow comments, show sign date); drawn as Word draws an unsigned line (a cross, the line, name and title under it) into a PNG picture 192 × 96 pt; written as Word's VML `w:pict` with `o:signatureline` and read back with its setup (core/sigline.c); right-click › Signature Setup... changes it; LibreOffice shows it as a signature line. Signing itself (certificates) is not done: digital signatures are dropped on save by design (WP0) [WP19]
 - ✅ Date & Time (Text) `insert.dateTime` — WP1: the Date and Time window (`ID_FLD_DATETIME`): 16 formats with today's date in the interface's language, as text or (Update automatically) a DATE/TIME field with that picture; `ID_DATE` still types today's date at once [WP1]
-- ⬜ Object (Text) `insert.object` — WordCraft's inserts a file's text [WP23]
-- ⬜ Text from File (Text) `insert.textFromFile` [WP23]
+- ✅ Object (Text) `insert.object` — `ID_TP_OBJECT`: Create from File puts a document's text and formatting (any `doc_formats[]` reader) or a PNG/JPEG picture at the caret; Link to file and Display as icon are greyed (no OLE: ➖) [WP23]
+- ✅ Text from File (Text) `insert.textFromFile` — `ID_TP_TEXTFILE`: Insert File window (file name, Range = a bookmark), one undo step (core/blocks.c `doc_insert_file`, tables come in as their text as `doc_fragment` copies them) [WP23]
 - ✅ Equation (Symbols) `insert.equation` — the Equation button of Insert › Symbols (and Alt+=) puts a new equation in place and the caret in it, the selected text built up into it (WP14b); Insert › Equation... (Insert menu, amiga/wp_math.c): the equation typed in linear format (UnicodeMath subset: a/b, x^2, x_i, √(…), ∑_(i=1)^n▒…, brackets, functions, accents, ■ matrices, █ arrays, □ ▭ ⟡ boxes, "text"; characters outside Latin-1 as \control words), a display equation when the paragraph is empty as in Word; with an equation selected (or "Edit Equation..." on the right-button menu) it is changed. Checked: tests/test_wp14a.c (linear format in and out), emulator screenshot of the dialog [WP14a]
 - ➖ Ink Equation (Symbols) `insert.inkEquation` — WordCraft doesn't have it either
 - ✅ Symbol (Symbols) `insert.symbol` — the Symbol list's "More Symbols..." and WP10's Symbol window (`ID_P_SYMBOL`, Insert menu): every Latin-1 character as a button (what the interface can show), any Unicode character by its code (hex or decimal), inserted in a font chosen, the recently used ones, and a Special Characters page (dashes, spaces, hyphens, quotes, ©, ®, ™...) [WP10]
@@ -365,14 +365,14 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Drawing Canvas (Insert) `insert.canvas` [WP20]
 - ✅ Ink Replay (Replay) `draw.replay` — `ID_DR_REPLAY`: every stroke drawn again point by point in the order it was drawn (`Freeform.order`, saved in the name), strokes from other files first; a click stops it [WP20]
 
-### Design (10: ✅ 9 · 🟨 0 · ⬜ 1 · ➖ 0)
+### Design (10: ✅ 10 · 🟨 0 · ⬜ 0 · ➖ 0)
 
-- ✅ Themes (Document Formatting) `design.theme` — `ID_THEMEDD` (8 Quill themes setting style set, fonts and colours; not Office theme parts)
+- ✅ Themes (Document Formatting) `design.theme` — `ID_THEMEDD` (8 Quill themes setting style set, fonts and colours) and WP13's Office Themes (`ID_TH_THEMES`: Office, Office 2013-2022, Office 2007-2010 and other Office themes as theme1.xml parts; Reset to Theme from Template, Browse for Themes (.thmx/.docx/.dotx), Save Current Theme (.thmx); Format › Styles and Themes › Office Theme… window) [WP13]
 - ✅ Style Set (Document Formatting) `design.styleSet` — `ID_STYLESETDD` (6)
-- ✅ Colors (Document Formatting) `design.themeColors` — `ID_COLORSETDD` (8)
-- ✅ Fonts (Document Formatting) `design.themeFonts` — `ID_THEMEFONTDD` (6 pairs)
+- ✅ Colors (Document Formatting) `design.themeColors` — `ID_COLORSETDD` (8 Quill heading colour sets) and WP13's Theme Colors (`ID_TH_COLORS`): 21 Office colour schemes and Customize Colors (12 colours, a name); text, paragraph shading and borders, cells and shapes with theme colours follow [WP13]
+- ✅ Fonts (Document Formatting) `design.themeFonts` — `ID_THEMEFONTDD` (6 pairs) and WP13's Theme Fonts (`ID_TH_FONTS`): 20 Office font schemes and Customize Fonts; text in the theme's heading or body font follows [WP13]
 - ✅ Paragraph Spacing (Document Formatting) `design.paragraphSpacing` — `ID_PSPACINGDD` (6)
-- ⬜ Effects (Document Formatting) `design.effects` [WP13]
+- ✅ Effects (Document Formatting) `design.effects` — Design › Office Theme › Effects (`ID_TH_EFFECTS`): 12 effect schemes written as the theme's `a:fmtScheme` (fills, lines, shadows, glow, reflection, soft edges, bevels); Quill doesn't draw theme effects itself [WP13]
 - ✅ Set as Default (Document Formatting) `design.setDefault` — `ID_SETDEFAULT` (kept in Quill.prefs)
 - ✅ Watermark (Page Background) `design.watermark` — `ID_WATERMARKDD`, WP22a's Printed Watermark (`ID_PG_WATERMARK`, amiga/wp_pages.c): a picture (PNG/JPEG, scale, washout: Word's `WordPictureWatermark` VML in the header, read and written) or words (font, colour, semitransparent, diagonal/horizontal); drawn on screen and in PDF (core/pages.c `pages_wm_box`, `pages_washout`) [WP22a]
 - ✅ Page Color (Page Background) `design.pageColor` — `ID_PAGECOLORDD`
@@ -751,14 +751,14 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Next Field (Fields) `fields.next` — WP1: `ID_FLD_NEXT` (References › Fields, Insert › Fields submenu; F11 where the keyboard has one: Amiga keyboards stop at F10) selects it [WP1]
 - ✅ Previous Field (Fields) `fields.previous` — WP1: `ID_FLD_PREV` (Shift-F11 likewise) [WP1]
 
-### Tools (7: ✅ 3 · 🟨 0 · ⬜ 4 · ➖ 0)
+### Tools (7: ✅ 4 · 🟨 0 · ⬜ 3 · ➖ 0)
 
 - ✅ AutoCorrect Options (Proofing) `tools.autocorrect` — Review > Proofing > AutoCorrect Options: the AutoCorrect and AutoFormat As You Type pages, the replacement list, Exceptions (core/autocorrect.c, PROGDIR:Quill.autocorrect) [WP8]
 - ✅ Set Proofing Language (Proofing) `review.language` — the Language window (mark the selection, do not check, Set As Default), also from the status bar's language [WP31]
 - ⬜ Customize Ribbon (Customize) `tools.customizeRibbon` [WP26]
 - ⬜ Customize Keyboard (Customize) `tools.customizeKeyboard` [WP26]
 - ⬜ Encrypt with Password (Protection) `file.encrypt` [WP7]
-- ⬜ Templates and Add-ins (Templates) `tools.templates` — no attached templates [WP23]
+- ✅ Templates and Add-ins (Templates) `tools.templates` — Developer › Templates › Document Template and File › Templates and Add-ins… (`ID_TP_TEMPLATES`): the attached template (`w:attachedTemplate` with its settings relationship, app.xml Template), Attach…, Automatically update document styles (`w:linkStyles`: the template's styles copied in, also on opening), the personal templates listed, Organizer; global add-ins ➖ (no macros) [WP23]
 - ✅ Full Screen View (Views) `view.fullScreenView` — `ID_FOCUS` hides the ribbon, rulers, pane and status bar (`chrome()`)
 
 ## 2. Beyond the ribbon
@@ -769,7 +769,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 
 - ✅ **.docx read and write** — core/docx.c (`docx_read`/`docx_write`), the only format Quill saves with formatting.
 - 🟨 **.docx Strict Open XML (read)** — untested in Quill: it finds the main part by the relationship's name ending (`rel_target(..., "/officeDocument")`, docx.c) and matches elements by local name, so a Strict file may open, but Strict's unit-suffixed measures (`13.90pt`, `50%`) aren't parsed. WordCraft maps the Strict namespaces and units (`xml.rs`, #2329).
-- 🟨 **.dotx / .docm / .dotm** — Quill reads any package with word/document.xml whatever its name, but never writes a template, and drops macros (WordCraft keeps vbaProject on save without running it).
+- 🟨 **.dotx / .docm / .dotm** — (WP23) .dotx and .dotm are read as templates (the main part's content type) and open as a new untitled document attached to them; Save as Template writes .dotx or .dotm (template content types; `fmt_dotx`/`fmt_dotm` rows). Macros are dropped (➖: no macros), as before.
 - ⬜ **.doc Word 97-2003 (read)** — WordCraft has a spec-based reader (crates/docbin: text, formatting, styles, sections, tables, lists, notes, fields, pictures, shapes, RC4/XOR encryption). Quill: none.
 - ✅ **.rtf read and write** [WP28a] — core/rtf.c (row `fmt_rtf`, sniffed by `{\rtf`; Open/Save As take .rtf, File > Save As Rich Text... saves a copy): text, character and paragraph formatting, styles (\sbasedon, \snext; a file's unused styles aren't made), lists (\listtable/\ls and Word 6's \pn), tables with merged cells (by width, \clmgf/\clmrg, \clvmgf/\clvmrg), borders, shading, row heights, heading rows; PNG/JPEG pictures (hex or \bin, \shppict, shapes' pib), WMF/EMF/bitmaps as a dashed box of their size; headers/footers (default, first, even), footnotes, endnotes, HYPERLINK/PAGE/NUMPAGES/PAGEREF fields (others keep their result), bookmarks, tracked changes (\revtbl, \revised, \deleted), sections with page setup, columns, line numbers, vertical alignment, \info title/author; code pages 437/850/852/866/874/1250-1258/10000 (core/codepage.c), \uN with \uc fallbacks and surrogates. Evidence: tests/test_wp28a.c (a document with all of these round-trips with same_doc and writes the same file twice; Word's and LibreOffice's 7 test .docx files through RTF; RTF that LibreOffice wrote (tests/data/lo-*.rtf) reads as the .docx does); tools/lo_formats.sh: LibreOffice converts what Quill writes to .docx with every paragraph's text, notes, tables and pictures, and LibreOffice renders it as it renders the original .docx (checked by eye with pdftoppm). 🟨 left out: nested tables are flattened into their cell (read and write, LOST_TABLES), shapes/text boxes and comments aren't written, floating pictures are written in line, picture cropping, double-byte code pages without \u (932/936/949/950 text shows as '?').
 - ✅ **.odt read and write** [WP28b] — core/odt.c reads, core/odtw.c writes (rows `fmt_odt` for .odt/.ott, sniffed by the package's mimetype, and `fmt_fodt` for Flat ODT .fodt; File > Save As OpenDocument Text... saves a copy): content.xml, styles.xml, meta.xml, META-INF/manifest.xml (mimetype stored first); paragraph and character styles, common and automatic, with parents, next styles and the default style (only used styles are made), fonts (font-face declarations), paragraph properties (alignment, indents, spacing, line spacing, tabs with leaders, keeping, widows, breaks, borders, padding, shading, contextual spacing, drop caps) and text properties (font, absolute and relative sizes, bold, italic, underline kinds and colour, strike, double strike, super/subscript, raised text, caps, small caps, colour, highlight, letter spacing, scale, shadow, outline, relief, hidden, box); headings (text:h); lists (text:list nested by level, bullet and number list styles with prefixes, suffixes, levels shown and LibreOffice's num-list-format, start values, continued and restarted lists, continuation paragraphs in an item); tables (column widths absolute or relative, spans across columns and rows with covered cells, borders, padding, shading, vertical alignment, row heights, rows kept together, heading rows, alignment and indent, one table inside a cell; deeper ones flattened, LOST_TABLES); pictures in Pictures/ (base64 in Flat ODT) anchored as character, paragraph/character or page, with wrap (none, parallel, contour, run-through behind/in front), position, distances, cropping (fo:clip), mirroring, rotation, border and alt text; text boxes (draw:text-box) and shapes (custom shapes, rectangles, ellipses, lines; fill, line, text; groups); headers and footers from master pages (default, left = even, first, and a First Page master followed by another); footnotes and endnotes with their configuration; bookmarks; links; fields (page number, page count and a bookmark's page as Quill's placeholders; date, time, author, title, subject, keywords, description, file name, dates, word and character counts, sequence, user-defined properties as WP1's fields with their codes, others round-tripped through Quill's own marks); tracked insertions and deletions (text:tracked-changes; deleted paragraphs split as they show); comments (office:annotation over a range with office:annotation-end, resolved); sections (text:section with columns; a new page and its page setup and headers by master page); page size, margins, orientation, page border and colour, page number format and start, line numbering; equations as MathML formula objects (core/mathml.c: fractions, scripts, roots, n-ary operators, fences, functions, accents, bars, group characters, limits, matrices, equation arrays, boxes, phantoms, prescripts; inline or display by context); title, author and the other properties of meta.xml. Evidence: tests/test_wp28b.c, 77 checks (a document with all of these round-trips with same_doc and writes the same content.xml and styles.xml twice, Flat ODT the same file twice; the 10 test .docx files through ODT with same_doc, equations unchanged; LibreOffice-written .odt of word, lo, tables, headers, notes, pictures, equations and a .fodt read as their .docx; hand-written ODT for white space, lists, tables, changes, styles, master pages, MathML; damaged files). LibreOffice opens what Quill writes: every test document converted ODT → .docx keeps all its paragraphs (fmtconv -cmp, 10 of 10), and its PDFs look as LibreOffice's own of the .docx (checked by eye with pdftoppm). 🟨 left out: charts and SmartArt are written as a dashed box; section starts on even/odd pages become a new page; a continuous section whose headers differ starts a page (ODF changes headers only with a page); formatting revisions (text:format-change) are not read or written; Quill's own table styles are written as their look (cells keep it; the style itself only when it is one of Quill's gallery); note options of single sections become the document's.
@@ -815,7 +815,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ⬜ **OLE objects (`w:object`)** — dropped (WordCraft shows their picture and saves them back whole).
 - 🟨 **Native Word ink (`w14:contentPart`)** — dropped; WordCraft keeps it opaque.
 - ✅ **Equations (OMML `m:oMath`)** — WP14a: every ECMA-376 §22.1 element is read into a tree (core/math.c: `m:oMath`, `m:oMathPara` with its justification, fractions bar/skewed/linear/no bar, sub/superscripts and pre-scripts, radicals, n-ary operators with limits, delimiters with separators, functions, accents, bars, group characters, lower and upper limits, matrices with column specs, equation arrays, boxes, border boxes, phantoms, argument sizes, and every property, each kept as absent/on/off), with `m:ctrlPr`, run `w:rPr`, unknown properties and elements (`w:ins` round math...) kept verbatim; written back the same (its m namespace declared on each equation); settings.xml `m:mathPr` kept and used (limits, default justification, small fractions, wrap indent). Laid out TeX-style with Quill's own fonts (core/mathlay.c; math italic, display and text styles, script sizes, TeX spacing) and drawn on screen and in PDFs. Checked: a Word-style sample written from the spec (tests/data/equations.docx, every construct) reads, round trips to identical OMML and a stable document.xml, LibreOffice renders Quill's saved copy exactly as the original, and documents with equations made in Quill open in LibreOffice with them. Left: a display equation too wide for its line isn't broken automatically (only at `m:brk`); block-level `m:oMathPara` outside a paragraph is skipped. WP14b: equations are edited in place (amiga/wp_equation_view.h, core/mathedit.c): the caret inside the tree, the arrow keys through arguments and structures (Up/Down between numerator and denominator, scripts, limits, matrix rows), Home/End, Tab to the next empty argument, typing, Backspace/Delete (a structure selected first, as Word), Shift+arrows and Shift-click selections, Copy/Cut/Paste as linear text, Select All, Esc and Return out, Shift+Return a new line in a display equation, every change one undo step through `doc_set_math`; empty arguments keep a letter's room and show dotted placeholders on the screen; the edited equation is framed.
-- 🟨 **Themes, font table, settings, compatibility mode** — theme fonts are read (major/minor), compatibility mode 15 is written; the theme part's colours (`a:clrScheme`) only resolve shape colours, and the document's theme isn't written back as its own; embedded fonts (`w:embedRegular`…) not read.
+- 🟨 **Themes, font table, settings, compatibility mode** — (WP13) the theme part is read into `Doc.theme` (core/doctheme.c: names, colour scheme, fonts, effects) and written back byte for byte, or with the parts changed written afresh (Office's theme for a document that had none); theme colours (`w:themeColor`/`themeTint`/`themeShade`, `w:themeFill…`, `a:schemeClr` with lumMod/lumOff/tint/shade) on runs, paragraph shading and borders, cells and shapes and theme fonts (`w:asciiTheme`…) are kept and follow a new scheme; styles' `w:link`, `w:uiPriority`, `w:semiHidden`, `w:unhideWhenUsed`, `w:locked`, `w:hidden`, `w:autoRedefine`, `w:personal`, `w:aliases`, `w:lang`, `w:framePr`, and shortcut keys (customizations.xml) are kept. Compatibility mode 15 is written; embedded fonts (`w:embedRegular`…) not read; latent styles not kept.
 - 🟨 **Custom XML, document properties, bibliography sources** — every core property (core.xml), app.xml (company, manager, hyperlink base, statistics; the rest kept verbatim) and custom properties (custom.xml) read and written ✅ (WP24); customXml parts kept verbatim (WP0); bibliography sources: WP3.
 - ⬜ **Section text direction (`w:textDirection`)** — not read.
 - 🟨 **Section vertical alignment (`w:vAlign`)** — top, center, bottom ✅; `both` (justified) not.
