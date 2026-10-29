@@ -258,8 +258,53 @@ static void drawing(void)
   doc_free(d);
 }
 
+/* a table as Word writes one: floating from the page, a cell turned upwards with its own margins,
+   alternative text; read from a package made here */
+static void word_xml(void)
+{
+  static const char *ct = "<?xml version=\"1.0\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
+    "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>"
+    "<Default Extension=\"xml\" ContentType=\"application/xml\"/>"
+    "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/></Types>";
+  static const char *rels = "<?xml version=\"1.0\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
+    "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>";
+  static const char *doc = "<?xml version=\"1.0\"?><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
+    "<w:tbl><w:tblPr><w:tblpPr w:leftFromText=\"141\" w:rightFromText=\"141\" w:vertAnchor=\"page\" w:horzAnchor=\"page\" w:tblpX=\"2000\" w:tblpY=\"3000\"/>"
+    "<w:tblOverlap w:val=\"never\"/><w:tblW w:w=\"4000\" w:type=\"dxa\"/><w:tblLook w:val=\"04A0\"/><w:tblCaption w:val=\"Rates\"/><w:tblDescription w:val=\"Rates by year\"/></w:tblPr>"
+    "<w:tblGrid><w:gridCol w:w=\"2000\"/><w:gridCol w:w=\"2000\"/></w:tblGrid>"
+    "<w:tr><w:trPr><w:trHeight w:val=\"1400\"/></w:trPr><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/><w:tcMar><w:left w:w=\"300\" w:type=\"dxa\"/></w:tcMar><w:textDirection w:val=\"btLr\"/><w:vAlign w:val=\"center\"/></w:tcPr>"
+    "<w:p><w:r><w:t>Up</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>Across</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+    "<w:p><w:r><w:t>Text</w:t></w:r></w:p></w:body></w:document>";
+  ZipWriter w;
+  Doc *d;
+  unsigned lost = 0;
+  char err[100];
+  memset(&w, 0, sizeof w);
+  zip_begin(&w);
+  zip_add(&w, "[Content_Types].xml", ct, strlen(ct));
+  zip_add(&w, "_rels/.rels", rels, strlen(rels));
+  zip_add(&w, "word/document.xml", doc, strlen(doc));
+  zip_finish(&w);
+  d = docx_load((const u8 *)w.out.data, w.out.len, &lost, err, sizeof err);
+  ok("Word's table XML: read", d && d->np >= 3);
+  if (d) {
+    Table *t = doc_table(d, &d->p[0]->pf);
+    Layout *L;
+    ok("Word's table XML: floating from the page, alt text", t && t->floating && t->hanchor == TA_PAGE && t->vanchor == TA_PAGE && t->tx == 2000 && t->ty == 3000 &&
+       t->dl == 141 && t->nooverlap && !strcmp(t->caption, "Rates") && !strcmp(t->descr, "Rates by year"));
+    ok("Word's table XML: a turned cell with its own margin", d->p[0]->pf.cell.tdir == TD_UP && d->p[0]->pf.cell.marset == (1 << E_LEFT) &&
+       d->p[0]->pf.cell.mar[E_LEFT] == 300 && d->p[0]->pf.cell.valign == 1 && d->p[1]->pf.cell.tdir == TD_HORZ);
+    L = lay_new(d, &fs); lay_update(L);
+    ok("Word's table XML: placed where it says on the page", L->ntfl == 1 && L->tfl[0].x == 2000 && L->tfl[0].y == 3000);
+    lay_free(L);
+    doc_free(d);
+  }
+  zip_free(&w);
+}
+
 void test_wp21b(void)
 {
+  word_xml();
   cells_options();
   delete_cells();
   turned_text();
