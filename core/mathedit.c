@@ -711,6 +711,7 @@ MNode *me_cut(MathEq *e, const MPos *a, const MPos *b, MPos *p)
   MPos rp;
   int u0, u1, i0, i1, k;
   MNode *row, *out;
+  *p = *b;                                  /* (nothing cut: the caret stays) */
   if (!me_sel_range(e, a, b, &rp, &u0, &u1) || !(row = mp_row(e, &rp))) return NULL;
   if (!(out = mn_new(MK_ROW))) return NULL;
   split_at(row, u1);

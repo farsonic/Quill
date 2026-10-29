@@ -25,6 +25,7 @@ typedef struct {
   MPos caret, anchor;           /* the caret inside it, and the selection's other end (sel) */
   int sel;
   int linear;                   /* shown in its Linear form: typing doesn't build up */
+  int drag;                     /* the mouse button held after a click in it: dragging selects */
 } EvState;
 static struct Data *ev_last;    /* the view that last edited an equation (wp14b_view_info) */
 
@@ -237,11 +238,31 @@ static int ev_click(struct Data *d, Object *obj, struct IntuiMessage *im)
     if (was && pos_cmp(at, s->at)) ev_leave(d, obj, 0);
     ev_enter(d, at, 0);
     s->caret = s->anchor = mp;
+    s->sel = 1;                          /* (empty until the pointer is dragged) */
   }
+  s->drag = 1;
   set(_win(obj), MUIA_Window_ActiveObject, (ULONG)obj);
   ev_show(d, obj);
   if (!was) ev_tab();
   return 1;
+}
+/* the pointer dragged with the button held, after a click in the equation: the selection follows it */
+static ULONG ev_mouse(struct Data *d, Object *obj, struct IntuiMessage *im)
+{
+  EvState *s = (EvState *)d->wp14b;
+  Pos at;
+  MPos mp;
+  if (!s || !s->drag) return 0;
+  if (im->Class == IDCMP_MOUSEBUTTONS && im->Code == SELECTUP) { s->drag = 0; return MUI_EventHandlerRC_Eat; }
+  if (im->Class != IDCMP_MOUSEMOVE) return 0;
+  if (!ev_valid(d)) { s->drag = 0; return 0; }
+  if (ev_hit(d, obj, im->MouseX, im->MouseY, &at, &mp) && !pos_cmp(at, s->at) && !mp_equal(&mp, &s->caret)) {
+    caret_hide(d, obj);
+    if (!s->sel) { s->anchor = s->caret; s->sel = 1; }
+    s->caret = mp;
+    ev_show(d, obj);
+  }
+  return MUI_EventHandlerRC_Eat;
 }
 static int ev_rclick(struct Data *d, Object *obj, LONG mx, LONG my)
 {

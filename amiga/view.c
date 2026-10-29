@@ -4072,6 +4072,7 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
   struct IntuiMessage *im = m->imsg;
   if (!im || !d->doc || !d->lay || !d->shown) return 0;
   if (im->Class == IDCMP_RAWKEY) return key_grab || !key(d, obj, im) ? 0 : MUI_EventHandlerRC_Eat;
+  { ULONG r = ev_mouse(d, obj, im); if (r) return r; }    /* WP14b: dragging in an equation */
   { ULONG r = fv_mouse(d, obj, im); if (r) return r; }    /* WP12: Select Objects */
   if (im->Class == IDCMP_MOUSEBUTTONS) {
     if (im->Code == SELECTDOWN && im->MouseX >= _mleft(obj) && im->MouseX <= _mright(obj) && im->MouseY >= _mtop(obj) && im->MouseY <= _mbottom(obj)) {
