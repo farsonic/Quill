@@ -14,6 +14,7 @@
 #include "objfx.h"
 #include "chart.h"                 /* (WP15a) charts and SmartArt */
 #include "charfx.h"
+#include "wordart.h"   /* (WP19) */
 #include "notes.h"   /* (WP22b) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a: equations */
@@ -1132,6 +1133,7 @@ static int dshape_elem(Xml *x, PCtx *pc, DShape *s)
   i32 v;
   int k;
   if (objfx_read(x, im, &s->ox, objfx_colour, c)) return 1;     /* WP17/WP18 */
+  if (wa_read_shape(x, im)) return 1;                          /* WP19: a WordArt warp */
   if (!strcmp(n, "blip") && !s->embed[0]) copy_attr(x, "embed", s->embed, sizeof s->embed);
   else if (!strcmp(n, "srcRect")) {
     if (attr_num(x, "l", &v)) im->crop[0] = v;
@@ -1371,6 +1373,32 @@ static void parse_drawing(Xml *x, PCtx *pc, const CharFmt *f)
   if (k >= 0) { char t[8]; pic_utf8(t, k); run_text(pc, t, 4, f); }
   else c->lost |= LOST_PICTURES;
 }
+/* (WP19) a w:pict (x at its START, read to its END here): a signature line becomes an in-line picture
+   with its setup (core/sigline.c), its picture Quill's own drawing when it has the fonts, else the
+   file's PNG or JPEG; anything else is a picture Quill doesn't read. 1 always */
+static int wp19_read_pict(Xml *x, PCtx *pc, const CharFmt *f)
+{
+  Ctx *c = pc->c;
+  const char *raw;
+  size_t len = xml_raw(x, &raw);
+  struct SigLine sl;
+  char relid[64], t[8];
+  i32 cx, cy;
+  Image im;
+  int k;
+  if (!sig_parse_vml(raw, len, &sl, relid, sizeof relid, &cx, &cy)) { c->lost |= LOST_PICTURES; return 1; }
+  img_defaults(&im);
+  im.dl = im.dr = 0;
+  im.cx = cx > 0 ? cx : 3840; im.cy = cy > 0 ? cy : 1920;
+  if (!(sig_fonts && sig_make(&im, &sl, sig_fonts))) {
+    if (!load_blip(c, relid, &im) || !(im.sig = sig_copy(&sl))) { img_release(&im); c->lost |= LOST_PICTURES; return 1; }
+  }
+  im.cx = cx > 0 ? cx : 3840; im.cy = cy > 0 ? cy : 1920;
+  if ((k = doc_take_object(c->d, &im)) < 0) { img_release(&im); c->lost |= LOST_PICTURES; return 1; }
+  pic_utf8(t, k);
+  run_text(pc, t, 4, f);
+  return 1;
+}
 /* a w:r: its rPr (on top of the paragraph style's character format and any character style), then
    its text, tabs, breaks, drawings, note and comment references and symbols into the current
    paragraph. Complex fields (fldChar begin/separate/end) are followed across runs in c->field: the
@@ -1479,6 +1507,7 @@ static void parse_run(Xml *x, PCtx *pc)
     else if (!strcmp(n, "Fallback")) { xml_skip(x); continue; }        /* mc:AlternateContent: the drawing (Choice), not its VML copy */
     else if (!strcmp(n, "AlternateContent") || !strcmp(n, "Choice")) continue;
     else if (!strcmp(n, "pict") && c->story && parse_watermark(x, c)) continue;
+    else if (!strcmp(n, "pict") && wp19_read_pict(x, pc, &f)) continue;     /* (WP19) a signature line */
     else if (!strcmp(n, "pict") || !strcmp(n, "object")) c->lost |= LOST_PICTURES;
     else if (!strcmp(n, "footnoteReference")) {
       i32 id;
@@ -3606,6 +3635,7 @@ static void w_picture(Buf *o, Doc *d, const char *rpr, size_t rl, int k)
   long cx = (long)im->cx * 635, cy = (long)im->cy * 635;
   u32 id = ++save_drawing;
   int fl = im->wrap != WRAP_INLINE, i;
+  if (im->sig) { sig_write_vml(o, im, rpr, rl, media_find(im), id); return; }     /* (WP19) a signature line, as Word writes it */
   buf_adds(o, "<w:r>"); buf_add(o, rpr, rl);
   if (pack_save_isex(im)) buf_adds(o, "<mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\"><mc:Choice xmlns:cx1=\"http://schemas.microsoft.com/office/drawing/2015/9/8/chartex\" Requires=\"cx1\">");   /* (WP15a) */
   buf_printf(o, "<w:drawing><wp:%s distT=\"%ld\" distB=\"%ld\" distL=\"%ld\" distR=\"%ld\"", fl ? "anchor" : "inline",
