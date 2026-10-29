@@ -42,6 +42,8 @@
 #include "wp_math.h"     /* WP14a: equations */
 #include "../core/math.h"
 #include "../core/spell.h"
+#include "../core/field.h"
+#include "../core/pages.h"
 #include "../core/review.h"
 #include "ids.h"
 #include <libraries/gadtools.h>        /* NM_BARLABEL: a line between menu items */
@@ -49,6 +51,9 @@
 #include "wp_charpara.h"                /* (WP9, WP10) */
 #include "theme.h"
 #include "lang.h"
+#include "wp_tables.h"                 /* WP21a/WP21b: the table tools and turned text */
+#include "wp_objects.h"            /* WP17/WP18 */
+#include "../core/objfx.h"
 
 /* (not in the public MUI 3.8 headers) */
 #ifndef MUIM_GoActive
@@ -138,7 +143,13 @@ struct Data {
   LONG cube[216]; int cubelv, ncube;
   struct { const u8 *data; LONG w, h; u16 rot; u8 flip; long crop; UBYTE *px; LONG *span; } pic[8];   /* span: each row's first and last pixel shown */
   int npic;
+  /* WP22a: the picture watermark as pens at its shown size */
+  UBYTE *wmp_px; LONG wmp_w, wmp_h; const u8 *wmp_data; int wmp_wash;
   void *wp12;                           /* WP12's own state (wp_find_view.h) */
+  /* WP21a/WP21b: a table tool's stroke being dragged (Draw Table, Eraser, Border Painter): where it
+     started and where the pointer is (window pixels); the caret lying across turned text, cw wide */
+  int tdrag, tdrag_on; LONG tdrag_mx, tdrag_my, tdrag_x, tdrag_y;
+  int cturn; LONG cw;
 };
 
 static struct MUI_CustomClass *cls;
@@ -475,6 +486,7 @@ static void free_pics(struct Data *d)
   int i;
   for (i = 0; i < d->npic; i++) { FreeVec(d->pic[i].px); FreeVec(d->pic[i].span); }
   d->npic = 0;
+  if (d->wmp_px) { FreeVec(d->wmp_px); d->wmp_px = NULL; }      /* (WP22a) */
 }
 /* give back every pen obtained (get_pens, pen_for, pen_bg, the cube) and the pictures made with them.
    Needs the screen, so only between Setup and Cleanup */
@@ -486,6 +498,7 @@ static void free_pens(struct Data *d, Object *obj)
   ReleasePen(cm, d->pen_text); ReleasePen(cm, d->pen_sel); ReleasePen(cm, d->pen_grid);
   for (i = 0; i < d->ncube; i++) ReleasePen(cm, d->cube[i]);
   d->ncube = 0;
+  wp18_flush();                         /* (WP18: drawings made with those pens) */
   free_pics(d);
   for (i = 0; i < d->ncol; i++) ReleasePen(cm, d->col[i].pen);
   d->ncol = 0;
@@ -852,6 +865,89 @@ static void thick_line(struct RastPort *rp, LONG ax, LONG ay, LONG bx, LONG by, 
   }
 }
 static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Placed *pc, LONG px, LONG py, Pos slo, Pos shi, int sel);
+/* WP18: a text box's text (f, laid out by lay_textbox) turned with its box t, and a quarter more for
+   text running down (src->fx.vert): drawn upright into a bitmap of its own twice, on two different
+   pens, so the pixels that come out the same both times are the text's; those are then copied turned
+   round the box's centre (cx, cy twips on the page at pl, pt) */
+static void draw_text_turned(struct Data *d, Object *obj, struct RastPort *rp, const Image *src, const Image *t, i32 cx, i32 cy, LONG pl, LONG pt, Furn *f)
+{
+  int a = (t->rot + (src->fx.vert == TV_VERT ? 900 : src->fx.vert == TV_VERT270 ? 2700 : 0)) % 3600, pass, depth, k;
+  i32 tw = src->fx.vert ? t->cy : t->cx, th = src->fx.vert ? t->cx : t->cy;
+  LONG W = tx(d, tw) + 2, H = tx(d, th) + 2, x, y, c = icos(a), sn = isin(a), R, ox, oy, bw, bh, bpr;
+  struct BitMap *bm = NULL;
+  struct Layer_Info *li = NULL;
+  struct Layer *ly = NULL;
+  UBYTE *buf[2] = { NULL, NULL }, *row = NULL;
+  Pos none;
+  u32 j, ln;
+  if (W < 2 || H < 2 || W * H > 600000) return;
+  /* a bitmap of our own as the printing code makes them (planar when it can be: its planes then read
+     directly, else pixel by pixel), with a layer to clip the text to it */
+  depth = (int)GetBitMapAttr(rp->BitMap, BMA_DEPTH);
+  if (depth > 8) depth = 8;
+  if ((bm = AllocBitMap((ULONG)W, (ULONG)H, (ULONG)depth, BMF_CLEAR, NULL)) && (li = NewLayerInfo()) &&
+      (ly = CreateUpfrontLayer(li, bm, 0, 0, W - 1, H - 1, LAYERSIMPLE, NULL)) &&
+      (buf[0] = (UBYTE *)AllocVec((ULONG)(W * H), MEMF_ANY)) && (buf[1] = (UBYTE *)AllocVec((ULONG)(W * H), MEMF_ANY)) &&
+      (row = (UBYTE *)AllocVec((ULONG)(2 * (W + H) + 16), MEMF_ANY))) {
+    LONG b0 = d->band0, b1 = d->band1;
+    int planar = (GetBitMapAttr(bm, BMA_FLAGS) & BMF_STANDARD) != 0;
+    bpr = bm->BytesPerRow;
+    none.para = 0xFFFFFFFFUL; none.off = 0;
+    d->band0 = 0; d->band1 = 0;                 /* (inline pictures in the box: drawn whole) */
+    for (pass = 0; pass < 2; pass++) {
+      SetAPen(ly->rp, (ULONG)(pass ? d->pen_shadow : d->pen_page));
+      SetDrMd(ly->rp, JAM1);
+      RectFill(ly->rp, 0, 0, W - 1, H - 1);
+      for (j = 0; j < f->n; j++) {
+        Placed fp;
+        memset(&fp, 0, sizeof fp);
+        fp.para = 0xFFFFFFFFUL; fp.x = -d->pg->left; fp.y = f->f[j].y;
+        for (ln = 0; ln < f->f[j].pl.nlines; ln++) {
+          fp.line = ln;
+          if (fp.y + f->f[j].pl.lines[ln].height <= th + 20) draw_line(d, obj, ly->rp, &f->f[j].pl, &fp, 0, 0, none, none, 0);
+          fp.y += f->f[j].pl.lines[ln].height;
+        }
+      }
+      WaitBlit();
+      for (y = 0; y < H; y++)
+        for (x = 0; x < W; x++) {
+          UBYTE v = 0, m = (UBYTE)(0x80 >> (x & 7));
+          LONG o = y * bpr + (x >> 3);
+          if (planar) { for (k = 0; k < depth; k++) if (((UBYTE *)bm->Planes[k])[o] & m) v |= (UBYTE)(1 << k); }
+          else v = (UBYTE)ReadPixel(ly->rp, x, y);
+          buf[pass][y * W + x] = v;
+        }
+    }
+    d->band0 = b0; d->band1 = b1;
+    /* each pixel of the turned frame from the upright one: across in steps of (cos, -sin) */
+    R = W + H;
+    ox = pl + tx(d, cx) - R / 2; oy = pt + tx(d, cy) - R / 2;
+    bw = GetBitMapAttr(rp->BitMap, BMA_WIDTH); bh = GetBitMapAttr(rp->BitMap, BMA_HEIGHT);
+    for (y = 0; y < R; y++) {
+      LONG yy = oy + y, run = -1;
+      if (yy < 0 || yy >= bh || yy < d->band0 || (d->band1 && yy > d->band1)) continue;
+      for (x = 0; x <= R; x++) {
+        int on = 0;
+        if (x < R) {
+          long dx = 2 * x + 1 - R, dy = 2 * y + 1 - R, u = (dx * c + dy * sn) / TRIG_ONE, v = (dy * c - dx * sn) / TRIG_ONE;   /* (doubled) */
+          LONG su = (LONG)((u + W) >> 1), sv = (LONG)((v + H) >> 1), xx = ox + x;
+          if (su >= 0 && sv >= 0 && su < W && sv < H && xx >= 0 && xx < bw) {
+            LONG o = sv * W + su;
+            if (buf[0][o] == buf[1][o]) { on = 1; row[x] = buf[0][o]; }
+          }
+        }
+        if (on && run < 0) run = x;
+        if (!on && run >= 0) { WriteChunkyPixels(rp, (ULONG)(ox + run), (ULONG)yy, (ULONG)(ox + x - 1), (ULONG)yy, row + run, R); run = -1; }
+      }
+    }
+  }
+  if (row) FreeVec(row);
+  if (buf[0]) FreeVec(buf[0]);
+  if (buf[1]) FreeVec(buf[1]);
+  if (ly) DeleteLayer(0, ly);
+  if (li) DisposeLayerInfo(li);
+  if (bm) { WaitBlit(); FreeBitMap(bm); }
+}
 /* ---- (WP15a) charts and SmartArt: their pack's primitives (pixels at 96 dpi, 15 twips each) */
 /* a polygon (xy: n points, pixels x 16) filled row by row, with room for many crossings (area charts) */
 static void pk_fill(struct RastPort *rp, const LONG *xy, int n)
@@ -989,6 +1085,10 @@ static void draw_leaf(struct Data *d, Object *obj, struct RastPort *rp, const Ob
   if (th < 1) th = 1;
   if (th > 8) th = 8;
   bw = GetBitMapAttr(rp->BitMap, BMA_WIDTH); bh = GetBitMapAttr(rp->BitMap, BMA_HEIGHT);
+  if (objfx_rich(&t)) {                 /* WP17/WP18: adjustments, gradients, picture fills, effects */
+    get_cube(d, obj);
+    if (wp18_draw_rich(rp, &t, d->zoom, pl + tx(d, bx), pt + tx(d, by), d->cube, d->cubelv, d->band0, d->band1)) goto text;
+  }
   if (src->kind == OBJ_PICTURE) {
     LONG w, h, *span, row, x = pl + tx(d, cx), y = pt + tx(d, cy), uw = tx(d, t.cx), uh = tx(d, t.cy);
     UBYTE *px;
@@ -1051,11 +1151,13 @@ static void draw_leaf(struct Data *d, Object *obj, struct RastPort *rp, const Ob
       }
     }
   }
-  /* a text box's (or shape's) text, upright in its box */
-  if (src->text && src->text->np) {
+text:
+  /* a text box's (or shape's) text, upright in its box (WP18: or turned with it, or running down) */
+  if ((src->text && src->text->np) || src->fx.link) {
     Furn f;
     u32 j, ln;
-    if (lay_textbox(d->lay, src, t.cx, &f)) {
+    if (lay_textbox(d->lay, src, t.cx, &f) && (t.rot || src->fx.vert)) draw_text_turned(d, obj, rp, src, &t, cx, cy, pl, pt, &f);
+    else if (f.n) {
       Pos none;
       i32 tx0 = cx - t.cx / 2, ty0 = cy - t.cy / 2;
       none.para = 0xFFFFFFFFUL; none.off = 0;
@@ -1100,6 +1202,20 @@ static void draw_object(struct Data *d, Object *obj, struct RastPort *rp, int k,
     Move(rp, x - 1, y - 1); Draw(rp, x + w, y - 1); Draw(rp, x + w, y + h); Draw(rp, x - 1, y + h); Draw(rp, x - 1, y - 1);
     for (i = 0; i < 8; i++) {
       LONG cx = x + hxs[i] * (w - 1) / 2, cy = y + hys[i] * (h - 1) / 2;
+      if (wp17_cropping(k)) {
+        /* WP17: cropping: black bars on the frame at the corners (two) and the middles (one) */
+        LONG sx = hxs[i] == 2 ? -1 : 1, sy = hys[i] == 2 ? -1 : 1, a0, a1, b0, b1;
+        SetAPen(rp, d->pen_text);
+        if (hys[i] != 1) {
+          a0 = hxs[i] == 1 ? cx - 6 : cx; a1 = hxs[i] == 1 ? cx + 6 : cx + sx * 9; b0 = cy; b1 = cy - sy * 2;
+          RectFill(rp, a0 < a1 ? a0 : a1, b0 < b1 ? b0 : b1, a0 < a1 ? a1 : a0, b0 < b1 ? b1 : b0);
+        }
+        if (hxs[i] != 1) {
+          b0 = hys[i] == 1 ? cy - 6 : cy; b1 = hys[i] == 1 ? cy + 6 : cy + sy * 9; a0 = cx; a1 = cx - sx * 2;
+          RectFill(rp, a0 < a1 ? a0 : a1, b0 < b1 ? b0 : b1, a0 < a1 ? a1 : a0, b0 < b1 ? b1 : b0);
+        }
+        continue;
+      }
       SetAPen(rp, d->pen_text);
       RectFill(rp, cx - 3, cy - 3, cx + 3, cy + 3);
       SetAPen(rp, d->pen_page);
@@ -1139,6 +1255,48 @@ static int comments_open(struct Data *d, u32 para)
   }
   return d->copen;
 }
+/* fields' results on grey, as Word shades them (WP1, core/field.h field_shading): every field, or the
+   one the caret is in (found once per change of caret or document) */
+static void field_shade(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Placed *pc, Line *ln, LONG lx, LONG top)
+{
+  static const Doc *sdoc;
+  static ULONG sver;
+  static Pos scaret, ss, se;
+  static int sk = -1;
+  Doc *doc = d->doc;
+  int body = pc->para < doc->np && pl->p == doc->p[pc->para], depth = 0;
+  u32 k;
+  if (field_shading == FS_SELECTED) {
+    if (!body) return;
+    if (sdoc != doc || sver != doc->ver || pos_cmp(scaret, d->caret)) {
+      sdoc = doc; sver = doc->ver; scaret = d->caret;
+      sk = field_at(doc, d->caret, &ss, &se);
+    }
+    if (sk < 0 || pc->para < ss.para || pc->para > se.para) return;
+  } else {
+    if (body) depth = field_depth_before(doc, pc->para);
+    for (k = pl->lines[0].box0; k < ln->box0 && k < pl->nboxes; k++) {
+      Box *b = &pl->boxes[k];
+      if ((b->kind == BX_MARK || b->kind == BX_FIELD) && b->off + 4 <= pl->p->len && IS_FMARK(pl->p->t + b->off)) { if (IS_FSTART(pl->p->t + b->off)) depth++; else if (depth > 0) depth--; }
+    }
+  }
+  SetAPen(rp, pen_bg(d, obj, 0xD9D9D9));
+  for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
+    Box *b = &pl->boxes[k];
+    int in;
+    if ((b->kind == BX_MARK || b->kind == BX_FIELD) && b->off + 4 <= pl->p->len && IS_FMARK(pl->p->t + b->off)) {
+      if (IS_FSTART(pl->p->t + b->off)) depth++; else if (depth > 0) depth--;
+      continue;
+    }
+    if (b->w <= 0 || b->kind == BX_FIELD) continue;
+    if (field_shading == FS_SELECTED) {
+      Pos at;
+      at.para = pc->para; at.off = b->off;
+      in = pos_cmp(ss, at) < 0 && pos_cmp(at, se) < 0;
+    } else in = depth > 0;
+    if (in) RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1);
+  }
+}
 /* WP14a: equations' colours as pens (for wp14a_draw) */
 static struct Data *mpen_d; static Object *mpen_obj;
 static LONG math_pen(ULONG rgb) { return pen_for(mpen_d, mpen_obj, rgb); }
@@ -1146,11 +1304,59 @@ static LONG math_pen(ULONG rgb) { return pen_for(mpen_d, mpen_obj, rgb); }
    is at (px, py). Back to front: change bar, comment shading, highlights, the selection (sel: slo to
    shi), then the text, note numbers, fields, inline pictures, leaders and formatting marks. Headers,
    footers, notes and text boxes use it too, with pc->para 0xFFFFFFFF (no paragraph of the body) */
+/* WP21b: a line of turned text in a table cell: its text drawn across into a scratch bitmap, then put
+   on the page turned, pixel by pixel (pixels left at pen 0 are what's behind); the selection behind it */
+static void draw_turned(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Placed *pc, LONG px, LONG py, Pos slo, Pos shi, int sel)
+{
+  Line *ln = &pl->lines[pc->line];
+  LONG W = tx(d, pc->tlen) + 1, H = tx(d, ln->height) + 1, bw = tx(d, pc->w), bh = tx(d, pc->tlen), u, v;
+  LONG bx = px + tx(d, d->pg->left + pc->x), by = py + tx(d, pc->y), sh = tx(d, pc->tshift + ln->left);
+  struct BitMap *bm;
+  struct RastPort trp;
+  u32 k;
+  if (W < 2 || H < 2 || W > 4000 || H > 400) return;
+  if (sel && pc->para >= slo.para && pc->para <= shi.para) {
+    u32 s0 = pc->para == slo.para ? slo.off : 0, e0 = pc->para == shi.para ? shi.off : pl->p->len;
+    if (e0 > s0) {
+      LONG a = sh + tx(d, line_x(d->lay, pl, ln, s0)), b = sh + tx(d, line_x(d->lay, pl, ln, e0));
+      SetAPen(rp, d->pen_sel);
+      if (pc->turn == TD_DOWN) RectFill(rp, bx, by + a, bx + bw - 1, by + b - 1);
+      else RectFill(rp, bx, by + bh - b, bx + bw - 1, by + bh - a - 1);
+    }
+  }
+  /* (eight planes of its own whatever the screen: a pixel read back is the pen it was drawn in) */
+  if (!(bm = AllocBitMap((ULONG)W, (ULONG)H, 8, BMF_CLEAR, NULL))) return;
+  InitRastPort(&trp);
+  trp.BitMap = bm;
+  SetDrMd(&trp, JAM1);
+  for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
+    Box *b = &pl->boxes[k], nb = *b;
+    char num[24];
+    if (LAY_HIDDEN(d->lay, b)) continue;                   /* (WP9: hidden text, formatting marks off) */
+    if (b->kind == BX_TEXT) draw_text(d, obj, &trp, b, pl->p->t, sh + tx(d, b->x), tx(d, ln->ascent));
+    else if (b->kind == BX_NOTE || b->kind == BX_ENOTE || b->kind == BX_FIELD) {
+      if (b->kind == BX_FIELD) lay_field_text(d->lay, pl->p, b, pc->page, num); else lay_note_label(pl, k, num);
+      nb.kind = BX_TEXT; nb.off = 0; nb.len = (u16)strlen(num);
+      draw_text(d, obj, &trp, &nb, num, sh + tx(d, b->x), tx(d, ln->ascent));
+    }
+  }
+  for (v = 0; v < H && v < bw + 1; v++)
+    for (u = 0; u < W; u++) {
+      LONG c = ReadPixel(&trp, u, v);
+      if (c <= 0) continue;
+      SetAPen(rp, (ULONG)c);
+      if (pc->turn == TD_DOWN) WritePixel(rp, bx + bw - 1 - v, by + u);
+      else WritePixel(rp, bx + v, by + bh - 1 - u);
+    }
+  WaitBlit();
+  FreeBitMap(bm);
+}
 static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Placed *pc, LONG px, LONG py, Pos slo, Pos shi, int sel)
 {
   Layout *L = d->lay;
   Doc *doc = d->doc;
   Line *ln = &pl->lines[pc->line];
+  if (pc->turn) { draw_turned(d, obj, rp, pl, pc, px, py, slo, shi, sel); return; }     /* WP21b */
   LONG lx = px + tx(d, d->pg->left + pc->x + ln->left), top = py + tx(d, pc->y), base = py + tx(d, pc->y + ln->ascent);
   u32 k;
   /* a changed line has a bar in the margin (WP5: where the Track Changes Options say; red in Simple Markup) */
@@ -1167,16 +1373,17 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
   if (d->doc->ncomments && pc->para < d->doc->np && rv_show_comments(d->doc)) {
     int open = comments_open(d, pc->para);
     for (k = pl->lines[0].box0; k < ln->box0 && k < pl->nboxes; k++)      /* the marks on lines before this one */
-      if (pl->boxes[k].kind == BX_MARK) { if (IS_CSTART(pl->p->t + pl->boxes[k].off)) open++; else if (open > 0) open--; }
+      if (pl->boxes[k].kind == BX_MARK) { if (IS_CSTART(pl->p->t + pl->boxes[k].off)) open++; else if (open > 0 && IS_CEND(pl->p->t + pl->boxes[k].off)) open--; }
     for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
       Box *b = &pl->boxes[k];
-      if (b->kind == BX_MARK) { if (IS_CSTART(pl->p->t + b->off)) open++; else if (open > 0) open--; continue; }
+      if (b->kind == BX_MARK) { if (IS_CSTART(pl->p->t + b->off)) open++; else if (open > 0 && IS_CEND(pl->p->t + b->off)) open--; continue; }
       if (open > 0 && b->w > 0 && !(b->kind == BX_SPACE && k + 1 == ln->box0 + ln->nbox)) {
         SetAPen(rp, d->pen_comment);
         RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1);
       }
     }
   }
+  if (doc->nfields && field_shading != FS_NEVER) field_shade(d, obj, rp, pl, pc, ln, lx, top);     /* fields on grey (WP1) */
   /* highlighting behind the text (not trailing spaces); page fields on grey, as Word shades fields */
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *b = &pl->boxes[k];
@@ -1268,7 +1475,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     else if (b->kind == BX_FIELD) {
       /* a page field: its number, on grey (as Word shades fields) */
       Box nb = *b;
-      char num[16];
+      char num[LAY_FIELD_TEXT];
       lay_field_text(L, pl->p, b, pc->page, num);
       nb.kind = BX_TEXT; nb.off = 0; nb.len = (u16)strlen(num);
       draw_text(d, obj, rp, &nb, num, lx + tx(d, b->x), base);
@@ -1536,7 +1743,7 @@ static void draw_watermark(struct Data *d, Object *obj, struct RastPort *rp, LON
   cx = pl + tx(d, d->pg->left + (d->pg->width - d->pg->left - d->pg->right) / 2);
   cy = pt + tx(d, d->pg->top + (d->pg->height - d->pg->top - d->pg->bottom) / 2);
   x0 = cx - d->wm_w / 2; y0 = cy - d->wm_h / 2; mbpr = (d->wm_w + 7) / 8;
-  SetAPen(rp, pen_bg(d, obj, wm_colour(doc->wm.color)));
+  SetAPen(rp, pen_bg(d, obj, doc->wm.opaque ? doc->wm.color : wm_colour(doc->wm.color)));
   for (Y = 0; Y < d->wm_h; Y++) {
     UBYTE *row = d->wm_mask + Y * mbpr;
     LONG X = 0, yy = y0 + Y;
@@ -1550,25 +1757,60 @@ static void draw_watermark(struct Data *d, Object *obj, struct RastPort *rp, LON
     }
   }
 }
-/* the page border: one kind of line round the text (or in from the page's edge) */
-static void draw_border(struct Data *d, Object *obj, struct RastPort *rp, LONG pl, LONG pt)
+/* (WP22a) the picture watermark, centred on the text area of the page at (pl, pt) (h: rp's height):
+   decoded at its shown size (washed out if it is), dithered to the cube's pens and kept */
+static void draw_wm_picture(struct Data *d, Object *obj, struct RastPort *rp, LONG pl, LONG pt, LONG h)
 {
   Doc *doc = d->doc;
-  PageBorder *pb = &doc->border;
-  i32 x0, y0, x1, y1;
-  LONG lw = tx(d, pb->width * 5 / 2 * (pb->style == PB_THICK ? 3 : 1)), i, j, n = pb->style == PB_DOUBLE ? 2 : 1;
-  if (pb->style == PB_NONE) return;
-  if (lw < 1) lw = 1;
-  if (pb->frompage) { x0 = pb->space; y0 = pb->space; x1 = d->pg->width - pb->space; y1 = d->pg->height - pb->space; }
-  else { x0 = d->pg->left - pb->space; y0 = d->pg->top - pb->space; x1 = d->pg->width - d->pg->right + pb->space; y1 = d->pg->height - d->pg->bottom + pb->space; }
-  SetAPen(rp, pen_for(d, obj, pb->color));
-  SetDrPt(rp, pb->style == PB_DOTTED ? 0xAAAA : pb->style == PB_DASHED ? 0xF0F0 : 0xFFFF);
-  for (j = 0; j < n; j++)
-    for (i = 0; i < lw; i++) {
-      LONG o = j * (lw * 3 > 3 ? lw * 3 : 3) + i, a = pl + tx(d, x0) + o, b = pt + tx(d, y0) + o, c = pl + tx(d, x1) - o, e = pt + tx(d, y1) - o;
-      Move(rp, a, b); Draw(rp, c, b); Draw(rp, c, e); Draw(rp, a, e); Draw(rp, a, b);
+  i32 bx, by, bw, bh;
+  LONG w, ht, x, y, row, rw;
+  get_cube(d, obj);
+  pages_wm_box(doc, d->pg, &bx, &by, &bw, &bh);
+  w = tx(d, bw); ht = tx(d, bh);
+  if (w < 2 || ht < 2 || w * ht > 3000000) return;
+  if (!d->wmp_px || d->wmp_w != w || d->wmp_h != ht || d->wmp_data != doc->wm.pic || d->wmp_wash != doc->wm.washout) {
+    u8 *rgb;
+    int lv = d->cubelv;
+    if (d->wmp_px) { FreeVec(d->wmp_px); d->wmp_px = NULL; }
+    if (!(rgb = img_decode(doc->wm.pic, doc->wm.piclen, (u32)w, (u32)ht))) return;
+    if (doc->wm.washout) pages_washout(rgb, (u32)(w * ht));
+    if ((d->wmp_px = (UBYTE *)AllocVec((ULONG)(w * ht), MEMF_ANY))) {
+      for (y = 0; y < ht; y++)
+        for (x = 0; x < w; x++) {
+          const u8 *c = rgb + (y * w + x) * 3;
+          int tt = bayer[y & 3][x & 3] * 255 / 16, q[3], j;
+          for (j = 0; j < 3; j++) { q[j] = (c[j] * (lv - 1) + tt) / 255; if (q[j] > lv - 1) q[j] = lv - 1; }
+          d->wmp_px[y * w + x] = (UBYTE)d->cube[(q[0] * lv + q[1]) * lv + q[2]];
+        }
+      d->wmp_w = w; d->wmp_h = ht; d->wmp_data = doc->wm.pic; d->wmp_wash = doc->wm.washout;
     }
-  SetDrPt(rp, 0xFFFF);
+    free(rgb);
+    if (!d->wmp_px) return;
+  }
+  x = pl + tx(d, bx); y = pt + tx(d, by);
+  rw = GetBitMapAttr(rp->BitMap, BMA_WIDTH);
+  for (row = 0; row < ht; row++) {
+    LONG yy = y + row, a = x, b = x + w - 1;
+    if (yy < 0 || yy > h || yy >= GetBitMapAttr(rp->BitMap, BMA_HEIGHT)) continue;
+    if (yy < d->band0 || (d->band1 && yy > d->band1)) continue;
+    if (a < 0) a = 0;
+    if (b >= rw) b = rw - 1;
+    if (b >= a) WriteChunkyPixels(rp, (ULONG)a, (ULONG)yy, (ULONG)b, (ULONG)yy, d->wmp_px + row * w + (a - x), w);
+  }
+}
+/* the page border (WP22a: the page's section's, each side its own kind, as core/pages.c's rectangles) */
+static void draw_border(struct Data *d, Object *obj, struct RastPort *rp, LONG pl, LONG pt, u32 page)
+{
+  PBRect *r = NULL;
+  int n = d->lay ? pages_border_rects(d->lay, page, &r) : 0, i;
+  for (i = 0; i < n; i++) {
+    LONG x0 = pl + tx(d, r[i].x0), y0 = pt + tx(d, r[i].y0), x1 = pl + tx(d, r[i].x1) - 1, y1 = pt + tx(d, r[i].y1) - 1;
+    if (x1 < x0) x1 = x0;
+    if (y1 < y0) y1 = y0;
+    SetAPen(rp, pen_for(d, obj, r[i].color));
+    RectFill(rp, x0, y0, x1, y1);
+  }
+  free(r);
 }
 /* one edge (E_) of a table cell, from (x0, y0) to (x1, y1): its line, or a table gridline if it has none */
 static void cell_edge(struct Data *d, Object *obj, struct RastPort *rp, const CellBox *c, int e, LONG x0, LONG y0, LONG x1, LONG y1)
@@ -1665,7 +1907,8 @@ static void draw_page(struct Data *d, Object *obj, struct RastPort *rp, u32 k, L
   u32 a, b, i;
   d->pg = lay_page(L, k);
   if (d->doc->wm.text[0] && d->vmode != VM_WEB && d->vmode != VM_DRAFT) draw_watermark(d, obj, rp, pl, pt, h);
-  if (d->vmode != VM_WEB && d->vmode != VM_DRAFT) draw_border(d, obj, rp, pl, pt);
+  else if (d->doc->wm.pic && d->vmode != VM_WEB && d->vmode != VM_DRAFT) draw_wm_picture(d, obj, rp, pl, pt, h);      /* (WP22a) */
+  if (d->vmode != VM_WEB && d->vmode != VM_DRAFT) draw_border(d, obj, rp, pl, pt, k);
   /* lines between columns */
   SetAPen(rp, d->pen_text);
   for (i = 0; i < L->nseps; i++)
@@ -1830,6 +2073,18 @@ static void caret_xor(struct Data *d, Object *obj)
 {
   struct RastPort *rp = _rp(obj);
   LONG x0 = d->cx, y0 = d->cy, y1 = d->cy + d->ch - 1;
+  if (d->cturn) {
+    /* WP21b: across turned text */
+    LONG x1 = x0 + d->cw - 1;
+    if (y0 < _mtop(obj) || y0 + 1 > _mbottom(obj)) return;
+    if (x0 < _mleft(obj)) x0 = _mleft(obj);
+    if (x1 > _mright(obj)) x1 = _mright(obj);
+    if (x1 < x0) return;
+    SetDrMd(rp, COMPLEMENT);
+    RectFill(rp, x0, y0, x1, y0 + 1);
+    SetDrMd(rp, JAM1);
+    return;
+  }
   if (x0 < _mleft(obj) || x0 + 1 > _mright(obj)) return;
   if (y0 < _mtop(obj)) y0 = _mtop(obj);
   if (y1 > _mbottom(obj)) y1 = _mbottom(obj);
@@ -1848,6 +2103,8 @@ static void caret_place(struct Data *d, Object *obj)
   d->cy = _mtop(obj) + page_top(d, page) - d->scrolly + tx(d, y);
   d->ch = tx(d, h);
   if (d->ch < 4) d->ch = 4;
+  d->cturn = lay_caret_turn; d->cw = tx(d, lay_caret_w);      /* WP21b: turned text */
+  if (d->cw < 4) d->cw = 4;
 }
 /* the caret is XORed on the window, so taking it away is drawing it again: caret_shown must be true
    to the screen, or a stray bar is left. Anything drawing into the window hides it first; caret_show
@@ -4000,7 +4257,7 @@ static void drag_rect(struct Data *d, LONG mx, LONG my, i32 *l, i32 *t, i32 *r, 
     if (*r - *l < 120) { if (hx == 0) *l = *r - 120; else *r = *l + 120; }
     if (*b - *t < 120) { if (hy == 0) *t = *b - 120; else *b = *t + 120; }
     /* a picture's corner keeps its shape */
-    if (hx != 1 && hy != 1 && d->odrag_k < d->doc->nimages && d->doc->images[d->odrag_k].kind == OBJ_PICTURE && f->w > 0) {
+    if (hx != 1 && hy != 1 && d->odrag_k < d->doc->nimages && d->doc->images[d->odrag_k].kind == OBJ_PICTURE && f->w > 0 && !wp17_cropping(d->odrag_k)) {
       i32 nh = (i32)((long)(*r - *l) * f->h / f->w);
       if (hy == 0) *t = *b - nh; else *b = *t + nh;
     }
@@ -4104,6 +4361,25 @@ static int edge_at(struct Data *d, Object *obj, LONG mx, LONG my, u16 *table, in
     }
   }
   return 0;
+}
+/* WP21a/WP21b: a table tool's stroke, drawn or taken away (XOR): a box for Draw Table (a line when it
+   is thin, as it is then one), a line for the others; clipped to the view */
+static void tdrag_show(struct Data *d, Object *obj)
+{
+  struct RastPort *rp = _rp(obj);
+  LONG x0 = d->tdrag_mx, y0 = d->tdrag_my, x1 = d->tdrag_x, y1 = d->tdrag_y, t, ax, ay;
+  LONG L = _mleft(obj), T = _mtop(obj), R = _mright(obj), B = _mbottom(obj);
+  APTR clip = MUI_AddClipping((struct MUI_RenderInfo *)(APTR)muiRenderInfo(obj), (WORD)L, (WORD)T, (WORD)(R - L + 1), (WORD)(B - T + 1));
+  SetDrMd(rp, COMPLEMENT);
+  ax = x1 > x0 ? x1 - x0 : x0 - x1; ay = y1 > y0 ? y1 - y0 : y0 - y1;
+  if (wp21_tool() == 1 && ax > 6 && ay > 6 && ax < 3 * ay && ay < 3 * ax) {
+    if (x0 > x1) { t = x0; x0 = x1; x1 = t; }
+    if (y0 > y1) { t = y0; y0 = y1; y1 = t; }
+    Move(rp, x0, y0); Draw(rp, x1, y0); Draw(rp, x1, y1); Draw(rp, x0, y1); Draw(rp, x0, y0 + 1);
+  } else if (x0 != x1 || y0 != y1) { Move(rp, x0, y0); Draw(rp, x1, y1); }
+  else RectFill(rp, x0 - 1, y0 - 1, x0 + 1, y0 + 1);
+  SetDrMd(rp, JAM1);
+  MUI_RemoveClipping((struct MUI_RenderInfo *)(APTR)muiRenderInfo(obj), clip);
 }
 /* the line showing where a dragged column edge goes (drawn and taken away by XOR) */
 static void coldrag_line(struct Data *d, Object *obj, LONG x)
@@ -4304,6 +4580,13 @@ static void obj_drop(struct Data *d, Object *obj, LONG mx, LONG my)
   }
   drag_rect(d, mx, my, &l, &t, &r, &b);
   if (l == f->x && t == f->y && r == f->x + f->w && b == f->y + f->h) return;
+  if (d->odrag != 9 && wp17_cropping(d->odrag_k) && f->w > 0 && f->h > 0) {
+    /* WP17: cropped by its handles, the picture staying where it was */
+    wp17_crop_drop(&m, f, l, t, r, b);
+    if (f->wrap != WRAP_INLINE && (l != f->x || t != f->y)) lay_float_moved(d->lay, f, &m, l, t);
+    DoMethod(obj, MUIM_Quill_Command, CMD_OBJSET, (ULONG)&m);
+    return;
+  }
   if (d->odrag != 9 && f->w > 0 && f->h > 0) {
     /* the box stretched: the object stretched along its own sides as much as they lie across and down */
     long c = icos(m.rot), sn = isin(m.rot), c2 = c * c / TRIG_ONE, s2 = sn * sn / TRIG_ONE;
@@ -4360,6 +4643,17 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
           d->anchor = a; d->caret = pos_cmp(b, a) > 0 ? b : a;
           refresh(d, obj, 0);
         }
+        return MUI_EventHandlerRC_Eat;
+      }
+      if (wp21_tool() && paged(d) && !d->doc->edit.kind) {
+        /* WP21a/WP21b: a table tool (Draw Table, Eraser, Border Painter): a stroke dragged out */
+        caret_hide(d, obj);
+        d->tdrag = 1; d->tdrag_on = 0; d->tdrag_mx = d->tdrag_x = im->MouseX; d->tdrag_my = d->tdrag_y = im->MouseY;
+        tdrag_show(d, obj);
+        DoMethod(_win(obj), MUIM_Window_RemEventHandler, (ULONG)&d->ehn);
+        d->ehn.ehn_Events |= IDCMP_MOUSEMOVE;
+        DoMethod(_win(obj), MUIM_Window_AddEventHandler, (ULONG)&d->ehn);
+        set(_win(obj), MUIA_Window_ActiveObject, (ULONG)obj);
         return MUI_EventHandlerRC_Eat;
       }
       {
@@ -4461,6 +4755,20 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
       refresh(d, obj, 0);
       return MUI_EventHandlerRC_Eat;
     }
+    if (im->Code == SELECTUP && d->tdrag) {
+      /* WP21a/WP21b: the stroke done: its ends on the page where it began, to the tool */
+      i32 x0, y0, x1, y1;
+      u32 page;
+      tdrag_show(d, obj);
+      d->tdrag = 0;
+      DoMethod(_win(obj), MUIM_Window_RemEventHandler, (ULONG)&d->ehn);
+      DoMethod(_win(obj), MUIM_Window_AddEventHandler, (ULONG)&d->ehn);
+      page = point_page(d, obj, d->tdrag_mx, d->tdrag_my, &x0, &y0);
+      x1 = x0 + tw(d, im->MouseX - d->tdrag_mx); y1 = y0 + tw(d, im->MouseY - d->tdrag_my);
+      if (wp21_stroke(d->doc, d->lay, page, x0, y0, x1, y1, &d->caret)) { d->anchor = d->caret; d->pending = 0; refresh(d, obj, 1); }
+      else { DisplayBeep(NULL); refresh(d, obj, 0); }
+      return MUI_EventHandlerRC_Eat;
+    }
     if (im->Code == SELECTUP && d->odrag) {
       if (d->odrag_on) drag_outline(d, obj);
       DoMethod(_win(obj), MUIM_Window_RemEventHandler, (ULONG)&d->ehn);
@@ -4510,6 +4818,10 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
     /* (a few pixels first, so a click doesn't nudge it) */
     if (d->odrag_on || im->MouseX - d->odrag_mx > 2 || d->odrag_mx - im->MouseX > 2 || im->MouseY - d->odrag_my > 2 || d->odrag_my - im->MouseY > 2)
       drag_show(d, obj, im->MouseX, im->MouseY);
+    return MUI_EventHandlerRC_Eat;
+  }
+  if (im->Class == IDCMP_MOUSEMOVE && d->tdrag) {
+    if (im->MouseX != d->tdrag_x || im->MouseY != d->tdrag_y) { tdrag_show(d, obj); d->tdrag_x = im->MouseX; d->tdrag_y = im->MouseY; tdrag_show(d, obj); }
     return MUI_EventHandlerRC_Eat;
   }
   if (im->Class == IDCMP_MOUSEMOVE && d->coldrag) {

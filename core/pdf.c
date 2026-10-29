@@ -3,9 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include "pdf.h"
+#include "field.h"
+#include "pages.h"
 #include "zip.h"
 #include "docx.h"
 #include "image.h"
+#include "objfx.h"     /* WP17/WP18 */
 #include "chart.h"                 /* (WP15a) charts and SmartArt */
 #include "charfx.h"
 #include "toc.h"
@@ -64,6 +67,8 @@ typedef struct {
   struct PLink { u32 page; i32 x0, y0, x1, y1; u8 kind; u32 target; } *links; int nlinks, linkcap;
   PDest *fnote, *fref, *enote, *eref;     /* each footnote's and endnote's text and reference */
   int *tocto;                             /* each paragraph of a table of contents: its heading's paragraph, -1 */
+  Image wmimg;                            /* (WP22a) the picture watermark, as a picture to draw */
+  struct PRich { u8 *rgb, *a; i32 w, h; } *rich; int nrich;   /* WP17/WP18: objects drawn by objfx_render, as /R0... */
 } Pdf;
 /* a link's area (twips, as the content stream draws) noted for the page being written; a box
    just right of the last area of the same link on the same line joins it */
@@ -509,7 +514,7 @@ static void pdf_line(Pdf *p, Buf *b, ParaLay *pl, u32 line, i32 lx, i32 base)
       }
     }
     else if (bx->kind == BX_FIELD) {
-      char num[16];
+      char num[LAY_FIELD_TEXT];
       lay_field_text(p->L, pl->p, bx, p->page, num);
       text(p, b, &bx->f, num, (u32)strlen(num), lx + bx->x, base, bx->w);
     }
@@ -552,7 +557,7 @@ static void watermark(Pdf *p, Buf *b)
   if (!(z = fonts_size(p->L->fs, d->wm.font[0] ? d->wm.font : "Calibri", 0, 0, (u16)size))) return;
   w = (long)(fonts_text(z, d->wm.text, n) / QFINE);
   cx = pg->left + bw / 2; cy = H - (pg->top + bh / 2);
-  colour(b, wm_colour(d->wm.color), "rg");
+  colour(b, d->wm.opaque ? d->wm.color : wm_colour(d->wm.color), "rg");      /* (WP22a: or solid) */
   if (d->wm.horizontal) { x0 = cx - w / 2; y0 = cy - size * 10 * 7 / 20; buf_printf(b, "BT /F%d %ld Tf %ld %ld Td ", font_index(p, z->face), size * 10, x0, y0); }
   else {
     /* along the diagonal: start half the width back, half the capital's height down (rotated) */
@@ -564,27 +569,34 @@ static void watermark(Pdf *p, Buf *b)
   show(p, b, font_index(p, z->face), cps, k);
   buf_adds(b, "ET\n");
 }
-/* the page border: a rectangle round the text (or in from the page's edge) */
+/* the page border (WP22a: the page's section's, each side its own kind: core/pages.c's rectangles) */
 static void page_border(Pdf *p, Buf *b)
+{
+  PBRect *r = NULL;
+  const PageSetup *pg = lay_page(p->L, p->page);
+  int n = pages_border_rects(p->L, p->page, &r), i;
+  u32 last = 0xFFFFFFFF;
+  for (i = 0; i < n; i++) {
+    if (r[i].color != last) { colour(b, r[i].color, "rg"); last = r[i].color; }
+    buf_printf(b, "%ld %ld %ld %ld re f\n", (long)r[i].x0, (long)(pg->height - r[i].y1), (long)(r[i].x1 - r[i].x0), (long)(r[i].y1 - r[i].y0));
+  }
+  free(r);
+}
+/* (WP22a) the picture watermark, centred on the text area, behind everything (washed out: the
+   picture's samples mapped to its pale end, by /Decode or, decoded, pages_washout) */
+static void wm_picture(Pdf *p, Buf *b)
 {
   Doc *d = p->L->d;
   const PageSetup *pg = lay_page(p->L, p->page);
-  PageBorder *pb = &d->border;
-  i32 H = pg->height, lw = pb->width * 5 / 2, x0, y0, x1, y1, i, n = pb->style == PB_DOUBLE ? 2 : 1;
-  if (pb->style == PB_NONE) return;
-  if (pb->style == PB_THICK) lw *= 3;
-  if (lw < 5) lw = 5;
-  if (pb->frompage) { x0 = pb->space; y0 = pb->space; x1 = pg->width - pb->space; y1 = pg->height - pb->space; }
-  else { x0 = pg->left - pb->space; y0 = pg->top - pb->space; x1 = pg->width - pg->right + pb->space; y1 = pg->height - pg->bottom + pb->space; }
-  colour(b, pb->color, "RG");
-  buf_printf(b, "%ld w 0 J ", (long)lw);
-  if (pb->style == PB_DOTTED) buf_printf(b, "[%ld %ld] 0 d ", (long)lw, (long)lw * 2);
-  else if (pb->style == PB_DASHED) buf_printf(b, "[%ld %ld] 0 d ", (long)lw * 6, (long)lw * 4);
-  for (i = 0; i < n; i++) {
-    i32 o = i * lw * 3;
-    buf_printf(b, "%ld %ld %ld %ld re S\n", (long)(x0 + o), (long)(H - y1 + o), (long)(x1 - x0 - 2 * o), (long)(y1 - y0 - 2 * o));
-  }
-  buf_adds(b, "[] 0 d\n");
+  i32 x, y, w, h;
+  int ri;
+  pages_wm_box(d, pg, &x, &y, &w, &h);
+  memset(&p->wmimg, 0, sizeof p->wmimg);
+  p->wmimg.data = d->wm.pic; p->wmimg.len = d->wm.piclen; p->wmimg.type = d->wm.pictype; p->wmimg.pw = d->wm.pw; p->wmimg.ph = d->wm.ph;
+  p->wmimg.cx = w; p->wmimg.cy = h; p->wmimg.shared = 1;
+  pages_wash_mark(d->wm.washout ? d->wm.pic : NULL);
+  if ((ri = img_ref(p, &p->wmimg)) < 0) return;
+  buf_printf(b, "q %ld 0 0 %ld %ld %ld cm /Im%d Do Q\n", (long)w, (long)h, (long)x, (long)(pg->height - y - h), ri);
 }
 /* one edge (E_) of a table cell, from (x0, y0) to (x1, y1) in PDF space */
 static void cell_edge(Buf *b, const CellBox *c, int e, i32 x0, i32 y0, i32 x1, i32 y1)
@@ -620,6 +632,33 @@ static void fix4(Buf *b, i32 v)
 {
   long a = v < 0 ? -(long)v : v, w = a / TRIG_ONE, f = (a % TRIG_ONE) * 10000 / TRIG_ONE;
   buf_printf(b, "%s%ld.%04ld ", v < 0 ? "-" : "", w, f);
+}
+/* WP17/WP18: an object with adjustments, a gradient or picture fill or effects drawn by objfx_render
+   at up to 150 dpi, as an image with a soft mask (its centre at cx, cy); 0 if it is not one (or a page
+   is being drawn as a picture, whose drawing knows no soft masks: then it is drawn plainly) */
+static int pdf_rich(Pdf *p, Buf *b, const ObjPart *pt, i32 cx, i32 cy)
+{
+  Image t = *pt->im;
+  ObjRaster r;
+  struct PRich *nr;
+  long num = 150, den = 1440, px;
+  i32 k;
+  t.cx = pt->cx; t.cy = pt->cy; t.rot = pt->rot; t.flip = pt->flip;
+  if (p->raster || !objfx_rich(&t)) return 0;
+  px = ((long)t.cx + 2 * objfx_margin(&t)) * num / den * (((long)t.cy + 2 * objfx_margin(&t)) * num / den);
+  while (px > 2500000L && num > 20) { num = num * 2 / 3; px = px * 4 / 9; }
+  if (!objfx_render(&t, num, den, &r)) return 0;
+  if (!(nr = (struct PRich *)realloc(p->rich, (size_t)(p->nrich + 1) * sizeof *nr))) { objraster_free(&r); return 1; }
+  p->rich = nr; nr += p->nrich;
+  nr->w = r.w; nr->h = r.h;
+  nr->rgb = (u8 *)malloc((size_t)r.w * r.h * 3); nr->a = (u8 *)malloc((size_t)r.w * r.h);
+  if (!nr->rgb || !nr->a) { free(nr->rgb); free(nr->a); objraster_free(&r); return 1; }
+  for (k = 0; k < r.w * r.h; k++) { memcpy(nr->rgb + k * 3, r.px + k * 4, 3); nr->a[k] = r.px[k * 4 + 3]; }
+  buf_printf(b, "q %ld 0 0 %ld %ld %ld cm /R%d Do Q\n", (long)r.w * den / num, (long)r.h * den / num, (long)(cx - obj_w(&t) / 2 + (long)r.ox * den / num),
+             (long)(cy + obj_h(&t) / 2 - (long)r.oy * den / num - (long)r.h * den / num), p->nrich);
+  p->nrich++;
+  objraster_free(&r);
+  return 1;
 }
 /* (WP15a) a chart or SmartArt (its pack's primitives, pixels at 96 dpi: 15 twips each) in the w x h box
    whose bottom left is x0, y0 in PDF space */
@@ -708,6 +747,7 @@ static void pdf_leaf(Pdf *p, Buf *b, const ObjPart *pt, i32 cx, i32 cy)
   int fx = pt->flip & 1 ? -1 : 1, fy = pt->flip & 2 ? -1 : 1, ri;
   int outline = im->lstyle != PB_NONE && im->lwidth;
   if (lw < 5) lw = 5;
+  if (pdf_rich(p, b, pt, cx, cy)) goto text;      /* WP17/WP18 */
   /* the object's own space: its centre at the origin, y up, turned (clockwise on the page) and flipped */
   buf_printf(b, "q 1 0 0 1 %ld %ld cm ", (long)cx, (long)cy);
   fix4(b, c); fix4(b, -sn); fix4(b, sn); fix4(b, c);
@@ -749,13 +789,20 @@ static void pdf_leaf(Pdf *p, Buf *b, const ObjPart *pt, i32 cx, i32 cy)
     }
   }
   buf_adds(b, "Q\n");
-  /* a text box's (or shape's) text, upright in its box */
-  if (im->text) {
+text:
+  /* a text box's (or shape's) text, turned with it (WP18; and a quarter more for text across its height) */
+  if (im->text || im->fx.link) {
     Furn f;
     u32 j, l;
     if (lay_textbox(p->L, im, w, &f)) {
-      i32 top = cy + h / 2, x0 = cx - w / 2;
-      buf_printf(b, "q %ld %ld %ld %ld re W n\n", (long)x0, (long)(cy - h / 2), (long)w, (long)h);
+      int a = (pt->rot + (im->fx.vert == TV_VERT ? 900 : im->fx.vert == TV_VERT270 ? 2700 : 0)) % 3600;
+      i32 tw = im->fx.vert ? h : w, th = im->fx.vert ? w : h, top = cy + th / 2, x0 = cx - tw / 2;
+      if (a) {
+        buf_printf(b, "q 1 0 0 1 %ld %ld cm ", (long)cx, (long)cy);
+        fix4(b, icos(a)); fix4(b, -isin(a)); fix4(b, isin(a)); fix4(b, icos(a));
+        buf_printf(b, "0 0 cm 1 0 0 1 %ld %ld cm\n", (long)-cx, (long)-cy);
+      }
+      buf_printf(b, "q %ld %ld %ld %ld re W n\n", (long)x0, (long)(cy - th / 2), (long)tw, (long)th);
       for (j = 0; j < f.n; j++) {
         i32 ty = f.f[j].y;
         for (l = 0; l < f.f[j].pl.nlines; l++) {
@@ -764,7 +811,7 @@ static void pdf_leaf(Pdf *p, Buf *b, const ObjPart *pt, i32 cx, i32 cy)
           ty += ln->height;
         }
       }
-      buf_adds(b, "Q\n");
+      buf_adds(b, a ? "Q Q\n" : "Q\n");
     }
     lay_furniture_free(&f);
   }
@@ -810,6 +857,7 @@ static void page_content(Pdf *p, u32 page, Buf *b)
     buf_printf(b, "0 0 %ld %ld re f\n", (long)pg->width, (long)H);
   }
   if (d->wm.text[0]) watermark(p, b);
+  else if (d->wm.pic) wm_picture(p, b);       /* (WP22a) */
   page_border(p, b);
   /* objects behind the text: the headers' first */
   {
@@ -890,6 +938,14 @@ static void page_content(Pdf *p, u32 page, Buf *b)
     Line *ln = &pl->lines[pc->line];
     i32 lx = pg->left + pc->x + ln->left, base = H - (pc->y + ln->ascent);
     if (pc->page != page) continue;
+    if (pc->turn) {
+      /* WP21b: turned text in a table cell, drawn through a turned frame (the line laid out across) */
+      if (pc->turn == TD_DOWN) buf_printf(b, "q 0 -1 1 0 %ld %ld cm\n", (long)(pg->left + pc->x + ln->height), (long)(H - pc->y - pc->tshift));
+      else buf_printf(b, "q 0 1 -1 0 %ld %ld cm\n", (long)(pg->left + pc->x), (long)(H - pc->y - pc->tlen + pc->tshift));
+      pdf_line(p, b, pl, pc->line, ln->left, -ln->ascent);
+      buf_adds(b, "Q\n");
+      continue;
+    }
     pdf_line(p, b, pl, pc->line, lx, base);
     if (p->tocto && pc->para < d->np && p->tocto[pc->para] >= 0 && ln->width > 0)      /* a table of contents entry: to its heading */
       link_area(p, LK_PARA, (u32)p->tocto[pc->para], lx, H - pc->y - ln->height, lx + ln->width, H - pc->y);
@@ -1267,16 +1323,19 @@ static u8 *pdf_export_laid(Layout *L, const PdfOpts *o, size_t *len);
 u8 *pdf_export_opts(Layout *L, const PdfOpts *o, size_t *len)
 {
   u8 shown = L->showhidden, *r;
+  int codes = field_codes_any(L->d);       /* (WP1) fields show their results in a PDF, not their codes */
   L->showhidden = 0;
+  if (codes) field_show_codes(L->d, 0);
   r = pdf_export_laid(L, o, len);
-  if (shown) { L->showhidden = shown; lay_update(L); }
+  if (codes) field_show_codes(L->d, codes > 1);
+  if (shown || codes) { L->showhidden = shown; lay_update(L); }
   return r;
 }
 static u8 *pdf_export_laid(Layout *L, const PdfOpts *o, size_t *len)
 {
   Pdf p;
   Doc *d = L->d;
-  u32 i, k, xref, npg, *fobj = NULL, *imobj = NULL, *annobj = NULL, outl = 0, nout = 0, names = 0;
+  u32 i, k, xref, npg, *fobj = NULL, *imobj = NULL, *annobj = NULL, outl = 0, nout = 0, names = 0, richobj = 0;
   Buf *pages;
   PRange r;
   PDest *ldest = NULL;
@@ -1312,8 +1371,9 @@ static u8 *pdf_export_laid(Layout *L, const PdfOpts *o, size_t *len)
     int dec = 0, nc = im->type == IMG_JPEG ? img_jpeg_components(im->data, im->len, &dec) : 3;
     if (im->type == IMG_JPEG && (nc == 1 || nc == 3)) {
       obj_start(&p, on);
-      buf_printf(&p.o, "<</Type /XObject /Subtype /Image /Width %lu /Height %lu /ColorSpace /%s /BitsPerComponent 8 /Filter /DCTDecode /Length %lu>>\nstream\n",
-                 (unsigned long)im->pw, (unsigned long)im->ph, nc == 1 ? "DeviceGray" : "DeviceRGB", (unsigned long)im->len);
+      const char *dec = !pages_wash_is(im->data) ? "" : nc == 1 ? "/Decode [0.85 1] " : "/Decode [0.85 1 0.85 1 0.85 1] ";   /* (WP22a: washed out) */
+      buf_printf(&p.o, "<</Type /XObject /Subtype /Image /Width %lu /Height %lu /ColorSpace /%s /BitsPerComponent 8 %s/Filter /DCTDecode /Length %lu>>\nstream\n",
+                 (unsigned long)im->pw, (unsigned long)im->ph, nc == 1 ? "DeviceGray" : "DeviceRGB", dec, (unsigned long)im->len);
       buf_add(&p.o, im->data, im->len);
       buf_adds(&p.o, "\nendstream\nendobj\n");
     } else {
@@ -1324,6 +1384,7 @@ static u8 *pdf_export_laid(Layout *L, const PdfOpts *o, size_t *len)
       if (!w) w = 1;
       if (!h) h = 1;
       if ((rgb = img_decode(im->data, im->len, w, h))) {
+        if (pages_wash_is(im->data)) pages_washout(rgb, w * h);      /* (WP22a) */
         sprintf(dict, "/Type /XObject /Subtype /Image /Width %lu /Height %lu /ColorSpace /DeviceRGB /BitsPerComponent 8", (unsigned long)w, (unsigned long)h);
         stream(&p, on, dict, rgb, (size_t)w * h * 3);
         free(rgb);
@@ -1332,6 +1393,18 @@ static u8 *pdf_export_laid(Layout *L, const PdfOpts *o, size_t *len)
         stream(&p, on, "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8", grey, 3);
       }
     }
+  }
+  /* WP17/WP18: the drawn objects, each with its transparency as a soft mask (two objects each, from richobj) */
+  for (i = 0; i < (u32)p.nrich; i++) {
+    u32 on = obj_new(&p), sm = obj_new(&p);
+    char dict[200];
+    if (!i) richobj = on;
+    sprintf(dict, "/Type /XObject /Subtype /Image /Width %ld /Height %ld /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask %lu 0 R",
+            (long)p.rich[i].w, (long)p.rich[i].h, (unsigned long)sm);
+    stream(&p, on, dict, p.rich[i].rgb, (size_t)p.rich[i].w * p.rich[i].h * 3);
+    sprintf(dict, "/Type /XObject /Subtype /Image /Width %ld /Height %ld /ColorSpace /DeviceGray /BitsPerComponent 8", (long)p.rich[i].w, (long)p.rich[i].h);
+    stream(&p, sm, dict, p.rich[i].a, (size_t)p.rich[i].w * p.rich[i].h);
+    free(p.rich[i].rgb); free(p.rich[i].a); p.rich[i].rgb = p.rich[i].a = NULL;
   }
   for (k = 0; k < npg; k++) r.pgobj[k] = obj_new(&p);
   /* the links that go somewhere, each an annotation */
@@ -1347,9 +1420,10 @@ static u8 *pdf_export_laid(Layout *L, const PdfOpts *o, size_t *len)
                (unsigned long)co);
     for (i = 0; i < (u32)p.nfonts; i++) buf_printf(&p.o, "/F%lu %lu 0 R ", (unsigned long)i, (unsigned long)fobj[i]);
     buf_adds(&p.o, ">>");
-    if (p.nimgs) {
+    if (p.nimgs || p.nrich) {
       buf_adds(&p.o, " /XObject <<");
       for (i = 0; i < (u32)p.nimgs; i++) buf_printf(&p.o, "/Im%lu %lu 0 R ", (unsigned long)i, (unsigned long)imobj[i]);
+      for (i = 0; i < (u32)p.nrich; i++) buf_printf(&p.o, "/R%lu %lu 0 R ", (unsigned long)i, (unsigned long)(richobj + 2 * i));     /* (WP17/WP18) */
       buf_adds(&p.o, ">>");
     }
     buf_adds(&p.o, " >>");
@@ -1449,6 +1523,8 @@ static u8 *pdf_export_laid(Layout *L, const PdfOpts *o, size_t *len)
 fail:
   if (pages) { for (k = 0; k < npg; k++) buf_free(&pages[k]); free(pages); }
   free(r.pgobj); free(fobj); free(imobj); free(annobj); free(ldest); free(it);
+  for (i = 0; i < (u32)p.nrich; i++) { free(p.rich[i].rgb); free(p.rich[i].a); }
+  free(p.rich);
   free(p.links); free(p.off); free(p.fnote); free(p.fref); free(p.enote); free(p.eref); free(p.tocto);
   fonts_release(&p);
   if (!ok) { buf_free(&p.o); return NULL; }

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "raster.h"
+#include "pages.h"
 #include "ttraster.h"
 #include "image.h"
 
@@ -340,6 +341,7 @@ static void picture(R *r, const Image *im)
   if (ih > 4000) ih = 4000;
   det = mulfx(m->a, m->d) - mulfx(m->b, m->c);
   if (!det || !(rgb = img_decode(im->data, im->len, iw, ih))) return;
+  if (pages_wash_is(im->data)) pages_washout(rgb, iw * ih);       /* (WP22a: a washed-out watermark) */
   xform(m, 0, 0, &cx[0], &cy[0]); xform(m, FX, 0, &cx[1], &cy[1]); xform(m, 0, FX, &cx[2], &cy[2]); xform(m, FX, FX, &cx[3], &cy[3]);
   x0 = y0 = 0x7FFFFFFF; x1 = y1 = -0x7FFFFFFF;
   for (k = 0; k < 4; k++) {
