@@ -612,8 +612,8 @@ static const char *const shade_names[3] = { "Never", "Always", "When selected" }
 static const char *shade_lab[3];
 static const RibbonList shade_rl = { shade_lab, 3, PL_TEXT, NULL };
 static const Item ins_items[] = {
-  { K_BUTTON, S_LARGE, 0, 0, "Field", ID_FLD_INSERT, 0, 0, 0, 0, "A field: a date, a page number, a document property... (Ctrl-F9)", NULL, ICON_FIELD },
-  { K_DROP, S_SMALL, 0, 0, "Document Property", ID_FLD_DOCPROP, 0, 0, F_NEWCOL, 0, "One of the document's properties, as a field", &prop_rl, ICON_PROP },
+  { K_BUTTON, S_SMALL, 0, 0, "Field", ID_FLD_INSERT, 0, 0, 0, 0, "A field: a date, a page number, a document property... (Ctrl-F9)", NULL, ICON_FIELD },
+  { K_DROP, S_SMALL, 0, 0, "Document Property", ID_FLD_DOCPROP, 0, 0, 0, 0, "One of the document's properties, as a field", &prop_rl, ICON_PROP },
   { K_BUTTON, S_SMALL, IC_DATE, 0, "Date & Time", ID_FLD_DATETIME, 0, 0, 0, 0, "Today's date or the time in a format, as text or a field that updates" } };
 static const Item ref_items[] = {
   { K_BUTTON, S_LARGE, IC_UPDATE, 0, "Update Fields", ID_FLD_UPDATE, 0, 0, 0, 0, "The selected fields brought up to date, or all of them (F9)" },
@@ -627,7 +627,7 @@ static const Item ref_items[] = {
   { K_BUTTON, S_SMALL, IC_NEXT, 0, "Next Field", ID_FLD_NEXT, 0, 0, 0, 0, "Select the next field" },
   { K_DROP, S_SMALL, 0, 0, "Shading", ID_FLD_SHADE, 0, 0, 0, 0, "Fields on grey: never, always, or the one the caret is in", &shade_rl, ICON_SHADE } };
 static const WpGroup groups[] = {
-  { TAB_INSERT, 7, { "Fields", G_COLS, ins_items, 3 } },
+  { TAB_INSERT, -1, { "Fields", G_COLS, ins_items, 3 } },
   { TAB_REFERENCES, -1, { "Fields", G_COLS, ref_items, 10 } } };
 /* the menus: Insert (Field, Document Property, Date and Time, and the field commands), View (codes, shading) */
 static const WpMenu menus[] = {
