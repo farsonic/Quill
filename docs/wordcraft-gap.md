@@ -19,7 +19,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Quick Access | 5 | 2 | 0 | 3 | 0 |
 | Title Bar | 1 | 0 | 0 | 1 | 0 |
 | Home | 105 | 72 | 11 | 21 | 1 |
-| Insert | 53 | 26 | 3 | 18 | 6 |
+| Insert | 53 | 27 | 3 | 17 | 6 |
 | Draw | 11 | 0 | 0 | 10 | 1 |
 | Design | 10 | 7 | 2 | 1 | 0 |
 | Layout | 22 | 16 | 3 | 3 | 0 |
@@ -36,19 +36,19 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Picture Format | 14 | 5 | 0 | 9 | 0 |
 | Shape Format | 13 | 3 | 1 | 9 | 0 |
 | Header & Footer | 5 | 5 | 0 | 0 | 0 |
-| Equation | 22 | 0 | 0 | 21 | 1 |
+| Equation | 22 | 1 | 0 | 20 | 1 |
 | Outlining | 13 | 0 | 0 | 13 | 0 |
 | SmartArt Design | 7 | 0 | 0 | 7 | 0 |
 | Chart Design | 5 | 0 | 0 | 5 | 0 |
 | Editing | 41 | 23 | 2 | 16 | 0 |
 | Tools | 7 | 1 | 0 | 6 | 0 |
-| **All** | **531** | **236** | **32** | **232** | **31** |
+| **All** | **531** | **238** | **32** | **230** | **31** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
 | 2.1 File formats | 1 | 5 | 10 | 3 |
-| 2.2 DOCX features | 2 | 18 | 17 | 1 |
-| 2.3 Layout | 9 | 9 | 6 | 0 |
+| 2.2 DOCX features | 3 | 18 | 16 | 1 |
+| 2.3 Layout | 9 | 10 | 5 | 0 |
 | 2.4 Editing | 4 | 11 | 12 | 7 |
 | 2.5 Interface: panes, toolbars and the window | 9 | 2 | 6 | 2 |
 | 2.6 The Options dialog | 1 | 3 | 4 | 1 |
@@ -57,7 +57,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | 2.9 Zotero | 0 | 0 | 0 | 1 |
 | 2.10 Control protocol, MCP, command line, scripting | 0 | 0 | 0 | 1 |
 | 2.11 Network and cloud features (left out on purpose) | 0 | 0 | 0 | 1 |
-| **All** | **27** | **51** | **57** | **17** |
+| **All** | **28** | **52** | **55** | **17** |
 
 ## Work packages
 
@@ -295,7 +295,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Dictate (Voice) `tools.dictate` — WordCraft doesn't have it either (cloud speech service)
 - ✅ Editor (Editor) `review.editor` — WordCraft's Editor runs Spelling: Quill `ID_SPELL`
 
-### Insert (53: ✅ 26 · 🟨 3 · ⬜ 18 · ➖ 6)
+### Insert (53: ✅ 27 · 🟨 3 · ⬜ 17 · ➖ 6)
 
 - ✅ Cover Page (Pages) `insert.coverPage` — `ID_COVERDD` (3 designs, remove)
 - ✅ Blank Page (Pages) `insert.blankPage` — `ID_BLANKPAGE`
@@ -344,7 +344,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - 🟨 Date & Time (Text) `insert.dateTime` — `ID_DATE` types today's date as text in one format (`today_text()`); no format choice, no DATE field that updates [WP1]
 - ⬜ Object (Text) `insert.object` — WordCraft's inserts a file's text [WP23]
 - ⬜ Text from File (Text) `insert.textFromFile` [WP23]
-- ⬜ Equation (Symbols) `insert.equation` [WP14a]
+- ✅ Equation (Symbols) `insert.equation` — Insert › Equation (Insert menu, and the Equation button of Insert › Symbols, amiga/wp_math.c): the equation typed in linear format (UnicodeMath subset: a/b, x^2, x_i, √(…), ∑_(i=1)^n▒…, brackets, functions, accents, ■ matrices, █ arrays, □ ▭ ⟡ boxes, "text"; characters outside Latin-1 as \control words), a display equation when the paragraph is empty as in Word; with an equation selected (or "Edit Equation..." on the right-button menu) it is changed. Checked: tests/test_wp14a.c (linear format in and out), emulator screenshot of the dialog [WP14a]
 - ➖ Ink Equation (Symbols) `insert.inkEquation` — WordCraft doesn't have it either
 - 🟨 Symbol (Symbols) `insert.symbol` — `ID_SYMBOLDD`: 17 fixed symbols; no Symbol window with a font's characters or character codes [WP10]
 - 🟨 Nonbreaking Space (Symbols) `text.nbsp` — U+00A0 typed through the keymap (Alt-Space) is kept and doesn't break (layout.c breaks at ' ' only); no command or Ctrl+Shift+Space, not shown as ° with marks [WP10]
@@ -648,9 +648,9 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Next Section (Navigation) `hf.next` — `ID_HFNEXT`
 - ✅ Header from Top (Position) `hf.position` — `ID_PAGESETUPDLG` on the Header & Footer tab (header and footer distances)
 
-### Equation (22: ✅ 0 · 🟨 0 · ⬜ 21 · ➖ 1)
+### Equation (22: ✅ 1 · 🟨 0 · ⬜ 20 · ➖ 1)
 
-- ⬜ Equation (Tools) `insert.equation` — no equations: OMML (`m:oMath`) is neither read nor written (docx.c has no math reader) [WP14a]
+- ✅ Equation (Tools) `insert.equation` — equations read, laid out, drawn and written (see 2.2); Insert › Equation (Insert menu, and the Equation button of Insert › Symbols, amiga/wp_math.c): the equation typed in linear format (UnicodeMath subset: a/b, x^2, x_i, √(…), ∑_(i=1)^n▒…, brackets, functions, accents, ■ matrices, █ arrays, □ ▭ ⟡ boxes, "text"; characters outside Latin-1 as \control words), a display equation when the paragraph is empty as in Word; with an equation selected (or "Edit Equation..." on the right-button menu) it is changed. Checked: tests/test_wp14a.c (linear format in and out), emulator screenshot of the dialog [WP14a]
 - ➖ Ink Equation (Tools) `insert.inkEquation` — WordCraft doesn't have it either
 - ⬜ Unicode (Conversions) `equation.inputFormat` [WP14b]
 - ⬜ LaTeX (Conversions) `equation.inputFormat` [WP14b]
@@ -814,7 +814,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ⬜ **Charts (`c:chart`) and SmartArt (`dgm`)** — not read: `report_lost()` warns of "pictures it cannot read" and saving leaves them out. WordCraft draws charts from their cached data and SmartArt from its stored drawing, and writes both.
 - ⬜ **OLE objects (`w:object`)** — dropped (WordCraft shows their picture and saves them back whole).
 - 🟨 **Native Word ink (`w14:contentPart`)** — dropped; WordCraft keeps it opaque.
-- ⬜ **Equations (OMML `m:oMath`)** — not read or written; WordCraft reads every ECMA-376 §22.1 element, lays it out (OpenType MATH) and writes it.
+- ✅ **Equations (OMML `m:oMath`)** — WP14a: every ECMA-376 §22.1 element is read into a tree (core/math.c: `m:oMath`, `m:oMathPara` with its justification, fractions bar/skewed/linear/no bar, sub/superscripts and pre-scripts, radicals, n-ary operators with limits, delimiters with separators, functions, accents, bars, group characters, lower and upper limits, matrices with column specs, equation arrays, boxes, border boxes, phantoms, argument sizes, and every property, each kept as absent/on/off), with `m:ctrlPr`, run `w:rPr`, unknown properties and elements (`w:ins` round math...) kept verbatim; written back the same (its m namespace declared on each equation); settings.xml `m:mathPr` kept and used (limits, default justification, small fractions, wrap indent). Laid out TeX-style with Quill's own fonts (core/mathlay.c; math italic, display and text styles, script sizes, TeX spacing) and drawn on screen and in PDFs. Checked: a Word-style sample written from the spec (tests/data/equations.docx, every construct) reads, round trips to identical OMML and a stable document.xml, LibreOffice renders Quill's saved copy exactly as the original, and documents with equations made in Quill open in LibreOffice with them. Left: a display equation too wide for its line isn't broken automatically (only at `m:brk`); block-level `m:oMathPara` outside a paragraph is skipped.
 - 🟨 **Themes, font table, settings, compatibility mode** — theme fonts are read (major/minor), compatibility mode 15 is written; the theme part's colours (`a:clrScheme`) only resolve shape colours, and the document's theme isn't written back as its own; embedded fonts (`w:embedRegular`…) not read.
 - 🟨 **Custom XML, document properties, bibliography sources** — title and author from docProps/core.xml ✅ (read and written); subject, keywords, description, category, custom properties (docProps/custom.xml), customXml parts and bibliography sources dropped.
 - ⬜ **Section text direction (`w:textDirection`)** — not read.
@@ -852,7 +852,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Page borders** — one kind on all four sides; no art borders, no per-section borders.
 - 🟨 **Watermarks** — text ✅; picture watermarks ⬜.
 - ⬜ **Character effects in layout and drawing** — hidden text (and showing it with marks), outline/shadow/emboss/engrave, enclosed characters, WordArt transforms.
-- ⬜ **Equations, charts, SmartArt drawn on the page** — see 2.2.
+- 🟨 **Equations, charts, SmartArt drawn on the page** — equations ✅ (WP14a: TeX build-up rules with Quill's fonts, glyphs the fonts lack drawn as outlines or from look-alike glyphs, growing delimiters, radicals, braces and arrows drawn; inline equations in the line, display ones on lines of their own as their justification says; on screen from the fonts' outlines, in PDFs as text or outlines); charts and SmartArt ⬜ — see 2.2.
 - ✅ **Metric-compatible fonts** — Liberation, Carlito, Caladea measured from their TrueType metrics, as WordCraft does (WordCraft also ships its own substitutes for more families).
 
 ### 2.4 Editing
@@ -890,7 +890,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Clipboard** — Quill's own formatted clipboard between Quill documents, text through clipboard.device to other programs (amiga/clip.c). Missing: formatted paste from other programs (WordCraft takes RTF/HTML from the system clipboard), pasting pictures, the Clipboard pane.
 - 🟨 **Format painter** — `ID_BRUSH` one shot; no double-click to keep it on, no Ctrl+Shift+C/V.
 - ⬜ **Spike, Go Back, Extend Selection (F8), column (block) selection, Alt+X** — see the Editing tab.
-- 🟨 **Right-click menus** — Quill (`ID_CTXPICK`): misspelled word, picture/shape/group, text (with table Insert/Delete/Merge/Split/Properties), link. Missing against WordCraft: synonyms, Paste options on the text menu, field menu (Update Field, Edit Field, Toggle Field Codes), table of contents menu (Update, Remove), picture menu's Change Picture, Reset Picture, Insert Caption, table menu's Distribute, AutoFit, Text Direction and Insert Caption, equation menu.
+- 🟨 **Right-click menus** — Quill (`ID_CTXPICK`): misspelled word, picture/shape/group, text (with table Insert/Delete/Merge/Split/Properties), link. Missing against WordCraft: synonyms, Paste options on the text menu, field menu (Update Field, Edit Field, Toggle Field Codes), table of contents menu (Update, Remove), picture menu's Change Picture, Reset Picture, Insert Caption, table menu's Distribute, AutoFit, Text Direction and Insert Caption (the equation menu has Edit Equation... since WP14a).
 
 ### 2.5 Interface: panes, toolbars and the window
 

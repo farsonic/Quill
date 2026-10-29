@@ -56,33 +56,49 @@ int math_glyph_segments(Face *f, u16 g, i32 *seg, int max)
 }
 
 /* ------------------------------------------------------------------ */
-/* filling outlines (the screen's): spans of pixel rows, sampled at each row's middle */
+/* filling outlines (the screen's): each pixel the outline covers at any of four sample rows through
+   it gets drawn, so strokes thinner than a pixel never break up (equations' lines are thin) */
 void math_fill(const i32 *seg, int nseg, int y0, int y1, void (*span)(void *ctx, int y, int x0, int x1), void *ctx)
 {
-  i32 xs[256];
-  int y, i;
+  i32 xs[130], iv[2 * 260];
+  int y, i, k;
   for (y = y0; y <= y1; y++) {
-    i32 sy = y * 16 + 8;
-    int n = 0, k;
-    for (i = 0; i < nseg && n < 254; i++) {
-      i32 ax = seg[4 * i], ay = seg[4 * i + 1], bx = seg[4 * i + 2], by = seg[4 * i + 3], x;
-      int up = by > ay;
-      if (ay == by || (sy < ay && sy < by) || (sy >= ay && sy >= by)) continue;
-      x = ax + (i32)((long long)(bx - ax) * (sy - ay) / (by - ay));
-      xs[n++] = x * 2 + up;
-    }
-    /* in order, then filled where the winding isn't 0 */
-    for (i = 1; i < n; i++) { i32 v = xs[i]; k = i; while (k > 0 && xs[k - 1] > v) { xs[k] = xs[k - 1]; k--; } xs[k] = v; }
-    {
-      int wind = 0;
-      for (i = 0; i + 1 < n; i++) {
+    int niv = 0, sub;
+    for (sub = 0; sub < 4; sub++) {
+      i32 sy = y * 16 + 2 + sub * 4;
+      int n = 0, wind = 0;
+      for (i = 0; i < nseg && n < 128; i++) {
+        i32 ax = seg[4 * i], ay = seg[4 * i + 1], bx = seg[4 * i + 2], by = seg[4 * i + 3], x;
+        int up = by > ay;
+        if (ay == by || (sy < ay && sy < by) || (sy >= ay && sy >= by)) continue;
+        x = ax + (i32)((long long)(bx - ax) * (sy - ay) / (by - ay));
+        xs[n++] = x * 2 + up;
+      }
+      for (i = 1; i < n; i++) { i32 v = xs[i]; k = i; while (k > 0 && xs[k - 1] > v) { xs[k] = xs[k - 1]; k--; } xs[k] = v; }
+      /* where the winding isn't 0: every pixel the stretch touches */
+      for (i = 0; i + 1 < n && niv < 256; i++) {
         wind += xs[i] & 1 ? 1 : -1;
         if (wind) {
           i32 a = xs[i] >> 1, b = xs[i + 1] >> 1;
-          int px0 = (int)((a + 8) >> 4), px1 = (int)((b + 8) >> 4) - 1;
-          if (px1 >= px0) span(ctx, y, px0, px1);
+          iv[2 * niv] = a >= 0 ? a / 16 : -((-a + 15) / 16);
+          iv[2 * niv + 1] = (b > 0 ? (b + 15) / 16 : -(-b / 16)) - 1;
+          if (iv[2 * niv + 1] < iv[2 * niv]) iv[2 * niv + 1] = iv[2 * niv];
+          niv++;
         }
       }
+    }
+    /* the stretches of the four rows merged */
+    for (i = 1; i < niv; i++) {
+      i32 a = iv[2 * i], b = iv[2 * i + 1];
+      k = i;
+      while (k > 0 && iv[2 * (k - 1)] > a) { iv[2 * k] = iv[2 * (k - 1)]; iv[2 * k + 1] = iv[2 * (k - 1) + 1]; k--; }
+      iv[2 * k] = a; iv[2 * k + 1] = b;
+    }
+    for (i = 0; i < niv; ) {
+      i32 a = iv[2 * i], b = iv[2 * i + 1];
+      for (k = i + 1; k < niv && iv[2 * k] <= b + 1; k++) if (iv[2 * k + 1] > b) b = iv[2 * k + 1];
+      span(ctx, y, (int)a, (int)b);
+      i = k;
     }
   }
 }

@@ -118,6 +118,76 @@ static void t_linear(void)
   ok("keywords: \\alpha is α", math_keyword("alpha", 5) == 0x3B1 && math_keyword("nosuch", 6) == 0);
 }
 
+/* OMML parsed straight from text, and written again */
+static MathEq *parse(const char *xml)
+{
+  Xml x;
+  MathEq *e = NULL;
+  xml_init(&x, xml, strlen(xml));
+  while (xml_next(&x) != XT_EOF) if (x.type == XT_START && (!strcmp(x.name, "oMath") || !strcmp(x.name, "oMathPara"))) { e = math_read_omml(&x); break; }
+  xml_free(&x);
+  return e;
+}
+static void t_model(void)
+{
+  static const char src[] = "<m:oMath><m:f><m:fPr><m:type m:val=\"lin\"/><m:futureProp m:val=\"7\"/><m:ctrlPr><w:rPr><w14:glow w14:rad=\"1\"/></w:rPr></m:ctrlPr></m:fPr>"
+    "<m:num><m:argPr><m:argSz m:val=\"-1\"/></m:argPr><m:r><m:t>1</m:t></m:r></m:num><m:den><w:ins w:id=\"3\" w:author=\"A\"><m:r><m:t>2</m:t></m:r></w:ins></m:den></m:f>"
+    "<m:r><m:rPr><m:sty m:val=\"b\"/></m:rPr><m:t xml:space=\"preserve\"> x </m:t><w:br/></m:r></m:oMath>";
+  MathEq *e = parse(src), *c;
+  char *a, *b;
+  MNode *f, *s;
+  ok("omml: parsed straight from text", e && e->nline == 1 && e->line[0]->nkid == 2);
+  if (!e) return;
+  f = e->line[0]->kid[0];
+  ok("omml: properties and argument size", f->kind == MK_FRAC && f->pv[P_F_TYPE] == MF_LIN + 1 && f->kid[0]->hasargsz && f->kid[0]->argsz == -1);
+  ok("omml: an unknown property kept", f->xpr && strstr(f->xpr, "futureProp"));
+  ok("omml: a tracked insertion kept, its math shown", f->kid[1]->nkid == 1 && f->kid[1]->kid[0]->kind == MK_RAW && f->kid[1]->kid[0]->nkid == 1);
+  ok("omml: a run's spaces and other content kept", !strcmp(e->line[0]->kid[1]->text, " x ") && e->line[0]->kid[1]->xpr && strstr(e->line[0]->kid[1]->xpr, "w:br"));
+  a = omml(e);
+  ok("omml: written back with everything", a && strstr(a, "<m:futureProp m:val=\"7\"/>") && strstr(a, "<w:ins w:id=\"3\"") && strstr(a, "xml:space=\"preserve\"> x <") &&
+     strstr(a, "<m:argSz m:val=\"-1\"/>") && strstr(a, "<m:sty m:val=\"b\"/>"));
+  ok("omml: a namespace a kept piece uses is declared", a && strstr(a, "xmlns:w14="));
+  c = math_clone(e);
+  b = c ? omml(c) : NULL;
+  ok("model: a clone writes the same", a && b && !strcmp(a, b));
+  free(b);
+  /* an editor's operations: a structure made, filled, put in, taken out */
+  s = mn_struct(MK_RAD, 0, 0);
+  ok("model: a radical has its two arguments", s && s->nkid == 2 && s->kid[0]->kind == MK_ROW && mn_nargs(MK_RAD) == 2 && !strcmp(mn_name(MK_RAD), "rad"));
+  if (s && c) {
+    mn_insert(s->kid[1], -1, mn_run("y", 1));
+    ok("model: put in a row", mn_insert(c->line[0], 1, s) && c->line[0]->nkid == 3 && c->line[0]->kid[1] == s);
+    mn_free(mn_remove(c->line[0], 1));
+    b = omml(c);
+    ok("model: taken out again", c->line[0]->nkid == 2 && b && !strcmp(a, b));
+    free(b);
+  }
+  {
+    MNode *m = mn_struct(MK_MATRIX, 2, 3);
+    ok("model: a 2x3 matrix", m && m->rows == 2 && m->cols == 3 && m->nkid == 6);
+    mn_free(m);
+  }
+  {
+    MathEq *k = math_from_linear("\\sqrt(x)+\\alpha", 0);
+    Buf o, kw;
+    MathEq *back;
+    buf_init(&o); buf_init(&kw);
+    if (k) math_to_linear(k, &o);
+    if (o.data) math_keywords(o.data, &kw);
+    back = kw.data ? math_from_linear(kw.data, 0) : NULL;
+    b = back ? omml(back) : NULL;
+    {
+      char *x1 = k ? omml(k) : NULL;
+      ok("keywords: control words for the Latin-1 gadget read back the same", kw.data && !strchr(kw.data, (char)0xE2) && x1 && b && !strcmp(x1, b));
+      free(x1);
+    }
+    free(b); math_free(back); math_free(k); buf_free(&o); buf_free(&kw);
+  }
+  free(a);
+  math_free(c);
+  math_free(e);
+}
+
 static void t_docx(void)
 {
   size_t n = 0, n2 = 0, n3 = 0;
@@ -327,6 +397,7 @@ static void t_layout(void)
 void test_wp14a(void)
 {
   t_linear();
+  t_model();
   t_docx();
   t_layout();
   math_fonts_free();

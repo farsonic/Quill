@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <exec/memory.h>
+#include <devices/inputevent.h>
 #include <libraries/iffparse.h>
 #include <proto/exec.h>
 #include <proto/intuition.h>
@@ -242,6 +243,13 @@ static void wp14a_ctxmenu(Object *menu, const WpCtx *c)
     wp_ctx_item(menu, tr("Edit Equation..."), WP_CTX_ID(ID_EQ_EDIT), 1);
   }
 }
+/* Alt+= (Word's key for a new equation; the = key of a US keyboard) */
+static ULONG wp14a_key(UWORD code, UWORD qual, const WpCtx *c)
+{
+  (void)c;
+  if (code == 0x0C && (qual & (IEQUALIFIER_LALT | IEQUALIFIER_RALT)) && !(qual & (IEQUALIFIER_CONTROL | IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT))) return ID_EQ_INSERT;
+  return 0;
+}
 static void wp14a_cleanup(void)
 {
   int i;
@@ -258,7 +266,7 @@ static const WpMenu menus[] = {
    groups and menu items */
 const WpPackage wp14a_package = {
   "WP14a", ID_WP14A_FIRST, ID_WP14A_LAST,
-  wp14a_command, wp14a_state, NULL, wp14a_ctxmenu, NULL, NULL, wp14a_cleanup,
+  wp14a_command, wp14a_state, NULL, wp14a_ctxmenu, wp14a_key, NULL, wp14a_cleanup,
   NULL, 0,
   menus, 2
 };

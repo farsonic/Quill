@@ -189,8 +189,9 @@ struct TTRaster *math_raster(Face *f);      /* the outline reader math layout us
 /* a glyph's outline (face's glyph) as segments, font units y up, as ttr_segments; -1 if it can't */
 int   math_glyph_segments(Face *f, u16 g, i32 *seg, int max);
 /* filled outlines as spans: an outline's edges (nseg of them, x0 y0 x1 y1 each, in sixteenths of a
-   pixel, y down) filled with the non-zero rule, its pixel rows from y0 to y1 sampled at their middles,
-   each row's covered pixels passed to span(ctx, y, x0, x1) (x1 inclusive) */
+   pixel, y down) filled with the non-zero rule, its pixel rows from y0 to y1: every pixel the outline
+   touches at any of four sample rows through it (so thin strokes stay whole), each row's stretches
+   passed to span(ctx, y, x0, x1) (x1 inclusive) */
 void  math_fill(const i32 *seg, int nseg, int y0, int y1, void (*span)(void *ctx, int y, int x0, int x1), void *ctx);
 
 #endif
