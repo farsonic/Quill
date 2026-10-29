@@ -6,7 +6,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 ## Summary
 
-- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **416** (✅), **5** partly (🟨) and lacks **80** (⬜); 30 are ➖. So Quill covers 83% of the applicable commands fully and 84% at least in part.
+- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **426** (✅), **4** partly (🟨) and lacks **71** (⬜); 30 are ➖. So Quill covers 85% of the applicable commands fully and 86% at least in part.
 - **Beyond the ribbon (section 2):** 152 features: ✅ 55, 🟨 43, ⬜ 37, ➖ 17.
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
 - **Missing whole:** Mailings (22), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
@@ -15,13 +15,13 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 | Tab | Commands | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|---|
-| File | 23 | 16 | 1 | 4 | 2 |
+| File | 23 | 18 | 1 | 2 | 2 |
 | Quick Access | 5 | 5 | 0 | 0 | 0 |
 | Title Bar | 1 | 0 | 0 | 1 | 0 |
-| Home | 105 | 97 | 2 | 5 | 1 |
-| Insert | 53 | 41 | 0 | 6 | 6 |
+| Home | 105 | 99 | 1 | 4 | 1 |
+| Insert | 53 | 45 | 0 | 2 | 6 |
 | Draw | 11 | 9 | 0 | 1 | 1 |
-| Design | 10 | 9 | 0 | 1 | 0 |
+| Design | 10 | 10 | 0 | 0 | 0 |
 | Layout | 22 | 19 | 0 | 3 | 0 |
 | References | 25 | 9 | 1 | 14 | 1 |
 | Mailings | 23 | 0 | 0 | 22 | 1 |
@@ -41,8 +41,8 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | SmartArt Design | 7 | 7 | 0 | 0 | 0 |
 | Chart Design | 5 | 5 | 0 | 0 | 0 |
 | Editing | 41 | 41 | 0 | 0 | 0 |
-| Tools | 7 | 3 | 0 | 4 | 0 |
-| **All** | **531** | **416** | **5** | **80** | **30** |
+| Tools | 7 | 4 | 0 | 3 | 0 |
+| **All** | **531** | **426** | **4** | **71** | **30** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
@@ -149,7 +149,7 @@ core/docx.c is touched by most lanes. Each package should add its reading and wr
 
 In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help tabs from its ribbon code. Each line: the mark, WordCraft's command (its group) and command id, Quill's evidence or what is missing, and the work package. WordCraft has no separate Header & Footer tab (those tools are in its catalogue as a pseudo-tab, shown here as such); Quill has Header & Footer and Edit Text contextual tabs of its own. Editing and Tools are WordCraft's keyboard and dialog commands that have no ribbon button.
 
-### File (23: ✅ 16 · 🟨 1 · ⬜ 4 · ➖ 2)
+### File (23: ✅ 18 · 🟨 1 · ⬜ 2 · ➖ 2)
 
 - ✅ New (Backstage) `file.new` — `ID_NEW` (File menu Amiga-N, File page New)
 - ✅ Open (Backstage) `file.open` — `ID_OPEN`
@@ -187,7 +187,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 
 - ⬜ Search (Tell Me) (Search) `tools.search` — no command search [WP26]
 
-### Home (105: ✅ 97 · 🟨 2 · ⬜ 5 · ➖ 1)
+### Home (105: ✅ 99 · 🟨 1 · ⬜ 4 · ➖ 1)
 
 - ✅ Paste (Clipboard) `edit.paste` — `ID_PASTEDD` split button / `ID_PASTE`
 - ✅ Paste Keep Text Only (Clipboard) `edit.pasteText` — `ID_PASTETEXT` (`CMD_PASTEAS`)
@@ -295,7 +295,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Dictate (Voice) `tools.dictate` — WordCraft doesn't have it either (cloud speech service)
 - ✅ Editor (Editor) `review.editor` — WordCraft's Editor runs Spelling: Quill `ID_SPELL`
 
-### Insert (53: ✅ 41 · 🟨 0 · ⬜ 6 · ➖ 6)
+### Insert (53: ✅ 45 · 🟨 0 · ⬜ 2 · ➖ 6)
 
 - ✅ Cover Page (Pages) `insert.coverPage` — `ID_COVERDD` (3 designs, remove)
 - ✅ Blank Page (Pages) `insert.blankPage` — `ID_BLANKPAGE`
@@ -365,7 +365,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Drawing Canvas (Insert) `insert.canvas` [WP20]
 - ✅ Ink Replay (Replay) `draw.replay` — `ID_DR_REPLAY`: every stroke drawn again point by point in the order it was drawn (`Freeform.order`, saved in the name), strokes from other files first; a click stops it [WP20]
 
-### Design (10: ✅ 9 · 🟨 0 · ⬜ 1 · ➖ 0)
+### Design (10: ✅ 10 · 🟨 0 · ⬜ 0 · ➖ 0)
 
 - ✅ Themes (Document Formatting) `design.theme` — `ID_THEMEDD` (8 Quill themes setting style set, fonts and colours) and WP13's Office Themes (`ID_TH_THEMES`: Office, Office 2013-2022, Office 2007-2010 and other Office themes as theme1.xml parts; Reset to Theme from Template, Browse for Themes (.thmx/.docx/.dotx), Save Current Theme (.thmx); Format › Styles and Themes › Office Theme… window) [WP13]
 - ✅ Style Set (Document Formatting) `design.styleSet` — `ID_STYLESETDD` (6)
@@ -751,7 +751,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Next Field (Fields) `fields.next` — WP1: `ID_FLD_NEXT` (References › Fields, Insert › Fields submenu; F11 where the keyboard has one: Amiga keyboards stop at F10) selects it [WP1]
 - ✅ Previous Field (Fields) `fields.previous` — WP1: `ID_FLD_PREV` (Shift-F11 likewise) [WP1]
 
-### Tools (7: ✅ 3 · 🟨 0 · ⬜ 4 · ➖ 0)
+### Tools (7: ✅ 4 · 🟨 0 · ⬜ 3 · ➖ 0)
 
 - ✅ AutoCorrect Options (Proofing) `tools.autocorrect` — Review > Proofing > AutoCorrect Options: the AutoCorrect and AutoFormat As You Type pages, the replacement list, Exceptions (core/autocorrect.c, PROGDIR:Quill.autocorrect) [WP8]
 - ✅ Set Proofing Language (Proofing) `review.language` — the Language window (mark the selection, do not check, Set As Default), also from the status bar's language [WP31]
