@@ -295,9 +295,6 @@ static const CharFmt *style_cf_of(Doc *d, const CharFmt *c, int ps, CharFmt *tmp
 
 /* ------------------------------------------------------------------ */
 /* the Styles pane: a class of its own, docked in the window's work area */
-#define MUIA_SPane_Dummy (TAG_USER | 0x51561300UL)
-#define MUIM_SPane_Update (TAG_USER | 0x51561301UL)
-struct MUIP_SPane_Update { ULONG MethodID; ULONG force; };
 #define MAXROWS (MAX_STYLES + 1)
 typedef struct { WORD x0, y0, x1, y1; } SBox;
 struct SPData {
@@ -485,6 +482,7 @@ static int sp_hit(struct SPData *d, WORD x, WORD y)
   return sp_row(d, x, y);
 }
 static void sp_apply(int k, int dbl);
+static void sp_update(Object *obj, int force);
 static ULONG sp_events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent *m)
 {
   struct SPData *d = INST_DATA(cl, obj);
@@ -503,7 +501,7 @@ static ULONG sp_events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent *
     switch (h) {
     case -2: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_SP_PANE); break;
     case -3: sp_preview = !sp_preview; MUI_Redraw(obj, MADF_DRAWOBJECT); break;
-    case -4: sp_nolink = !sp_nolink; DoMethod(obj, MUIM_SPane_Update, 1); break;
+    case -4: sp_nolink = !sp_nolink; sp_update(obj, 1); break;
     case -5: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_SI_NEW); break;
     case -6: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_SP_INSPECT); break;
     case -7: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_SP_MANAGE); break;
@@ -593,31 +591,32 @@ static ULONG spdispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, 
     return (ULONG)sp_help(INST_DATA(cl, obj), (WORD)m->mx, (WORD)m->my);
   }
   case MUIM_DeleteShortHelp: return 0;
-  case MUIM_SPane_Update: {
-    Doc *doc = wp_doc();
-    int cur = -1, ccur = -1;
-    d = INST_DATA(cl, obj);
-    if (doc) {
-      const CharFmt *c = caret_cf(doc);
-      Pos cp = get_pos(MUIA_Quill_Caret);
-      cur = cp.para < doc->np ? doc->p[cp.para]->pf.style : -1;
-      ccur = c->cstyle ? c->cstyle : -1;
-      if (ccur >= 0 && !sp_nolink && doc->styles[ccur].x.link) ccur = doc->styles[ccur].x.link - 1;
-    }
-    if (((struct MUIP_SPane_Update *)msg)->force || doc != d->doc || !doc || doc->ver != d->ver || doc->nstyles != d->nst) {
-      d->doc = doc;
-      d->ver = doc ? doc->ver : 0; d->nst = doc ? doc->nstyles : 0;
-      d->nrows = doc ? sp_rows(doc, d->rows) : 0;
-      d->cur = cur; d->ccur = ccur;
-      if (_win(obj) && d->shown) MUI_Redraw(obj, MADF_DRAWOBJECT);
-    } else if (cur != d->cur || ccur != d->ccur) {
-      d->cur = cur; d->ccur = ccur;
-      if (_win(obj) && d->shown) MUI_Redraw(obj, MADF_DRAWOBJECT);
-    }
-    return 0;
-  }
   }
   return DoSuperMethodA(cl, obj, msg);
+}
+/* the pane brought up to date with the current document and caret (force: its list made afresh) */
+static void sp_update(Object *obj, int force)
+{
+  struct SPData *d = INST_DATA(spcls->mcc_Class, obj);
+    Doc *doc = wp_doc();
+  int cur = -1, ccur = -1;
+  if (doc) {
+    const CharFmt *c = caret_cf(doc);
+    Pos cp = get_pos(MUIA_Quill_Caret);
+    cur = cp.para < doc->np ? doc->p[cp.para]->pf.style : -1;
+    ccur = c->cstyle ? c->cstyle : -1;
+    if (ccur >= 0 && !sp_nolink && doc->styles[ccur].x.link) ccur = doc->styles[ccur].x.link - 1;
+  }
+  if (force || doc != d->doc || !doc || doc->ver != d->ver || doc->nstyles != d->nst) {
+    d->doc = doc;
+    d->ver = doc ? doc->ver : 0; d->nst = doc ? doc->nstyles : 0;
+    d->nrows = doc ? sp_rows(doc, d->rows) : 0;
+    d->cur = cur; d->ccur = ccur;
+    if (_win(obj) && d->shown) MUI_Redraw(obj, MADF_DRAWOBJECT);
+  } else if (cur != d->cur || ccur != d->ccur) {
+    d->cur = cur; d->ccur = ccur;
+    if (_win(obj) && d->shown) MUI_Redraw(obj, MADF_DRAWOBJECT);
+  }
 }
 /* whether the pane's window is still one of Quill's (closing a window disposes of what is docked in it) */
 static int pane_alive(void)
@@ -656,7 +655,7 @@ static void toggle_pane(void)
   DoMethod(wa, OM_ADDMEMBER, (ULONG)pane);
   DoMethod(wa, MUIM_Group_ExitChange);
   panewin = wp_win();
-  DoMethod(pane, MUIM_SPane_Update, 1);
+  sp_update(pane, 1);
   wp_refresh();
 }
 
@@ -719,7 +718,7 @@ static void options_done(void)
     d->spsort = sorts[sp_sort]; d->spfilter = shows[sp_show];
     set(wp_view(), MUIA_Quill_Changed, TRUE);
   }
-  if (pane_here()) DoMethod(pane, MUIM_SPane_Update, 1);
+  if (pane_here()) sp_update(pane, 1);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1402,7 +1401,7 @@ static void style_ok_cmd(void)
   if (sd_k < 0 && s->type == ST_PARA) DoMethod(wp_view(), MUIM_Quill_Command, CMD_STYLE, (ULONG)q.k);   /* a new paragraph style: the caret's paragraph gets it */
   if (chk(sd_tpl)) style_to_template(d, d->styles[q.k].name);
   set(wp_view(), MUIA_Quill_Changed, TRUE);
-  if (pane_here()) DoMethod(pane, MUIM_SPane_Update, 1);
+  if (pane_here()) sp_update(pane, 1);
   set(wp_win(), MUIA_Window_Activate, TRUE);
 }
 #undef OWN_C
@@ -1557,7 +1556,7 @@ static void ms_cmd(ULONG id)
     break;
   }
   ms_fill();
-  if (pane_here()) DoMethod(pane, MUIM_SPane_Update, 1);
+  if (pane_here()) sp_update(pane, 1);
 }
 
 /* ---- the Organizer: styles copied between this document and another file */
@@ -1704,7 +1703,7 @@ static void retheme_done(int ok)
 {
   if (!ok) { beep(); return; }
   changed_now();
-  if (pane_here()) DoMethod(pane, MUIM_SPane_Update, 1);
+  if (pane_here()) sp_update(pane, 1);
 }
 static void browse_theme(void)
 {
@@ -1994,7 +1993,7 @@ int wp13_keystyle = -1;
 /* the panes and windows that show the caret's formatting follow it */
 static void wp13_state(ULONG *on, const WpCtx *c)
 {
-  if (pane_here()) { *on |= 1UL << 1; DoMethod(pane, MUIM_SPane_Update, 0); }
+  if (pane_here()) { *on |= 1UL << 1; sp_update(pane, 0); }
   inspect_fill();
   reveal_fill();
 }
