@@ -263,7 +263,6 @@ static void split_toggle(void)
   s->mainview = wp_view();
   get(s->mainview, MUIA_Parent, &h);
   if (h) get(h, MUIA_Parent, &v);
-  { extern FILE *qlog; if (qlog) { fprintf(qlog, "split: view %p h %p v %p\n", (void *)s->mainview, (void *)h, (void *)v); fflush(qlog); } }   /* DEBUG */
   if (!h || !v) { memset(s, 0, sizeof *s); return; }
   s->tb2 = *wp_toolbar();
   s->tb2.hprop = NULL;
@@ -276,14 +275,12 @@ static void split_toggle(void)
   End;
   s->bal = BalanceObject, End;
   if (!s->bal) s->bal = RectangleObject, MUIA_FixHeight, 3, MUIA_Background, MUII_FILL, End;   /* (no Balance class: a bar instead) */
-  { extern FILE *qlog; if (qlog) { fprintf(qlog, "split: grp %p bal %p view2 %p sc2 %p\n", (void *)s->grp, (void *)s->bal, (void *)s->view2, (void *)s->sc2); fflush(qlog); } }   /* DEBUG */
   if (!s->grp || !s->bal) { if (s->grp) MUI_DisposeObject(s->grp); if (s->bal) MUI_DisposeObject(s->bal); memset(s, 0, sizeof *s); DisplayBeep(NULL); return; }
   s->tb2.prop = s->sc2;
   s->win = win;
   /* in the group above the window's view (the ruler, the view's row, the sideways scroll bar): the
      new pane and the balance go in just before the view's row */
   n = children(v, kids, 13);
-  { extern FILE *qlog; if (qlog) { fprintf(qlog, "split: %d children, grp %p\n", n, (void *)s->grp); fflush(qlog); } }   /* DEBUG */
   DoMethod(v, MUIM_Group_InitChange);
   DoMethod(v, OM_ADDMEMBER, (ULONG)s->grp);
   DoMethod(v, OM_ADDMEMBER, (ULONG)s->bal);
@@ -456,3 +453,4 @@ const WpPackage wp25_package = {
   groups, (int)(sizeof groups / sizeof groups[0]),
   menus, (int)(sizeof menus / sizeof menus[0])
 };
+

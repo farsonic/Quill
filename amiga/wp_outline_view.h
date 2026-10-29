@@ -12,6 +12,7 @@
 #include "../core/outline.h"
 
 static void refresh(struct Data *d, Object *obj, int edited);
+static void relayout(struct Data *d, Object *obj);
 static void caret_hide(struct Data *d, Object *obj);
 static u32 point_page(struct Data *d, Object *obj, LONG mx, LONG my, i32 *px, i32 *py);
 
@@ -122,7 +123,9 @@ static void ov_paras(struct Data *d, u32 *pa, u32 *pb, int part)
   Pos lo = sel_lo(d), hi = sel_hi(d);
   *pa = lo.para; *pb = hi.para;
   if (*pb > *pa && hi.off == 0) (*pb)--;
-  if (part && s && s->on && *pb < d->doc->np && ov_collapsed(s, d->doc->p[*pb])) *pb = outline_end(d->doc, *pb) - 1;
+  /* a heading whose part is hidden (collapsed, or below the levels shown) takes it along */
+  if (part && s && s->on && *pb < d->doc->np && outline_level(d->doc, *pb) &&
+      (ov_collapsed(s, d->doc->p[*pb]) || ov_hidden(s, d->doc, *pb + 1))) *pb = outline_end(d->doc, *pb) - 1;
 }
 /* the heading a paragraph is under (itself if it is one), or -1 */
 static long ov_heading(Doc *doc, u32 i)
@@ -242,7 +245,7 @@ static int ov_command(struct Data *d, Object *obj, struct MUIP_Quill_Command *m)
     ov_paras(d, &pa, &pb, 0);
     if (pa == pb) { if ((h = ov_heading(doc, pa)) >= 0) ov_fold(s, doc, (u32)h, (int)m->arg); }
     else { u32 i; for (i = pa; i <= pb; i++) if (outline_level(doc, i)) ov_fold(s, doc, i, (int)m->arg); }
-    refresh(d, obj, 1);
+    relayout(d, obj); refresh(d, obj, 0);               /* (the view changes, not the document) */
     if (s->on && s->nhid == doc->np && s->hid[d->caret.para] && (h = ov_heading(doc, d->caret.para)) >= 0) {
       /* the caret was folded away: to the heading that hides it */
       u32 hh = (u32)h;
@@ -256,13 +259,13 @@ static int ov_command(struct Data *d, Object *obj, struct MUIP_Quill_Command *m)
     if (!(s = ov(d))) break;
     s->levels = (int)m->arg;
     s->ncoll = 0;
-    refresh(d, obj, 1);
+    relayout(d, obj); refresh(d, obj, 0);
     MUI_Redraw(obj, MADF_DRAWOBJECT);
     return 1;
   case CMD_OV_FLAGS:
     if (!(s = ov(d))) break;
     s->flags ^= (int)m->arg & (OL_PLAIN | OL_FIRST);
-    refresh(d, obj, 1);
+    relayout(d, obj); refresh(d, obj, 0);
     MUI_Redraw(obj, MADF_DRAWOBJECT);
     return 1;
   }
@@ -352,7 +355,7 @@ static ULONG ov_mouse(struct Data *d, Object *obj, struct IntuiMessage *im)
       ov_set_collapsed(s, doc->p[pc->para], !ov_collapsed(s, doc->p[pc->para]));
       s->secs = 0;
       d->caret.para = d->anchor.para = pc->para; d->caret.off = d->anchor.off = 0;
-      refresh(d, obj, 1);
+      relayout(d, obj); refresh(d, obj, 0);
       MUI_Redraw(obj, MADF_DRAWOBJECT);
       return MUI_EventHandlerRC_Eat;
     }
