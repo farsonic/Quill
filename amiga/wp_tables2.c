@@ -362,7 +362,7 @@ static void wp21b_ctxmenu(Object *menu, const WpCtx *c)
 }
 
 /* icons (theme.c's icon language) */
-#define IC_DRAWT "cd R 0 0 9 9 L 0 4 9 4 L 4 0 4 9 ci P 5 4 13 12 5 14 7 6 15 4 13 L 4 13 3 15 L 3 15 6 15 ca L 11 6 13 8"
+#define IC_DRAWT WP21_IC_DRAWTABLE
 #define IC_ERASE "cd R 0 0 9 9 L 4 0 4 9 L 0 4 9 4 cr F 7 8 14 13 ci R 7 8 14 13 L 10 8 10 13"
 #define IC_ALIGN9 "ci R 1 1 14 14 ca F 3 3 5 5 cd F 7 3 8 5 F 10 3 12 5 F 3 7 5 8 F 7 7 8 8 F 10 7 12 8 F 3 10 5 12 F 7 10 8 12 F 10 10 12 12"
 #define IC_TDIR "ci R 1 1 14 14 L 4 3 4 12 L 4 3 7 3 L 4 7 6 7 ca L 10 3 10 12 L 8 10 10 12 L 12 10 10 12"
@@ -372,19 +372,17 @@ static void wp21b_ctxmenu(Object *menu, const WpCtx *c)
 #define IC_TPOS "cd L 1 1 14 1 L 1 4 4 4 L 1 7 4 7 L 1 10 4 10 L 1 14 14 14 ci R 6 3 14 11 L 6 7 14 7 L 10 3 10 11"
 static const RibbonList l_align = { aligns9, 9, PL_TEXT, NULL };
 static const RibbonList l_tdir = { tdirs, 3, PL_TEXT, NULL };
-static const Item i_draw[] = {
-  { K_BUTTON, S_LARGE, 0, 0, "Draw Table", ID_TB_DRAWTABLE, RB_WP(WPI_21B, 1), 0, 0, 0, "Draw a table, or lines that split cells, with the mouse (Esc when done)", NULL, IC_DRAWT, 0 },
-  { K_BUTTON, S_LARGE, 0, 0, "Eraser", ID_TB_ERASER, RB_WP(WPI_21B, 2), RB_INTABLE, 0, 0, "Click the line between two cells to merge them (Esc when done)", NULL, IC_ERASE, 0 } };
 static const Item i_cell[] = {
-  { K_DROP, S_SMALL, 0, 0, "Align", ID_TB_CELLALIGN, 0, RB_INTABLE, 0, 0, "Where the text sits in the cells: top, centre or bottom, left, centre or right", &l_align, IC_ALIGN9, 0 },
+  { K_BUTTON, S_SMALL, 0, 0, "Draw Table", ID_TB_DRAWTABLE, RB_WP(WPI_21B, 1), 0, 0, 0, "Draw a table, or lines that split cells, with the mouse (Esc when done)", NULL, IC_DRAWT, 0 },
+  { K_BUTTON, S_SMALL, 0, 0, "Eraser", ID_TB_ERASER, RB_WP(WPI_21B, 2), RB_INTABLE, 0, 0, "Click the line between two cells to merge them (Esc when done)", NULL, IC_ERASE, 0 },
+  { K_BUTTON, S_SMALL, 0, 0, "Delete Cells", ID_TB_DELCELLS, 0, RB_INTABLE, 0, 0, "The selected cells out, the others moving left or up", NULL, IC_DELCELLS, 0 },
+  { K_DROP, S_SMALL, 0, 0, "Align", ID_TB_CELLALIGN, 0, RB_INTABLE, F_NEWCOL, 0, "Where the text sits in the cells: top, centre or bottom, left, centre or right", &l_align, IC_ALIGN9, 0 },
   { K_DROP, S_SMALL, 0, 0, "Text Direction", ID_TB_TEXTDIR, 0, RB_INTABLE, 0, 0, "The cells' text across, or turned to read down or up", &l_tdir, IC_TDIR, 0 },
   { K_BUTTON, S_SMALL, 0, 0, "Cell Options", ID_TB_CELLMAR, 0, RB_INTABLE, 0, 0, "The selected cells' own margins", NULL, IC_CELLMAR, 0 },
-  { K_BUTTON, S_SMALL, 0, 0, "Delete Cells", ID_TB_DELCELLS, 0, RB_INTABLE, F_NEWCOL, 0, "The selected cells out, the others moving left or up", NULL, IC_DELCELLS, 0 },
-  { K_BUTTON, S_SMALL, 0, 0, "Alt Text", ID_TB_ALTTEXT, 0, RB_INTABLE, 0, 0, "A title and description of the table for those who can't see it", NULL, IC_ALTTEXT, 0 },
+  { K_BUTTON, S_SMALL, 0, 0, "Alt Text", ID_TB_ALTTEXT, 0, RB_INTABLE, F_NEWCOL, 0, "A title and description of the table for those who can't see it", NULL, IC_ALTTEXT, 0 },
   { K_BUTTON, S_SMALL, 0, 0, "Positioning", ID_TB_TPOS, 0, RB_INTABLE, 0, 0, "The table floating, with the text wrapped round it", NULL, IC_TPOS, 0 } };
 static const WpGroup groups[] = {
-  { TAB_TABLELAYOUT, 1, { "Draw", G_COLS, i_draw, 2 } },
-  { TAB_TABLELAYOUT, 5, { "Cells", G_COLS, i_cell, 6 } } };
+  { TAB_TABLELAYOUT, 5, { "Cells", G_COLS, i_cell, 8 } } };
 static const WpMenu menus[] = {
   { WM_TABLE, { NM_ITEM, NM_BARLABEL, 0, 0, 0, 0 } },
   { WM_TABLE, { NM_ITEM, (STRPTR)"Draw Table", 0, 0, 0, (APTR)ID_TB_DRAWTABLE } },

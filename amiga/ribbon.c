@@ -25,6 +25,7 @@
 #include "../core/tstyle.h"
 #include "ribbondef.h"
 #include "wphooks.h"
+#include "wp_tables.h"                 /* WP21a/WP21b: Insert > Tables' Draw Table, Quick Tables, Spreadsheet */
 
 /* ------------------------------------------------------------------ */
 /* the lists */
@@ -373,7 +374,11 @@ static const Item i_pages[] = {
   { K_BUTTON, S_SMALL, IC_BLANKPAGE, 0, "Blank Page", ID_BLANKPAGE, 0, 0, 0, 0, "An empty page at the caret" },
   { K_BUTTON, S_SMALL, IC_BREAKS, 0, "Line Break", ID_LINEBREAK, 0, 0, 0, 0, "A new line in the paragraph (Shift-Return)" } };
 static const Item i_tables[] = { { K_BUTTON, S_LARGE, IC_TABLE, 0, "Table", ID_TABLE, 0, 0, 0, 0, "Insert a table (Amiga-T); in a cell, a table inside it" },
-  { K_BUTTON, S_SMALL, IC_TOTABLE, 0, "Text to Table", ID_TOTABLE, 0, RB_SELECTION, F_NEWCOL, 0, "The selected paragraphs as a table, split at tabs or commas" } };
+  { K_BUTTON, S_SMALL, IC_TOTABLE, 0, "Text to Table", ID_TOTABLE, 0, RB_SELECTION, F_NEWCOL, 0, "The selected paragraphs as a table, split at tabs or commas" },
+  /* WP21a, WP21b (wp_tables.h): */
+  { K_BUTTON, S_SMALL, 0, 0, "Draw Table", WP21_ID_DRAWTABLE, RB_WP(WPI_21B, 1), 0, 0, 0, "Draw a table, or lines that split cells, with the mouse (Esc when done)", NULL, WP21_IC_DRAWTABLE, 0 },
+  { K_BUTTON, S_SMALL, 0, 0, "Quick Tables", WP21_ID_QUICKTABLES, 0, 0, 0, 0, "A ready-made table: calendars, lists, a matrix...", NULL, WP21_IC_QUICK, 0 },
+  { K_BUTTON, S_SMALL, 0, 0, "Spreadsheet", WP21_ID_SPREADSHEET, 0, 0, F_NEWCOL, 0, "A table from a spreadsheet saved as CSV text", NULL, WP21_IC_SHEET, 0 } };
 static const Item i_ill[] = {
   { K_BUTTON, S_LARGE, IC_PICTURE, 0, "Pictures", ID_PICTURE, 0, 0, 0, 0, "A PNG or JPEG picture from a file" },
   { K_DROP, S_LARGE, IC_SHAPES, L_SHAPES, "Shapes", ID_SHAPESDD, 0, 0, 0, 0, "A rectangle, oval, arrow or other shape, in front of the text" },

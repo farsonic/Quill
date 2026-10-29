@@ -29,8 +29,7 @@
 
 enum { ID_TA_TS_NEW = ID_WP21A_FIRST, ID_TA_TS_MODIFY, ID_TA_TS_DELETE, ID_TA_TS_OK, ID_TA_TS_PART, ID_TA_TS_BOLD, ID_TA_TS_ITALIC, ID_TA_TS_UNDERLINE,
        ID_TA_TS_COLOR, ID_TA_TS_SIZE, ID_TA_TS_FILL, ID_TA_TS_LINES, ID_TA_TS_ALIGN, ID_TA_TS_CLEAR,
-       ID_TA_PAINTER, ID_TA_DRAWT_INS, ID_TA_QUICK, ID_TA_QT_FIRST, ID_TA_QT_LAST = ID_TA_QT_FIRST + QT_N - 1, ID_TA_SPREADSHEET };
-#define ID_TA_DRAWTABLE_21B (ID_WP21B_FIRST + 0)     /* wp_tables2.c's Draw Table, shown on the Insert tab too */
+       ID_TA_PAINTER, ID_TA_QT_FIRST, ID_TA_QT_LAST = ID_TA_QT_FIRST + QT_N - 1, ID_TA_QUICKOK };
 
 /* ---- the style editor's lists. Colours (Automatic first; the last entry stands for one not in the
    list, which choosing leaves as it is) */
@@ -421,6 +420,23 @@ static void quick_table(int kind)
   if (tbl_quick(d, &at, kind, y, m, &w, in_table(&d->p[at.para]->pf) ? table_room(d, at.para) / 2 : table_room(d, at.para))) wp21_changed(at);
   else DisplayBeep(NULL);
 }
+/* Quick Tables: the kinds, one to choose (the Insert tab's button) */
+static Object *qtwin, *qtradio;
+static void open_quick(void)
+{
+  static const char *names[QT_N + 1];
+  int i;
+  if (!qtwin) {
+    for (i = 0; i < QT_N; i++) names[i] = tr(quicknames[i]);
+    names[QT_N] = NULL;
+    qtwin = wp_dialog("Quick Tables", MAKE_ID('W','2','Q','T'), VGroup,
+      Child, QTitleObject(tr("Built-In")),
+      Child, qtradio = RadioObject, MUIA_Radio_Entries, (ULONG)names, MUIA_CycleChain, 1, End,
+    End, "_Insert", ID_TA_QUICKOK);
+    if (!qtwin) return;
+  }
+  set(qtwin, MUIA_Window_Open, TRUE);
+}
 static void spreadsheet(void)
 {
   static char path[512] = "";
@@ -447,8 +463,9 @@ int wp21a_command(ULONG id, LONG value)
   case ID_TA_TS_DELETE: delete_style(); break;
   case ID_TA_TS_OK: if (tswin) editor_ok(); break;
   case ID_TA_PAINTER: wp21_set_tool(WP21_PAINT); break;
-  case ID_TA_QUICK: if (value >= 0) quick_table((int)value); break;
-  case ID_TA_SPREADSHEET: spreadsheet(); break;
+  case WP21_ID_QUICKTABLES: open_quick(); return WPR_KEEPFOCUS;
+  case ID_TA_QUICKOK: { ULONG v = 0; get(qtradio, MUIA_Radio_Active, &v); set(qtwin, MUIA_Window_Open, FALSE); quick_table((int)v); break; }
+  case WP21_ID_SPREADSHEET: spreadsheet(); break;
   }
   return WPR_DONE;
 }
@@ -470,22 +487,13 @@ static void wp21a_cleanup(void)
 #define IC_MODTS "ci R 1 2 12 13 L 1 6 12 6 L 5 2 5 13 ca F 2 3 11 5 co P 4 9 15 15 9 14 8 8 14"
 #define IC_DELTS "ci R 1 2 12 13 L 1 6 12 6 L 5 2 5 13 ca F 2 3 11 5 cr L 10 9 15 14 L 15 9 10 14"
 #define IC_PAINTER "cd R 0 6 9 15 L 0 10 9 10 L 4 6 4 15 ca F 9 1 15 4 ci R 9 1 15 4 L 12 4 12 7 L 12 7 6 7 L 6 7 6 10"
-#define IC_QUICK "ci R 1 1 14 14 ca F 2 2 13 4 cd L 1 7 14 7 L 1 10 14 10 L 5 4 5 14 L 10 4 10 14"
-#define IC_SHEET "cg R 1 1 14 14 F 2 2 13 4 ci L 1 7 14 7 L 1 10 14 10 L 5 4 5 14 L 10 4 10 14"
-#define IC_DRAWT "cd R 0 0 9 9 L 0 4 9 4 L 4 0 4 9 ci P 5 4 13 12 5 14 7 6 15 4 13 L 4 13 3 15 L 3 15 6 15 ca L 11 6 13 8"
-static const RibbonList l_quick = { quicknames, QT_N, PL_TEXT, NULL };
 static const Item i_styles[] = {
   { K_BUTTON, S_SMALL, 0, 0, "New Style", ID_TA_TS_NEW, 0, 0, 0, 0, "A table style of your own: lines, fills and text for each part of a table", NULL, IC_NEWTS, 0 },
   { K_BUTTON, S_SMALL, 0, 0, "Modify Style", ID_TA_TS_MODIFY, 0, RB_WP(WPI_21A, 2), 0, 0, "Change the table's style: every table in it follows", NULL, IC_MODTS, 0 },
   { K_BUTTON, S_SMALL, 0, 0, "Delete Style", ID_TA_TS_DELETE, 0, RB_WP(WPI_21A, 2), 0, 0, "Delete the table's style (tables keep how they look)", NULL, IC_DELTS, 0 } };
 static const Item i_painter[] = {
   { K_BUTTON, S_LARGE, 0, 0, "Border Painter", ID_TA_PAINTER, RB_WP(WPI_21A, 1), RB_INTABLE, 0, 0, "Click or drag along cell edges to give them the pen's line (Esc when done)", NULL, IC_PAINTER, 0 } };
-static const Item i_insert[] = {
-  { K_BUTTON, S_SMALL, 0, 0, "Draw Table", ID_TA_DRAWTABLE_21B, RB_WP(WPI_21B, 1), 0, 0, 0, "Draw a table, or lines that split cells, with the mouse (Esc when done)", NULL, IC_DRAWT, 0 },
-  { K_DROP, S_SMALL, 0, 0, "Quick Tables", ID_TA_QUICK, 0, 0, 0, 0, "A ready-made table: calendars, lists, a matrix...", &l_quick, IC_QUICK, 0 },
-  { K_BUTTON, S_SMALL, 0, 0, "Spreadsheet", ID_TA_SPREADSHEET, 0, 0, 0, 0, "A table from a spreadsheet saved as CSV text", NULL, IC_SHEET, 0 } };
 static const WpGroup groups[] = {
-  { TAB_INSERT, 2, { "More Tables", G_COLS, i_insert, 3 } },
   { TAB_TABLEDESIGN, 2, { "Style", G_COLS, i_styles, 3 } },
   { TAB_TABLEDESIGN, -1, { "Paint", G_COLS, i_painter, 1 } } };
 static const WpMenu menus[] = {
@@ -499,7 +507,7 @@ static const WpMenu menus[] = {
   { WM_INSERT, { NM_SUB, (STRPTR)"Tabular List", 0, 0, 0, (APTR)(ID_TA_QT_FIRST + 5) } },
   { WM_INSERT, { NM_SUB, (STRPTR)"With Subheads 1", 0, 0, 0, (APTR)(ID_TA_QT_FIRST + 6) } },
   { WM_INSERT, { NM_SUB, (STRPTR)"With Subheads 2", 0, 0, 0, (APTR)(ID_TA_QT_FIRST + 7) } },
-  { WM_INSERT, { NM_ITEM, (STRPTR)"Spreadsheet (CSV)...", 0, 0, 0, (APTR)ID_TA_SPREADSHEET } },
+  { WM_INSERT, { NM_ITEM, (STRPTR)"Spreadsheet (CSV)...", 0, 0, 0, (APTR)WP21_ID_SPREADSHEET } },
   { WM_TABLE, { NM_ITEM, NM_BARLABEL, 0, 0, 0, 0 } },
   { WM_TABLE, { NM_ITEM, (STRPTR)"Table Styles", 0, 0, 0, 0 } },
   { WM_TABLE, { NM_SUB, (STRPTR)"New Table Style...", 0, 0, 0, (APTR)ID_TA_TS_NEW } },

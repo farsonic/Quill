@@ -57,7 +57,7 @@ W = [
  "Haga clic o arrastre por los bordes de las celdas para darles la línea elegida (Esc: terminar)",
  "Fai clic o trascina lungo i bordi delle celle per dare loro la linea scelta (Esc: fine)"),
 # quick tables and spreadsheets
-("More Tables", "Weitere Tabellen", "Autres tableaux", "Más tablas", "Altre tabelle"),
+("Built-In", "Integriert", "Prédéfini", "Integrado", "Predefinito"),
 ("Draw Table", "Tabelle zeichnen", "Dessiner un tableau", "Dibujar tabla", "Disegna tabella"),
 ("Draw a table, or lines that split cells, with the mouse (Esc when done)", "Eine Tabelle oder Linien, die Zellen teilen, mit der Maus zeichnen (Esc: fertig)",
  "Dessiner un tableau, ou des traits qui fractionnent les cellules, à la souris (Échap : terminé)",

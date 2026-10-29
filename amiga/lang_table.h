@@ -1406,7 +1406,7 @@
   { { "Paint", "\334bertragen", "Reproduire", "Copiar", "Copia" } },
   { { "Border Painter", "Rahmen \374bertragen", "Reproduire la bordure", "Copiar bordes", "Copia bordi" } },
   { { "Click or drag along cell edges to give them the pen's line (Esc when done)", "Zellr\344nder anklicken oder entlangziehen, um ihnen die Stiftlinie zu geben (Esc: fertig)", "Cliquer ou glisser le long des bords des cellules pour leur donner le trait choisi (\311chap : termin\351)", "Haga clic o arrastre por los bordes de las celdas para darles la l\355nea elegida (Esc: terminar)", "Fai clic o trascina lungo i bordi delle celle per dare loro la linea scelta (Esc: fine)" } },
-  { { "More Tables", "Weitere Tabellen", "Autres tableaux", "M\341s tablas", "Altre tabelle" } },
+  { { "Built-In", "Integriert", "Pr\351d\351fini", "Integrado", "Predefinito" } },
   { { "Draw Table", "Tabelle zeichnen", "Dessiner un tableau", "Dibujar tabla", "Disegna tabella" } },
   { { "Draw a table, or lines that split cells, with the mouse (Esc when done)", "Eine Tabelle oder Linien, die Zellen teilen, mit der Maus zeichnen (Esc: fertig)", "Dessiner un tableau, ou des traits qui fractionnent les cellules, \340 la souris (\311chap : termin\351)", "Dibujar una tabla, o l\355neas que dividen celdas, con el rat\363n (Esc: terminar)", "Disegna una tabella, o linee che dividono le celle, con il mouse (Esc: fine)" } },
   { { "Quick Tables", "Schnelltabellen", "Tableaux rapides", "Tablas r\341pidas", "Tabelle veloci" } },
