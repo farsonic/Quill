@@ -71,11 +71,14 @@ i32 wp21_len_parse(const char *s)
 }
 void wp21_changed(Pos at)
 {
-  Pos s[2], *c = wp_caret();
+  /* the caret and the selection's other end put right first (the old ones may be past the document's
+     end now), then the view lays the document out afresh (CMD_DESIGN: "the document changed") */
+  Pos *c = NULL, *a = NULL;
+  get(wp_view(), MUIA_Quill_Caret, &c);
+  get(wp_view(), MUIA_Quill_Anchor, &a);
   if (c) *c = at;
+  if (a) *a = at;
   DoMethod(wp_view(), MUIM_Quill_Command, CMD_DESIGN, 0);
-  s[0] = s[1] = at;
-  DoMethod(wp_view(), MUIM_Quill_Command, CMD_SELECT, (ULONG)s);
 }
 /* the caret (and selection) where the hooks saw it, NULL unless it is in a table */
 static Doc *table_doc(void)
