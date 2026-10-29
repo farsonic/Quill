@@ -55,6 +55,9 @@ typedef struct {
   struct Layout *lay;         /* (WP22b) the layout it belongs to (its notes' numbers as shown) */
   u8 hidden;                  /* WP9: it has hidden text, laid out shown (1) or left out (0); 2: it has none */
   u32 rvsig;                  /* WP5: how tracked changes were shown when it was laid out (rv_sig) */
+  u16 okey;                   /* (WP11) Outline view: what it was laid out for (OL_ flags, OK_HIDDEN, the indent
+                                 level << 4), 0 not in Outline view */
+  u8 ocut;                    /* (WP11) only its first line shown (OL_FIRST): it has more */
 } ParaLay;
 /* an object's size on the page (turned: the box round it) */
 #define OBJ_W(im) obj_w(im)
@@ -139,7 +142,23 @@ typedef struct Layout {
   /* WP21b: floating tables, each a box on a page the text wraps round (x, y from the page's top left;
      the text dl, dr, dt, db away) */
   struct TblFloat { u32 page; i32 x, y, w, h, dl, dr, dt, db; } *tfl; u32 ntfl, tflcap;
+  /* (WP11) Outline view: OL_ flags (0: not Outline view; then also set webw for the window's width).
+     Paragraphs are indented by their outline level (body text under its heading), their own indents,
+     spacing, borders, page breaks and floating objects left out; ohid[i] (nohid of them; NULL: none,
+     the caller's) hides paragraph i: one empty line of no height. oplain: the look all text takes with
+     OL_PLAIN (Show Text Formatting off) */
+  u8 outline;
+  u8 *ohid; u32 nohid;
+  CharFmt oplain;
+  u16 ocur;                   /* (the paragraph being laid out's okey) */
+  /* (WP25) lines this many per cent of their height (Read Mode's wider line spacing); 0: as they are.
+     Changing it needs the paragraphs laid out afresh (ParaLay.laid 0) */
+  u16 linepct;
 } Layout;
+enum { OL_ON = 1, OL_PLAIN = 2, OL_FIRST = 4 };      /* (WP11) Layout.outline: on, without text formatting, body text's first line only */
+#define OK_HIDDEN 8                                 /* (WP11) ParaLay.okey: hidden */
+#define OL_GUTTER 400                               /* (WP11) Outline view: room left of the text for the outline symbols, twips */
+#define OL_STEP 360                                 /*        and the indent of each outline level */
 /* WP9: a box of hidden text that takes no room in L */
 #define LAY_HIDDEN(L, b) (((b)->f.fx2 & FX2_HIDDEN) && !(L)->showhidden)
 /* WP21b: whether the caret lay_caret placed last is on turned text (TD_), and then the band's width:

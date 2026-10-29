@@ -19,6 +19,7 @@
 #include "notes.h"   /* (WP22b) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a: equations */
+#include "docx_lang.h"   /* WP31: languages, do not check */
 #include "review.h"
 
 /* ------------------------------------------------------------------ */
@@ -203,6 +204,7 @@ static void parse_rpr(Xml *x, Ctx *c, RPr *r, char *rstyle)
     if (x->type != XT_START) continue;
     v = xml_attr(x, "val");
     { int w9 = wp9_read_rpr(x, &r->set, &r->cf); if (w9 == 2) continue; if (w9) { xml_skip(x); continue; } }   /* WP9's (charfx.h) */
+    if (wp31_read_rpr(x, &r->set, &r->cf)) { xml_skip(x); continue; }   /* WP31's (docx_lang.h) */
     if (!strcmp(n, "rStyle") && rstyle && v) { strncpy(rstyle, v, 39); rstyle[39] = 0; }
     else if (!strcmp(n, "b")) set_flag(r, CF_BOLD, onoff(x));
     else if (!strcmp(n, "i")) set_flag(r, CF_ITALIC, onoff(x));
@@ -285,6 +287,7 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
     else if (!strcmp(n, "keepLines")) { p->set |= PM_PAGINATION; p->pf.keeplines = (u8)onoff(x); }
     else if (!strcmp(n, "widowControl")) { p->set |= PM_PAGINATION; p->pf.nowidow = (u8)!onoff(x); }
     else if (!strcmp(n, "contextualSpacing")) { p->set |= PM_CONTEXT; p->pf.contextual = (u8)onoff(x); }
+    else if (!strcmp(n, "outlineLvl") && v) { p->set |= PM_OUTLINE; p->pf.outlvl = (u8)(atoi(v) >= 0 && atoi(v) < 9 ? atoi(v) + 1 : 0); }   /* (WP11) */
     else if (!strcmp(n, "shd")) {
       const char *fill = xml_attr(x, "fill");
       u32 col = fill ? hexcolor(fill) : COLOR_AUTO;
@@ -364,7 +367,7 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
 /* apply onto dst the paragraph fields p sets (lists are applied separately, by apply_list) */
 static void pf_set(ParaFmt *dst, const PPr *p)
 {
-  pf_apply(dst, p->set & (PM_ALIGN | PM_INDENT | PM_SPACING | PM_LINE | PM_TABS | PM_KEEP | PM_BORDER | PM_SHADE | PM_PAGINATION | PM_CONTEXT), &p->pf);
+  pf_apply(dst, p->set & (PM_ALIGN | PM_INDENT | PM_SPACING | PM_LINE | PM_TABS | PM_KEEP | PM_BORDER | PM_SHADE | PM_PAGINATION | PM_CONTEXT | PM_OUTLINE), &p->pf);
   if (p->set & PM_BREAK) dst->pagebreak = p->pf.pagebreak;
 }
 /* apply onto dst the character look fields r sets */
@@ -3333,6 +3336,7 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
     if (f->scale != base->scale) diff |= CM_SCALE;
     if (f->position != base->position) diff |= CM_POSITION;
     diff |= wp9_rpr_diff(f, base);                  /* WP9's */
+    diff |= wp31_rpr_diff(f, base);                 /* WP31's */
   }
   if (w_rstyle) {
     buf_adds(&b, "<w:rStyle w:val=\""); xml_escape(&b, w_rstyle, strlen(w_rstyle)); buf_adds(&b, "\"/>");
@@ -3369,6 +3373,7 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
   if ((diff & CM_SMALLCAPS) && (!full || (f->fx & FX_SMALLCAPS))) buf_adds(&b, f->fx & FX_SMALLCAPS ? "<w:smallCaps/>" : "<w:smallCaps w:val=\"0\"/>");
   if ((diff & CM_DSTRIKE) && (!full || (f->fx & FX_DSTRIKE))) buf_adds(&b, f->fx & FX_DSTRIKE ? "<w:dstrike/>" : "<w:dstrike w:val=\"0\"/>");
   wp9_write_rpr(&b, f, base, diff, full, 0);          /* WP9's effects */
+  wp31_write_rpr(&b, f, base, diff, full, 0);         /* WP31's w:noProof */
   if ((diff & CM_SPACING) && (!full || f->spacing)) buf_printf(&b, "<w:spacing w:val=\"%d\"/>", (int)f->spacing);
   if ((diff & CM_SCALE) && (!full || f->scale)) buf_printf(&b, "<w:w w:val=\"%u\"/>", (unsigned)(f->scale ? f->scale : 100));
   if ((diff & CM_POSITION) && (!full || f->position)) buf_printf(&b, "<w:position w:val=\"%d\"/>", (int)f->position);
@@ -3379,6 +3384,7 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
     buf_printf(&b, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"%06lX\"/>", (unsigned long)(f->hl & 0xFFFFFF));
   if ((diff & (CM_SUPER | CM_SUB)) && (!full || (f->flags & (CF_SUPER | CF_SUB))))
     buf_adds(&b, f->flags & CF_SUPER ? "<w:vertAlign w:val=\"superscript\"/>" : f->flags & CF_SUB ? "<w:vertAlign w:val=\"subscript\"/>" : "<w:vertAlign w:val=\"baseline\"/>");
+  wp31_write_rpr(&b, f, base, diff, full, 1);         /* WP31's w:lang */
   wp9_write_rpr(&b, f, base, diff, full, 2);          /* WP9's kept ones */
   if (b.len) { buf_adds(o, "<w:rPr>"); buf_add(o, b.data, b.len); buf_adds(o, "</w:rPr>"); }
   buf_free(&b);
@@ -3438,6 +3444,7 @@ static void w_ppr_body(Buf *b, Doc *d, const ParaFmt *p, const ParaFmt *base, in
   }
   if (full ? p->contextual : p->contextual != base->contextual) buf_adds(b, p->contextual ? "<w:contextualSpacing/>" : "<w:contextualSpacing w:val=\"0\"/>");
   if (full ? p->align != AL_LEFT : p->align != base->align) buf_printf(b, "<w:jc w:val=\"%s\"/>", jc[p->align <= AL_DISTRIBUTE ? p->align : 0]);
+  if (full ? p->outlvl != 0 : p->outlvl != base->outlvl) buf_printf(b, "<w:outlineLvl w:val=\"%d\"/>", p->outlvl >= 1 && p->outlvl <= 9 ? p->outlvl - 1 : 9);   /* (WP11) */
 }
 /* ---- WP5 writing (core/review.h): tracked formatting changes, moves, kept property changes */
 static int w5_revid = 500000;           /* ids of the change elements WP5 writes (clear of w_para_ex's) */

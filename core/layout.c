@@ -148,9 +148,12 @@ static int make_boxes(Layout *L, Para *p, Work *w, u32 note, u32 enote)
     u32 end = p->r[r].end, i = start;
     CharFmt rvf = p->r[r].f;
     u8 rvm = 0;
-    int rvh = (rvf.rev || rvf.frev) && rv_show_run(L->d, &rvf, &rvm);   /* (WP5: how a tracked change shows) */
+    int rvh;
     const CharFmt *f = &rvf;
-    FaceSize *z = lay_face(L, f);
+    FaceSize *z;
+    if (L->ocur & OL_PLAIN) cf_apply(&rvf, CM_LOOK, &L->oplain);     /* (WP11) Show Text Formatting off */
+    rvh = (rvf.rev || rvf.frev) && rv_show_run(L->d, &rvf, &rvm);   /* (WP5: how a tracked change shows) */
+    z = lay_face(L, f);
     while (i < end) {
       Box b;
       u32 j = i;
@@ -311,13 +314,13 @@ static int hyphenate(Layout *L, Para *p, Work *w, u32 bi, u32 x, u32 room)
   FaceSize *z = lay_face(L, &b->f);
   const char *t = p->t + b->off;
   u32 lead = 0, core, k, hw;
-  u8 brk[40];
+  u8 brk[72];
   if (!z || b->kind != BX_TEXT || room < x + HYPH_ZONE * QFINE || (bi + 1 < w->n && w->b[bi + 1].kind == BX_TEXT)) return 0;
   while (lead < b->len && (t[lead] == '"' || t[lead] == '(' || t[lead] == '\'')) lead++;
-  for (core = lead; core < b->len && (((t[core] | 32) >= 'a' && (t[core] | 32) <= 'z') || t[core] == '\''); core++) ;
+  for (core = lead; core < b->len && (((t[core] | 32) >= 'a' && (t[core] | 32) <= 'z') || t[core] == '\'' || (u8)t[core] >= 0x80); core++) ;   /* (WP31: letters past ASCII too) */
   /* the rest may only be punctuation */
   for (k = core; k < b->len; k++) if (!strchr(".,;:!?\")'", t[k])) return 0;
-  if (core - lead < 5 || core - lead > 32 || !hyph_word(t + lead, core - lead, brk)) return 0;
+  if (core - lead < 5 || core - lead > 62 || !hyph_word_lang(b->f.lang, t + lead, core - lead, brk)) return 0;   /* (WP31: the run's language) */
   if (!pages_hyph_allowed(L->d, t + lead, core - lead, w->l, w->nl, w->b)) return 0;      /* (WP22a: capitals, consecutive) */
   hw = measure(L, z, "-", 1, NULL);
   for (k = core - lead; k-- > 1; ) {
@@ -398,6 +401,7 @@ static void line_metrics(Layout *L, Para *p, Work *w, Line *ln)
   /* WP14a: an equation taller or deeper than the text: the line grows (unless exact) */
   if (masc > asc && pf->linerule != LS_EXACT) { h += masc - asc; asc = masc; }
   if (mdesc > h - asc && pf->linerule != LS_EXACT) h = asc + mdesc;
+  if (L->linepct && L->linepct != 100) { i32 more = h * (L->linepct - 100) / 100; h += more; asc += more / 2; }   /* (WP25) */
   ln->height = h; ln->ascent = asc;
 }
 /* text wrapping round floating objects: while laying out a paragraph placed on a page (sh_on), each
@@ -590,6 +594,24 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
   pl->lay = L;                      /* (WP22b) */
   strncpy(pl->label, label, sizeof pl->label - 1); pl->label[sizeof pl->label - 1] = 0;
   pl->labelw = 0;
+  pl->okey = L->ocur; pl->ocut = 0;
+  if (L->ocur && !in_table(pf)) {   /* (WP11) Outline view: indented by level, the paragraph's own layout left out */
+    static ParaFmt opf;
+    opf = *pf;
+    opf.first = label[0] && pf->first < 0 ? pf->first : 0;
+    opf.left = OL_GUTTER + ((L->ocur >> 4) & 15) * OL_STEP - opf.first;
+    opf.right = 0; opf.align = AL_LEFT; opf.dropcap = 0; opf.line = 240; opf.linerule = LS_AUTO;
+    pf = &opf;
+  }
+  if (L->ocur & OK_HIDDEN) {        /* (WP11) hidden: one empty line of no height */
+    {
+      pl->label[0] = 0;
+      if (!(w.l = (Line *)calloc(1, sizeof(Line)))) goto oom;
+      w.l[0].left = pf->left; w.l[0].start = 0; w.l[0].end = p->len;
+      pl->boxes = NULL; pl->nboxes = 0; pl->lines = w.l; pl->nlines = 1;
+      return 1;
+    }
+  }
   if (label[0]) {
     FaceSize *z = lay_face(L, &p->r[0].f);
     pl->labelw = z ? (i32)((fonts_text(z, label, (u32)strlen(label)) + QFINE / 2) / QFINE) : 240;
@@ -757,6 +779,7 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
     ls = i;
   }
   if (droplines && w.nl && w.nl < droplines) w.l[w.nl - 1].height += (i32)(droplines - w.nl) * w.l[0].height;   /* room for the cap below */
+  if ((L->ocur & OL_FIRST) && !p->pf.outlvl && w.nl > 1) { w.nl = 1; pl->ocut = 1; }    /* (WP11) body text's first line only */
   pl->boxes = w.b; pl->nboxes = w.n;
   pl->lines = w.l; pl->nlines = w.nl;
   return 1;
@@ -2084,6 +2107,7 @@ static int place_floats(Layout *L, u32 pi, Flow *fl)
   ParaLay *pl = &L->pl[pi];
   u32 b, i;
   int wraps = 0;
+  if (L->outline) return 1;              /* (WP11) Outline view shows no floating objects */
   for (b = 0; b < pl->nboxes; b++)
     if (pl->boxes[b].kind == BX_FLOAT) {
       int n = pic_index(pl->p->t + pl->boxes[b].off);
@@ -2440,6 +2464,14 @@ static int paginate(Layout *L)
     }
     if (pf->pagebreak && !fl.at_top && !web) new_page(L, &fl);          /* starts a new page */
     else if (pf->colbreak && !fl.at_top && !web) { if (fl.ncols > 1) flow_next(L, &fl); else new_page(L, &fl); }
+    if (L->outline && (pl->okey & OK_HIDDEN) && in_table(pf)) {     /* (WP11) a table a collapsed outline hides */
+      u16 t = top_cell(pf)->table;
+      for (; pi < L->npl && in_table(&L->pl[pi].p->pf) && top_cell(&L->pl[pi].p->pf)->table == t && L->pl[pi].laid; pi++) {
+        L->pl[pi].placed0 = L->nplaced;
+        for (k = 0; k < L->pl[pi].nlines; k++) if (!add_placed(L, pi, k, fl.page, fl.y, fl.colx, fl.colw)) return 0;
+      }
+      continue;
+    }
     if (in_table(pf)) {
       u32 was = pi;
       if (!place_table(L, &pi, &fl)) return 0;
@@ -2452,7 +2484,7 @@ static int paginate(Layout *L)
     /* contextual spacing: none between paragraphs of the same style */
     ctxprev = pi > 0 && pf->contextual && !in_table(&L->pl[pi - 1].p->pf) && L->pl[pi - 1].p->pf.style == pf->style;
     ctxnext = pi + 1 < L->npl && pf->contextual && !in_table(&L->pl[pi + 1].p->pf) && L->pl[pi + 1].p->pf.style == pf->style;
-    if ((!fl.at_top || pi == 0 || pf->pagebreak) && !ctxprev) fl.y += pf->before;
+    if ((!fl.at_top || pi == 0 || pf->pagebreak) && !ctxprev) fl.y += L->outline ? (pl->okey & OK_HIDDEN ? 0 : 60) : pf->before;   /* (WP11) */
     /* its floating objects, and its lines round those in their way; in columns of different widths,
        each line as wide as the column it will go in (WP22a) */
     if (fl.unequal && !web) col_shape(&fl, pl);
@@ -2510,7 +2542,7 @@ static int paginate(Layout *L)
       fl.y += botx;
       if (!add_pboxes(L, pi, topx, botx, gprev, gnext)) return 0;
     }
-    if (!ctxnext) fl.y += pf->after;
+    if (!ctxnext && !L->outline) fl.y += pf->after;          /* (WP11: none in Outline view) */
     pi++;
   }
   end_region(L, &fl);
@@ -2519,8 +2551,8 @@ static int paginate(Layout *L)
   if (d->nnotes && !web && L->complete)
     while (nf.cn >= 0) { if (nf.respage == fl.page) new_page(L, &fl); nflow_page(L, &nf, fl.page, fl.bottom - fl.top, 1); }
   /* the endnotes after the text, in the order they are referred to (once all of it is laid out): all
-     of them, or (at each section's end) the last section's */
-  if (L->complete && d->nenotes && L->enotenum && !place_enotes(L, &fl, (u32)d->nenotes <= edcap ? edone : NULL, endsect ? secfirst : 0, d->np, nf.reserve, nf.respage)) return 0;
+     of them, or (at each section's end) the last section's (WP11: not in Outline view) */
+  if (L->complete && d->nenotes && L->enotenum && !L->outline && !place_enotes(L, &fl, (u32)d->nenotes <= edcap ? edone : NULL, endsect ? secfirst : 0, d->np, nf.reserve, nf.respage)) return 0;
   fl.nofinish = !L->complete;
   finish_page(L, &fl);
   /* early floats whose anchors didn't come (gone, or not laid out yet) */
@@ -2699,6 +2731,7 @@ int lay_update_part(Layout *L, u32 budget)
   char label[32];
   int stopped = 0, oom = 0;
   u32 notes = 0, enotes = 0, fshown = 0, eshown = 0;
+  int ohead = 0, othid = 0;             /* (WP11) Outline view: the last heading's level; a table's first paragraph hidden */
   L->laid = 0;
   if (!(npl = (ParaLay *)calloc(d->np ? d->np : 1, sizeof(ParaLay)))) return 0;
   if (d->nlists && !(cnt = (u32 *)calloc((size_t)d->nlists * 9, sizeof(u32)))) { free(npl); return 0; }
@@ -2741,11 +2774,18 @@ int lay_update_part(Layout *L, u32 budget)
       for (k = 0; k + 4 <= p->len; k++)
         if (IS_ENOTE(p->t + k)) { int n = note_index(p->t + k); enotes++; if (n < d->nenotes && !L->enotenum[n]) L->enotenum[n] = enotes; k += 3; }
     if (d->nnotes || d->nenotes) number_notes(L, i, &fshown, &eshown);   /* (WP22b) */
+    L->ocur = 0;
+    if (L->outline) {                   /* (WP11) its indent level and whether it is hidden */
+      int lv = p->pf.outlvl <= 9 ? p->pf.outlvl : 0, hid = L->ohid && i < L->nohid && L->ohid[i];
+      if (in_table(&p->pf)) { if (!i || !in_table(&d->p[i - 1]->pf) || top_cell(&d->p[i - 1]->pf)->table != top_cell(&p->pf)->table) othid = hid; hid = othid; }
+      L->ocur = (u16)((L->outline & 7) | (hid ? OK_HIDDEN : 0) | ((lv ? lv - 1 : ohead) << 4));
+      if (lv) ohead = lv;
+    }
     for (k = j; k < L->npl && k < j + 64; k++) if (L->pl[k].p == p) { found = k; break; }
     if (found < L->npl && L->pl[found].laid && L->pl[found].ver == p->ver && L->pl[found].avail == avail && !strcmp(L->pl[found].label, label) &&
         L->pl[found].notebase == notebase && L->pl[found].enotebase == enotebase && L->pl[found].hyph == d->hyphenate && !L->pl[found].shaped &&
         (L->pl[found].hidden == 2 || L->pl[found].hidden == L->showhidden) &&   /* (WP9: hidden text shown or not) */
-        L->pl[found].rvsig == rv_sig(d)) {
+        L->pl[found].rvsig == rv_sig(d) && L->pl[found].okey == L->ocur) {   /* (WP11: laid out for Outline view the same) */
       npl[i] = L->pl[found];
       memset(&L->pl[found], 0, sizeof(ParaLay));
       j = found + 1;
@@ -2957,6 +2997,7 @@ Pos lay_updown(Layout *L, Pos p, i32 x, int dir)
     if (dir > 0 ? idx + n >= L->nplaced : n > idx) break;
     k = dir > 0 ? idx + n : idx - n;
     pc = &L->placed[k];
+    if (L->outline && !L->pl[pc->para].lines[pc->line].height) continue;     /* (WP11) hidden */
     if (rx < pc->x || rx >= pc->x + pc->w) continue;
     if (dir > 0 ? (pc->page > cur->page || (pc->page == cur->page && pc->y >= cur->y + ch - 1))
                 : (pc->page < cur->page || (pc->page == cur->page && pc->y + L->pl[pc->para].lines[pc->line].height <= cur->y + 1)))

@@ -28,6 +28,7 @@
 #include "wp_charpara.h"                /* (WP9, WP10: their items in the Font and Paragraph groups) */
 #include "wphooks.h"
 #include "wp_tables.h"                 /* WP21a/WP21b: Insert > Tables' Draw Table, Quick Tables, Spreadsheet */
+#include "wp_outline.h"                /* WP11: View > Outline (ID_OL_VIEW) */
 
 /* ------------------------------------------------------------------ */
 /* the lists */
@@ -395,7 +396,11 @@ static const Item i_ill[] = {
   { K_BUTTON, S_LARGE, IC_PICTURE, 0, "Pictures", ID_PICTURE, 0, 0, 0, 0, "A PNG or JPEG picture from a file" },
   { K_DROP, S_LARGE, IC_SHAPES, L_SHAPES, "Shapes", ID_SHAPESDD, 0, 0, 0, 0, "A rectangle, oval, arrow or other shape, in front of the text" },
   { K_BUTTON, S_SMALL, IC_TEXTBOX, 0, "Text Box", ID_TEXTBOX, 0, 0, F_NEWCOL, 0, "A box of text the page's text runs round" },
-  { K_BUTTON, S_SMALL, IC_PICSIZE, 0, "Size", ID_PICSIZE, 0, RB_PICTURE, 0, 0, "The size of the picture by the caret" } };
+  { K_BUTTON, S_SMALL, IC_PICSIZE, 0, "Size", ID_PICSIZE, 0, RB_PICTURE, 0, 0, "The size of the picture by the caret" },
+  { K_BUTTON, S_SMALL, 0, 0, "SmartArt", ID_WP15C_FIRST, 0, 0, 0, 0, "A diagram of lists, steps, cycles or hierarchies from an outline of text", NULL,   /* WP15c (amiga/wp_smartart.c) */
+    "ca F 1 1 6 5 F 9 1 14 5 F 5 10 10 14 ci L 3 5 7 10 L 12 5 8 10" },
+  { K_BUTTON, S_SMALL, 0, 0, "Chart", ID_WP15B_FIRST, 0, 0, F_NEWCOL, 0, "A chart of numbers you type in a small sheet", NULL,                               /* WP15b (amiga/wp_chart.c) */
+    "ca F 3 8 5 14 co F 7 4 9 14 cg F 11 6 13 14 ci L 1 15 15 15 L 1 1 1 15" } };
 static const Item i_link[] = { { K_BUTTON, S_LARGE, IC_LINK, 0, "Link", ID_LINK, 0, 0, 0, 0, "A link to a web page or e-mail address" },
   { K_BUTTON, S_SMALL, IC_BOOKMARK, 0, "Bookmark", ID_BOOKMARK, 0, 0, F_NEWCOL, 0, "A name for the selected text, to go back to or link to" },
   { K_BUTTON, S_SMALL, IC_XREF, 0, "Cross-reference", ID_XREF, 0, 0, 0, 0, "The text of a bookmark or heading, or the page it is on" } };
@@ -476,8 +481,10 @@ static const Group refs[] = { { "Table of Contents", G_COLS, r_toc, N(r_toc) }, 
 /* the Review tab: spelling, comments and tracked changes (several need RB_COMMENTS or
    RB_CHANGES: some comments or changes in the document) */
 static const Item v_proof[] = {
-  { K_BUTTON, S_LARGE, IC_SPELLING, 0, "Spelling", ID_SPELL, 0, 0, 0, 0, "Check the spelling" },
-  { K_BUTTON, S_SMALL, IC_WORDCOUNT, 0, "Word Count", ID_WORDCOUNT, 0, 0, F_NEWCOL, 0, "Words, characters and pages" } };
+  { K_BUTTON, S_LARGE, IC_SPELLING, 0, "Spelling & Grammar", ID_SPELL, 0, 0, 0, 0, "Check the spelling and grammar (F7)" },
+  { K_BUTTON, S_SMALL, 0, 0, "Thesaurus", (UWORD)(ID_WP8_FIRST + 1), 0, 0, F_NEWCOL, 0, "Words with a similar meaning (Shift-F7)", NULL,
+    "ci R 2 2 13 14 L 4 2 4 14 ca L 6 5 11 5 L 6 8 11 8 L 6 11 10 11", 0 },          /* (WP8: wp_proof.c's ID_PR_THES) */
+  { K_BUTTON, S_SMALL, IC_WORDCOUNT, 0, "Word Count", ID_WORDCOUNT, 0, 0, 0, 0, "Words, characters and pages" } };
 static const Item v_comm[] = {
   { K_BUTTON, S_LARGE, IC_COMMENT, 0, "New Comment", ID_COMMENT, 0, 0, 0, 0, "A comment on the selection" },
   { K_BUTTON, S_SMALL, IC_DELETE, 0, "Delete", ID_DELCOMMENT, 0, RB_COMMENTS, F_NEWCOL, 0, "Delete the comment at the caret" },
@@ -499,6 +506,8 @@ static const Item w_views[] = {
   { K_BUTTON, S_LARGE, IC_READ, 0, "Read Mode", ID_VREAD, VM(VM_READ), 0, 0, 0, "Two pages to read, without the tools (Esc returns)" },
   { K_BUTTON, S_LARGE, IC_ONEPAGE, 0, "Print Layout", ID_VPRINT, VM(VM_PRINT), 0, 0, 0, "The pages as they print" },
   { K_BUTTON, S_SMALL, IC_WEB, 0, "Web Layout", ID_VWEB, VM(VM_WEB), 0, F_NEWCOL, 0, "The text the window's width, without pages" },
+  { K_BUTTON, S_SMALL, 0, 0, "Outline", ID_OL_VIEW, VM(VM_OUTLINE), 0, 0, 0, "The document as an outline: headings by level, to rearrange", NULL,
+    "ca E 3 3 1 E 6 8 1 E 9 13 1 ci L 5 3 14 3 L 8 8 14 8 L 11 13 14 13" },
   { K_BUTTON, S_SMALL, IC_DRAFT, 0, "Draft", ID_VDRAFT, VM(VM_DRAFT), 0, 0, 0, "Just the text, without headers, footers or margins" } };
 static const Item w_show[] = {
   { K_BUTTON, S_SMALL, IC_RULER, 0, "Ruler", ID_RULER, RB_RULER, 0, 0, 0, "Show the rulers" },
