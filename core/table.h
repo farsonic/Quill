@@ -74,4 +74,31 @@ int tbl_block_cells(Doc *d, Pos a, Pos b, u32 *first, u32 *end, int max);
 /* the start of the next (dir > 0) or previous cell; 0 if there is none */
 int tbl_next_cell(Doc *d, Pos *caret, int dir);
 
+/* ---- WP21b: cell options and drawing tables */
+/* the paragraph of the cell at row, grid column col of in's table ((u32)-1 if none) */
+u32 tbl_cell_para(Doc *d, Pos in, int row, int col);
+/* the 9-way alignment of the block a..b's cells: vertical (0 top, 1 centre, 2 bottom) and their
+   paragraphs' (AL_; -1 leaves it) */
+int tbl_cell_align(Doc *d, Pos a, Pos b, int valign, int align);
+/* the block's cells' text direction (TD_) */
+int tbl_cell_dir(Doc *d, Pos a, Pos b, int dir);
+/* the block's cells' own margins: set (1 << E_ edge) says which of mar[4] (E_ order) they have; the
+   others are the table's again (set 0: all of them) */
+int tbl_cell_mar(Doc *d, Pos a, Pos b, u8 set, const i16 *mar);
+/* Delete Cells on the block a..b: shift the cells right of it left (the rows end short), shift the
+   cells below up (empty cells come in at the bottom), or delete its whole rows or grid columns. The
+   caret goes to about where the block was */
+enum { DC_LEFT, DC_UP, DC_ROW, DC_COL };
+int tbl_delete_cells(Doc *d, Pos a, Pos b, int how, Pos *caret);
+/* lines on edges (E_) of cells by row and starting grid column, in in's table: style PB_NONE takes
+   them away. 0 if none of them is a cell's */
+typedef struct { u16 row; u8 col, edge; } TEdge;
+int tbl_set_edges(Doc *d, Pos in, const TEdge *e, int n, u8 style, u8 width, u32 color);
+/* a line drawn down through rows r0..r1 at x (twips from the table's left edge): the cells it
+   crosses split there (the grid gains a column where x isn't on an edge of it) */
+int tbl_vsplit(Doc *d, Pos in, i32 x, int r0, int r1);
+/* a line drawn across row: its cells starting in grid columns cols[0..n) split into an upper and a
+   lower cell (a new row below, the row's other cells merged down over it) */
+int tbl_hsplit(Doc *d, Pos in, int row, const u8 *cols, int n);
+
 #endif

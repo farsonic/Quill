@@ -60,7 +60,13 @@ typedef struct { u32 page; i32 x, y, w, h; int img; u32 para; u8 wrap, early; } 
 /* a placed line. y: its top from the page's top; x, w: the column it is in (the text area, a
    section's column, or a table cell's), from the text area's left edge. lnum: the line number shown
    beside it (0: none), its right edge lnd left of x */
-typedef struct { u32 para, line; u32 page; i32 y; i32 x, w; u32 lnum; i32 lnd; } Placed;
+typedef struct { u32 para, line; u32 page; i32 y; i32 x, w; u32 lnum; i32 lnd;
+  /* WP21b: a line of turned text in a table cell (turn: TD_DOWN or TD_UP; 0 across). Then x, w are
+     the band it takes across the page (w its height), y the band's top and tlen its length down the
+     page; the line runs down from y (TD_DOWN) or up from y + tlen (TD_UP), tshift further along it
+     (where the paragraph's alignment puts it in a band longer than the line it was laid out in) */
+  u8 turn; i32 tlen, tshift;
+} Placed;
 /* the line between two columns, x from the text area's left */
 typedef struct { u32 page; i32 x, y0, y1; } ColSep;
 /* a paragraph's border box and shading on one page: the box's edges (twips on the page), which of
@@ -108,7 +114,15 @@ typedef struct Layout {
   u32 laid;                   /* paragraphs laid out afresh by the last update (for tests and timing) */
   struct { u32 key; FaceSize *z; } fcache[64];      /* format -> metrics (font substitution is slow) */
   int nfcache;
+  /* (work packages: new fields go below, at the end) */
+  /* WP21b: floating tables, each a box on a page the text wraps round (x, y from the page's top left;
+     the text dl, dr, dt, db away) */
+  struct TblFloat { u32 page; i32 x, y, w, h, dl, dr, dt, db; } *tfl; u32 ntfl, tflcap;
 } Layout;
+/* WP21b: whether the caret lay_caret placed last is on turned text (TD_), and then the band's width:
+   the caret is drawn across, x to x + lay_caret_w at y */
+extern int lay_caret_turn;
+extern i32 lay_caret_w;
 
 /* a header or footer laid out for one page (its page fields filled in) */
 typedef struct { Para *p; ParaLay pl; i32 y; } FPara;     /* y: the top of its first line from the page top */

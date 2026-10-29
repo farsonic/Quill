@@ -30,7 +30,7 @@ void lay_free(Layout *L)
   u32 i;
   if (!L) return;
   for (i = 0; i < L->npl; i++) pl_free(&L->pl[i]);
-  free(L->pl); free(L->placed); free(L->page_first); free(L->page_end); free(L->cells); free(L->notenum); free(L->pn); free(L->enotenum); free(L->en); free(L->seps); free(L->psec); free(L->floats); free(L->early); free(L->pbox); free(L->pinfo);
+  free(L->pl); free(L->placed); free(L->page_first); free(L->page_end); free(L->cells); free(L->notenum); free(L->pn); free(L->enotenum); free(L->en); free(L->seps); free(L->psec); free(L->floats); free(L->early); free(L->pbox); free(L->pinfo); free(L->tfl);
   free(L);
 }
 /* the metrics of f's font, style and size, through a small cache (fonts_size substitutes fonts, which
@@ -328,6 +328,7 @@ static int sh_on;
 static const FloatBox *sh_fb; static u32 sh_nfb, sh_page;
 static i32 sh_x0, sh_y0;                /* the paragraph's text area's left edge and its first line's top, on the page */
 static const Doc *sh_doc;
+static const struct TblFloat *sh_tfl; static u32 sh_ntfl;     /* WP21b: floating tables */
 /* the part of an outline (n points round, in page twips) between y0 and y1 across: 0 if none */
 static int band_span(const i32 *xy, int n, i32 y0, i32 y1, i32 *x0, i32 *x1)
 {
@@ -392,6 +393,19 @@ static void shape_line(i32 y, i32 est, i32 left, i32 right, i32 *start, i32 *roo
     u32 i;
     int blocked = 0;
     segs[0][0] = left; segs[0][1] = right;
+    for (i = 0; i < sh_ntfl; i++) {
+      /* a floating table: square wrapping round its box */
+      const struct TblFloat *f = &sh_tfl[i];
+      i32 t = f->y - f->dt, b = f->y + f->h + f->db, x0 = f->x - f->dl - sh_x0, x1 = f->x + f->w + f->dr - sh_x0;
+      if (f->page != sh_page || b <= py || t >= py + est) continue;
+      if (b - py < below) below = b - py;
+      for (k = 0; k < ns; k++) {
+        if (x1 <= segs[k][0] || x0 >= segs[k][1]) continue;
+        if (x0 > segs[k][0] && x1 < segs[k][1] && ns < 16) { segs[ns][0] = x1; segs[ns][1] = segs[k][1]; ns++; segs[k][1] = x0; }
+        else if (x0 <= segs[k][0]) segs[k][0] = x1 < segs[k][1] ? x1 : segs[k][1];
+        else segs[k][1] = x0;
+      }
+    }
     for (i = 0; i < sh_nfb; i++) {
       const FloatBox *f = &sh_fb[i];
       const Image *im = &sh_doc->images[f->img];
@@ -611,7 +625,7 @@ static int add_placed(Layout *L, u32 para, u32 line, u32 page, i32 y, i32 x, i32
     L->placed = np; L->placedcap = nc;
   }
   pc = &L->placed[L->nplaced++];
-  pc->para = para; pc->line = line; pc->page = page; pc->y = y; pc->x = x; pc->w = w; pc->lnum = 0; pc->lnd = 0;
+  pc->para = para; pc->line = line; pc->page = page; pc->y = y; pc->x = x; pc->w = w; pc->lnum = 0; pc->lnd = 0; pc->turn = 0; pc->tlen = 0; pc->tshift = 0;
   return 1;
 }
 /* append a cell box at x, y on page (twips from the page's top left), w x h, with ce's borders and
@@ -642,10 +656,13 @@ static i32 para_height(ParaLay *pl, u32 from, u32 to)
 }
 /* a table's left edge from its column's (avail wide): its indent, or where centring or right
    alignment puts it */
+static const Table *flt_t;               /* WP21b: the floating table being placed, and its left edge */
+static i32 flt_x;
 static i32 table_x(const Table *t, i32 avail)
 {
   i32 sum = 0;
   int k;
+  if (t == flt_t) return flt_x;
   if (!t->jc) return t->indent;
   for (k = 0; k < t->ncols; k++) sum += t->grid[k];
   return t->jc == AL_CENTER ? (avail - sum) / 2 : avail - sum;
@@ -662,15 +679,41 @@ static void cell_geom(Doc *d, const ParaFmt *pf, i32 avail, i32 *x, i32 *w)
   for (; k < pf->cell.col + pf->cell.span && k < t->ncols; k++) *w += t->grid[k];
   if (*w < 240) *w = 240;
 }
-/* the width a paragraph is laid out in */
+/* WP21b: a cell's margin on edge e (E_): its own, or the table's */
+static i32 cmar(const Table *t, const Cell *c, int e)
+{
+  if (c && (c->marset & (1 << e))) return c->mar[e];
+  return e == E_LEFT ? t->marl : e == E_RIGHT ? t->marr : e == E_TOP ? t->mart : t->marb;
+}
+#define TURNED_MAX 12960                 /* the longest line turned text gets in a row of no fixed height (9 inches) */
+/* the width a paragraph is laid out in: a cell's, less its margins; turned text, the row's exact
+   height or TURNED_MAX */
 static i32 para_avail(Doc *d, const ParaFmt *pf, i32 body)
 {
   Table *t = doc_table(d, pf);
   i32 x, w;
   if (!t) return body;
+  if (pf->cell.tdir) {
+    if (pf->cell.rowh < 0) { w = -pf->cell.rowh - cmar(t, &pf->cell, E_TOP) - cmar(t, &pf->cell, E_BOTTOM); return w < 240 ? 240 : w; }
+    return TURNED_MAX;
+  }
   cell_geom(d, pf, body, &x, &w);
-  w -= t->marl + t->marr;
+  w -= cmar(t, &pf->cell, E_LEFT) + cmar(t, &pf->cell, E_RIGHT);
   return w < 240 ? 240 : w;
+}
+/* turned text's length: its longest line, with the indents (at least 240) */
+static i32 turned_len(Layout *L, u32 j0, u32 j1)
+{
+  i32 n = 240;
+  u32 j, k;
+  for (j = j0; j < j1; j++) {
+    ParaLay *pl = &L->pl[j];
+    for (k = 0; k < pl->nlines; k++) {
+      i32 e = pl->lines[k].left + pl->lines[k].width + (pl->p->pf.right > 0 ? pl->p->pf.right : 0);
+      if (e > n) n = e;
+    }
+  }
+  return n;
 }
 /* where the text goes next: the page, the column (sections may have several), y */
 typedef struct {
@@ -859,10 +902,16 @@ static int measure_row(Layout *L, u32 i, Table *t, u16 tid, RowM *m)
   }
   m->next = j;
   for (c = 0; c < m->nc; c++) {
-    i32 f, h = block_height(L, m->cs[c], m->ce[c], tid, &f);
+    const Cell *cc = cell_in(&L->pl[m->cs[c]].p->pf, tid);
+    i32 f, h = block_height(L, m->cs[c], m->ce[c], tid, &f), mt = cmar(t, cc, E_TOP), mb = cmar(t, cc, E_BOTTOM);
     if (h < 0) return 0;
-    m->ch[c] = t->mart + t->marb + h;
-    if (t->mart + f > m->first) m->first = t->mart + f;
+    if (cc && cc->tdir && !is_nested(&L->pl[m->cs[c]].p->pf)) {
+      /* turned text: as tall as its longest line, and the whole of it on one page */
+      h = turned_len(L, m->cs[c], m->ce[c]);
+      f = h;
+    }
+    m->ch[c] = mt + mb + h;
+    if (mt + f > m->first) m->first = mt + f;
     if (m->ch[c] > m->rowh) m->rowh = m->ch[c];
   }
   {
@@ -884,7 +933,7 @@ static int place_inner_row(Layout *L, u32 i, Table *t, u16 tid, i32 tx0, u32 pag
   *endpage = page; *endy = y + m.rowh;
   for (c = 0; c < m.nc; c++) {
     const ParaFmt *pf = &L->pl[m.cs[c]].p->pf;
-    i32 cx = tx0, cw = 0, cy = y + t->mart;
+    i32 cx = tx0, cw = 0, cy = y + cmar(t, &pf->cell, E_TOP);
     u32 cpage = page;
     for (k = 0; k < pf->cell.col && k < t->ncols; k++) cx += t->grid[k];
     for (; k < pf->cell.col + pf->cell.span && k < t->ncols; k++) cw += t->grid[k];
@@ -898,12 +947,12 @@ static int place_inner_row(Layout *L, u32 i, Table *t, u16 tid, i32 tx0, u32 pag
       for (ln = 0; ln < pl->nlines; ln++) {
         i32 h = pl->lines[ln].height;
         if (cy + h > bottom && cy > top) { cpage++; cy = top; }
-        if (!add_placed(L, j, ln, cpage, cy, cx + t->marl, cw - t->marl - t->marr)) return 0;
+        if (!add_placed(L, j, ln, cpage, cy, cx + cmar(t, &pf->cell, E_LEFT), cw - cmar(t, &pf->cell, E_LEFT) - cmar(t, &pf->cell, E_RIGHT))) return 0;
         cy += h;
       }
       cy += pl->p->pf.after;
     }
-    cy += t->marb;
+    cy += cmar(t, &pf->cell, E_BOTTOM);
     if (cpage > *endpage || (cpage == *endpage && cy > *endy)) { *endy = cy; *endpage = cpage; }
   }
   for (c = 0; c < m.nc; c++) {
@@ -986,6 +1035,35 @@ static int place_block(Layout *L, u32 j0, u32 j1, u16 tid, i32 x, i32 w, u32 pag
   *endpage = page; *endy = y;
   return 1;
 }
+/* WP21b: a cell's turned text (paragraphs [j0, j1)) in its content area x..x+w across (from the text
+   area's left), y down the page for len: each line a band across the cell, the first at its right
+   (TD_DOWN) or left (TD_UP) edge, the block moved across by the cell's vertical alignment; along the
+   band, where the paragraph's alignment puts the line. 0 if out of memory */
+static int place_turned(Layout *L, u32 j0, u32 j1, const Cell *cc, i32 x, i32 w, u32 page, i32 y, i32 len, int dup)
+{
+  i32 across = 0, v, off = 0;
+  u32 j, ln;
+  if (len < 240) len = 240;
+  for (j = j0; j < j1; j++) across += L->pl[j].p->pf.before + para_height(&L->pl[j], 0, L->pl[j].nlines) + L->pl[j].p->pf.after;
+  if (cc->valign && w > across) off = cc->valign == 1 ? (w - across) / 2 : w - across;
+  v = off;
+  for (j = j0; j < j1; j++) {
+    ParaLay *pl = &L->pl[j];
+    i32 shift = pl->p->pf.align == AL_CENTER ? (len - pl->avail) / 2 : pl->p->pf.align == AL_RIGHT ? len - pl->avail : 0;
+    v += pl->p->pf.before;
+    if (!dup) pl->placed0 = L->nplaced;
+    for (ln = 0; ln < pl->nlines; ln++) {
+      i32 h = pl->lines[ln].height;
+      Placed *pc;
+      if (!add_placed(L, j, ln, page, y, cc->tdir == TD_DOWN ? x + w - v - h : x + v, h)) return 0;
+      pc = &L->placed[L->nplaced - 1];
+      pc->turn = cc->tdir; pc->tlen = len; pc->tshift = shift;
+      v += h;
+    }
+    v += pl->p->pf.after;
+  }
+  return 1;
+}
 static int place_row(Layout *L, u32 i, Flow *fl, Table *t, u16 tid, i32 *last, int dup, u32 hdr_from, u32 hdr_end, u32 *next);
 /* the table's heading rows at the top of page pg (a row running on to it) */
 static int place_headers(Layout *L, Flow *fl, u32 pg, Table *t, u16 tid, u32 hdr_from, u32 hdr_end)
@@ -1033,17 +1111,23 @@ static int place_row(Layout *L, u32 i, Flow *fl, Table *t, u16 tid, i32 *last, i
   for (c = 0; c < m.nc; c++) {
     const ParaFmt *pf = &L->pl[m.cs[c]].p->pf;
     const Cell *cc = cell_in(pf, tid);
-    i32 cx, cw, cy = fl->y + t->mart, ey;
+    i32 cx, cw, cy = fl->y + cmar(t, cc, E_TOP), ey;
     u32 ep;
     int r;
     ParaFmt tmp = *pf;
     tmp.cell = *cc;                              /* (a cell starting with a nested table: the outer cell's) */
     cell_geom(d, &tmp, fl->colw, &cx, &cw);
     cx += fl->colx;
+    if (cc->tdir && !is_nested(pf)) {
+      /* turned text: down or up the cell, its lines side by side across it */
+      if (!place_turned(L, m.cs[c], m.ce[c], cc, cx + cmar(t, cc, E_LEFT), cw - cmar(t, cc, E_LEFT) - cmar(t, cc, E_RIGHT), fl->page, cy,
+                        m.rowh - cmar(t, cc, E_TOP) - cmar(t, cc, E_BOTTOM), dup)) return 0;
+      continue;
+    }
     if (cc->valign && m.rowh > m.ch[c] && fl->y + m.rowh <= fl->bottom) cy += cc->valign == 1 ? (m.rowh - m.ch[c]) / 2 : m.rowh - m.ch[c];
-    r = place_block(L, m.cs[c], m.ce[c], tid, cx + t->marl, cw - t->marl - t->marr, fl->page, cy, fl->top, repeat ? top2 : fl->top, fl->bottom, dup, &ep, &ey);
+    r = place_block(L, m.cs[c], m.ce[c], tid, cx + cmar(t, cc, E_LEFT), cw - cmar(t, cc, E_LEFT) - cmar(t, cc, E_RIGHT), fl->page, cy, fl->top, repeat ? top2 : fl->top, fl->bottom, dup, &ep, &ey);
     if (r != 1) return r;
-    ey += t->marb;
+    ey += cmar(t, cc, E_BOTTOM);
     if (ep > endpage || (ep == endpage && ey > endy)) { endy = ey; endpage = ep; }
   }
   /* the cells' boxes */
@@ -1081,6 +1165,67 @@ static int place_row(Layout *L, u32 i, Flow *fl, Table *t, u16 tid, i32 *last, i
   *next = m.next;
   return 1;
 }
+/* WP21b: a floating table (Table.floating, w:tblpPr) at *pi: placed where its position says (from its
+   anchor's column, the margin or the page; the anchor being where the text has got to), on the page
+   the text is on, then left as a box the text after it wraps round (Layout.tfl) while the text goes
+   on from where it was. Its rows don't repeat heading rows or break across pages (a table taller than
+   the page runs on). 0 if out of memory */
+static int place_float_table(Layout *L, u32 *pi, Flow *fl, Table *t, u16 tid)
+{
+  const PageSetup *pg = L->pg;
+  Flow save = *fl;
+  i32 last[MAX_COLS], sum = 0, h = 0, x, y, base, span, top;
+  u32 i = *pi, j;
+  int k;
+  for (k = 0; k < t->ncols; k++) sum += t->grid[k];
+  /* its height, for centring or bottom alignment */
+  for (j = i; j < L->npl && cell_in(&L->pl[j].p->pf, tid); ) {
+    RowM m;
+    if (!measure_row(L, j, t, tid, &m)) break;
+    h += m.rowh; j = m.next;
+  }
+  switch (t->hanchor) {
+  case TA_PAGE: base = 0; span = pg->width; break;
+  case TA_MARGIN: base = pg->left; span = pg->width - pg->left - pg->right; break;
+  default: base = pg->left + fl->colx; span = fl->colw;
+  }
+  x = t->xspec == PA_START ? base : t->xspec == PA_CENTER ? base + (span - sum) / 2 : t->xspec == PA_END ? base + span - sum : base + t->tx;
+  switch (t->vanchor) {
+  case TA_PAGE: base = 0; span = pg->height; break;
+  case TA_MARGIN: base = pg->top; span = pg->height - pg->top - pg->bottom; break;
+  default: base = fl->y; span = h;
+  }
+  y = t->yspec == PA_START ? base : t->yspec == PA_CENTER ? base + (span - h) / 2 : t->yspec == PA_END ? base + span - h : base + t->ty;
+  if (x + sum > pg->width) x = pg->width - sum;
+  if (x < 0) x = 0;
+  if (y + h > pg->height) y = pg->height - h;
+  if (y < 0) y = 0;
+  for (k = 0; k < MAX_COLS; k++) last[k] = -1;
+  flt_t = t; flt_x = x - pg->left - fl->colx;
+  fl->y = top = y; fl->at_top = 0;
+  fl->bottom = pg->height;                       /* (kept on its page) */
+  while (i < L->npl && cell_in(&L->pl[i].p->pf, tid)) {
+    int r = place_row(L, i, fl, t, tid, last, 0, *pi, *pi, &i);
+    if (r == 0) { flt_t = NULL; return 0; }
+    if (r == 2) break;
+  }
+  flt_t = NULL;
+  if (L->ntfl >= L->tflcap) {
+    u32 nc = L->tflcap ? L->tflcap * 2 : 8;
+    struct TblFloat *n = (struct TblFloat *)realloc(L->tfl, nc * sizeof *n);
+    if (!n) return 0;
+    L->tfl = n; L->tflcap = nc;
+  }
+  {
+    struct TblFloat *f = &L->tfl[L->ntfl++];
+    f->page = fl->page; f->x = x; f->y = top; f->w = sum; f->h = fl->y - top;
+    f->dl = t->dl; f->dr = t->dr; f->dt = t->dt; f->db = t->db;
+  }
+  if (fl->page == save.page) { u32 pf0 = fl->pagefirst; *fl = save; fl->pagefirst = pf0; }
+  else fl->bottom = save.bottom;
+  *pi = i;
+  return 1;
+}
 /* place the table at *pi row by row (see the note above RowM); its heading rows are the whole rows
    at its start marked as such. *pi ends past the table, or at a paragraph not laid out yet. 0 if out
    of memory */
@@ -1093,6 +1238,7 @@ static int place_table(Layout *L, u32 *pi, Flow *fl)
   i32 last[MAX_COLS];                    /* the box of the cell above, for vertical merging */
   int k;
   if (!t) { (*pi)++; return 1; }
+  if (t->floating && !is_nested(pf0) && L->webw <= 0) return place_float_table(L, pi, fl, t, tid);
   for (k = 0; k < MAX_COLS; k++) last[k] = -1;
   /* heading rows: those at the table's start marked to repeat */
   for (hdr_end = i; hdr_end < L->npl && cell_in(&L->pl[hdr_end].p->pf, tid) && cell_in(&L->pl[hdr_end].p->pf, tid)->header; hdr_end++) ;
@@ -1487,9 +1633,11 @@ static int place_floats(Layout *L, u32 pi, Flow *fl)
       if (f->page == fl->page && (f->wrap == WRAP_SQUARE || f->wrap == WRAP_TIGHT || f->wrap == WRAP_TOPBOTTOM) &&
           f->y + f->h + d->images[f->img].db > top && f->y - d->images[f->img].dt < bottom) wraps = 1;
     }
+    for (i = 0; i < L->ntfl; i++)                    /* WP21b: floating tables */
+      if (L->tfl[i].page == fl->page && L->tfl[i].y + L->tfl[i].h + L->tfl[i].db > top && L->tfl[i].y - L->tfl[i].dt < bottom) wraps = 1;
   }
   if (!wraps && !pl->shaped) return 1;
-  sh_on = wraps; sh_fb = L->floats; sh_nfb = L->nfloats; sh_page = fl->page; sh_doc = d;
+  sh_on = wraps; sh_fb = L->floats; sh_nfb = L->nfloats; sh_page = fl->page; sh_doc = d; sh_tfl = L->tfl; sh_ntfl = L->ntfl;
   sh_x0 = L->pg->left + fl->colx; sh_y0 = fl->y;
   { char lab[32]; memcpy(lab, pl->label, sizeof lab);
     i = layout_para(L, pl, pl->p, pl->avail, lab, pl->notebase, pl->enotebase); }
@@ -1609,7 +1757,7 @@ static int paginate(Layout *L)
   fl.page = 0; fl.y = fl.coltop = fl.maxy = fl.top; fl.at_top = 1;
   flow_cols(&fl, fl.sec, body, web);
   if (!page_set(L, &fl)) return 0;
-  L->nplaced = 0; L->ncells = 0; L->nseps = 0; L->npn = 0; L->complete = 1; L->nfloats = 0; L->npbox = 0;
+  L->nplaced = 0; L->ncells = 0; L->nseps = 0; L->npn = 0; L->complete = 1; L->nfloats = 0; L->npbox = 0; L->ntfl = 0;
   for (k = 0; k < L->nearly; k++) {
     const FloatBox *e = &L->early[k];
     if (e->img >= d->nimages || !add_float(L, e->page, e->x, e->y, e->img, e->para)) continue;
@@ -2017,6 +2165,8 @@ static u32 line_of(ParaLay *pl, u32 off)
   for (k = 0; k + 1 < pl->nlines; k++) if (off < pl->lines[k + 1].start) break;   /* a wrap point: the next line */
   return k;
 }
+int lay_caret_turn;
+i32 lay_caret_w;
 /* see layout.h; x from the page's left edge. The first page's top left margin corner if p's
    paragraph isn't placed yet */
 void lay_caret(Layout *L, Pos p, u32 *page, i32 *x, i32 *y, i32 *h)
@@ -2027,6 +2177,7 @@ void lay_caret(Layout *L, Pos p, u32 *page, i32 *x, i32 *y, i32 *h)
   u32 k, li;
   i32 cx;
   *page = 0; *x = L->d->page.left; *y = L->d->page.top; *h = 276;
+  lay_caret_turn = 0; lay_caret_w = 0;
   p = pos_clamp(L->d, p);
   if (p.para >= L->npl) return;
   pl = &L->pl[p.para];
@@ -2043,6 +2194,13 @@ void lay_caret(Layout *L, Pos p, u32 *page, i32 *x, i32 *y, i32 *h)
   *page = pc->page;
   *x = lay_page(L, pc->page)->left + pc->x + ln->left + cx;
   *y = pc->y; *h = ln->height;
+  lay_caret_turn = pc->turn; lay_caret_w = pc->w;
+  if (pc->turn) {
+    /* turned text: across its band, down (or up) it as far as the text has got */
+    i32 u = pc->tshift + ln->left + cx;
+    *x = lay_page(L, pc->page)->left + pc->x;
+    *y = pc->turn == TD_DOWN ? pc->y + u : pc->y + pc->tlen - u;
+  }
 }
 /* the position on line li of paragraph para nearest x (from the text area's left; the line's own
    indent is taken off here), choosing between characters by halves of their width */
@@ -2077,7 +2235,7 @@ static Pos pos_in_line(Layout *L, u32 para, u32 li, i32 x)     /* x from the tex
 /* how far a point is from a placed line's box (0 inside) */
 static i32 dist(Layout *L, Placed *pc, i32 x, i32 y)
 {
-  i32 h = L->pl[pc->para].lines[pc->line].height, dx = 0, dy = 0;
+  i32 h = pc->turn ? pc->tlen : L->pl[pc->para].lines[pc->line].height, dx = 0, dy = 0;
   x -= lay_page(L, pc->page)->left;
   if (y < pc->y) dy = pc->y - y; else if (y >= pc->y + h) dy = y - (pc->y + h) + 1;
   if (x < pc->x) dx = pc->x - x; else if (x >= pc->x + pc->w) dx = x - (pc->x + pc->w) + 1;
@@ -2103,6 +2261,11 @@ Pos lay_hit(Layout *L, u32 page, i32 x, i32 y)
     if (dd < bd) { bd = dd; best = k; if (!dd) break; }
   }
   if (bd == 0x7FFFFFFF) return r;
+  if (L->placed[best].turn) {
+    /* turned text: how far along its band the point is */
+    Placed *pc = &L->placed[best];
+    return pos_in_line(L, pc->para, pc->line, pc->turn == TD_DOWN ? y - pc->y - pc->tshift : pc->y + pc->tlen - pc->tshift - y);
+  }
   return pos_in_line(L, L->placed[best].para, L->placed[best].line, x - lay_page(L, page)->left - L->placed[best].x);
 }
 /* see layout.h: looks through the placed lines nearby for the first in the same column above
@@ -2193,7 +2356,7 @@ int lay_autofit(Layout *L, u32 pi, int window, i32 avail, i32 *grid)
     u32 ln, bx;
     i32 lo = 0, hi = 0, ind = p->pf.left + p->pf.right + (p->pf.first > 0 ? p->pf.first : 0) + t->marl + t->marr;
     int c = p->pf.cell.col;
-    if (p->pf.cell.span != 1 || c >= n) continue;
+    if (p->pf.cell.span != 1 || c >= n || p->pf.cell.tdir) continue;      /* (turned text runs down its cell: WP21b) */
     memset(&pl, 0, sizeof pl);
     if (!layout_para(L, &pl, p, 0x3FFFFFF, "", 0, 0)) { pl_free(&pl); return 0; }
     for (ln = 0; ln < pl.nlines; ln++) if (pl.lines[ln].width > hi) hi = pl.lines[ln].width;

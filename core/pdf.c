@@ -585,6 +585,14 @@ static void page_content(Pdf *p, u32 page, Buf *b)
     Line *ln = &pl->lines[pc->line];
     i32 lx = pg->left + pc->x + ln->left, base = H - (pc->y + ln->ascent);
     if (pc->page != page) continue;
+    if (pc->turn) {
+      /* WP21b: turned text in a table cell, drawn through a turned frame (the line laid out across) */
+      if (pc->turn == TD_DOWN) buf_printf(b, "q 0 -1 1 0 %ld %ld cm\n", (long)(pg->left + pc->x + ln->height), (long)(H - pc->y - pc->tshift));
+      else buf_printf(b, "q 0 1 -1 0 %ld %ld cm\n", (long)(pg->left + pc->x), (long)(H - pc->y - pc->tlen + pc->tshift));
+      pdf_line(p, b, pl, pc->line, ln->left, -ln->ascent);
+      buf_adds(b, "Q\n");
+      continue;
+    }
     pdf_line(p, b, pl, pc->line, lx, base);
     if (pc->lnum) {
       /* its line number, its right edge lnd left of the column */
