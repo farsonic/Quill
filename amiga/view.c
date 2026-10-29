@@ -42,6 +42,7 @@
 #include "wp_math.h"     /* WP14a: equations */
 #include "../core/math.h"
 #include "../core/spell.h"
+#include "../core/field.h"
 #include "../core/pages.h"
 #include "../core/review.h"
 #include "ids.h"
@@ -1249,6 +1250,48 @@ static int comments_open(struct Data *d, u32 para)
   }
   return d->copen;
 }
+/* fields' results on grey, as Word shades them (WP1, core/field.h field_shading): every field, or the
+   one the caret is in (found once per change of caret or document) */
+static void field_shade(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Placed *pc, Line *ln, LONG lx, LONG top)
+{
+  static const Doc *sdoc;
+  static ULONG sver;
+  static Pos scaret, ss, se;
+  static int sk = -1;
+  Doc *doc = d->doc;
+  int body = pc->para < doc->np && pl->p == doc->p[pc->para], depth = 0;
+  u32 k;
+  if (field_shading == FS_SELECTED) {
+    if (!body) return;
+    if (sdoc != doc || sver != doc->ver || pos_cmp(scaret, d->caret)) {
+      sdoc = doc; sver = doc->ver; scaret = d->caret;
+      sk = field_at(doc, d->caret, &ss, &se);
+    }
+    if (sk < 0 || pc->para < ss.para || pc->para > se.para) return;
+  } else {
+    if (body) depth = field_depth_before(doc, pc->para);
+    for (k = pl->lines[0].box0; k < ln->box0 && k < pl->nboxes; k++) {
+      Box *b = &pl->boxes[k];
+      if ((b->kind == BX_MARK || b->kind == BX_FIELD) && b->off + 4 <= pl->p->len && IS_FMARK(pl->p->t + b->off)) { if (IS_FSTART(pl->p->t + b->off)) depth++; else if (depth > 0) depth--; }
+    }
+  }
+  SetAPen(rp, pen_bg(d, obj, 0xD9D9D9));
+  for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
+    Box *b = &pl->boxes[k];
+    int in;
+    if ((b->kind == BX_MARK || b->kind == BX_FIELD) && b->off + 4 <= pl->p->len && IS_FMARK(pl->p->t + b->off)) {
+      if (IS_FSTART(pl->p->t + b->off)) depth++; else if (depth > 0) depth--;
+      continue;
+    }
+    if (b->w <= 0 || b->kind == BX_FIELD) continue;
+    if (field_shading == FS_SELECTED) {
+      Pos at;
+      at.para = pc->para; at.off = b->off;
+      in = pos_cmp(ss, at) < 0 && pos_cmp(at, se) < 0;
+    } else in = depth > 0;
+    if (in) RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1);
+  }
+}
 /* WP14a: equations' colours as pens (for wp14a_draw) */
 static struct Data *mpen_d; static Object *mpen_obj;
 static LONG math_pen(ULONG rgb) { return pen_for(mpen_d, mpen_obj, rgb); }
@@ -1277,16 +1320,17 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
   if (d->doc->ncomments && pc->para < d->doc->np && rv_show_comments(d->doc)) {
     int open = comments_open(d, pc->para);
     for (k = pl->lines[0].box0; k < ln->box0 && k < pl->nboxes; k++)      /* the marks on lines before this one */
-      if (pl->boxes[k].kind == BX_MARK) { if (IS_CSTART(pl->p->t + pl->boxes[k].off)) open++; else if (open > 0) open--; }
+      if (pl->boxes[k].kind == BX_MARK) { if (IS_CSTART(pl->p->t + pl->boxes[k].off)) open++; else if (open > 0 && IS_CEND(pl->p->t + pl->boxes[k].off)) open--; }
     for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
       Box *b = &pl->boxes[k];
-      if (b->kind == BX_MARK) { if (IS_CSTART(pl->p->t + b->off)) open++; else if (open > 0) open--; continue; }
+      if (b->kind == BX_MARK) { if (IS_CSTART(pl->p->t + b->off)) open++; else if (open > 0 && IS_CEND(pl->p->t + b->off)) open--; continue; }
       if (open > 0 && b->w > 0 && !(b->kind == BX_SPACE && k + 1 == ln->box0 + ln->nbox)) {
         SetAPen(rp, d->pen_comment);
         RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1);
       }
     }
   }
+  if (doc->nfields && field_shading != FS_NEVER) field_shade(d, obj, rp, pl, pc, ln, lx, top);     /* fields on grey (WP1) */
   /* highlighting behind the text (not trailing spaces); page fields on grey, as Word shades fields */
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *b = &pl->boxes[k];
@@ -1378,7 +1422,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     else if (b->kind == BX_FIELD) {
       /* a page field: its number, on grey (as Word shades fields) */
       Box nb = *b;
-      char num[16];
+      char num[LAY_FIELD_TEXT];
       lay_field_text(L, pl->p, b, pc->page, num);
       nb.kind = BX_TEXT; nb.off = 0; nb.len = (u16)strlen(num);
       draw_text(d, obj, rp, &nb, num, lx + tx(d, b->x), base);

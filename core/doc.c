@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "doc.h"
+#include "field.h"
 #include "objfx.h"
 #include "keep.h"
 #include "image.h"
@@ -2059,7 +2060,7 @@ static int paste_runs(Doc *d, Para *q, const Fragment *f, const Para *s, const C
     u32 o = pos, e = s->r[r].end;
     while (o < e) {
       u32 m = o;
-      while (m < e && !((u8)s->t[m] >= 0xF3 && m + 4 <= e && (IS_PIC(s->t + m) || IS_NOTE(s->t + m) || IS_MARK(s->t + m) || IS_ENOTE(s->t + m) || IS_MATH(s->t + m)))) m++;
+      while (m < e && !((u8)s->t[m] >= 0xF3 && m + 4 <= e && (IS_PIC(s->t + m) || IS_NOTE(s->t + m) || IS_MARK(s->t + m) || IS_ENOTE(s->t + m) || IS_FMARK(s->t + m) || IS_MATH(s->t + m)))) m++;
       if (m > o && !para_append(q, s->t + o, m - o, &c)) return 0;
       if (m < e && IS_MATH(s->t + m)) {
         /* WP14a: an equation: the same entry (same document) or a copy of the fragment's */
@@ -2086,6 +2087,9 @@ static int paste_runs(Doc *d, Para *q, const Fragment *f, const Para *s, const C
           }
           if (same || j >= 0) { pic_utf8(ref, n); if (!para_append(q, ref, 4, &c)) return 0; }
         }
+        /* a field's marks: kept within the same document (they share its record); from another, the
+           result stays as text */
+        else if (IS_FMARK(s->t + m) && same && mode != PASTE_TEXT && !para_append(q, s->t + m, 4, &c)) return 0;
         m += 4;
       }
       o = m;
@@ -2710,6 +2714,7 @@ void doc_free(Doc *d)
   for (i = 0; i < HF_N; i++) { story_free(&d->hdr[i]); story_free(&d->ftr[i]); }
   undo_free(d->undo);
   keep_free(d);
+  field_free_all(d);
   free(d->wm.pic);          /* (WP22a) */
   notes_free(d);                 /* (WP22b) */
   info_free(d);                  /* (WP24) */
@@ -2745,7 +2750,7 @@ Pos pos_left(Doc *d, Pos p)
   if (p.off) {
     const char *t = d->p[p.para]->t;
     p.off = (u32)utf8_prev(t, p.off);
-    while (p.off >= 4 && IS_MARK(t + p.off)) p.off = (u32)utf8_prev(t, p.off);
+    while (p.off >= 4 && (IS_MARK(t + p.off) || IS_FMARK(t + p.off))) p.off = (u32)utf8_prev(t, p.off);
   }
   else if (p.para) { p.para--; p.off = d->p[p.para]->len; }
   return p;
@@ -2757,9 +2762,9 @@ Pos pos_right(Doc *d, Pos p)
   p = pos_clamp(d, p);
   q = d->p[p.para];
   if (p.off < q->len) {
-    while (p.off + 4 <= q->len && IS_MARK(q->t + p.off)) p.off += 4;
+    while (p.off + 4 <= q->len && (IS_MARK(q->t + p.off) || IS_FMARK(q->t + p.off))) p.off += 4;
     if (p.off < q->len) p.off = (u32)utf8_next(q->t, q->len, p.off);
-    while (p.off + 4 <= q->len && IS_MARK(q->t + p.off)) p.off += 4;
+    while (p.off + 4 <= q->len && (IS_MARK(q->t + p.off) || IS_FMARK(q->t + p.off))) p.off += 4;
   }
   else if (p.para + 1 < d->np) { p.para++; p.off = 0; }
   return p;

@@ -555,6 +555,11 @@ typedef struct Doc {
   struct KeptChange *kchg; int nkchg;   /* w:tblPrChange, w:trPrChange, w:tcPrChange, w:sectPrChange ... */
   u16 rvtrack;              /* formatting changes are being tracked: Doc.revs index + 1 of their author, 0 not */
   u8 rvsettings;            /* settings.xml's w:revisionView read (bit 0) */
+  /* WP1 fields (core/field.h): the records the field marks in the text name (only added to), every
+     field showing its code (Alt+F9; not saved), and what the file says for the fields (docProps...) */
+  struct Field *fields; int nfields;
+  u8 fieldcodes;
+  struct FieldInfo *finfo;
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */

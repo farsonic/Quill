@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "pdf.h"
+#include "field.h"
 #include "pages.h"
 #include "zip.h"
 #include "docx.h"
@@ -513,7 +514,7 @@ static void pdf_line(Pdf *p, Buf *b, ParaLay *pl, u32 line, i32 lx, i32 base)
       }
     }
     else if (bx->kind == BX_FIELD) {
-      char num[16];
+      char num[LAY_FIELD_TEXT];
       lay_field_text(p->L, pl->p, bx, p->page, num);
       text(p, b, &bx->f, num, (u32)strlen(num), lx + bx->x, base, bx->w);
     }
@@ -1314,9 +1315,12 @@ static u8 *pdf_export_laid(Layout *L, const PdfOpts *o, size_t *len);
 u8 *pdf_export_opts(Layout *L, const PdfOpts *o, size_t *len)
 {
   u8 shown = L->showhidden, *r;
+  int codes = field_codes_any(L->d);       /* (WP1) fields show their results in a PDF, not their codes */
   L->showhidden = 0;
+  if (codes) field_show_codes(L->d, 0);
   r = pdf_export_laid(L, o, len);
-  if (shown) { L->showhidden = shown; lay_update(L); }
+  if (codes) field_show_codes(L->d, codes > 1);
+  if (shown || codes) { L->showhidden = shown; lay_update(L); }
   return r;
 }
 static u8 *pdf_export_laid(Layout *L, const PdfOpts *o, size_t *len)
