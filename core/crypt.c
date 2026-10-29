@@ -117,26 +117,32 @@ static void sha512_block(Sha512 *c, const u8 *p)
     ADD(th, tl, s1h, s1l);
     w[2 * i] = th; w[2 * i + 1] = tl;
   }
-  memcpy(v, c->h, sizeof v);
-  for (i = 0; i < 80; i++) {
-    /* a = v0,1  b = 2,3  c = 4,5  d = 6,7  e = 8,9  f = 10,11  g = 12,13  h = 14,15 */
-    u32 eh = v[8], el = v[9], ah = v[0], al = v[1];
-    u32 S1h = RH(eh, el, 14) ^ RH(eh, el, 18) ^ RH2(eh, el, 41);
-    u32 S1l = RL(eh, el, 14) ^ RL(eh, el, 18) ^ RL2(eh, el, 41);
-    u32 chh = (eh & v[10]) ^ (~eh & v[12]), chl = (el & v[11]) ^ (~el & v[13]);
-    u32 S0h = RH(ah, al, 28) ^ RH2(ah, al, 34) ^ RH2(ah, al, 39);
-    u32 S0l = RL(ah, al, 28) ^ RL2(ah, al, 34) ^ RL2(ah, al, 39);
-    u32 mjh = (ah & v[2]) ^ (ah & v[4]) ^ (v[2] & v[4]), mjl = (al & v[3]) ^ (al & v[5]) ^ (v[3] & v[5]);
-    u32 t1h = v[14], t1l = v[15], t2h = S0h, t2l = S0l;
-    ADD(t1h, t1l, S1h, S1l);
-    ADD(t1h, t1l, chh, chl);
-    ADD(t1h, t1l, K512[2 * i], K512[2 * i + 1]);
-    ADD(t1h, t1l, w[2 * i], w[2 * i + 1]);
-    ADD(t2h, t2l, mjh, mjl);
-    memmove(v + 2, v, 14 * sizeof(u32));
-    ADD(v[8], v[9], t1h, t1l);              /* e = d + t1 (d moved into 8, 9) */
-    v[0] = t1h; v[1] = t1l;
-    ADD(v[0], v[1], t2h, t2l);              /* a = t1 + t2 */
+  /* the rounds, eight at a time with the variables renamed instead of moved */
+  {
+    u32 ah = c->h[0], al = c->h[1], bh = c->h[2], bl = c->h[3], ch_ = c->h[4], cl = c->h[5], dh = c->h[6], dl = c->h[7];
+    u32 eh = c->h[8], el = c->h[9], fh = c->h[10], fl = c->h[11], gh = c->h[12], gl = c->h[13], hh = c->h[14], hl = c->h[15];
+#define RND(AH, AL, BH, BL, CH, CL, DH, DL, EH, EL, FH, FL, GH, GL, HH, HL, k) do { \
+      u32 t1h = HH, t1l = HL, t2h, t2l, xh, xl; \
+      xh = RH(EH, EL, 14) ^ RH(EH, EL, 18) ^ RH2(EH, EL, 41); xl = RL(EH, EL, 14) ^ RL(EH, EL, 18) ^ RL2(EH, EL, 41); ADD(t1h, t1l, xh, xl); \
+      xh = (EH & FH) ^ (~EH & GH); xl = (EL & FL) ^ (~EL & GL); ADD(t1h, t1l, xh, xl); \
+      ADD(t1h, t1l, K512[2 * (k)], K512[2 * (k) + 1]); ADD(t1h, t1l, w[2 * (k)], w[2 * (k) + 1]); \
+      t2h = RH(AH, AL, 28) ^ RH2(AH, AL, 34) ^ RH2(AH, AL, 39); t2l = RL(AH, AL, 28) ^ RL2(AH, AL, 34) ^ RL2(AH, AL, 39); \
+      xh = (AH & BH) ^ (AH & CH) ^ (BH & CH); xl = (AL & BL) ^ (AL & CL) ^ (BL & CL); ADD(t2h, t2l, xh, xl); \
+      ADD(DH, DL, t1h, t1l); \
+      HH = t1h; HL = t1l; ADD(HH, HL, t2h, t2l); } while (0)
+    for (i = 0; i < 80; i += 8) {
+      RND(ah, al, bh, bl, ch_, cl, dh, dl, eh, el, fh, fl, gh, gl, hh, hl, i);
+      RND(hh, hl, ah, al, bh, bl, ch_, cl, dh, dl, eh, el, fh, fl, gh, gl, i + 1);
+      RND(gh, gl, hh, hl, ah, al, bh, bl, ch_, cl, dh, dl, eh, el, fh, fl, i + 2);
+      RND(fh, fl, gh, gl, hh, hl, ah, al, bh, bl, ch_, cl, dh, dl, eh, el, i + 3);
+      RND(eh, el, fh, fl, gh, gl, hh, hl, ah, al, bh, bl, ch_, cl, dh, dl, i + 4);
+      RND(dh, dl, eh, el, fh, fl, gh, gl, hh, hl, ah, al, bh, bl, ch_, cl, i + 5);
+      RND(ch_, cl, dh, dl, eh, el, fh, fl, gh, gl, hh, hl, ah, al, bh, bl, i + 6);
+      RND(bh, bl, ch_, cl, dh, dl, eh, el, fh, fl, gh, gl, hh, hl, ah, al, i + 7);
+    }
+#undef RND
+    v[0] = ah; v[1] = al; v[2] = bh; v[3] = bl; v[4] = ch_; v[5] = cl; v[6] = dh; v[7] = dl;
+    v[8] = eh; v[9] = el; v[10] = fh; v[11] = fl; v[12] = gh; v[13] = gl; v[14] = hh; v[15] = hl;
   }
   for (i = 0; i < 16; i += 2) ADD(c->h[i], c->h[i + 1], v[i], v[i + 1]);
 }

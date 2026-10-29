@@ -5,7 +5,7 @@
  * only be read (PR_READONLY), commented on (PR_COMMENTS), changed with every change tracked (PR_TRACKED) or
  * filled in (PR_FORMS: Quill has no form fields, so like read only). Parts of it can be left free for
  * everyone or for named people (exceptions: w:permStart/w:permEnd ranges; CharFmt.perm numbers them in the
- * text, so they move with it). Stopping it takes the password whose hash (SHA-512 with a salt, 100000
+ * text, so they move with it). Stopping it takes the password whose hash (SHA-512 with a salt, 10000
  * spins) is kept in the file; Word 2007's legacy form of the hash is checked too.
  *
  * Enforcement is in core/doc.c's edit paths: doc_insert, doc_delete, doc_format and the other per-run
@@ -23,6 +23,9 @@
 #include "xml.h"
 
 enum { PR_NONE, PR_READONLY, PR_COMMENTS, PR_TRACKED, PR_FORMS };
+/* the spins Quill hashes a protection password with (Word uses 100000; any count is valid, and the legacy
+   key's 32 bits are what limits the hash anyway: 10000 takes 16 s instead of 160 on a 68040) */
+#define PROT_SPIN 10000UL
 #define CM_PERM 0x08000000U             /* doc_format: CharFmt.perm (not in CM_ALL) */
 
 /* an exception: who may edit the text whose CharFmt.perm is its number (index + 1) */

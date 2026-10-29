@@ -236,7 +236,7 @@ static void restrict_editing(void)
   ok("restrict: wrong password", prot_stop(d, "Secret") == PC_INCORRECT && prot_enforced(d));
   /* .docx: protection and exceptions kept */
   e = docx_again(d, &lost);
-  ok("restrict: documentProtection read back", e && prot_enforced(e) == PR_READONLY && !strcmp(e->prot->hash, d->prot->hash) && e->prot->spin == 100000);
+  ok("restrict: documentProtection read back", e && prot_enforced(e) == PR_READONLY && !strcmp(e->prot->hash, d->prot->hash) && e->prot->spin == PROT_SPIN);
   ok("restrict: the exception read back where it was", e && e->prot->nperms == 1 && !strcmp(e->prot->perms[0].grp, "everyone") &&
      prot_free_at(e, P(1, 2)) && !prot_free_at(e, P(0, 2)) && !prot_free_at(e, P(2, 2)));
   ok("restrict: its password checks", e && prot_check(e, "secret") == PC_CORRECT && prot_check(e, "secreT") == PC_INCORRECT);

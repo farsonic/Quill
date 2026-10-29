@@ -132,13 +132,21 @@ static int pw_modal(const char *title, const char *text, int confirm, char *out,
 }
 /* core/protect.c's question while an encrypted document is read */
 static char askbuf[260];
+static int asleep;                       /* the window asleep while a password's key is worked out */
+static void sleep_now(int on)
+{
+  if (wp_win()) set(wp_win(), MUIA_Window_Sleep, on ? TRUE : FALSE);
+  asleep = on;
+}
 static const char *ask_open(int attempt)
 {
   char text[300];
   const char *name = doc_load_path ? (const char *)FilePart((STRPTR)doc_load_path) : "";
   snprintf(text, sizeof text, attempt ? tr("The password is not correct.\nEnter the password to open\n%s") : tr("Enter the password to open\n%s"), name);
   crypt_wipe(askbuf, sizeof askbuf);
+  if (asleep) sleep_now(0);
   if (!pw_modal("Password", text, 0, askbuf, sizeof askbuf)) return NULL;
+  sleep_now(1);                          /* (until the view shows the document: wp7_state) */
   return askbuf;
 }
 static void denied(Doc *d) { if (d) DisplayBeep(NULL); }
@@ -254,7 +262,7 @@ static void open_pane(void)
           Child, r_kind = CycleObject, MUIA_Cycle_Entries, (ULONG)rkinds, MUIA_CycleChain, 1, End,
           Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Exceptions (optional)\nSelect parts of the document and choose users\nwho are allowed to freely edit them."), End,
           Child, HGroup, Child, r_every = CheckMark(FALSE), Child, LLabel1(tr("Everyone")), Child, HSpace(0), End,
-          Child, r_users = ListviewObject, MUIA_CycleChain, 1, MUIA_Listview_List, ListObject, InputListFrame,
+          Child, r_users = ListviewObject, MUIA_CycleChain, 1, MUIA_FixHeightTxt, (ULONG)"\n\n\n", MUIA_Listview_List, ListObject, InputListFrame,
             MUIA_List_ConstructHook, MUIV_List_ConstructHook_String, MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, End,
           Child, HGroup, Child, r_user = StringObject, StringFrame, MUIA_String_MaxLen, 60, MUIA_CycleChain, 1, End, Child, add = QButton(tr("_Add User")), End,
           Child, HGroup, Child, apply = QButton(tr("A_llow Selection")), Child, del = QButton(tr("_Delete User")), Child, clr = QButton(tr("_Remove Exceptions")), End,
@@ -319,7 +327,9 @@ static void start(void)
   if (!prot_peek(d) || prot_peek(d)->kind == PR_NONE) { wp_ask("OK", "Choose the kind of editing to allow first (Allow only this type of editing).", NULL); return; }
   if (!pw_modal("Start Enforcing Protection", tr("Enter a new password (optional):\nWithout one, anyone can stop the protection."), 1, pw, sizeof pw)) return;
   wp_story_close();
+  sleep_now(1);
   prot_start(d, pw);
+  sleep_now(0);
   crypt_wipe(pw, sizeof pw);
   doc_changed();
   pane_fill();
@@ -331,7 +341,9 @@ static void stop(void)
   int r;
   if (!d) return;
   if (prot_check(d, "") != PC_NOPASSWORD && !pw_modal("Unprotect Document", tr("Password:"), 0, pw, sizeof pw)) return;
+  sleep_now(1);
   r = prot_stop(d, pw);
+  sleep_now(0);
   crypt_wipe(pw, sizeof pw);
   if (r == PC_INCORRECT) wp_ask("OK", "The password is incorrect.", NULL);
   else if (r == PC_UNSUPPORTED) wp_ask("OK", "Quill can't check this document's password (its hash is of a kind Quill doesn't know), so the protection stays on.", NULL);
@@ -404,6 +416,7 @@ int wp7_command(ULONG id, LONG value)
    shows the pane, as in Word */
 static void wp7_state(ULONG *on, const WpCtx *c)
 {
+  if (asleep) sleep_now(0);
   if (is_open(rwin)) *on |= RBIT(1);
   if (c->doc != sdoc || pos_cmp(c->caret, scaret) || pos_cmp(c->anchor, sanchor)) {
     int newdoc = c->doc != sdoc;

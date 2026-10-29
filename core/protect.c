@@ -239,7 +239,7 @@ int prot_start(Doc *d, const char *pw)
     char t[12];
     crypt_random(salt, 16);
     legacy_text(pw, t);
-    p->iso = 0; p->sid = 14; p->spin = 100000;
+    p->iso = 0; p->sid = 14; p->spin = PROT_SPIN;
     strcpy(p->provider, "rsaAES");
     prot_hash(CH_SHA512, salt, 16, t, p->spin, h);
     b64_put(h, 64, p->hash, sizeof p->hash);
