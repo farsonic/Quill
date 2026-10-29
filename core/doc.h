@@ -407,6 +407,11 @@ typedef struct Doc {
   StoryEdit edit;           /* a story being edited in the body's place */
   struct KeptPart *kept; int nkept;   /* .docx parts kept verbatim, written back on saving (core/keep.h) */
   /* (work packages: new fields go below, at the end) */
+  /* WP1 fields (core/field.h): the records the field marks in the text name (only added to), every
+     field showing its code (Alt+F9; not saved), and what the file says for the fields (docProps...) */
+  struct Field *fields; int nfields;
+  u8 fieldcodes;
+  struct FieldInfo *finfo;
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */

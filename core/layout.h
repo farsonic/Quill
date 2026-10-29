@@ -137,7 +137,9 @@ int  lay_endnotes(Layout *L, u32 page, Furn *f, i32 *sepy);
 u32  lay_note_number(ParaLay *pl, u32 box);
 void lay_note_label(ParaLay *pl, u32 box, char *out);
 void lay_roman(u32 n, char *out);    /* lower case: i, ii, iii, iv...; out at least 16 bytes */
-/* what a BX_FIELD box shows on a page: its number, or the number of pages (a story being edited: those it was opened with) */
+/* what a BX_FIELD box shows on a page: its number, or the number of pages (a story being edited: those it was opened with);
+   a field showing its code (WP1, core/field.h): the code. out: LAY_FIELD_TEXT bytes */
+#define LAY_FIELD_TEXT 160
 void lay_field_text(Layout *L, const Para *p, const Box *b, u32 page, char *out);    /* page from 0 */
 void lay_free(Layout *L);           /* L and everything it holds (not its Doc or FontSet) */
 /* bring the layout up to date with the document; 0 if out of memory (the layout then stays usable,

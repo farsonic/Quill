@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "pdf.h"
+#include "field.h"
 #include "zip.h"
 #include "docx.h"
 #include "image.h"
@@ -284,7 +285,7 @@ static void pdf_line(Pdf *p, Buf *b, ParaLay *pl, u32 line, i32 lx, i32 base)
       text(p, b, &bx->f, num, (u32)strlen(num), lx + bx->x, base, bx->w);
     }
     else if (bx->kind == BX_FIELD) {
-      char num[16];
+      char num[LAY_FIELD_TEXT];
       lay_field_text(p->L, pl->p, bx, p->page, num);
       text(p, b, &bx->f, num, (u32)strlen(num), lx + bx->x, base, bx->w);
     }
@@ -635,7 +636,8 @@ static void ps_name(char *o, const Face *f)
    pictures known and the object numbers fixed: 1 catalog, 2 page tree, 3 info, three per font
    (font, descriptor, file), one per picture, then two per page (page, content). Faces whose
    licence forbids embedding get widths and a descriptor only. The result is malloc'd */
-u8 *pdf_export(Layout *L, size_t *len)
+/* the whole document as PDF (pdf_export below: with fields showing their results, WP1) */
+static u8 *export_pages(Layout *L, size_t *len)
 {
   Pdf p;
   Doc *d = L->d;
@@ -770,6 +772,16 @@ u8 *pdf_export(Layout *L, size_t *len)
   if (p.o.oom) { buf_free(&p.o); return NULL; }
   *len = p.o.len;
   return (u8 *)buf_take(&p.o);
+}
+/* see pdf.h: a PDF shows the fields' results even while they show their codes on screen (WP1) */
+u8 *pdf_export(Layout *L, size_t *len)
+{
+  int codes = field_codes_any(L->d);
+  u8 *r;
+  if (codes) field_show_codes(L->d, 0);
+  r = export_pages(L, len);
+  if (codes) { field_show_codes(L->d, codes > 1); lay_update(L); }
+  return r;
 }
 /* exports and writes to path; 0 if out of memory or the file couldn't be written */
 int pdf_save_file(Layout *L, const char *path)

@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "layout.h"
+#include "field.h"
 #include "hyph.h"
 
 #define DEFAULT_TAB 720                 /* half an inch, as Word */
@@ -126,7 +127,7 @@ static int add_line(Work *w, const Line *l)
 /* the boxes of a paragraph, widths in fine units (x unset) */
 static int make_boxes(Layout *L, Para *p, Work *w, u32 note, u32 enote)
 {
-  u32 r, start = 0;
+  u32 r, start = 0, hide = 0;         /* hide: a field showing its code hides its result up to here */
   for (r = 0; r < p->nr; r++) {
     u32 end = p->r[r].end, i = start;
     const CharFmt *f = &p->r[r].f;
@@ -136,7 +137,16 @@ static int make_boxes(Layout *L, Para *p, Work *w, u32 note, u32 enote)
       u32 j = i;
       memset(&b, 0, sizeof b);
       b.off = i; b.f = *f;
-      if (p->t[i] == ' ') {
+      if (i < hide) {
+        j = hide < end ? hide : end;
+        if (j - i > 60000) j = i + 60000;
+        b.kind = BX_MARK;
+      } else if (i + 4 <= end && IS_FMARK(p->t + i)) {
+        /* a field's mark has no width; one showing its code shows it at its start mark instead of
+           its result */
+        j = i + 4; b.kind = BX_MARK;
+        if (IS_FSTART(p->t + i) && field_code_shown(L->d, fmark_index(p->t + i))) { b.kind = BX_FIELD; hide = field_end_in_para(p, i); }
+      } else if (p->t[i] == ' ') {
         while (j < end && p->t[j] == ' ' && j - i < 255) j++;
         b.kind = BX_SPACE; b.nspace = (u8)(j - i);
       } else if (p->t[i] == '\t') {
@@ -155,8 +165,8 @@ static int make_boxes(Layout *L, Para *p, Work *w, u32 note, u32 enote)
       } else if (i + 3 <= end && IS_FIELD(p->t + i)) {
         j = i + 3; b.kind = BX_FIELD;
       } else {
-        while (j < end && p->t[j] != ' ' && p->t[j] != '\t' && p->t[j] != '\v' && !(j + 4 <= end && (IS_PIC(p->t + j) || IS_NOTE(p->t + j) || IS_MARK(p->t + j) || IS_ENOTE(p->t + j))) &&
-               !(j + 3 <= end && IS_FIELD(p->t + j)) && j - i < 60000) j++;
+        while (j < end && p->t[j] != ' ' && p->t[j] != '\t' && p->t[j] != '\v' && !(j + 4 <= end && (IS_PIC(p->t + j) || IS_NOTE(p->t + j) || IS_MARK(p->t + j) || IS_ENOTE(p->t + j) || IS_FMARK(p->t + j))) &&
+               !(j + 3 <= end && IS_FIELD(p->t + j)) && j - i < 60000 && !(hide > i && j >= hide)) j++;
         b.kind = BX_TEXT;
       }
       b.len = (u16)(j - i);
@@ -175,7 +185,7 @@ static int make_boxes(Layout *L, Para *p, Work *w, u32 note, u32 enote)
         else lay_roman(++enote, num);
         b.w = nz ? (i32)fonts_text(nz, num, (u32)strlen(num)) : 0;
       } else if (b.kind == BX_FIELD) {
-        char num[16];
+        char num[LAY_FIELD_TEXT];
         lay_field_text(L, p, &b, 0, num);
         b.w = (i32)measure(L, z, num, (u32)strlen(num), f);
       } else b.w = b.kind == BX_TAB || b.kind == BX_BREAK || b.kind == BX_MARK ? 0 : (i32)measure(L, z, p->t + i, j - i, f);
@@ -1140,6 +1150,7 @@ Story *lay_page_story(Layout *L, u32 page, int footer)
 /* a copy of src with the page fields (EE 80 80: this page, EE 80 81: the number of pages) replaced
    by numbers; NULL if out of memory, else the caller frees it */
 static void counter_text(char *o, u32 n, int fmt);
+static void place_text(Layout *L, const Para *p, u32 off, u16 link, u32 page, u32 pages, char *out);
 static Para *fill_fields(Layout *L, Para *src, u32 page, u32 pages)
 {
   Para *p = para_new(&src->pf, &src->r[0].f);
@@ -1153,16 +1164,8 @@ static Para *fill_fields(Layout *L, Para *src, u32 page, u32 pages)
       if (i > a) para_append(p, src->t + a, i - a, &src->r[k].f);
       if (field) {
         /* the page (in the document's format), the number of pages, or a bookmark's page */
-        char num[16];
-        u32 first = L->d->pgstart > 1 ? L->d->pgstart : 1;
-        int fmt = L->d->pgfmt && L->d->pgfmt != NF_NONE ? L->d->pgfmt : NF_DECIMAL;
-        if ((u8)src->t[i + 2] == 0x80) counter_text(num, page + first, fmt);
-        else if ((u8)src->t[i + 2] == 0x81) sprintf(num, "%lu", (unsigned long)pages);
-        else {
-          const char *u = doc_link_url(L->d, src->r[k].f.link);
-          int pg = lay_bmark_page(L, u[0] == '#' ? u + 1 : u);
-          if (pg > 0) counter_text(num, (u32)pg - 1 + first, fmt); else strcpy(num, "?");
-        }
+        char num[LAY_FIELD_TEXT];
+        place_text(L, src, i, src->r[k].f.link, page, pages, num);
         para_append(p, num, (u32)strlen(num), &src->r[k].f);
         i += 2;
       }
@@ -1257,24 +1260,48 @@ int lay_textbox(Layout *L, const Image *im, i32 cx, Furn *f)
   }
   return f->n > 0;
 }
-/* the text of a page field box on a page (from 0): the page's number or the number of pages. While a
-   header or footer is being edited (d->edit.kind), the numbers it was opened with instead */
+/* what a page placeholder at off of p shows on page (from 0) of pages: the page's number, the number
+   of pages, or a bookmark's page (link: the placeholder's link, which names it); inside a field (WP1)
+   what that field asks for (SECTION, SECTIONPAGES too), in its own format (\* roman, \# "00"...) */
 static void counter_text(char *o, u32 n, int fmt);
+static void place_text(Layout *L, const Para *p, u32 off, u16 link, u32 page, u32 pages, char *out)
+{
+  const Doc *d = L->d;
+  u32 first = d->pgstart > 1 ? d->pgstart : 1;      /* (page numbers from here, in the document's format) */
+  int fmt = d->pgfmt && d->pgfmt != NF_NONE ? d->pgfmt : NF_DECIMAL;
+  const char *code = NULL;
+  int kind = field_placeholder(d, p, off, &code);
+  long v;
+  if ((u8)p->t[off + 2] == 0x82 || kind == FK_PAGEREF) {
+    /* a cross-reference to the page a bookmark is on ("?" if it isn't in the text, or not laid out yet) */
+    const char *u = doc_link_url(d, link);
+    int pg = lay_bmark_page(L, u[0] == '#' ? u + 1 : u);
+    if (pg <= 0) { strcpy(out, "?"); return; }
+    v = (long)pg - 1 + (long)first;
+    if (!code || !field_format_number(code, v, out, LAY_FIELD_TEXT)) counter_text(out, (u32)v, fmt);
+  } else if (kind == FK_SECTION || kind == FK_SECTIONPAGES) {
+    u32 k, n = 0;
+    const PageInfo *pi = page < L->npages ? page_info(L, page) : NULL;
+    if (kind == FK_SECTION) { for (k = 0; k <= page && k < L->npages; k++) if (k == 0 || page_info(L, k)->first != page_info(L, k - 1)->first) n++; }
+    else for (k = 0; k < L->npages; k++) if (pi && page_info(L, k)->first == pi->first) n++;
+    v = n ? (long)n : 1;
+    field_format_number(code, v, out, LAY_FIELD_TEXT);
+  } else if ((u8)p->t[off + 2] == 0x81) {
+    v = (long)pages;
+    if (!code || !field_format_number(code, v, out, LAY_FIELD_TEXT)) sprintf(out, "%lu", (unsigned long)pages);
+  } else {
+    v = (long)(page + first);
+    if (!code || !field_format_number(code, v, out, LAY_FIELD_TEXT)) counter_text(out, page + first, fmt);
+  }
+  if (code) field_format_case(code, out, LAY_FIELD_TEXT);
+}
+/* the text of a field box on a page (from 0): a placeholder's number (place_text; while a header or
+   footer is being edited (d->edit.kind), with the page it was opened on), or a field's code */
 void lay_field_text(Layout *L, const Para *p, const Box *b, u32 page, char *out)
 {
-  u32 first = L->d->pgstart > 1 ? L->d->pgstart : 1;      /* (page numbers from here, in the document's format) */
-  int fmt = L->d->pgfmt && L->d->pgfmt != NF_NONE ? L->d->pgfmt : NF_DECIMAL;
   const Doc *d = L->d;
-  int pages = (u8)p->t[b->off + 2] == 0x81;
-  if ((u8)p->t[b->off + 2] == 0x82) {
-    /* a cross-reference to the page a bookmark is on ("?" if it isn't in the text, or not laid out yet) */
-    const char *u = doc_link_url(d, b->f.link);
-    int pg = lay_bmark_page(L, u[0] == '#' ? u + 1 : u);
-    if (pg > 0) counter_text(out, (u32)pg - 1 + first, fmt); else strcpy(out, "?");
-    return;
-  }
-  if (pages) sprintf(out, "%lu", (unsigned long)(d->edit.kind ? d->edit.fpages : L->npages));
-  else counter_text(out, (d->edit.kind ? d->edit.fpage : page) + first, fmt);
+  if (IS_FSTART(p->t + b->off)) { field_code_display(d, fmark_index(p->t + b->off), out, LAY_FIELD_TEXT); return; }
+  place_text(L, p, b->off, b->f.link, d->edit.kind ? d->edit.fpage : page, d->edit.kind ? d->edit.fpages : L->npages, out);
 }
 /* ---- footnotes */
 /* the number a note box shows: its paragraph's notebase (enotebase for an endnote) plus the notes of

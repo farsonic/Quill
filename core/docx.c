@@ -11,6 +11,7 @@
 #include "image.h"
 #include "tstyle.h"
 #include "keep.h"
+#include "field.h"
 
 /* ------------------------------------------------------------------ */
 /* reading: formatting as found (which fields a pPr or rPr sets) */
@@ -56,6 +57,7 @@ typedef struct {
   i32 *fnid; int *fnidx; int nfn;   /* footnotes: their ids in the file and indexes in Doc.notes */
   i32 *enid; int *enidx; int nen;   /* endnotes the same */
   i32 *cmid; int *cmidx; u8 *cmopen; int ncm;   /* comments the same; whether their range has started */
+  struct FldRead *fr;               /* WP1: the complex fields open (fld_char) */
 } Ctx;
 static void rel_by_id(const char *rels, size_t n, const char *id, const char *base, char *out, size_t cap);
 static void rel_raw(const char *rels, size_t n, const char *id, char *out, size_t cap);
@@ -90,33 +92,7 @@ static int hyperlink_field(const char *instr, char *out, size_t cap)
   if (anchor[0] && strlen(out) + strlen(anchor) + 2 < cap) { strcat(out, "#"); strcat(out, anchor); }
   return out[0] != 0;
 }
-/* a REF or PAGEREF field's bookmark (into name): 1 for REF (its result, the bookmark's text, is kept
-   as text linked to the bookmark), 2 for PAGEREF (the page it is on), 0 for other fields */
-static int ref_field(const char *instr, char *name, size_t cap)
-{
-  const char *s = instr, *q;
-  int kind;
-  name[0] = 0;
-  while (*s == ' ') s++;
-  if (!strncmp(s, "PAGEREF", 7) && s[7] == ' ') { kind = 2; s += 7; }
-  else if (!strncmp(s, "REF", 3) && s[3] == ' ') { kind = 1; s += 3; }
-  else return 0;
-  while (*s == ' ') s++;
-  if (*s == '"') { s++; q = strchr(s, '"'); if (!q) return 0; }
-  else { q = s; while (*q && *q != ' ' && *q != '\\') q++; }
-  if (q == s) return 0;
-  snprintf(name, cap, "%.*s", (int)(q - s), s);
-  return kind;
-}
-/* what a field code means to Quill: 1 for PAGE (the page number), 2 for NUMPAGES or SECTIONPAGES
-   (the page count), 0 for anything else, whose result text is kept as it is */
-static int field_kind(const char *instr)
-{
-  while (*instr == ' ') instr++;
-  if (!strncmp(instr, "PAGE", 4) && (instr[4] == ' ' || instr[4] == 0 || instr[4] == '\\')) return 1;
-  if (!strncmp(instr, "NUMPAGES", 8) || !strncmp(instr, "SECTIONPAGES", 12)) return 2;
-  return 0;
-}
+/* (REF, PAGEREF and the page fields: core/field.c field_kind, read by fld_decide below) */
 
 /* a WordprocessingML on/off property such as <w:b/>: on when it has no val at all, off for
    "0", "false", "off" or "none" */
@@ -1276,6 +1252,203 @@ static void parse_drawing(Xml *x, PCtx *pc, const CharFmt *f)
   if (k >= 0) { char t[8]; pic_utf8(t, k); run_text(pc, t, 4, f); }
   else c->lost |= LOST_PICTURES;
 }
+/* ---- WP1: fields (core/field.h). Complex fields (w:fldChar begin, code in w:instrText, separate,
+   result, end) may nest, and may sit in another's code; each one in the text gets its marks round its
+   result and a record with its code. A page field's result is Quill's placeholder (a bare one for a
+   plain PAGE or NUMPAGES, as before), a HYPERLINK's, REF's or PAGEREF's result is linked, and the
+   table of contents (Quill's own, core/toc.h) keeps only its code */
+typedef struct {
+  Buf code, res;                    /* its code; in another's code, its result too */
+  int state;                        /* 1 in the code, 2 in the result */
+  int incode;                       /* inside its parent's code */
+  int k;                            /* its record (-1: no marks) */
+  int skip;                         /* its result is left out (a placeholder stands for it) */
+  u16 link;                         /* its result's link (HYPERLINK, REF, PAGEREF), 0 none */
+  u8 locked, dirty;
+  char *ffdata;
+} FldOpen;
+#define FLD_DEPTH 16
+typedef struct FldRead { FldOpen f[FLD_DEPTH]; int n; } FldRead;
+/* c->field, fieldkind and fieldlink as the rest of the reader sees them: in a code (1) or a result (2);
+   a result left out; the link of the innermost linking field */
+static void fld_state(Ctx *c)
+{
+  FldRead *r = c->fr;
+  int i;
+  c->field = 0; c->fieldkind = 0; c->fieldlink = 0;
+  if (!r || !r->n) return;
+  c->field = (r->f[r->n - 1].state == 1 || r->f[r->n - 1].incode) ? 1 : 2;
+  c->fieldkind = r->f[r->n - 1].skip;
+  for (i = r->n; i-- > 0;) if (!r->f[i].incode && r->f[i].link) { c->fieldlink = r->f[i].link; break; }
+}
+static int fld_on(const char *v) { return v && (!strcmp(v, "true") || !strcmp(v, "1") || !strcmp(v, "on")); }
+/* the code of the field read is complete (at its separator, or its end if it has none): what Quill
+   does with it, its start mark (and placeholder) into the text with f's formatting */
+static void fld_decide(PCtx *pc, FldOpen *o, const CharFmt *f)
+{
+  Ctx *c = pc->c;
+  const char *code = o->code.data ? o->code.data : "";
+  int kind = field_kind(code);
+  char arg[512], url[520], m[8];
+  CharFmt mf = *f;
+  mf.link = c->fieldlink ? c->fieldlink : pc->link;
+  o->k = -1;
+  if (kind == FC_TOC && !field_switch(code, 'c', 0, NULL, 0) && !field_switch(code, 'a', 0, NULL, 0) && !field_switch(code, 'f', 0, NULL, 0)) {
+    /* Quill's table of contents: its paragraphs are the result; the code is kept for writing it back */
+    FieldInfo *fi = field_info(c->d);
+    if (fi && !fi->toccode) fi->toccode = str_dup(code);
+    return;
+  }
+  if (kind == FC_HYPERLINK) {
+    if (hyperlink_field(code, url, sizeof url)) o->link = (u16)doc_link(c->d, url);
+  } else if ((kind == FC_REF || kind == FK_PAGEREF) && field_arg(code, 0, arg, sizeof arg)) {
+    snprintf(url, sizeof url, "#%s", arg);
+    o->link = (u16)doc_link(c->d, url);
+  }
+  if (field_is_bare(code)) {
+    /* as Quill always read them: a placeholder, or a link */
+    if (kind != FC_HYPERLINK) {
+      CharFmt pf = mf;
+      pf.link = o->link;
+      run_text(pc, kind == FK_PAGE ? FIELD_PAGE : kind == FK_NUMPAGES ? FIELD_PAGES : FIELD_PAGEREF, 3, &pf);
+      o->skip = 1;
+    }
+    return;
+  }
+  if ((o->k = field_new(c->d, code, o->locked)) < 0) return;      /* (too many: the result stays as text) */
+  c->d->fields[o->k].dirty = o->dirty;
+  c->d->fields[o->k].ffdata = o->ffdata; o->ffdata = NULL;
+  fmark_utf8(m, o->k, 0);
+  run_text(pc, m, 4, &mf);
+  if (kind >= FK_PAGE && kind <= FK_PAGEREF) {
+    CharFmt pf = mf;
+    pf.link = o->link;
+    run_text(pc, kind == FK_PAGEREF ? FIELD_PAGEREF : (kind == FK_NUMPAGES || kind == FK_SECTIONPAGES) ? FIELD_PAGES : FIELD_PAGE, 3, &pf);
+    o->skip = 1;
+  }
+}
+/* a w:fldChar (x at its START; read to its end here): a field begins, its result starts, or it ends */
+static void fld_char(Xml *x, PCtx *pc, CharFmt *f)
+{
+  Ctx *c = pc->c;
+  FldRead *r = c->fr;
+  const char *t = xml_attr(x, "fldCharType");
+  if (!r && !(r = c->fr = (FldRead *)calloc(1, sizeof(FldRead)))) { xml_skip(x); return; }
+  if (t && !strcmp(t, "begin")) {
+    FldOpen *o;
+    const char *raw;
+    size_t n;
+    int lk = fld_on(xml_attr(x, "fldLock")), dt = fld_on(xml_attr(x, "dirty")), pend = x->pending_end;
+    if (r->n >= FLD_DEPTH) { xml_skip(x); return; }
+    o = &r->f[r->n];
+    memset(o, 0, sizeof *o);
+    buf_init(&o->code); buf_init(&o->res);
+    o->state = 1; o->k = -1;
+    o->incode = r->n > 0 && (r->f[r->n - 1].state == 1 || r->f[r->n - 1].incode);
+    o->locked = (u8)lk; o->dirty = (u8)dt;
+    n = xml_raw(x, &raw);
+    if (!pend && n) {
+      /* its children (a form field's w:ffData...), kept as they are */
+      const char *in = memchr(raw, '>', n), *end = raw + n;
+      while (end > raw && *end != '<') end--;
+      if (in && end > in + 1) o->ffdata = str_ndup(in + 1, (size_t)(end - in - 1));
+    }
+    r->n++;
+  } else if (t && !strcmp(t, "separate") && r->n) {
+    FldOpen *o = &r->f[r->n - 1];
+    xml_skip(x);
+    if (o->state == 1) {
+      o->state = 2;
+      if (!o->incode) { fld_state(c); fld_decide(pc, o, f); }
+    }
+  } else if (t && !strcmp(t, "end") && r->n) {
+    FldOpen *o = &r->f[r->n - 1];
+    int nosep = o->state == 1;
+    xml_skip(x);
+    if (o->incode) {
+      /* a field in another's code: kept there, with its result */
+      FldOpen *par = &r->f[r->n - 2];
+      buf_addc(&par->code, FLD_OPEN);
+      if (o->code.data) buf_adds(&par->code, o->code.data);
+      buf_addc(&par->code, FLD_SEP);
+      if (o->res.data) buf_adds(&par->code, o->res.data);
+      buf_addc(&par->code, FLD_CLOSE);
+    } else {
+      if (nosep) { fld_state(c); fld_decide(pc, o, f); }
+      if (o->k >= 0) {
+        char m[8];
+        CharFmt mf = *f;
+        if (nosep) c->d->fields[o->k].nosep = 1;
+        r->n--; fld_state(c); r->n++;
+        mf.link = c->fieldlink ? c->fieldlink : pc->link;
+        fmark_utf8(m, o->k, 1);
+        run_text(pc, m, 4, &mf);
+      }
+    }
+    buf_free(&o->code); buf_free(&o->res); free(o->ffdata);
+    r->n--;
+  } else xml_skip(x);
+  fld_state(c);
+  f->link = c->field == 2 && c->fieldlink ? c->fieldlink : pc->link;
+}
+/* text of the code being read (w:instrText), or of a result inside a code (w:t): 1 if it was taken */
+static int fld_text(Xml *x, Ctx *c, const char *n)
+{
+  FldRead *r = c->fr;
+  FldOpen *o;
+  int d1;
+  if (!r || !r->n) return 0;
+  o = &r->f[r->n - 1];
+  if (o->state == 1 && (!strcmp(n, "instrText") || !strcmp(n, "delInstrText"))) {
+    d1 = x->depth;
+    while (xml_next(x) != XT_EOF) {
+      if (x->type == XT_END && x->depth < d1) break;
+      if (x->type == XT_TEXT) buf_add(&o->code, x->text.data, x->text.len);
+    }
+    return 1;
+  }
+  if (o->state == 2 && o->incode && (!strcmp(n, "t") || !strcmp(n, "delText"))) {
+    d1 = x->depth;
+    while (xml_next(x) != XT_EOF) {
+      if (x->type == XT_END && x->depth < d1) break;
+      if (x->type == XT_TEXT) buf_add(&o->res, x->text.data, x->text.len);
+    }
+    return 1;
+  }
+  return 0;
+}
+/* a w:fldSimple (x at its START; read to its END): the same as a complex field, its result the runs inside */
+static void fld_simple(Xml *x, PCtx *pc)
+{
+  Ctx *c = pc->c;
+  const char *in = xml_attr(x, "instr");
+  Para *p = cur(pc);
+  FldOpen o;
+  CharFmt f;
+  u16 ol = pc->link;
+  if (!in || !p) { parse_children(x, pc); return; }
+  memset(&o, 0, sizeof o);
+  buf_init(&o.code); buf_init(&o.res);
+  buf_adds(&o.code, in);
+  o.locked = (u8)fld_on(xml_attr(x, "fldLock")); o.dirty = (u8)fld_on(xml_attr(x, "dirty"));
+  f = p->r[p->nr - 1].f;
+  f.bmark = c->bmark;
+  fld_decide(pc, &o, &f);
+  if (o.skip) xml_skip(x);
+  else {
+    if (o.link) pc->link = o.link;
+    parse_children(x, pc);
+    pc->link = ol;
+  }
+  if (o.k >= 0 && (p = cur(pc))) {
+    char m[8];
+    f = p->r[p->nr - 1].f;
+    f.link = pc->link;
+    fmark_utf8(m, o.k, 1);
+    run_text(pc, m, 4, &f);
+  }
+  buf_free(&o.code); buf_free(&o.res); free(o.ffdata);
+}
 /* a w:r: its rPr (on top of the paragraph style's character format and any character style), then
    its text, tabs, breaks, drawings, note and comment references and symbols into the current
    paragraph. Complex fields (fldChar begin/separate/end) are followed across runs in c->field: the
@@ -1312,39 +1485,8 @@ static void parse_run(Xml *x, PCtx *pc)
       f.bmark = c->bmark;
       continue;
     }
-    if (!strcmp(n, "fldChar")) {
-      const char *t = xml_attr(x, "fldCharType");
-      if (t && !strcmp(t, "begin")) { c->field = 1; c->instr[0] = 0; c->fieldkind = 0; c->fieldlink = 0; }
-      else if (t && !strcmp(t, "separate")) {
-        char url[512];
-        c->field = 2;
-        /* a HYPERLINK field: what it shows is the link */
-        if (hyperlink_field(c->instr, url, sizeof url)) { c->fieldlink = (u16)doc_link(c->d, url); f.link = c->fieldlink; }
-        else {
-          /* a cross-reference: REF's result is the bookmark's text, linked to it; PAGEREF becomes
-             the page-of-a-bookmark placeholder (linked to it, which names it), its result left out */
-          char bm[200];
-          int rk = ref_field(c->instr, bm, sizeof bm);
-          if (rk) {
-            snprintf(url, sizeof url, "#%s", bm);
-            c->fieldlink = (u16)doc_link(c->d, url);
-            f.link = c->fieldlink;
-            if (rk == 2) { c->fieldkind = 3; run_text(pc, FIELD_PAGEREF, 3, &f); }
-          }
-        }
-        /* a page number field becomes its placeholder; its result is left out */
-        if (!c->fieldkind && (c->fieldkind = field_kind(c->instr))) run_text(pc, c->fieldkind == 1 ? FIELD_PAGE : FIELD_PAGES, 3, &f);
-      }
-      else if (t && !strcmp(t, "end")) { c->field = 0; c->fieldkind = 0; c->fieldlink = 0; f.link = pc->link; }
-    }
-    else if (c->field == 1 && !strcmp(n, "instrText")) {
-      int d1 = x->depth;
-      while (xml_next(x) != XT_EOF) {
-        if (x->type == XT_END && x->depth < d1) break;
-        if (x->type == XT_TEXT) { size_t l = strlen(c->instr); snprintf(c->instr + l, sizeof c->instr - l, "%.*s", (int)x->text.len, x->text.data); }
-      }
-      continue;
-    }
+    if (!strcmp(n, "fldChar")) { fld_char(x, pc, &f); continue; }      /* WP1: fields */
+    else if (fld_text(x, c, n)) continue;
     else if (c->field == 1) ;                                  /* field code: left out */
     else if (c->field == 2 && c->fieldkind) ;                  /* a page number's result: the placeholder stands for it */
     else if (!strcmp(n, "t") || (!strcmp(n, "delText") && pc->rev == REV_DEL)) {
@@ -1440,28 +1582,7 @@ static void parse_children(Xml *x, PCtx *pc)
       continue;
     }
     if (!strcmp(n, "r")) { parse_run(x, pc); continue; }
-    if (!strcmp(n, "fldSimple")) {
-      const char *in = xml_attr(x, "instr");
-      int k = in ? field_kind(in) : 0;
-      if (k) { Para *p = cur(pc); if (p) para_append(p, k == 1 ? FIELD_PAGE : FIELD_PAGES, 3, &p->r[p->nr - 1].f); xml_skip(x); continue; }
-      if (in) {
-        /* a simple cross-reference: PAGEREF's placeholder, or REF's text linked to its bookmark */
-        char bm[200], url[210];
-        int rk = ref_field(in, bm, sizeof bm);
-        if (rk) {
-          u16 ol = pc->link;
-          snprintf(url, sizeof url, "#%s", bm);
-          pc->link = (u16)doc_link(pc->c->d, url);
-          if (rk == 2) {
-            Para *p = cur(pc);
-            if (p) { CharFmt f = p->r[p->nr - 1].f; f.link = pc->link; f.bmark = pc->c->bmark; para_append(p, FIELD_PAGEREF, 3, &f); }
-            xml_skip(x);
-          } else parse_children(x, pc);
-          pc->link = ol;
-          continue;
-        }
-      }
-    }
+    if (!strcmp(n, "fldSimple")) { fld_simple(x, pc); continue; }      /* WP1: fields */
     if (!strcmp(n, "ins") || !strcmp(n, "del") || !strcmp(n, "moveTo") || !strcmp(n, "moveFrom")) {
       /* tracked changes: the runs inside are inserted or deleted, by someone, at some time */
       u8 orev = pc->rev;
@@ -2142,6 +2263,25 @@ static char *part(ZipReader *z, const char *name, size_t *n)
 {
   return (char *)zip_read(z, zip_find(z, name), n);
 }
+/* WP1: settings.xml's w:updateFields; the document properties fields show (docProps core.xml, app.xml,
+   custom.xml: the last two are kept verbatim too, core.xml is written by Quill) */
+static void read_field_setting(Ctx *c, Xml *x)
+{
+  if (!strcmp(x->name, "updateFields")) { FieldInfo *fi = field_info(c->d); if (fi) fi->updatefields = (u8)onoff(x); }
+}
+static void read_field_parts(Ctx *c, ZipReader *z)
+{
+  static const char *const names[3] = { "docProps/core.xml", "docProps/app.xml", "docProps/custom.xml" };
+  int i;
+  for (i = 0; i < 3; i++) {
+    size_t n = 0;
+    char *xml = part(z, names[i], &n);
+    if (!xml) continue;
+    if (i == 0) field_read_core(c->d, xml, n); else if (i == 1) field_read_app(c->d, xml, n); else field_read_custom(c->d, xml, n);
+    free(xml);
+  }
+  free(c->fr); c->fr = NULL;
+}
 /* ------------------------------------------------------------------ */
 /* the work packages' reading hooks (WP0). Each package puts the call to its own function on a line
    right after its own marker line; never edit a marker line itself (so two packages' lines don't
@@ -2220,6 +2360,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
 {
   (void)c; (void)x;
   /* WP1: */
+  read_field_setting(c, x);
   /* WP2: */
   /* WP3: */
   /* WP4: */
@@ -2369,6 +2510,7 @@ static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_
   keep_rels(c->d, z, ct, ctn, docrels, rn, base, "word/document.xml");
   (void)mainpart;
   /* WP1: */
+  read_field_parts(c, z);
   /* WP2: */
   /* WP3: */
   /* WP4: */
@@ -3017,6 +3159,94 @@ static void w_picture(Buf *o, Doc *d, const char *rpr, size_t rl, int k)
   w_obj(o, d, im, 0, 0, 0, &save_drawing);
   buf_printf(o, "</a:graphicData></a:graphic></wp:%s></w:drawing></w:r>", fl ? "anchor" : "inline");
 }
+/* ---- WP1: fields written as complex fields (core/field.h). The fields open while writing (their
+   start mark written, not their end), so a placeholder in a page field's result is written as its
+   number and links inside a HYPERLINK, REF or PAGEREF field's result are left to the field; marks whose
+   partner is missing or crossed (field_orphans) are left out so the file's fields nest */
+static struct { int k, kind; } w_fopen[64];
+static int w_nfopen;
+static const char **w_forph; static u32 w_nforph;
+static void w_fld_prepare(Doc *d)
+{
+  free((void *)w_forph);
+  w_forph = field_orphans(d, &w_nforph);
+  w_nfopen = 0;
+}
+/* the links of the text being written are the field's own */
+static int w_fld_nolink(void)
+{
+  int i;
+  for (i = 0; i < w_nfopen; i++) if (w_fopen[i].kind == FC_HYPERLINK || w_fopen[i].kind == FC_REF || w_fopen[i].kind == FK_PAGEREF) return 1;
+  return 0;
+}
+static void w_fldchar(Buf *o, const char *rpr, size_t rl, const char *type)
+{
+  buf_adds(o, "<w:r>"); buf_add(o, rpr, rl);
+  buf_printf(o, "<w:fldChar w:fldCharType=\"%s\"/></w:r>", type);
+}
+/* a code's runs: its text as w:instrText, a field nested in it as a complex field of its own */
+static void w_instr(Buf *o, const char *rpr, size_t rl, const char *code)
+{
+  while (*code) {
+    const char *e = code;
+    while (*e && *e != FLD_OPEN) e++;
+    if (e > code) {
+      buf_adds(o, "<w:r>"); buf_add(o, rpr, rl);
+      buf_adds(o, w_deleted ? "<w:delInstrText xml:space=\"preserve\">" : "<w:instrText xml:space=\"preserve\">");
+      xml_escape(o, code, (size_t)(e - code));
+      buf_adds(o, w_deleted ? "</w:delInstrText></w:r>" : "</w:instrText></w:r>");
+    }
+    if (!*e) break;
+    {
+      /* FLD_OPEN code FLD_SEP result FLD_CLOSE, the code itself perhaps holding others */
+      const char *q = e + 1, *sep = NULL, *end;
+      int depth = 0;
+      char *inner;
+      for (; *q; q++) {
+        if (*q == FLD_OPEN) depth++;
+        else if (*q == FLD_CLOSE) { if (!depth) break; depth--; }
+        else if (*q == FLD_SEP && !depth && !sep) sep = q;
+      }
+      end = q;
+      if (!sep) sep = end;
+      w_fldchar(o, rpr, rl, "begin");
+      if ((inner = str_ndup(e + 1, (size_t)(sep - e - 1)))) { w_instr(o, rpr, rl, inner); free(inner); }
+      w_fldchar(o, rpr, rl, "separate");
+      if (end > sep + 1) {
+        buf_adds(o, "<w:r>"); buf_add(o, rpr, rl);
+        buf_adds(o, w_deleted ? "<w:delText xml:space=\"preserve\">" : "<w:t xml:space=\"preserve\">");
+        xml_escape(o, sep + 1, (size_t)(end - sep - 1));
+        buf_adds(o, w_deleted ? "</w:delText></w:r>" : "</w:t></w:r>");
+      }
+      w_fldchar(o, rpr, rl, "end");
+      code = *end ? end + 1 : end;
+    }
+  }
+}
+/* a field's mark at t (n bytes of run text left from it): its begin, code and separator, or its end */
+static void w_fld_mark(Buf *o, Doc *d, const char *rpr, size_t rl, const char *t, u32 n)
+{
+  int k = fmark_index(t);
+  const Field *f = field_get(d, k);
+  if (!f || (w_forph && field_is_orphan(w_forph, w_nforph, t))) return;
+  if (IS_FEND(t)) {
+    if (w_nfopen) w_nfopen--;
+    w_fldchar(o, rpr, rl, "end");
+    return;
+  }
+  buf_adds(o, "<w:r>"); buf_add(o, rpr, rl);
+  buf_adds(o, "<w:fldChar w:fldCharType=\"begin\"");
+  if (f->locked) buf_adds(o, " w:fldLock=\"true\"");
+  if (f->dirty) buf_adds(o, " w:dirty=\"true\"");
+  if (f->ffdata) { buf_adds(o, ">"); buf_adds(o, f->ffdata); buf_adds(o, "</w:fldChar></w:r>"); }
+  else buf_adds(o, "/></w:r>");
+  w_instr(o, rpr, rl, f->code);
+  /* a field that never had a result (XE, TC) is written without a separator while it still has none */
+  if (!(f->nosep && n >= 8 && IS_FEND(t + 4) && fmark_index(t + 4) == k)) w_fldchar(o, rpr, rl, "separate");
+  if (w_nfopen < 64) { w_fopen[w_nfopen].k = k; w_fopen[w_nfopen].kind = field_kind(f->code); w_nfopen++; }
+}
+/* the field the text being written is the result of is a page field: its placeholders are its number */
+static int w_fld_page(void) { return w_nfopen && w_fopen[w_nfopen - 1].kind >= FK_PAGE && w_fopen[w_nfopen - 1].kind <= FK_PAGEREF; }
 /* runs of text in one format (rpr: its w:rPr, rl bytes), split wherever a 4-byte reference
    appears: pictures become drawings, notes footnote or endnote references, comment marks their
    range elements, and the page number and page count placeholders fldSimple fields (with "1" as
@@ -3030,8 +3260,10 @@ static void w_run(Buf *o, Doc *d, const char *rpr, size_t rl, const char *s, u32
   for (i = 0; i <= n; i++) {
     int field = i + 2 < n + 0 && IS_FIELD(s + i);
     int pic = i + 4 <= n && IS_PIC(s + i), note = i + 4 <= n && IS_NOTE(s + i), mark = i + 4 <= n && IS_MARK(s + i);
-    if (i < n && !field && !pic && !note && !mark && !(i + 4 <= n && IS_ENOTE(s + i))) continue;
+    int fmark = i + 4 <= n && IS_FMARK(s + i);
+    if (i < n && !field && !pic && !note && !mark && !fmark && !(i + 4 <= n && IS_ENOTE(s + i))) continue;
     if (i > a) { buf_adds(o, "<w:r>"); buf_add(o, rpr, rl); w_text(o, s + a, i - a); buf_adds(o, "</w:r>"); }
+    if (fmark) { w_fld_mark(o, d, rpr, rl, s + i, n - i); i += 3; a = i + 1; continue; }     /* WP1 */
     if (pic) {
       int k = pic_index(s + i);
       if (k < d->nimages && obj_saved(&d->images[k])) w_picture(o, d, rpr, rl, k);
@@ -3062,7 +3294,14 @@ static void w_run(Buf *o, Doc *d, const char *rpr, size_t rl, const char *s, u32
       i += 3; a = i + 1;
       continue;
     }
-    if (field && (u8)s[i + 2] == 0x82) {
+    if (field && w_fld_page()) {
+      /* the result of a page field written by its marks: the number it shows */
+      const char *u = doc_link_url(d, w_runlink), *bm = u[0] == '#' ? u + 1 : u;
+      int pg = (u8)s[i + 2] == 0x82 && docx_pageref && bm[0] ? docx_pageref(docx_pageref_ctx, bm) : 0;
+      buf_adds(o, "<w:r>"); buf_add(o, rpr, rl);
+      buf_printf(o, "<w:t>%d</w:t></w:r>", pg > 0 ? pg : 1);
+      i += 2;
+    } else if (field && (u8)s[i + 2] == 0x82) {
       /* the page a bookmark is on: PAGEREF, with the page it is on now if the caller can say */
       const char *u = doc_link_url(d, w_runlink), *bm = u[0] == '#' ? u + 1 : u;
       int pg = docx_pageref && bm[0] ? docx_pageref(docx_pageref_ctx, bm) : 0;
@@ -3178,7 +3417,7 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
     if (p->r[k].end > start) {
       Buf r;
       const CharFmt *f = &p->r[k].f;
-      if (f->link != link) { w_link(o, d, link, 0); w_link(o, d, f->link, 1); link = f->link; }
+      { u16 fl = w_fld_nolink() ? 0 : f->link; if (fl != link) { w_link(o, d, link, 0); w_link(o, d, fl, 1); link = fl; } }   /* (WP1: a field's own links) */
       if (w_inbody) w_bmark_to(o, d, f->bmark);
       w_runlink = f->link;
       buf_init(&r);
@@ -3414,6 +3653,17 @@ static void w_sectpr(Buf *o, Doc *d, const SectFmt *s, int g, int last)
   if (sect_titlepg(d, s, last)) buf_adds(o, "<w:titlePg/>");
   buf_adds(o, "</w:sectPr>");
 }
+/* the runs that open a table of contents: Word's TOC field, with the code it was read with (WP1) */
+static const char *w_toc_lead(Doc *d)
+{
+  static Buf b;
+  const char *code = d->finfo && d->finfo->toccode ? d->finfo->toccode : " TOC \\o \"1-3\" \\h \\z \\u ";
+  buf_free(&b);
+  buf_adds(&b, "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\">");
+  xml_escape(&b, code, strlen(code));
+  buf_adds(&b, "</w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>");
+  return b.data ? b.data : "";
+}
 /* document.xml: the body's paragraphs with the tables round them, a table of contents wrapped in a
    TOC field, and the last section's w:sectPr. Malloc'd, *len its size; NULL if out of memory. */
 static char *w_document(Doc *d, size_t *len)
@@ -3430,7 +3680,7 @@ static char *w_document(Doc *d, size_t *len)
     /* a table of contents: Word's TOC field round its entries, so Word can update it */
     int toc = toc_para(d, d->p[i]), first = toc && !(i > 0 && toc_para(d, d->p[i - 1])), last = toc && !(i + 1 < d->np && toc_para(d, d->p[i + 1]));
     w_table_open(&o, d, i);
-    w_para_ex(&o, d, d->p[i], first ? "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> TOC \\o \"1-3\" \\h \\z \\u </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>" : NULL,
+    w_para_ex(&o, d, d->p[i], first ? w_toc_lead(d) : NULL,
               last ? "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>" : NULL);
     w_table_close(&o, d, i);
   }
@@ -3714,6 +3964,7 @@ u8 *docx_save(Doc *d, size_t *len)
         if (IS_CSTART(d->p[i]->t + k)) { int m = note_index(d->p[i]->t + k); if (m < d->ncomments && !save_comments[m]) save_comments[m] = ++nn; k += 3; }
     if (!nn) { free(save_comments); save_comments = NULL; }
   }
+  w_fld_prepare(d);                     /* WP1: fields whose marks don't pair up are left out */
   if (!(docxml = w_document(d, &dl))) return NULL;
   if (!(stxml = w_styles(d, &sl))) { free(docxml); return NULL; }
   if (d->nlists && !(numxml = w_numbering(d, &nl))) { free(docxml); free(stxml); return NULL; }
@@ -3750,6 +4001,7 @@ u8 *docx_save(Doc *d, size_t *len)
                   "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
   if (d->title[0]) { buf_adds(&core, "<dc:title>"); xml_escape(&core, d->title, strlen(d->title)); buf_adds(&core, "</dc:title>"); }
   if (d->author[0]) { buf_adds(&core, "<dc:creator>"); xml_escape(&core, d->author, strlen(d->author)); buf_adds(&core, "</dc:creator>"); }
+  field_write_core(d, &core);           /* WP1: the other properties the fields show, and the dates */
   buf_adds(&core, "</cp:coreProperties>");
   zip_begin(&z);
   ok = zip_add(&z, "[Content_Types].xml", ct.data, ct.len);
@@ -3822,6 +4074,7 @@ u8 *docx_save(Doc *d, size_t *len)
     if (d->hyphenate) buf_adds(&st, "<w:autoHyphenation/>");
     docx_write_settings_ext(d, &st, 2);
     if (d->evenodd) buf_adds(&st, "<w:evenAndOddHeaders/>");
+    if (d->finfo && d->finfo->updatefields) buf_adds(&st, "<w:updateFields w:val=\"true\"/>");     /* (WP1) */
     if (save_notes) buf_adds(&st, "<w:footnotePr><w:footnote w:id=\"-1\"/><w:footnote w:id=\"0\"/></w:footnotePr>");
     if (save_enotes) buf_adds(&st, "<w:endnotePr><w:endnote w:id=\"-1\"/><w:endnote w:id=\"0\"/></w:endnotePr>");
     buf_adds(&st, "<w:compat><w:compatSetting w:name=\"compatibilityMode\" w:uri=\"http://schemas.microsoft.com/office/word\" w:val=\"15\"/></w:compat>");
@@ -4076,6 +4329,7 @@ Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap)
   err[0] = 0;
   d = f->load(data, n, lost, err, errcap);
   if (!d && !err[0]) snprintf(err, errcap, "Quill couldn't read %s.", path);
+  if (d) field_set_filename(d, path);   /* (WP1: FILENAME) */
   free(data);
   return d;
 }
@@ -4085,7 +4339,9 @@ int doc_save_file(Doc *d, const char *path)
 {
   size_t n;
   const DocFormat *f = doc_format_for_name(path, 1);
-  u8 *data = (f ? f : &fmt_txt)->save(d, &n);
+  u8 *data;
+  field_set_filename(d, path);          /* (WP1: FILENAME) */
+  data = (f ? f : &fmt_txt)->save(d, &n);
   int ok;
   if (!data) return 0;
   ok = file_write(path, data, n);
