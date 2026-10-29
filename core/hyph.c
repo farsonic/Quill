@@ -172,7 +172,7 @@ static int word_breaks(const HSet *s, const char *w, u32 n, u8 *brk)
 {
   char t[MAXPAT + 2];
   u8 v[MAXPAT + 3];
-  u32 i, j, len, chars = 0, at = 0, k;
+  u32 i, j, len, chars = 0, k;
   int count = 0;
   memset(brk, 0, n + 1);
   if (!s || s->state != 2 || n > MAXPAT - 2) return 0;
@@ -215,7 +215,6 @@ static int word_breaks(const HSet *s, const char *w, u32 n, u8 *brk)
     if ((u8)w[i] == 0xE2) continue;
     brk[i] = 1; count++;
   }
-  (void)at;
   return count;
 }
 int hyph_word(const char *w, u32 n, u8 *brk)

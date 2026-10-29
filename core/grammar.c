@@ -89,14 +89,13 @@ static const char *const repeat_ok[] = { "had", "that", "bye", "no", "very", "so
 /* words starting with a vowel letter that sound as a consonant, and the other way round */
 static const char *const you_sound[] = { "uni", "unan", "use", "usa", "usu", "ute", "uti", "uto", "ura", "ure", "uri", "uro", "uku", "eu", "ewe", "one", "once", "ouija", "ufo", "ubiq", NULL };
 static const char *const silent_h[] = { "hour", "honest", "honour", "honor", "heir", "honorar", NULL };
-static int vowel_sound(const char *t, const Word *w)
+static int vowel_sound(const Word *w)
 {
   int i;
   char c = w->low[0];
   if (w->allcap && w->e - w->s >= 2 && w->e - w->s <= 5) return strchr("aefhilmnorsx", c) != NULL;     /* an FBI, a NATO? (letters read out) */
   for (i = 0; you_sound[i]; i++) if (starts(w->low, you_sound[i])) return 0;
   for (i = 0; silent_h[i]; i++) if (starts(w->low, silent_h[i])) return 1;
-  (void)t;
   return c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u';
 }
 static const char *const abbrevs[] = { "e", "g", "i", "etc", "vs", "mr", "mrs", "ms", "dr", "prof", "st", "no", "fig", "cf", "approx", "dept", "inc", "ltd",
@@ -192,7 +191,7 @@ int grammar_check(const char *t, u32 len, unsigned opts, GramIssue *out, int max
         add(out, &n, max, w[i - 1].e, w[i].e, GR_REPEAT, "");
       /* a or an */
       if (i + 1 < nw && (!strcmp(w[i].low, "a") || !strcmp(w[i].low, "an")) && spaces(t, w[i].e, w[i + 1].s) && w[i + 1].letters > 0) {
-        int an = w[i].low[1] == 'n', v = vowel_sound(t, &w[i + 1]);
+        int an = w[i].low[1] == 'n', v = vowel_sound(&w[i + 1]);
         /* (not "a" as a letter or a list label: "a." "a)") */
         if (!(w[i].e < len && (t[w[i].e] == '.' || t[w[i].e] == ')')) && an != v && !(i > 0 && !strcmp(w[i - 1].low, "letter"))) {
           strcpy(s, v ? "an" : "a");

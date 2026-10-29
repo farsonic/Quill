@@ -471,8 +471,10 @@ static const Group refs[] = { { "Table of Contents", G_COLS, r_toc, N(r_toc) }, 
 /* the Review tab: spelling, comments and tracked changes (several need RB_COMMENTS or
    RB_CHANGES: some comments or changes in the document) */
 static const Item v_proof[] = {
-  { K_BUTTON, S_LARGE, IC_SPELLING, 0, "Spelling", ID_SPELL, 0, 0, 0, 0, "Check the spelling" },
-  { K_BUTTON, S_SMALL, IC_WORDCOUNT, 0, "Word Count", ID_WORDCOUNT, 0, 0, F_NEWCOL, 0, "Words, characters and pages" } };
+  { K_BUTTON, S_LARGE, IC_SPELLING, 0, "Spelling & Grammar", ID_SPELL, 0, 0, 0, 0, "Check the spelling and grammar (F7)" },
+  { K_BUTTON, S_SMALL, 0, 0, "Thesaurus", (UWORD)(ID_WP8_FIRST + 1), 0, 0, F_NEWCOL, 0, "Words with a similar meaning (Shift-F7)", NULL,
+    "ci R 2 2 13 14 L 4 2 4 14 ca L 6 5 11 5 L 6 8 11 8 L 6 11 10 11", 0 },          /* (WP8: wp_proof.c's ID_PR_THES) */
+  { K_BUTTON, S_SMALL, IC_WORDCOUNT, 0, "Word Count", ID_WORDCOUNT, 0, 0, 0, 0, "Words, characters and pages" } };
 static const Item v_comm[] = {
   { K_BUTTON, S_LARGE, IC_COMMENT, 0, "New Comment", ID_COMMENT, 0, 0, 0, 0, "A comment on the selection" },
   { K_BUTTON, S_SMALL, IC_DELETE, 0, "Delete", ID_DELCOMMENT, 0, RB_COMMENTS, F_NEWCOL, 0, "Delete the comment at the caret" },

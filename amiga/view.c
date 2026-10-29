@@ -551,6 +551,8 @@ static i32 line_x(Layout *L, ParaLay *pl, Line *ln, u32 off)
   return x;
 }
 #include "wp_find_view.h"               /* WP12: block and similar selections, Extend Selection, Select Objects, Highlight All */
+#include "wp_proof.h"                  /* WP8, WP31: grammar marks, AutoCorrect while typing, languages */
+#include "../core/proflang.h"
 /* each author's changes in a colour of their own */
 static u32 rev_colour(int rid)
 {
@@ -1237,11 +1239,12 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     }
     else if (b->kind == BX_TEXT) {
       draw_text(d, obj, rp, b, pl->p->t, lx + tx(d, b->x), base);
-      if (d->tb && d->tb->spell && !b->f.rev && !(k > 0 && (pl->boxes[k - 1].kind == BX_DROP || (pl->boxes[k - 1].kind == BX_TEXT && pl->boxes[k - 1].nspace)))) {   /* not the rest of a hyphenated word, nor the word a drop cap opens */
+      Spell *lsp = d->tb && proof_live_spelling ? proof_spell((Spell *)d->tb->spell, &b->f) : NULL;   /* (WP31: the run's language's dictionary, none if not checked) */
+      if (lsp && !b->f.rev && !(k > 0 && (pl->boxes[k - 1].kind == BX_DROP || (pl->boxes[k - 1].kind == BX_TEXT && pl->boxes[k - 1].nspace)))) {   /* not the rest of a hyphenated word, nor the word a drop cap opens */
         /* words not in the dictionary: a red wavy line (not the word being typed) */
         u32 ws, we, o = b->off, end = b->off + b->len;
         while (o < end && spell_word_at(pl->p->t, end, o, &ws, &we)) {
-          if (!(pc->para == d->caret.para && we == d->caret.off) && !spell_ok((Spell *)d->tb->spell, pl->p->t + ws, we - ws)) {
+          if (!(pc->para == d->caret.para && we == d->caret.off) && !spell_ok(lsp, pl->p->t + ws, we - ws)) {
             LONG x0 = lx + tx(d, lay_text_x(L, b, pl->p->t, ws)), x1 = lx + tx(d, lay_text_x(L, b, pl->p->t, we)), xx, wy = base + 2;
             SetAPen(rp, d->pen_squiggle);
             for (xx = x0; xx < x1; xx++) WritePixel(rp, xx, wy + ((xx >> 1) & 1));
@@ -1278,6 +1281,21 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
       LONG x = lx + tx(d, b->x), w = tx(d, b->w);        /* underlined spaces between words */
       SetAPen(rp, pen_for(d, obj, b->f.color));
       if ((b->f.flags & CF_UNDERLINE) && b->f.ul != UL_WORDS) deco_line(rp, b->f.ul, x, base - tx(d, b->f.position * 10) + 1 + d->zoom / 150, w);
+    }
+    if ((b->kind == BX_TEXT || b->kind == BX_SPACE) && !b->f.rev && d->tb) {
+      /* (WP8) grammar issues: a blue double line under them, style issues a dotted gold one (not the one being typed) */
+      const GramIssue *gi;
+      int ng = wp8_issues(pl->p, &gi), g;
+      for (g = 0; g < ng; g++) {
+        u32 ga = gi[g].a > b->off ? gi[g].a : b->off, gb = gi[g].b < (u32)(b->off + b->len) ? gi[g].b : (u32)(b->off + b->len);
+        LONG x0, x1, xx, wy = base + 2;
+        if (ga >= gb || (pc->para == d->caret.para && gi[g].b == d->caret.off)) continue;
+        x0 = lx + tx(d, b->kind == BX_SPACE ? b->x : lay_text_x(L, b, pl->p->t, ga));
+        x1 = lx + tx(d, b->kind == BX_SPACE ? b->x + b->w : lay_text_x(L, b, pl->p->t, gb));
+        SetAPen(rp, pen_for(d, obj, gi[g].kind >= GR_PASSIVE ? 0xC09000 : 0x2050E0));
+        if (gi[g].kind >= GR_PASSIVE) { for (xx = x0; xx < x1; xx += 2) WritePixel(rp, xx, wy); }
+        else if (x1 > x0) { Move(rp, x0, wy); Draw(rp, x1 - 1, wy); Move(rp, x0, wy + 2); Draw(rp, x1 - 1, wy + 2); }
+      }
     }
     if ((b->f.fx & FX_BORDER) && b->w > 0 && (b->kind == BX_TEXT || b->kind == BX_SPACE || b->kind == BX_TAB || b->kind == BX_FIELD)) {
       /* a character border: one box round a stretch of bordered text, so its sides only where the stretch starts and ends */
@@ -3732,6 +3750,7 @@ static Object *ctx_build(struct Data *d, Object *obj, LONG mx, LONG my)
     ws = we = 0;
     while (spell_word_at(q->t, q->len, k, &ws, &we) && we < p.off) k = we;
   }
+  if (sp && we > ws) sp = proof_live_spelling ? proof_spell_at(sp, q, ws) : NULL;     /* (WP31: the word's language) */
   if (sp && sp->n && we > ws && ws <= p.off && we >= p.off &&
       we - ws < sizeof d->ctx_word && !spell_ok(sp, q->t + ws, we - ws)) {
     char *sug[8];
@@ -3825,7 +3844,8 @@ static void ctx_choice(struct Data *d, Object *obj, Object *item)
   switch (id) {
   case CTX_IGNORE: case CTX_ADD:
     if (d->ctx_word[0] && d->tb && d->tb->spell) {
-      spell_add((Spell *)d->tb->spell, d->ctx_word, (u32)strlen(d->ctx_word));
+      Spell *ws = d->ctx_a.para < d->doc->np ? proof_spell_at((Spell *)d->tb->spell, d->doc->p[d->ctx_a.para], d->ctx_a.off) : NULL;   /* (WP31) */
+      spell_add(ws ? ws : (Spell *)d->tb->spell, d->ctx_word, (u32)strlen(d->ctx_word));
       if (id == CTX_ADD) {
         /* kept for next time, as the Spelling window's Add does (main.c reads it at startup) */
         FILE *f = fopen("PROGDIR:Quill.words", "a");
@@ -4188,7 +4208,7 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
     else if (p->pf.list && !p->len) {                     /* Return in an empty list item ends the list */
       ParaFmt pf = p->pf; pf.list = 0; pf.level = 0; pf.left = doc->styles[pf.style].pf.left; pf.first = doc->styles[pf.style].pf.first;
       doc_para_format(doc, d->caret.para, d->caret.para, PM_LIST | PM_INDENT, &pf);
-    } else insert_text(d, "\n", 1);
+    } else { insert_text(d, "\n", 1); wp8_typed(d->doc, &d->caret, "\n", 1, tracking(d) ? rev_id(d) : -1); d->anchor = d->caret; }   /* (WP8) */
     edited = 1; break; }
   case 0x42:                                              /* Tab: in a list item's start, a level deeper */
     if (doc->p[d->caret.para]->pf.list && d->caret.off == 0 && !has_sel(d)) indent(d, shift ? -1 : 1);
@@ -4220,6 +4240,7 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
     for (i = 0; i < n; i++) if ((u8)buf[i] >= 32 && (u8)buf[i] != 127 && !((u8)buf[i] >= 0x80 && (u8)buf[i] < 0xA0)) o += utf8_put(u + o, (u8)buf[i]);
     if (!o) { if (!d->caret_shown) caret_show(d, obj); return 0; }
     insert_text(d, u, (u32)o);
+    wp8_typed(d->doc, &d->caret, u, (u32)o, tracking(d) ? rev_id(d) : -1); d->anchor = d->caret;   /* (WP8: AutoCorrect, AutoFormat) */
     edited = 1;
   }
   }

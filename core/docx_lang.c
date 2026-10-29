@@ -39,12 +39,12 @@ static void attr(Buf *b, const char *name, u16 id)
 /* part 0: w:noProof (after the effects, before w:vanish's neighbours); part 1: w:lang (after w:vertAlign) */
 void wp31_write_rpr(Buf *b, const CharFmt *f, const CharFmt *base, unsigned diff, int full, int part)
 {
-  if (part == 0 && (full ? f->noproof != 0 : (wp31_rpr_diff(f, base) & CM_NOPROOF) != 0))
+  if (!full) diff = wp31_rpr_diff(f, base);
+  if (part == 0 && (full ? f->noproof != 0 : (diff & CM_NOPROOF) != 0))
     buf_adds(b, f->noproof ? "<w:noProof/>" : "<w:noProof w:val=\"0\"/>");
-  if (part == 1 && (full ? (f->lang || f->langea || f->langbidi) : (wp31_rpr_diff(f, base) & CM_LANG) != 0) && (f->lang || f->langea || f->langbidi)) {
+  if (part == 1 && (full ? (f->lang || f->langea || f->langbidi) : (diff & CM_LANG) != 0) && (f->lang || f->langea || f->langbidi)) {
     buf_adds(b, "<w:lang");
     attr(b, "val", f->lang); attr(b, "eastAsia", f->langea); attr(b, "bidi", f->langbidi);
     buf_adds(b, "/>");
   }
-  (void)diff;
 }

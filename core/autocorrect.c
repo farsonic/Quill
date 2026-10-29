@@ -584,11 +584,7 @@ int ac_format_now(AutoCorrect *ac, Doc *d, u32 pa, u32 pb)
         else i += d->p[pi]->len - before;
       }
     }
-    {
-      u32 before = d->np;
-      para_done(&fmt, &c, pi, pi);
-      (void)before;
-    }
+    para_done(&fmt, &c, pi, pi);
   }
   doc_end(d, at);
   return c.changes;

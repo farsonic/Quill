@@ -48,6 +48,7 @@
 #include "../core/docx.h"
 #include "../core/template.h"
 #include "../core/spell.h"
+#include "wp_proof.h"   /* (WP8, WP31) */
 #include "../core/hyph.h"
 #include "../core/table.h"
 #include "../core/tstyle.h"
@@ -211,7 +212,7 @@ static struct NewMenu menus[] = {
   { NM_ITEM, (STRPTR)"Gridlines", 0, 0, 0, (APTR)ID_GRID },
   { NM_ITEM, (STRPTR)"Dark Mode", 0, 0, 0, (APTR)ID_DARKPAGE },
   { NM_TITLE, (STRPTR)"Review", 0, 0, 0, 0 },
-  { NM_ITEM, (STRPTR)"Spelling...", (STRPTR)"=", 0, 0, (APTR)ID_SPELL },
+  { NM_ITEM, (STRPTR)"Spelling & Grammar...", (STRPTR)"=", 0, 0, (APTR)ID_SPELL },   /* (WP8) */
   { NM_ITEM, (STRPTR)"Word Count...", 0, 0, 0, (APTR)ID_WORDCOUNT },
   { NM_ITEM, NM_BARLABEL, 0, 0, 0, 0 },
   { NM_ITEM, (STRPTR)"New Comment...", 0, 0, 0, (APTR)ID_COMMENT },
@@ -1245,6 +1246,7 @@ static void load_spelling(void)
   }
   tb.spell = &spell;
 }
+void *wp_spell(void) { return tb.spell; }       /* (WP8, WP31: wp_proof.h) */
 /* the next word not in the dictionary from the caret (from_end: from the selection's end, past the
    word just dealt with): selected, shown with its suggestions. At the end of the document the
    window says so and its buttons are greyed */
@@ -3209,7 +3211,7 @@ static void command(ULONG id)
   case ID_TOC: case ID_TOCUPDATE: DoMethod(view, MUIM_Quill_Command, CMD_TOC, 0); break;
   case ID_NEXTNOTE: DoMethod(view, MUIM_Quill_Command, CMD_NEXTNOTE, 0); break;
   case ID_WORDCOUNT: word_count(); break;
-  case ID_SPELL: open_spelling(); break;
+  case ID_SPELL: wp8_spelling(); break;      /* (WP8: the Spelling and Grammar window; open_spelling() is the old one) */
   case ID_SPCHANGE: case ID_SPCHANGEALL: case ID_SPIGNORE: case ID_SPIGNOREALL: case ID_SPADD: spelling_command(id); break;
   case ID_SPPICK: spell_pick(); break;
   case ID_LINK: open_link(); break;

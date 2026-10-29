@@ -152,6 +152,27 @@ Spell *proof_spell_at(Spell *deflt, Para *p, u32 off)
   return proof_spell(deflt, p ? para_fmt_at(p, off) : NULL);
 }
 
+int proof_next_spelling(Spell *deflt, Doc *d, Pos p, Pos *a, Pos *b)
+{
+  u32 pi = p.para, n, off = p.off;
+  if (!d->np) return 0;
+  if (pi >= d->np) { pi = 0; off = 0; }
+  for (n = 0; n <= d->np; n++) {
+    Para *q = d->p[pi];
+    u32 ws, we, k = off;
+    if (n == 0) while (k > 0 && k < q->len && spell_word_at(q->t, q->len, k - 1, &ws, &we) && ws < k && we > k) k = we;
+    while (spell_word_at(q->t, q->len, k, &ws, &we)) {
+      const CharFmt *f = para_fmt_at(q, ws);
+      Spell *s = f->rev == REV_DEL ? NULL : proof_spell(deflt, f);
+      if (n == d->np && ws >= p.off) break;
+      if (s && !spell_ok(s, q->t + ws, we - ws)) { a->para = b->para = pi; a->off = ws; b->off = we; return 1; }
+      k = we;
+    }
+    pi = (pi + 1) % d->np; off = 0;
+  }
+  return 0;
+}
+
 int doc_set_lang(Doc *d, Pos a, Pos b, u16 lang, int noproof)
 {
   CharFmt v;

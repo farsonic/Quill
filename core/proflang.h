@@ -48,6 +48,11 @@ Spell *proof_spell(Spell *deflt, const CharFmt *f);
    there at all when typing (proof_live_spelling) */
 Spell *proof_spell_at(Spell *deflt, Para *p, u32 off);
 
+/* the next word from p (not from the middle of one) not in its language's dictionary (deflt for English
+   or no language), going round the body once; text marked not to be checked, text in a language with
+   no dictionary and deleted text (tracked) are passed over. 0 if none */
+int proof_next_spelling(Spell *deflt, Doc *d, Pos p, Pos *a, Pos *b);
+
 /* the language and "do not check" of a range set (one undo step; a..b empty: nothing) */
 int doc_set_lang(Doc *d, Pos a, Pos b, u16 lang, int noproof);
 

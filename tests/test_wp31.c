@@ -163,6 +163,21 @@ void test_wp31(void)
     ok("wp31: no French dictionary: none", proof_spell(&en, &f) == NULL);
     f.lang = de; f.noproof = 1;
     ok("wp31: not checked", proof_spell(&en, &f) == NULL);
+    {
+      /* going from mistake to mistake, each word by its own language's dictionary */
+      Doc *d = doc_new();
+      Pos c = P(0, 0), a, b;
+      CharFmt g;
+      doc_insert(d, &c, "colour hosue Haus Hauss xyzzy", 29, NULL);
+      memset(&g, 0, sizeof g); g.lang = de;
+      doc_format(d, P(0, 13), P(0, 23), CM_LANG, &g);
+      g.noproof = 1;
+      doc_format(d, P(0, 24), P(0, 29), CM_LANG | CM_NOPROOF, &g);
+      ok("wp31: next mistake (English)", proof_next_spelling(&en, d, P(0, 0), &a, &b) && a.off == 7 && b.off == 12);
+      ok("wp31: next mistake (German)", proof_next_spelling(&en, d, b, &a, &b) && a.off == 18 && b.off == 23);
+      ok("wp31: round again", proof_next_spelling(&en, d, b, &a, &b) && a.off == 7);
+      doc_free(d);
+    }
     plang_forget();
     plang_set_loader(NULL);
     spell_free(&en);
