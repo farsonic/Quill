@@ -103,7 +103,10 @@ int objfx_read(void *xv, Image *im, ObjRead *s, ObjColourFn colour, void *ctx)
     }
     if (!strcmp(n, "grayscl")) { f->cmode = PCM_GREY; return 0; }
     if (!strcmp(n, "biLevel")) { f->cmode = PCM_BW; return 0; }
-    if (!strcmp(n, "alphaModFix")) { if (anum(x, "amt", &v)) f->alpha = (u8)(v >= 100000 ? 0 : v <= 0 ? 100 : 100 - v / 1000); return 0; }
+    if (!strcmp(n, "alphaModFix")) {
+      if (anum(x, "amt", &v)) { u8 a = (u8)(v >= 100000 ? 0 : v <= 0 ? 100 : 100 - v / 1000); if (im->kind == OBJ_PICTURE) f->alpha = a; else f->falpha = a; }
+      return 0;
+    }
     if (!strcmp(n, "duotone")) {
       int d0 = x->depth, k = 0;
       u32 c[2] = { 0, 0xFFFFFF };
