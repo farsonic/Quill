@@ -112,6 +112,11 @@ int  field_format_number(const char *code, long n, char *out, size_t cap);
 void field_format_case(const char *code, char *s, size_t cap);
 /* a number picture (\# "#,##0.00") applied to n (an integer) */
 void field_number_picture(const char *pic, long n, char *out, size_t cap);
+/* the date pictures Insert > Date and Time and the Field window offer (Word's), and the \* formats the
+   Field window offers ("" first: none; Upper, Lower, FirstCap, Caps, Arabic, alphabetic, ALPHABETIC, roman,
+   ROMAN, Ordinal, CardText, OrdText, Hex) */
+extern const char *const field_date_pics[]; extern const int field_ndate_pics;
+extern const char *const field_formats[]; extern const int field_nformats;
 /* the date and week names (English unless the front end gives others: 12 months, 7 days, Sunday
    first) and their short forms */
 extern const char *const *field_months, *const *field_months3, *const *field_days, *const *field_days3;

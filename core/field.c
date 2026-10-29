@@ -357,6 +357,12 @@ void field_format_date(const char *pic, const FieldTime *t, char *out, size_t ca
   out[n] = 0;
 }
 
+const char *const field_date_pics[] = { "d MMMM yyyy", "dddd, d MMMM yyyy", "d/M/yyyy", "dd/MM/yyyy", "M/d/yyyy", "yyyy-MM-dd", "d-MMM-yy", "d.M.yyyy",
+  "MMMM yyyy", "MMM-yy", "d/M/yyyy HH:mm", "M/d/yyyy h:mm am/pm", "HH:mm", "HH:mm:ss", "h:mm am/pm", "h:mm:ss am/pm" };
+const int field_ndate_pics = (int)(sizeof field_date_pics / sizeof field_date_pics[0]);
+const char *const field_formats[] = { "", "Upper", "Lower", "FirstCap", "Caps", "Arabic", "alphabetic", "ALPHABETIC", "roman", "ROMAN", "Ordinal", "CardText", "OrdText", "Hex" };
+const int field_nformats = (int)(sizeof field_formats / sizeof field_formats[0]);
+
 /* ------------------------------------------------------------------ */
 /* numbers */
 static void roman(long v, char *out, int upper)
