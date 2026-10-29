@@ -10,7 +10,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 - **Beyond the ribbon (section 2):** 152 features: ✅ 27, 🟨 51, ⬜ 57, ➖ 17.
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
 - **Missing whole:** Mailings (22), the Equation tab and equations (21), Outline view and Outlining (14), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
-- **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; content controls, charts, SmartArt, equations, OLE objects, VML pictures and formatting revisions are dropped; no AutoSave or recovery (WP24 adds them). These are in priority 1 below.
+- **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; content controls, charts, SmartArt, equations, OLE objects and VML pictures are dropped (formatting revisions are kept since WP5); no AutoSave or recovery (WP24 adds them). These are in priority 1 below.
 - **Other formats:** Quill reads and writes .docx and plain text and exports PDF; WordCraft also reads .doc and reads/writes .rtf, .odt, .html, .md, .tex and Word XML (WP28a-d).
 
 | Tab | Commands | ✅ | 🟨 | ⬜ | ➖ |
@@ -25,7 +25,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Layout | 22 | 16 | 3 | 3 | 0 |
 | References | 25 | 6 | 2 | 16 | 1 |
 | Mailings | 23 | 0 | 0 | 22 | 1 |
-| Review | 31 | 13 | 2 | 14 | 2 |
+| Review | 31 | 21 | 1 | 7 | 2 |
 | View | 29 | 17 | 3 | 4 | 5 |
 | Read Mode | 3 | 0 | 0 | 2 | 1 |
 | Developer | 11 | 0 | 0 | 11 | 0 |
@@ -47,10 +47,10 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
 | 2.1 File formats | 1 | 5 | 10 | 3 |
-| 2.2 DOCX features | 3 | 18 | 16 | 1 |
-| 2.3 Layout | 9 | 10 | 5 | 0 |
+| 2.2 DOCX features | 6 | 17 | 14 | 1 |
+| 2.3 Layout | 11 | 8 | 5 | 0 |
 | 2.4 Editing | 4 | 11 | 12 | 7 |
-| 2.5 Interface: panes, toolbars and the window | 9 | 2 | 6 | 2 |
+| 2.5 Interface: panes, toolbars and the window | 10 | 2 | 5 | 2 |
 | 2.6 The Options dialog | 1 | 3 | 4 | 1 |
 | 2.7 Keyboard shortcuts | 1 | 0 | 2 | 0 |
 | 2.8 Interface and proofing languages | 0 | 3 | 0 | 0 |
@@ -308,7 +308,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Pictures (Illustrations) `insert.picture` — `ID_PICTURE` (PNG, JPEG only)
 - ➖ Online Pictures (Illustrations) `insert.onlinePicture` — WordCraft doesn't have it either (online service)
 - ✅ Shapes (Illustrations) `insert.shape` — `ID_SHAPESDD` (24 presets, `SH_` in doc.h)
-- ⬜ Icons (Illustrations) `insert.icon` [WP18]
+- ✅ Icons (Illustrations) `insert.icon` — `ID_SH_ICONS` (amiga/wp_shapes.c): a window of 52 icons in six categories, drawn in Quill's own icon language (core/shapex.c), inserted as a shape in its own colour; saved as `a:custGeom` named "Icon: …" in `wp:docPr`, which LibreOffice and Word draw and Quill reads back as the icon [WP18]
 - ➖ 3D Models (Illustrations) `insert.model3d` — WordCraft doesn't have it either
 - ✅ SmartArt (Illustrations) `insert.smartArt` [WP15c] — Insert > Illustrations > SmartArt and Insert > SmartArt... (amiga/wp_smartart.c): Choose a SmartArt Graphic by category (list, process, cycle, hierarchy, relationship, matrix, pyramid; 21 layouts) with a preview and description; written as the five diagram parts with a `dsp:drawing` Quill lays out itself (core/smartedit.c). tests/test_wp15c.c; LibreOffice draws every layout
 - ✅ Chart (Illustrations) `insert.chart` [WP15b] — Insert > Illustrations > Chart and Insert > Chart... (amiga/wp_chart.c): every kind core/chart.c draws (25) with a preview of Word's sample data; written as `c:chartSpace` (Excel 2016's kinds as `cx:chartSpace`) with the values cached and an embedded workbook the formulas point into, so Word's Edit Data works (core/chartedit.c). tests/test_wp15b.c; LibreOffice draws every `c:` kind
@@ -457,7 +457,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Finish & Merge (Finish) `mailings.finish` [WP4]
 - ➖ Print Documents (Finish) `mailings.printDocuments` — printing left out on purpose (merging to a new document or PDF is part of Finish & Merge)
 
-### Review (31: ✅ 13 · 🟨 2 · ⬜ 14 · ➖ 2)
+### Review (31: ✅ 21 · 🟨 1 · ⬜ 7 · ➖ 2)
 
 - 🟨 Spelling & Grammar (Proofing) `review.spelling` — `ID_SPELL` spelling only (British English, core/spell.c); no grammar [WP8]
 - ⬜ Thesaurus (Proofing) `review.thesaurus` [WP8]
@@ -472,13 +472,13 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Previous (Comments) `review.previousComment` — `ID_PREVCOMMENT`
 - ✅ Next (Comments) `review.nextComment` — `ID_NEXTCOMMENT`
 - ✅ Show Comments (Comments) `review.comments` — `ID_SHOWCOMMENTS`
-- ⬜ Resolve (Comments) `review.resolveComment` — no resolved state (no commentsExtended) [WP5]
-- ⬜ Reply (Comments) `review.reply` — README roadmap "replies to comments" [WP5]
+- ✅ Resolve (Comments) `review.resolveComment` — `ID_RV_RESOLVE` (amiga/wp_review.c, `rv_set_done()`): the whole thread, dimmed in its balloon and the Comments pane, read and written as `w15:done` in commentsExtended.xml (tests/test_wp5.c) [WP5]
+- ✅ Reply (Comments) `review.reply` — `ID_RV_REPLY` (`rv_reply()`, the Reply window, the right-button menu, the Comments pane): replies drawn in their thread's balloon, kept with `w15:paraIdParent`, durable ids (commentsIds) and UTC times (commentsExtensible) [WP5]
 - ✅ Track Changes (Tracking) `review.trackChanges` — `ID_TRACK`
-- ⬜ Display for Review (Tracking) `review.markup` — no Simple/All/No Markup/Original [WP5]
-- ⬜ Show Markup (Tracking) `review.showMarkup` — no markup filters (comments, insertions, formatting, balloons) [WP5]
-- ⬜ Reviewing Pane (Tracking) `review.changes` [WP5]
-- ⬜ Track Changes Options (Tracking) `review.trackingOptions` [WP5]
+- ✅ Display for Review (Tracking) `review.markup` — `ID_RV_MARKUP` (a field with Simple Markup, All Markup, No Markup, Original; Review menu): the layout hides deletions or insertions (`BX_REVHIDE`, `rv_show_run()`), Original shows the old formatting, Simple Markup red change bars [WP5]
+- ✅ Show Markup (Tracking) `review.showMarkup` — `ID_RV_SHOWMARKUP`: comments, insertions and deletions, formatting (kept as `w:revisionView`), balloons (revisions in balloons, comments and formatting only, all inline), Specific People (a Reviewers window) [WP5]
+- ✅ Reviewing Pane (Tracking) `review.changes` — `ID_RV_RPANE`: a window with a summary (revisions by kind, comments) and every change and comment, chosen to go to it, Accept and Reject [WP5]
+- ✅ Track Changes Options (Tracking) `review.trackingOptions` — `ID_RV_OPTIONS`: insertion, deletion, formatting and move marks, colours by author or fixed, changed lines (left, right, outside), comment colours, Track moves and Track formatting (the document's `w:doNotTrackMoves`/`w:doNotTrackFormatting`), balloons; kept in PROGDIR:Quill.review [WP5]
 - ✅ Accept (Changes) `review.accept` — `ID_ACCEPTDD` (`CMD_RESOLVE`)
 - ✅ Reject (Changes) `review.reject` — `ID_REJECTDD`
 - ✅ Accept All (Changes) `review.acceptAll` — `ID_ACCEPTDD` "Accept All Changes"
@@ -607,38 +607,38 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Convert to Text (Data) `table.toText` — `ID_TOTEXT`
 - ✅ Formula (Data) `table.formula` — `ID_FORMULA`
 
-### Picture Format (14: ✅ 5 · 🟨 0 · ⬜ 9 · ➖ 0)
+### Picture Format (14: ✅ 14 · 🟨 0 · ⬜ 0 · ➖ 0)
 
-- ⬜ Remove Background (Adjust) `picture.removeBackground` [WP17]
-- ⬜ Corrections (Adjust) `picture.corrections` [WP17]
-- ⬜ Color (Adjust) `picture.color` [WP17]
-- ⬜ Artistic Effects (Adjust) `picture.effects` [WP17]
-- ⬜ Transparency (Adjust) `picture.transparency` [WP17]
-- ⬜ Compress Pictures (Adjust) `picture.compress` [WP17]
-- ⬜ Change Picture (Adjust) `picture.change` [WP17]
-- ⬜ Reset Picture (Adjust) `picture.reset` [WP17]
-- ⬜ Picture Styles (Picture Styles) `picture.style` — Quill's "Picture Styles" group holds only Border/Weight/Dashes; no style presets (frames, shadows, soft edges) [WP17]
+- ✅ Remove Background (Adjust) `picture.removeBackground` — `ID_PIC_REMOVEBG` (amiga/wp_picture.c): the corner colour and those near it made transparent (`ObjFx.bgkey`); saved drawn into the picture with `a14:backgroundRemoval`, Set Transparent Color as `a:clrChange` [WP17]
+- ✅ Corrections (Adjust) `picture.corrections` — `ID_PIC_CORRDD` (sharpen/soften, brightness, contrast) and the Format Picture pane's sliders; `a:lum`, `a14:sharpenSoften` [WP17]
+- ✅ Color (Adjust) `picture.color` — `ID_PIC_COLORDD`: saturation, temperature, greyscale, sepia, washout, black and white, recolour dark/light, Set Transparent Color; `a:grayscl`, `a:biLevel`, `a:duotone`, `a:clrChange`, `a14:saturation`, `a14:colorTemperature` [WP17]
+- ✅ Artistic Effects (Adjust) `picture.effects` — `ID_PIC_ARTDD`: blur, pencil greyscale, line drawing, photocopy, cutout, film grain, glow edges, mosaic (core/objfx.c); saved drawn into the picture with the original as `a14:imgLayer`, as Word does [WP17]
+- ✅ Transparency (Adjust) `picture.transparency` — `ID_PIC_ALPHADD`, `a:alphaModFix`; see-through on the screen (ordered pattern) and in PDFs (soft mask) [WP17]
+- ✅ Compress Pictures (Adjust) `picture.compress` — `ID_PIC_COMPRESS`: 220/150/96 ppi, delete cropped areas, this picture or all; JPEG and PNG writers from Easel (core/picfmt.c) [WP17]
+- ✅ Change Picture (Adjust) `picture.change` — `ID_PIC_CHANGE` (size and formatting kept) [WP17]
+- ✅ Reset Picture (Adjust) `picture.reset` — `ID_PIC_RESETDD` (Reset Picture, Reset Picture & Size) [WP17]
+- ✅ Picture Styles (Picture Styles) `picture.style` — `ID_PIC_STYLEDD`: 14 presets (frames, drop and centre shadows, rounded and snipped corners, ovals, soft edges, metal, rotated), and Picture Effects `ID_PIC_EFFECTSDD`; the picture's geometry (`a:prstGeom`) and `a:effectLst` read and written [WP17]
 - ✅ Picture Border (Picture Styles) `picture.border` — `ID_OBJLINEDD`, `ID_OBJWEIGHTDD`, `ID_OBJDASHDD`
 - ✅ Alt Text (Accessibility) `picture.altText` — `ID_ALTTEXT`
-- ✅ Crop (Size) `picture.crop` — `ID_OBJCROP` (by numbers; no crop by dragging)
+- ✅ Crop (Size) `picture.crop` — `ID_OBJCROP` (by numbers); WP17: crop by dragging the handles (`ID_PIC_CROP`, crop marks on the frame), Crop to Shape, Aspect Ratio
 - ✅ Size (Size) `picture.size` — `ID_OBJSIZE`
 - ✅ Rotation (Size) `arrange.rotation` — `ID_OBJROTDD`, round handle
 
-### Shape Format (13: ✅ 3 · 🟨 1 · ⬜ 9 · ➖ 0)
+### Shape Format (13: ✅ 9 · 🟨 0 · ⬜ 4 · ➖ 0)
 
 - ✅ Alt Text (Accessibility) `object.altText` — `ID_ALTTEXT` (Shape Format's Accessibility group, `o_salt`)
 - ✅ Shape Fill (Shape Styles) `shape.fill` — `ID_OBJFILLDD` (solid colours)
-- ⬜ Shape Fill Gradient (Shape Styles) `shape.fill` [WP18]
-- 🟨 Format Shape Pane (Shape Styles) `view.formatShapePane` — Format window `ID_OBJLAYOUT` (`open_object()`: size, rotation, crop, position, wrapping, alt text) is a window, and has no fill, line or effects [WP18]
+- ✅ Shape Fill Gradient (Shape Styles) `shape.fill` — `ID_SH_GRADDD` (light and dark variations, linear, radial, from the corners), the pane's gradient settings; picture fills `ID_SH_PICFILL`; `a:gradFill`, a shape's `a:blipFill` [WP18]
+- ✅ Format Shape Pane (Shape Styles) `view.formatShapePane` — `ID_SH_PANE`: a pane window beside the page that follows the selection and changes the object as you set it (fill, line, shadow, glow, soft edges, size, rotation, text box alignment, direction and margins; for a picture its corrections, colour, transparency and artistic effect) [WP18]
 - ✅ Shape Outline (Shape Styles) `shape.outline` — `ID_OBJLINEDD`
-- ⬜ Shape Effects (Shape Styles) `shape.effects` [WP18]
+- ✅ Shape Effects (Shape Styles) `shape.effects` — `ID_SH_EFFECTSDD`: shadows, glows, soft edges (`a:outerShdw`, `a:glow`, `a:softEdge`), drawn on the screen and in PDFs [WP18]
 - ⬜ WordArt Quick Styles (WordArt Styles) `wordArt.style` [WP19]
 - ⬜ Text Fill (WordArt Styles) `wordArt.textFill` [WP19]
 - ⬜ Text Outline (WordArt Styles) `wordArt.textOutline` [WP19]
 - ⬜ Text Effects Transform (WordArt Styles) `wordArt.transform` [WP19]
-- ⬜ Text Direction (Text) `shape.textDirection` [WP18]
-- ⬜ Align Text (Text) `shape.alignText` — no text anchoring (top/middle/bottom) in text boxes [WP18]
-- ⬜ Create Link (Text) `shape.link` — no linked text boxes [WP18]
+- ✅ Text Direction (Text) `shape.textDirection` — `ID_SH_TEXTDIRDD` (`bodyPr vert`: across, turned 90° or 270°, drawn turned on the screen and in PDFs) [WP18]
+- ✅ Align Text (Text) `shape.alignText` — `ID_SH_ALIGNDD` (`bodyPr anchor`: top, middle, bottom; core/objtext.c) [WP18]
+- ✅ Create Link (Text) `shape.link` — `ID_SH_LINK` (then click the empty box) and Break Link `ID_SH_UNLINK`; the chain's text flows from box to box (core/objtext.c), `wps:txbx id`/`wps:linkedTxbx` read and written [WP18]
 
 ### Header & Footer (5: ✅ 5 · 🟨 0 · ⬜ 0 · ➖ 0)
 
@@ -784,7 +784,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ✅ **Export page as image (.png)** — WP29: Export Image writes PNG or IFF ILBM pages (core/pngwrite.c, core/raster.c), with Export Options for the pages and resolution [WP29]
 - ⬜ **Encrypted .docx (open and save with a password)** — WordCraft crates/docx/src/crypt (ECMA-376 agile AES-256, standard encryption). Quill none.
 - ⬜ **Spreadsheets (.xlsx, .xls, .ods, .csv) as mail-merge recipient lists** — WordCraft crates/formats/src/sheet. Quill has no mail merge.
-- 🟨 **Picture formats for Insert › Picture** — Quill: PNG and JPEG (baseline, progressive, CMYK; core/image.c). WordCraft also GIF, WebP, BMP, WMF and EMF (crates/metafile). An Amiga user would also expect IFF ILBM.
+- 🟨 **Picture formats for Insert › Picture** — Quill: PNG and JPEG (baseline, progressive, CMYK; core/image.c); WP17: GIF, BMP and IFF ILBM (EHB, HAM6/8, deep, PBM; readers from Easel in core/picfmt.c), GIF and BMP saved as they are, ILBM as PNG. Not yet: WebP, WMF and EMF (WordCraft has them).
 - ➖ **.json document model** — WordCraft's format for agents (control protocol, left out on purpose).
 
 ### 2.2 DOCX features
@@ -794,10 +794,10 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Tables** — widths, merges, borders, shading, styles with conditional formatting, nested tables (one level), cantSplit, heading rows: ✅. Floating tables (`w:tblpPr`) are placed in the text (README roadmap); row exceptions (`w:tblPrEx`) and right-to-left tables (`w:bidiVisual`) not read; tables in headers and footers come in as their text (README roadmap).
 - 🟨 **Headers/footers, page borders, line numbers, gutter, mirror margins** — first/even/odd, per section, link to previous: ✅. Gutter is written as 0 and not read; `w:mirrorMargins` not read; page borders one kind on all sides, document-wide only.
 - 🟨 **Hyphenation settings** — `w:autoHyphenation` ✅; `w:hyphenationZone`, `w:doNotHyphenateCaps`, `w:consecutiveHyphenLimit` not read (zone fixed at 360 twips, layout.c `HYPH_ZONE`).
-- 🟨 **Footnotes, endnotes, comments** — read and written. Note options (`w:footnotePr`/`w:endnotePr`) and the document's own separators and continuation notice read and written (WP22b ✅). Missing: comments' replies, resolved state and durable ids (`commentsExtended`, `commentsIds`, `commentsExtensible`, `people.xml`).
+- ✅ **Footnotes, endnotes, comments** — read and written. Note options (`w:footnotePr`/`w:endnotePr`) and the document's own separators and continuation notice read and written (WP22b ✅). Comments' replies, resolved state, durable ids and UTC times, and the people (`commentsExtended`, `commentsIds`, `commentsExtensible`, `people.xml`, each person's own entry kept) ✅ (WP5, core/docx.c `wp5_read_parts()`, `wp5_write_parts()`).
 - ✅ **Tracked insertions and deletions** — `w:ins`/`w:del` with author and date (docx.c, `REV_INS`/`REV_DEL`).
-- ⬜ **Formatting revisions (`w:rPrChange`, `w:pPrChange`, `w:sectPrChange`, table ones, `w:numberingChange`)** — not read or kept (README roadmap "tracked formatting changes").
-- 🟨 **Move tracking (`w:moveFrom`/`w:moveTo`)** — read as a plain deletion and insertion (docx.c line 1462) and written so; ranges and the move link are lost.
+- 🟨 **Formatting revisions (`w:rPrChange`, `w:pPrChange`, `w:sectPrChange`, table ones, `w:numberingChange`)** — WP5: a run's and a paragraph's (`CharFmt.frev`, `ParaFmt.prev`, core/review.c) read with the old formatting (and its XML kept verbatim), shown (balloons, bars, Original), accepted and rejected, recorded while tracking (every formatting command) and written; `w:tblPrChange`, `w:tblGridChange`, `w:trPrChange`, `w:tcPrChange`, inserted and deleted rows and cells, `w:sectPrChange` kept verbatim with their table, row, cell or section (accepted by dropping them; rejecting them is refused). Missing: the legacy `w:numberingChange` and revisions inside style definitions (styles.xml) are dropped; a paragraph mark's own insertion, deletion and formatting change are not kept.
+- ✅ **Move tracking (`w:moveFrom`/`w:moveTo`)** — WP5: read as a deletion and an insertion that are one move (`CharFmt.move`, by the name of its `w:moveFromRangeStart`/`w:moveToRangeStart`), drawn in the move colour and marks, written back as `w:moveFrom`/`w:moveTo` inside named ranges (LibreOffice reads them as a move). Quill's own cut and paste while tracking is recorded as a deletion and an insertion, not a move.
 - 🟨 **Fields** — understood: PAGE, NUMPAGES/SECTIONPAGES, REF, PAGEREF, HYPERLINK, the TOC (core/docx.c `field_kind()`, `ref_field()`, `hyperlink_field()`). Every other field keeps only its result as plain text: the code is dropped, so DATE, SEQ, MERGEFIELD, ADDIN (Zotero/Mendeley citations), IF, DOCPROPERTY, INDEX, XE, TC… don't survive a save as fields. WordCraft keeps every code and its cached result and evaluates most of them.
 - ⬜ **Content controls (`w:sdt`)** — Quill reads their content and drops the controls (docx.c treats `sdt`/`sdtContent` as transparent); WordCraft keeps and edits every kind (rich/plain text, checkbox, combo, drop-down, date, picture, building block, repeating section, data binding kept verbatim).
 - ⬜ **Restrict Editing (`w:documentProtection`, `w:permStart`/`w:permEnd`, locked styles)** — not read or kept.
@@ -806,7 +806,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ⬜ **WordArt text effects (`w14:textFill`, `w14:textOutline`, `w14:shadow`, `w14:glow`, `w14:reflection`)** — not read.
 - ⬜ **Legacy font effects (`w:outline`, `w:shadow`, `w:emboss`, `w:imprint`)** — not read.
 - ⬜ **OpenType ligatures (`w14:ligatures`)** — not read.
-- 🟨 **DrawingML shapes and text boxes (`wps:`)** — 24 presets (`SH_` in doc.h), solid fill and outline, theme colours with tints and shades, text box text. WordCraft: many more presets (callouts, flowchart), gradient and picture fills, effects, outline caps, `bodyPr` vertical text and anchoring, linked text boxes (`wps:linkedTxbx`); Quill reads rarer presets as rectangles.
+- 🟨 **DrawingML shapes and text boxes (`wps:`)** — 24 presets (`SH_` in doc.h), solid fill and outline, theme colours with tints and shades, text box text; WP18: 69 more presets (basic, block arrows, flowchart, callouts, stars and explosions; core/shapex.c), gradient and picture fills, shadow/glow/soft edge effects, `bodyPr` vertical text, anchoring and insets, linked text boxes, icons (`a:custGeom`). Not yet: outline caps and arrowhead kinds, adjust handles (`a:avLst` values), presets with inner lines (cube, can, smiley) still come in as rectangles, custom geometry in general (WP20).
 - ⬜ **Freeform shapes (`a:custGeom`) and ink** — not read.
 - 🟨 **Group shapes and drawing canvas** — groups (`wpg:`), nested, ✅; drawing canvases (`wpc:`) not read (README roadmap).
 - 🟨 **VML (`w:pict`, `v:shape`, `v:textbox`)** — only Word's text watermark is read and written (docx.c line 927); VML pictures, text boxes and shapes are not read (README "Not read yet"). WordCraft reads VML pictures, text boxes, lines, rectangles, ovals and presets.
@@ -841,7 +841,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ✅ **Section breaks of each kind, each section with its own page setup and headers/footers**.
 - ✅ **Text boxes and shapes with text** — edited in place.
 - 🟨 **Wrap types** — square, tight round the outline, top and bottom, behind, in front ✅; through ⬜; wrap on one side only ⬜.
-- 🟨 **Turned text** — objects turn by any angle, but text in shapes and text boxes stays upright (README 0.11).
+- ✅ **Turned text** — WP18: text in shapes and text boxes turns with them, and turns a quarter for vertical text, on the screen (drawn upright into a bitmap of its own and copied turned, amiga/view.c `draw_text_turned`) and in PDFs.
 - 🟨 **Line numbering** — ✅ for the document (start, count by, distance, restart); per-section line numbers ⬜ (README roadmap).
 - ✅ **Drop caps** — dropped or in the margin, 1-10 lines.
 - 🟨 **Tables across pages** — rows break, heading rows repeat ✅; floating tables ⬜.
@@ -903,10 +903,10 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ✅ **Status bar** — page, words, language, Focus, view buttons, zoom slider (panes.c).
 - ✅ **Rulers** — horizontal and vertical, indents, tab stops, table column edges, margins.
 - ✅ **Navigation pane** — Headings, Pages, Results.
-- 🟨 **Comments** — balloons beside the page; no Comments pane (WordCraft panes/comments.rs) listing threads with replies.
+- ✅ **Comments** — balloons beside the page with replies in their thread's balloon and resolved threads dimmed; the Comments pane (WP5 `ID_RV_CPANE`, a window) lists the threads with their replies, with Reply, Resolve and Delete.
 - 🟨 **Styles pane** — a Styles window (Manage); not docked, no previews, no Style Inspector or Reveal Formatting (WordCraft panes/inspector.rs).
 - ✅ **Selection pane** — `open_selpane()` (a window).
-- 🟨 **Alt Text pane, Format Shape pane, Reviewing pane, Accessibility pane, Restrict Editing pane, Clipboard pane** — Alt Text and Accessibility panes ✅ (WP24, windows that stay open and follow the selection); the others none.
+- 🟨 **Alt Text pane, Format Shape pane, Reviewing pane, Accessibility pane, Restrict Editing pane, Clipboard pane** — Alt Text and Accessibility panes ✅ (WP24, windows that stay open and follow the selection); the Reviewing pane ✅ (WP5, a window: see Review › Reviewing Pane); the others none.
 - ⬜ **Alignment guides when moving objects** — WordCraft crates/ui-egui/src/guides.rs.
 - ✅ **Start page** — File page Home with templates and recent documents (backstage.c).
 - ✅ **Dark interface and dark page** — `ID_THEME`, `ID_DARKPAGE`.
@@ -980,4 +980,4 @@ WP0 (the scaffolding, branch wp0) lets the packages above be built side by side 
 
 **.docx hooks.** core/docx.c has hook functions with one marker line for each package that touches .docx: `docx_read_block_ext` (a body-level element Quill doesn't read), `docx_read_elem_ext` (one inside a paragraph), `docx_read_setting_ext` (each element of settings.xml), `docx_read_parts_ext` (after everything is read: other parts), `docx_write_parts_ext` (parts, content types and relationships through `docx_out_part()`) and `docx_write_settings_ext` (settings.xml at the four places the schema's order allows: first; before `w:defaultTabStop`; after `w:autoHyphenation`; after `w:compat`). Write your own `read_*`/`write_*` function (in docx.c next to the hooks, or in a core file of your own when it needs only public types) and put one call to it on a new line right after your marker (the 27 packages whose files list core/docx.c have markers; another one adds its own marker line, then its call, after the last marker). New Doc fields go at the end of `struct Doc` (core/doc.h has a comment there).
 
-**Parts kept verbatim.** core/keep.c keeps .docx parts Quill doesn't read and writes them back with their relationships and content types (`Doc.kept`): custom XML (with its own .rels and item properties), the glossary document, people.xml, and the package's extended and custom properties. The thumbnail and digital signatures are dropped on purpose (they would be wrong after an edit). A package that starts reading such a part calls `keep_remove()`; one that keeps a part the text refers to (a chart, say) calls `keep_add()` and writes the relationship id it returns (ids Quill uses itself are never handed out). `xml_raw()` (core/xml.h) gives an element's exact text, for keeping elements verbatim inside a package's own model. Checked: word.docx and lo.docx keep all their custom XML and property parts byte for byte through two saves, and LibreOffice opens the result unchanged.
+**Parts kept verbatim.** core/keep.c keeps .docx parts Quill doesn't read and writes them back with their relationships and content types (`Doc.kept`): custom XML (with its own .rels and item properties), the glossary document, people.xml (until WP5, which reads and writes it), and the package's extended and custom properties. The thumbnail and digital signatures are dropped on purpose (they would be wrong after an edit). A package that starts reading such a part calls `keep_remove()`; one that keeps a part the text refers to (a chart, say) calls `keep_add()` and writes the relationship id it returns (ids Quill uses itself are never handed out). `xml_raw()` (core/xml.h) gives an element's exact text, for keeping elements verbatim inside a package's own model. Checked: word.docx and lo.docx keep all their custom XML and property parts byte for byte through two saves, and LibreOffice opens the result unchanged.

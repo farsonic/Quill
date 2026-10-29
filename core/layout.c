@@ -5,10 +5,12 @@
 #include <string.h>
 #include <stdio.h>
 #include "layout.h"
+#include "objtext.h"
 #include "hyph.h"
 #include "charfx.h"
 #include "notes.h"   /* (WP22b) */
 #include "math.h"     /* WP14a: equations */
+#include "review.h"
 
 #define DEFAULT_TAB 720                 /* half an inch, as Word */
 
@@ -141,13 +143,25 @@ static int make_boxes(Layout *L, Para *p, Work *w, u32 note, u32 enote)
   u32 r, start = 0;
   for (r = 0; r < p->nr; r++) {
     u32 end = p->r[r].end, i = start;
-    const CharFmt *f = &p->r[r].f;
+    CharFmt rvf = p->r[r].f;
+    u8 rvm = 0;
+    int rvh = (rvf.rev || rvf.frev) && rv_show_run(L->d, &rvf, &rvm);   /* (WP5: how a tracked change shows) */
+    const CharFmt *f = &rvf;
     FaceSize *z = lay_face(L, f);
     while (i < end) {
       Box b;
       u32 j = i;
       memset(&b, 0, sizeof b);
       b.off = i; b.f = *f;
+      b.rvmark = rvm;
+      if (rvh && !(i + 4 <= end && IS_MARK(p->t + i))) {
+        /* (WP5) text the change hides as shown: no width, up to the next comment mark */
+        while (j < end && !(j + 4 <= end && IS_MARK(p->t + j)) && j - i < 60000) j = (u32)utf8_next(p->t, end, j);
+        b.kind = BX_REVHIDE; b.len = (u16)(j - i); b.f.hl = 0;
+        if (!add_box(w, &b)) return 0;
+        i = j;
+        continue;
+      }
       if (p->t[i] == ' ') {
         while (j < end && p->t[j] == ' ' && j - i < 255) j++;
         b.kind = BX_SPACE; b.nspace = (u8)(j - i);
@@ -1339,13 +1353,14 @@ int lay_furniture(Layout *L, u32 page, int footer, Furn *f)
 }
 /* see layout.h. The text is inset TB_INSET_X at the sides and TB_INSET_Y at the top, and gets at least
    a quarter inch. Free f with lay_furniture_free */
-int lay_textbox(Layout *L, const Image *im, i32 cx, Furn *f)
+/* (WP18: laid out w wide, with its own insets, by tb_layout in objtext.c, which turns, anchors and
+   links text boxes) */
+static int lay_textbox_plain(Layout *L, const Image *im, i32 w, Furn *f)
 {
-  i32 y = TB_INSET_Y, w;
+  i32 y = tb_inset(im, 1);
   u32 i, k;
   memset(f, 0, sizeof *f);
   if (!im || !im->text || !im->text->np) return 0;
-  w = (cx > 0 ? cx : im->cx) - 2 * TB_INSET_X;
   if (w < 360) w = 360;
   if (!(f->f = (FPara *)calloc(im->text->np, sizeof(FPara)))) return 0;
   for (i = 0; i < im->text->np; i++) {
@@ -1355,11 +1370,12 @@ int lay_textbox(Layout *L, const Image *im, i32 cx, Furn *f)
     if (!layout_para(L, &fp->pl, fp->p, w, "", 0, 0)) break;
     y += fp->p->pf.before;
     fp->y = y;
-    for (k = 0; k < fp->pl.nlines; k++) { fp->pl.lines[k].left += TB_INSET_X; y += fp->pl.lines[k].height; }
+    for (k = 0; k < fp->pl.nlines; k++) { fp->pl.lines[k].left += tb_inset(im, 0); y += fp->pl.lines[k].height; }
     y += fp->p->pf.after;
   }
   return f->n > 0;
 }
+int lay_textbox(Layout *L, const Image *im, i32 cx, Furn *f) { return tb_layout(L, im, cx, f, lay_textbox_plain); }
 /* the text of a page field box on a page (from 0): the page's number or the number of pages. While a
    header or footer is being edited (d->edit.kind), the numbers it was opened with instead */
 static void counter_text(char *o, u32 n, int fmt);
@@ -2377,7 +2393,8 @@ int lay_update_part(Layout *L, u32 budget)
     for (k = j; k < L->npl && k < j + 64; k++) if (L->pl[k].p == p) { found = k; break; }
     if (found < L->npl && L->pl[found].laid && L->pl[found].ver == p->ver && L->pl[found].avail == avail && !strcmp(L->pl[found].label, label) &&
         L->pl[found].notebase == notebase && L->pl[found].enotebase == enotebase && L->pl[found].hyph == d->hyphenate && !L->pl[found].shaped &&
-        (L->pl[found].hidden == 2 || L->pl[found].hidden == L->showhidden)) {   /* (WP9: hidden text shown or not) */
+        (L->pl[found].hidden == 2 || L->pl[found].hidden == L->showhidden) &&   /* (WP9: hidden text shown or not) */
+        L->pl[found].rvsig == rv_sig(d)) {
       npl[i] = L->pl[found];
       memset(&L->pl[found], 0, sizeof(ParaLay));
       j = found + 1;
@@ -2396,6 +2413,7 @@ int lay_update_part(Layout *L, u32 budget)
         continue;
       }
       npl[i].laid = 1;
+      npl[i].rvsig = rv_sig(d);                   /* (WP5) */
       L->laid++;
     }
   }
@@ -2766,6 +2784,7 @@ u32 shape_points(int shape, i32 w, i32 h, i32 *xy, u32 max, int *closed)
     }
     break;
   default:
+    if ((n = shapex_points(shape, w, h, xy, max, closed))) break;     /* WP18: more of Word's shapes */
     PT(0, 0); PT(w, 0); PT(w, h); PT(0, h);
   }
   return n;
