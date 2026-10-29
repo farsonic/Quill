@@ -663,4 +663,16 @@ int  doc_find(Doc *d, Pos from, const char *what, unsigned flags, Pos *a, Pos *b
 /* replace every match with 'with' (one undo step); returns how many */
 u32  doc_replace_all(Doc *d, const char *what, const char *with, unsigned flags);
 
+/* (WP12) the undo history read, for the Undo and Redo lists, Go Back and Repeat. What an action did
+   (UK_): typing, inserting or deleting text, replacing, character or paragraph formatting, styles.
+   doc_undo_count: how many steps can be undone (redo: redone). doc_undo_step: step i (0 the newest)
+   of either list: its kind (-1: no such step), where the caret was before and after it, and its
+   serial (from one counter: newer steps have higher ones). doc_undo_kind: the newest step named so.
+   doc_undo_typed: the text the typing steps newer than serial since typed (malloc'd), NULL if none */
+enum { UK_EDIT = 1, UK_TYPING, UK_INSERT, UK_DELETE, UK_REPLACE, UK_FORMAT, UK_PARA, UK_STYLE, UK_REPLACEALL, UK_N };
+int   doc_undo_count(Doc *d, int redo);
+int   doc_undo_step(Doc *d, int redo, int i, Pos *before, Pos *after, u32 *serial);
+void  doc_undo_kind(Doc *d, int kind);
+char *doc_undo_typed(Doc *d, u32 since);
+
 #endif

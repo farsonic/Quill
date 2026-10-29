@@ -68,6 +68,8 @@ extern struct WBStartup *_WBenchMsg;
 #include "splash.h"
 #include "sysfonts.h"
 #include "wphooks.h"
+#include "wp_find.h"                  /* WP12: its ids, for Find's, Select's and Go To's entries */
+void wp12_note(ULONG id, LONG v);       /* WP12 (wp_find.c): each command as it starts, for Repeat */
 
 static struct NewMenu menus[] = {
   { NM_TITLE, (STRPTR)"File", 0, 0, 0, 0 },
@@ -1486,6 +1488,7 @@ Object *wp_dialog(const char *title, ULONG wid, Object *contents, const char *ok
 void wp_latin1_utf8(const char *latin1, char *utf8, size_t cap) { latin1_utf8(latin1, utf8, cap); }
 void wp_story_close(void) { if (doc->edit.kind) story_close(1); }
 void wp_refresh(void) { DoMethod(view, MUIM_Quill_Command, CMD_REFRESH, 0); }
+const char *wp_docpath(void) { return docpath; }     /* (WP29: the document's file, "" untitled) */
 static Object *splitwin, *splitcols, *splitrows;
 /* Split Cells, for the caret's cell (a merged cell offers the number of cells it covers) */
 static void open_split(void)
@@ -3120,6 +3123,7 @@ static void command(ULONG id)
     { ID_TGRID, CMD_TGRID }, { ID_SPLITTABLE, CMD_SPLITTABLE }, { ID_DISTROWS, CMD_DISTROWS }, { ID_DISTCOLS, CMD_DISTCOLS },
   };
   size_t i;
+  wp12_note(id, WPV_NONE);               /* WP12: Repeat (F4) */
   /* the work packages' blocks (ids.h): to the package's own wpN_command (wphooks.h) */
   if (id >= ID_WP_FIRST && id <= ID_WP_LAST) { wp_focus_kept = wp_run(id, WPV_NONE) == WPR_KEEPFOCUS; return; }
   for (i = 0; i < sizeof simple / sizeof simple[0]; i++) if (simple[i][0] == id) { DoMethod(view, MUIM_Quill_Command, simple[i][1], 0); return; }
@@ -3191,7 +3195,7 @@ static void command(ULONG id)
   case ID_MULTIPAGE: set(view, MUIA_Quill_ViewMode, VM_PRINT); chrome(); set(view, MUIA_Quill_Zoom, (ULONG)-2); break;
   case ID_GRID: pref_grid = !pref_grid; set(view, MUIA_Quill_Grid, pref_grid); save_prefs(); DoMethod(view, MUIM_Quill_Command, CMD_REFRESH, 0); break;
   case ID_DARKPAGE: pref_darkpage = !pref_darkpage; set(view, MUIA_Quill_DarkPage, pref_darkpage); save_prefs(); DoMethod(view, MUIM_Quill_Command, CMD_REFRESH, 0); break;
-  case ID_REPLACE: open_find(); break;
+  case ID_REPLACE: wp_focus_kept = wp_run(ID_FX_REPLACE, WPV_NONE) == WPR_KEEPFOCUS; break;   /* (WP12's Find and Replace window) */
   case ID_TABS: open_tabs(); break;
   case ID_TOC: case ID_TOCUPDATE: DoMethod(view, MUIM_Quill_Command, CMD_TOC, 0); break;
   case ID_NEXTNOTE: DoMethod(view, MUIM_Quill_Command, CMD_NEXTNOTE, 0); break;
@@ -3266,7 +3270,7 @@ static void command(ULONG id)
     break; }
   case ID_STYLEUPDATE: style_update(styles_sel() >= 0 ? styles_sel() : (caret_pf() ? caret_pf()->style : -1)); styles_fill(); break;
   case ID_NUMVALGO: numval_done(); break;
-  case ID_GOTO: open_goto(); break;
+  case ID_GOTO: wp_focus_kept = wp_run(ID_FX_GOTO, WPV_NONE) == WPR_KEEPFOCUS; break;          /* (WP12's Go To) */
   case ID_FORWARD: case ID_BACKWARD: DoMethod(view, MUIM_Quill_Command, CMD_RESTACK, (ULONG)(LONG)(id == ID_FORWARD ? 1 : -1)); selpane_fill(); break;
   case ID_SELPANE: open_selpane(); break;
   case ID_BOOKMARK: open_bookmarks(); break;
@@ -3700,7 +3704,7 @@ static void ribbon_pick(ULONG id, LONG v)
   case ID_ROWH: if (v >= 0 && v < 7) DoMethod(view, MUIM_Quill_Command, CMD_ROWH, (ULONG)ribbon_rowheights[v]); break;
   case ID_COLW: if (v >= 0 && v < 10) DoMethod(view, MUIM_Quill_Command, CMD_COLW, (ULONG)ribbon_colwidths[v]); break;
   case ID_PASTESPECDD: case ID_PASTEDD: if (v >= 0 && v < 3) DoMethod(view, MUIM_Quill_Command, CMD_PASTEAS, (ULONG)v); break;
-  case ID_FINDDD: if (v == 1) open_goto(); else open_find(); break;
+  case ID_FINDDD: if (v >= 1) wp_focus_kept = wp_run(v == 1 ? ID_FX_GOTO : ID_FX_ADVFIND, WPV_NONE) == WPR_KEEPFOCUS; else open_find(); break;   /* (WP12) */
   case ID_HEADERDD: case ID_FOOTERDD: if (v == 1) remove_headfoot(id == ID_FOOTERDD); else edit_headfoot(id == ID_FOOTERDD, -1); break;
   case ID_TOCDD: DoMethod(view, MUIM_Quill_Command, v == 1 ? CMD_TOCREMOVE : CMD_TOC, 0); break;
   case ID_ADDTEXTDD: add_text((int)v); break;
@@ -3736,7 +3740,8 @@ static void ribbon_pick(ULONG id, LONG v)
     break; }
   case ID_SPACINGDD: if (v >= 0 && v < 6) DoMethod(view, MUIM_Quill_Command, CMD_SPACING, (ULONG)spacings[v]); break;
   case ID_STYLEPICK: DoMethod(view, MUIM_Quill_Command, CMD_STYLE, (ULONG)v); break;
-  case ID_SELECTDD: if (v == 1 || v == 2) DoMethod(view, MUIM_Quill_Command, CMD_SELUNIT, (ULONG)(v - 1)); else command(ID_SELALL); break;
+  case ID_SELECTDD: if (v >= 3) { wp_run(v == 3 ? ID_FX_SELOBJ : ID_FX_SIMILAR, WPV_NONE); break; }   /* (WP12) */
+    if (v == 1 || v == 2) DoMethod(view, MUIM_Quill_Command, CMD_SELUNIT, (ULONG)(v - 1)); else command(ID_SELALL); break;
   case ID_MARGINSDD: if (v >= NMARGINS) open_pagesetup(); else page_setup(-1, -1, (int)v); break;
   case ID_ORIENTDD: page_setup(-1, (int)v, -1); break;
   case ID_PAPERDD: if (v >= NPAPERS) open_pagesetup(); else page_setup((int)v, -1, -1); break;
@@ -3798,8 +3803,16 @@ static void ribbon_choice(ULONG id)
 {
   LONG v = 0;
   get(ribbon, MUIA_Ribbon_Value, &v);
+  wp12_note(id, v);                      /* WP12: Repeat (F4) */
   if (id >= ID_WP_FIRST && id <= ID_WP_LAST) { wp_focus_kept = wp_run(id, v) == WPR_KEEPFOCUS; return; }   /* a work package's list */
   ribbon_pick(id, v);
+}
+/* WP12: Repeat (F4) runs the last command that changed the document again (a list's with its entry) */
+void wp12_replay(ULONG id, LONG v)
+{
+  if (v == WPV_NONE) command(id);
+  else if (id >= ID_WP_FIRST && id <= ID_WP_LAST) wp_focus_kept = wp_run(id, v) == WPR_KEEPFOCUS;
+  else ribbon_pick(id, v);
 }
 
 /* ---- Go To, Drop Cap, Line Numbers and More Colours: the WordCraft comparison's small dialogs */

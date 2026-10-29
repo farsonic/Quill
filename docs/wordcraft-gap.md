@@ -161,7 +161,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Info (Backstage) `file.info` — File page `BP_INFO` (backstage.c), filled by `ID_INFO` in main.c
 - 🟨 Properties (Backstage) `file.properties` — read-only Name/Location/Pages/Words/Title/Author list on the Info page; title and author can't be edited, no subject/keywords/custom properties [WP24]
 - ✅ Export PDF (Backstage) `file.exportPdf` — `ID_PDF` (Amiga-D, `export_pdf()`)
-- ⬜ Export Image (Backstage) `file.exportPng` — no PNG (or IFF) page export [WP29]
+- ✅ Export Image (Backstage) `file.exportPng` — WP29: amiga/wp_pdf.c `export_image()` (File page › Export › Export Image, File menu), core/pngwrite.c `page_images_save()`: each page (or the Export Options range) as PNG (core/zip.c's deflate) or 24-plane IFF ILBM, 72-300 dpi, drawn by core/raster.c from the page's PDF content (compared side by side with poppler's rendering of the same PDF: the same; the 68040 build's PNG is byte-identical to the native one). Tests: tests/test_wp29.c [WP29]
 - 🟨 Options (Backstage) `file.options` — `BP_OPTIONS` page: units (cm/in), theme, text size, language, user name, Window and screen; most of WordCraft's Options panes missing (see "Options") [WP26]
 - ⬜ Numerals (Options) `view.numeral` — no Arabic/Hindi numeral choice [WP27]
 - ✅ Share (Backstage) `file.share` — WordCraft's Share only opens Save As with a hint; Quill's Save As / Export cover it
@@ -178,9 +178,9 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 ### Quick Access (5: ✅ 2 · 🟨 0 · ⬜ 3 · ➖ 0)
 
 - ✅ Undo (Toolbar) `edit.undo` — `ID_UNDO` (Amiga-Z, tab strip button)
-- ⬜ Undo List (Toolbar) `edit.undoTo` — no list of undo steps to undo to [WP12]
+- ✅ Undo List (Toolbar) `edit.undoTo` — Edit › Find and Select › Undo List... / Redo List... (`ID_FX_UNDOLIST`, wp_find.c): the steps named by `doc_undo_step()` (Typing, Delete, Formatting, Replace All...), choosing one undoes it and those after it [WP12]
 - ✅ Redo (Toolbar) `edit.redo` — `ID_REDO`
-- ⬜ Repeat (Toolbar) `edit.repeat` — no Repeat (F4) [WP12]
+- ✅ Repeat (Toolbar) `edit.repeat` — F4 (`ID_FX_REPEAT`): the last command that made an undo step again (main.c `wp12_note`/`wp12_replay`, lists with their entry), or the text typed since it (`doc_undo_typed()`) [WP12]
 - ⬜ AutoSave (Toolbar) `file.autosave` [WP24]
 
 ### Title Bar (1: ✅ 0 · 🟨 0 · ⬜ 1 · ➖ 0)
@@ -285,13 +285,13 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Find (Editing) `edit.find` — `ID_FINDDD` / `ID_FIND` (`open_find()`)
 - ✅ Find Next (Editing) `edit.findNext` — `ID_FINDNEXT` (Amiga-G)
 - ✅ Find Previous (Editing) `edit.findPrevious` — `ID_FINDPREV` (Find window button, `FIND_BACK`)
-- 🟨 Advanced Find (Editing) `edit.advancedFind` — Find window has match case and whole words only (`FIND_CASE`, `FIND_WORD`); no find formatting, special characters (^p, ^t), wildcards, find in selection/highlight all [WP12]
+- ✅ Advanced Find (Editing) `edit.advancedFind` — Find › Advanced Find... and Edit › Find and Select (`ID_FX_ADVFIND`, wp_find.c; engine core/findx.c): ^p ^t ^l ^m ^n ^b ^? ^# ^$ ^w ^^ ^+ ^= ^s ^~ ^- ^% ^v ^g ^f ^e ^a ^d and ^13/^0151/^u8212 codes; Word's wildcards (? * [ ] [! ] {n,m} @ < > ( ) \x, \1-\9 and ^& ^c in Replace with); match case, whole words, prefix, suffix, ignore punctuation and white space; Search All/Down/Up; Find in the current selection; Format.../Replace Format... (font, size, bold... small caps, highlight, colour, alignment, paragraph and character style; No Formatting); Special list; Highlight All / Clear Highlighting (drawn by the view, not saved). Tests: tests/test_wp12.c [WP12]
 - ✅ Replace (Editing) `edit.replace` — `ID_REPLACE`, `ID_REPLACE1`
 - ✅ Replace All (Editing) `edit.replaceAll` — `ID_REPLACEALL` (one undo step)
-- 🟨 Go To (Editing) `edit.goto` — `ID_GOTO` goes to a page number only; no section, line, bookmark, comment, footnote, field, table, heading targets [WP12]
+- ✅ Go To (Editing) `edit.goto` — F5 / `ID_GOTO` opens the Go To page (`fx_goto()`): page, section, line, bookmark (name or number), comment (number or reviewer's name), footnote, endnote, field, table, graphic, object, heading; n, +n, -n, Previous/Next. (Equation: WP14a's equations don't exist yet) [WP12]
 - ✅ Select All (Editing) `select.all` — `ID_SELALL`
-- ⬜ Select Objects (Editing) `select.objects` [WP12]
-- ⬜ Select Similar Formatting (Editing) `select.similar` — README roadmap [WP12]
+- ✅ Select Objects (Editing) `select.objects` — Select › Select Objects (`CMD_FV_OBJECTS`, wp_find_view.h): a mode where dragging round floating objects chooses them together (for grouping), Esc ends it [WP12]
+- ✅ Select Similar Formatting (Editing) `select.similar` — Select › Select Similar Formatting (`fx_similar()`, `CMD_FV_SIMILAR`): every stretch formatted like the caret's is selected at once; formatting commands, Copy, Cut and Delete act on all of them [WP12]
 - ➖ Dictate (Voice) `tools.dictate` — WordCraft doesn't have it either (cloud speech service)
 - ✅ Editor (Editor) `review.editor` — WordCraft's Editor runs Spelling: Quill `ID_SPELL`
 
@@ -723,9 +723,9 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Move Paragraph Down (Keyboard) `para.moveDown` [WP11]
 - 🟨 Promote (Keyboard) `para.promote` — Shift-Tab raises a list item's level; headings can't be promoted [WP11]
 - 🟨 Demote (Keyboard) `para.demote` — Tab lowers a list item's level; headings can't be demoted [WP11]
-- ⬜ Toggle Unicode Character (Keyboard) `text.toggleUnicode` — no Alt+X [WP12]
-- ⬜ Spike (Keyboard) `edit.spike` [WP12]
-- ⬜ Insert Spike (Keyboard) `edit.insertSpike` [WP12]
+- ✅ Toggle Unicode Character (Keyboard) `text.toggleUnicode` — Ctrl-X (Alt-X types a character on Amiga keymaps), `fx_toggle_unicode()`: hex code (up to six digits, U+ allowed) to character and back (00E9, U+ after hex digits) [WP12]
+- ✅ Spike (Keyboard) `edit.spike` — Ctrl-F3 (`ID_FX_SPIKE`): the selection cut and added, with its formatting, to the Spike (a document of its own; the clipboard is untouched) [WP12]
+- ✅ Insert Spike (Keyboard) `edit.insertSpike` — Ctrl-Shift-F3 (`ID_FX_INSSPIKE`): the Spike pasted with its formatting and emptied [WP12]
 - ✅ Word Left (Navigation) `caret.wordLeft` — Alt-Left
 - ✅ Word Right (Navigation) `caret.wordRight` — Alt-Right
 - ✅ Line Start (Navigation) `caret.home` — Home, Ctrl-Left
@@ -736,12 +736,12 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Document End (Navigation) `caret.docEnd` — Ctrl-End, Ctrl-Alt-Down
 - ✅ Page Up (Navigation) `caret.pageUp` — Page Up
 - ✅ Page Down (Navigation) `caret.pageDown` — Page Down
-- ⬜ Go Back (Navigation) `edit.goBack` [WP12]
+- ✅ Go Back (Navigation) `edit.goBack` — Shift-F5 or Ctrl-Alt-Z (`ID_FX_GOBACK`): the last four places edited (from the undo history) in turn [WP12]
 - ✅ Select Word (Selection) `select.word` — double-click (view.c)
 - ✅ Select Sentence (Selection) `select.sentence` — `ID_SELECTDD` → `CMD_SELUNIT` 0
 - ✅ Select Paragraph (Selection) `select.paragraph` — `CMD_SELUNIT` 1, triple-click
-- ⬜ Extend Selection (F8) (Selection) `select.extend` — no function keys handled in view.c [WP12]
-- ⬜ Column Selection (Selection) `select.column` [WP12]
+- ✅ Extend Selection (F8) (Selection) `select.extend` — F8 on, again a word, sentence, paragraph, section, the document; Shift-F8 shrinks; the cursor keys and clicks extend, a typed character extends to the next like it; Esc ends it (status bar says so) [WP12]
+- ✅ Column Selection (Selection) `select.column` — Ctrl-Shift-F8 or Alt-click/drag (`fx_block()`): a block of the lines between the corners, drawn as such; Copy/Cut/Delete/Backspace and character and paragraph formatting act on each line's part [WP12]
 - ⬜ Show Field Codes (Fields) `view.fieldCodes` — field codes are not kept [WP1]
 - ⬜ Toggle Field Codes (Fields) `fields.toggleCode` [WP1]
 - ⬜ Edit Field Code (Fields) `fields.setCode` [WP1]
@@ -779,9 +779,9 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ⬜ **Word XML: Flat OPC .xml and Word 2003 XML** — WordCraft reads and writes both through its DOCX code.
 - ✅ **Markdown .md (read and write)** [WP28c] — core/markdown.c (row `fmt_markdown`, by name; File > Save As Markdown... saves a copy): CommonMark blocks (ATX/setext headings, paragraphs, block quotes as Quote, nested bullet/ordered lists with their start numbers, fenced and indented code as Code-style paragraphs, thematic breaks, link reference definitions) and inlines (emphasis by CommonMark's delimiter rules, code spans, links inline/reference/autolinks, images from data: URIs or files, hard breaks, escapes, entities, inline b/i/u/s/sup/sub/code/br), GitHub tables with alignment, strikethrough and footnotes. Writes the same (underline, super/subscript as HTML tags; pictures as data: URIs). Evidence: tests/test_wp28c.c (round trip of text, headings, emphasis, lists, code, tables, pictures, notes; writing twice gives the same file; CommonMark cases); tools/lo_formats.sh: pandoc (-f gfm) reads every paragraph Quill writes. Left out: fonts, sizes, colours, alignment, page layout (Markdown has none).
 - ⬜ **LaTeX .tex (read and write, with math)** — WordCraft crates/formats/src/latex.
-- 🟨 **PDF export** — Quill core/pdf.c: pages as laid out, embedded TrueType/OpenType fonts, URI link annotations, Title/Author. Missing against WordCraft: font subsetting (whole fonts are embedded, README roadmap), text outside Windows-1252 (`/WinAnsiEncoding` only), internal links (TOC entries, cross-references, `#bookmark` links), the document outline (bookmarks pane), tagged PDF.
+- 🟨 **PDF export** — Quill core/pdf.c: pages as laid out, embedded TrueType/OpenType fonts, URI link annotations. WP29 added: font subsetting (core/pdffont.c: TrueType glyf/loca rebuilt, CFF CharStrings cut in place; the short test documents' PDFs shrink 10-16 times, e.g. tables.docx 415 KB → 30 KB, word.docx 769 KB → 49 KB, wordcraft-long.docx 1.9 MB → 0.88 MB), any character the font has through Type 0 fonts with Identity-H and ToUnicode CMaps (pdffonts: "CID TrueType / CID Type 0C (OT), emb sub uni"; pdftotext extracts Greek and Cyrillic), internal links (`#bookmark` links, PAGEREF cross-references, Quill's own TOC entries to their headings, footnote/endnote references and their numbers back), the outline from the headings (nested, /PageMode /UseOutlines), bookmarks as named destinations, Title/Author/Subject/Keywords (UTF-16 when needed), a page range (Export Options); qpdf --check clean [WP29]. Still missing: tagged PDF (structure tree; not part of WP29).
 - ➖ **PDF import** — WordCraft doesn't have it either.
-- ⬜ **Export page as image (.png)** — WordCraft `file.exportPng`; Quill none (an IFF ILBM export would suit the Amiga too).
+- ✅ **Export page as image (.png)** — WP29: Export Image writes PNG or IFF ILBM pages (core/pngwrite.c, core/raster.c), with Export Options for the pages and resolution [WP29]
 - ⬜ **Encrypted .docx (open and save with a password)** — WordCraft crates/docx/src/crypt (ECMA-376 agile AES-256, standard encryption). Quill none.
 - ⬜ **Spreadsheets (.xlsx, .xls, .ods, .csv) as mail-merge recipient lists** — WordCraft crates/formats/src/sheet. Quill has no mail merge.
 - 🟨 **Picture formats for Insert › Picture** — Quill: PNG and JPEG (baseline, progressive, CMYK; core/image.c). WordCraft also GIF, WebP, BMP, WMF and EMF (crates/metafile). An Amiga user would also expect IFF ILBM.
