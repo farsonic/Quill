@@ -119,6 +119,7 @@ static int pw_modal(const char *title, const char *text, int confirm, char *out,
     }
     set(pwwin, MUIA_Window_Open, FALSE);
     if (wp_win()) set(wp_win(), MUIA_Window_Sleep, FALSE);
+    DoMethod(wp_app(), MUIM_Application_InputBuffered);   /* (what the requester covered drawn again before any long work) */
     if (r == 1) {
       STRPTR a = NULL, b = NULL;
       get(pw1, MUIA_String_Contents, &a); get(pw2, MUIA_String_Contents, &b);
