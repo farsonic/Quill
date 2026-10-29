@@ -170,6 +170,13 @@ void test_wp29(void)
   ok("wp29 pdf: the bookmark a named destination", pdf && memmem(pdf, n, "/Names <</Dests", 15) && memmem(pdf, n, "(spot) [", 8));
   ok("wp29 pdf: title in UTF-16 and the author", pdf && memmem(pdf, n, "/Title <FEFF004E", 16) && memmem(pdf, n, "03A9>", 5) && memmem(pdf, n, "/Author (Quill Tester)", 22));
   if (pdf) file_write("/tmp/quill_wp29_nav.pdf", pdf, n);
+  {
+    /* (the same document as .docx, for trying the export in Quill itself) */
+    size_t dn = 0;
+    u8 *docx = docx_save(d, &dn);
+    if (docx) file_write("/tmp/quill_wp29_nav.docx", docx, dn);
+    free(docx);
+  }
   free(st); free(pdf);
   {
     /* options: a page range, subject and keywords, no outline */
