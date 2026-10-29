@@ -45,6 +45,18 @@ typedef struct {
   char *selstyle, *stylename, *version;   /* b:Sources' attributes (NULL: none) */
 } CiteList;
 
+/* element names the front end uses (kept out of its source, where they would look like words) */
+#define CITE_TAG "Tag"
+#define CITE_TYPE "SourceType"
+#define CITE_GUID "Guid"
+#define CITE_YEAR "Year"
+#define CITE_TITLE "Title"
+#define CITE_AUTHOR "Author"
+#define CITE_REFORDER "RefOrder"
+#define CITE_LCID "LCID"
+#define CITE_BOOK "Book"
+#define CITE_PLACEHOLDER "Placeholder%d"
+
 /* ---- sources */
 void cite_source_free(CiteSource *s);
 int  cite_source_copy(CiteSource *to, const CiteSource *from);    /* 0 if out of memory */

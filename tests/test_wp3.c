@@ -362,6 +362,22 @@ static void sample(void)
   cite_list_free(&l);
 }
 
+/* the sample saved again by LibreOffice (tests/data/cite-lo.docx): its sources, citations and
+   bibliography read, nothing to update */
+static void lo_file(void)
+{
+  char err[200];
+  unsigned lost;
+  Doc *d = doc_load_file("tests/data/cite-lo.docx", &lost, err, sizeof err);
+  Pos at[8];
+  ok("cite: LibreOffice's file read with its sources", d && d->cite && d->cite->list.n == 3 && cite_style_of(&d->cite->list) == CS_APA7);
+  if (!d) return;
+  ok("cite: its citations", cite_list_citations(d, at, 8) == 3);
+  ok("cite: its results as Quill makes them", cite_update_all(d) == 0);
+  ok("cite: its bibliography", d->np >= 5 && para_has(d, d->np - 3, "Doe, J. (2019)."));
+  doc_free(d);
+}
+
 void test_wp3(void)
 {
   verbose3 = getenv("WP3_VERBOSE") != NULL;
@@ -370,4 +386,5 @@ void test_wp3(void)
   document();
   word_file();
   sample();
+  lo_file();
 }
