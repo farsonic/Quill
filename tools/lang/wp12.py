@@ -125,10 +125,10 @@ W = [
 ("Insert Spike (Ctrl-Shift-F3)", "Sammlung einfügen (Ctrl-Umschalt-F3)", "Insérer la pique (Ctrl-Maj-F3)", "Insertar Spike (Ctrl-Mayús-F3)", "Inserisci Spike (Ctrl-Maiusc-F3)"),
 ("Toggle Unicode Character (Ctrl-X)", "Unicode-Zeichen umschalten (Ctrl-X)", "Basculer le caractère Unicode (Ctrl-X)", "Alternar carácter Unicode (Ctrl-X)", "Attiva/disattiva carattere Unicode (Ctrl-X)"),
 # ---- the status bar (amiga/wp_find_view.h)
-("Select Objects: drag round objects to choose them (Esc ends it)", "Objekte markieren: Rahmen um Objekte ziehen (Esc beendet)", "Sélectionner les objets : tracez un cadre autour (Échap pour finir)", "Seleccionar objetos: arrastre alrededor de ellos (Esc termina)", "Seleziona oggetti: trascinare attorno agli oggetti (Esc termina)"),
-("Column selection: extend it with the cursor keys (Esc ends it)", "Spaltenmarkierung: mit den Cursortasten erweitern (Esc beendet)", "Sélection de colonne : étendez-la avec les flèches (Échap pour finir)", "Selección de columna: amplíela con las flechas (Esc termina)", "Selezione colonna: estenderla con i tasti cursore (Esc termina)"),
-("Extend Selection: the cursor keys extend it, F8 selects more (Esc ends it)", "Markierung erweitern: Cursortasten erweitern, F8 markiert mehr (Esc beendet)", "Étendre la sélection : flèches pour étendre, F8 pour plus (Échap pour finir)", "Extender selección: las flechas amplían, F8 selecciona más (Esc termina)", "Estendi selezione: i tasti cursore estendono, F8 seleziona di più (Esc termina)"),
-("%lu places with this formatting selected", "%lu Stellen mit dieser Formatierung markiert", "%lu endroits avec cette mise en forme sélectionnés", "%lu lugares con este formato seleccionados", "%lu punti con questa formattazione selezionati"),
+("Select Objects: drag round them (Esc ends)", "Objekte markieren: Rahmen ziehen (Esc: Ende)", "Sélection d'objets : tracez un cadre (Échap)", "Seleccionar objetos: arrastre (Esc termina)", "Seleziona oggetti: trascinare (Esc termina)"),
+("Column selection (Esc ends it)", "Spaltenmarkierung (Esc: Ende)", "Sélection de colonne (Échap pour finir)", "Selección de columna (Esc termina)", "Selezione colonna (Esc termina)"),
+("Extend Selection: F8 for more (Esc ends)", "Markierung erweitern: F8 für mehr (Esc)", "Étendre la sélection : F8 (Échap)", "Extender selección: F8 más (Esc termina)", "Estendi selezione: F8 di più (Esc)"),
+("%lu places selected", "%lu Stellen markiert", "%lu endroits sélectionnés", "%lu lugares seleccionados", "%lu punti selezionati"),
 # ---- Find what's errors (core/findx.c)
 ("The Find what text is too long.", "Der Suchtext ist zu lang.", "Le texte recherché est trop long.", "El texto de búsqueda es demasiado largo.", "Il testo da trovare è troppo lungo."),
 ("Too many characters in [ ].", "Zu viele Zeichen in [ ].", "Trop de caractères entre [ ].", "Demasiados caracteres en [ ].", "Troppi caratteri in [ ]."),

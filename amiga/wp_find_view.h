@@ -60,10 +60,10 @@ static void fv_show_mode(struct Data *d)
   FvState *s = (FvState *)d->wp12;
   static char b[96];
   if (!s) return;
-  if (s->objmode) fv_hint(d, tr("Select Objects: drag round objects to choose them (Esc ends it)"));
-  else if (s->mode == FVM_BLOCK) fv_hint(d, tr("Column selection: extend it with the cursor keys (Esc ends it)"));
-  else if (s->ext) fv_hint(d, tr("Extend Selection: the cursor keys extend it, F8 selects more (Esc ends it)"));
-  else if (s->mode == FVM_SIMILAR) { sprintf(b, tr("%lu places with this formatting selected"), (unsigned long)s->nr); fv_hint(d, b); }
+  if (s->objmode) fv_hint(d, tr("Select Objects: drag round them (Esc ends)"));
+  else if (s->mode == FVM_BLOCK) fv_hint(d, tr("Column selection (Esc ends it)"));
+  else if (s->ext) fv_hint(d, tr("Extend Selection: F8 for more (Esc ends)"));
+  else if (s->mode == FVM_SIMILAR) { sprintf(b, tr("%lu places selected"), (unsigned long)s->nr); fv_hint(d, b); }
   else fv_hint(d, "");
 }
 static int fv_quiet(struct Data *d) { return d->wp12 && ((FvState *)d->wp12)->quiet; }
