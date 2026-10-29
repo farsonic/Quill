@@ -87,7 +87,11 @@ static void intl_text(struct Data *d, Object *obj, struct RastPort *rp, const Ch
     i += (u32)used;
     if (cp == BIDI_GONE || bidi_invisible(cp)) continue;
     if (cp < 0x100 && cp >= 0x20) { char c = (char)cp; Move(rp, px, base); Text(rp, (STRPTR)&c, 1); }
-    else intl_put(rp, z->face, cp, ppem64, px, base, bold, wp27_turned && bidi_wide(cp), tx(d, (i32)(fonts_fine(z, cp) / QFINE)));
+    else {
+      int rot = wp27_turned && bidi_wide(cp);
+      u32 g = rot && ttf_glyph(z->face, bidi_vert_form(cp)) ? bidi_vert_form(cp) : cp;    /* (vertical forms of punctuation) */
+      intl_put(rp, z->face, g, ppem64, px, base, bold, rot, tx(d, (i32)(fonts_fine(z, cp) / QFINE)));
+    }
     {
       long w = (long)fonts_fine(z, cp);
       if (f->scale && f->scale != 100) w = w * f->scale / 100;

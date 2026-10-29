@@ -53,8 +53,12 @@ static int wp27_pdf_upright(Pdf *p, Buf *b, ParaLay *pl, const Box *bx, i32 lx, 
     i32 x0 = lx + lay_text_x(p->L, bx, t, o), x1 = lx + lay_text_x(p->L, bx, t, nx);
     if (bidi_wide(cp)) {
       i32 cx = (x0 + x1) / 2, cy = base + size * 38 / 100;
+      u32 vf = bidi_vert_form(cp);
+      char one[5];
+      int nb1 = (vf != cp && ttf_glyph(z->face, vf)) ? utf8_put(one, vf) : 0;
       buf_printf(b, "q 0 1 -1 0 %ld %ld cm\n", (long)(cx + cy), (long)(cy - cx));
-      text(p, b, &bx->f, t + o, (u32)used, x0, base, x1 - x0);
+      if (nb1) text(p, b, &bx->f, one, (u32)nb1, x0, base, x1 - x0);
+      else text(p, b, &bx->f, t + o, (u32)used, x0, base, x1 - x0);
       buf_adds(b, "Q\n");
     } else text(p, b, &bx->f, t + o, (u32)used, x0, base, x1 - x0);
     o = nx;

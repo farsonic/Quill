@@ -81,4 +81,7 @@ void bidi_kinsoku_set(const char *nostart, const char *noend);
    characters (spaces do that) */
 int  bidi_can_break(u32 a, u32 b, int kinsoku);
 
+/* the form of cp for vertical text (an ideographic comma, full stop, bracket...), or cp */
+u32  bidi_vert_form(u32 cp);
+
 #endif

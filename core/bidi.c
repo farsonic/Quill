@@ -475,3 +475,18 @@ int bidi_can_break(u32 a, u32 b, int kinsoku)
   if (!breaky(a) && (a == '(' || a == '[' || a == '{')) return 0;
   return 1;
 }
+
+/* ------------------------------------------------------------------ */
+/* vertical text: the presentation forms for vertical writing (Unicode's Vertical Forms and CJK
+   Compatibility Forms blocks) of punctuation and brackets */
+u32 bidi_vert_form(u32 cp)
+{
+  static const u16 v[][2] = {
+    { 0x2026, 0xFE19 }, { 0x3001, 0xFE11 }, { 0x3002, 0xFE12 }, { 0x3008, 0xFE3F }, { 0x3009, 0xFE40 }, { 0x300A, 0xFE3D },
+    { 0x300B, 0xFE3E }, { 0x300C, 0xFE41 }, { 0x300D, 0xFE42 }, { 0x300E, 0xFE43 }, { 0x300F, 0xFE44 }, { 0x3010, 0xFE3B },
+    { 0x3011, 0xFE3C }, { 0x3014, 0xFE39 }, { 0x3015, 0xFE3A }, { 0xFF01, 0xFE15 }, { 0xFF08, 0xFE35 }, { 0xFF09, 0xFE36 },
+    { 0xFF0C, 0xFE10 }, { 0xFF1A, 0xFE13 }, { 0xFF1B, 0xFE14 }, { 0xFF1F, 0xFE16 }, { 0xFF3B, 0xFE47 }, { 0xFF3D, 0xFE48 },
+    { 0xFF5B, 0xFE37 }, { 0xFF5D, 0xFE38 } };
+  u32 r = pair_find(v, (int)(sizeof v / sizeof v[0]), cp);
+  return r ? r : cp;
+}
