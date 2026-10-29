@@ -5271,8 +5271,8 @@ static u8 *save_txt(Doc *d, size_t *len) { return txt_save(d, 1, len); }      /*
 static Doc *load_docx(const u8 *b, size_t n, unsigned *lost, char *err, size_t errcap) { return docx_load(b, n, lost, err, errcap); }
 static const DocFormat fmt_docx = { "Word Document", "docx", sniff_zip, load_docx, docx_save, DF_NATIVE };
 static const DocFormat fmt_txt = { "Plain Text", "txt|text|asc", NULL, load_txt, save_txt, DF_TEXT };
-extern const DocFormat fmt_odt, fmt_doc, fmt_rtf, fmt_html, fmt_markdown;
-const DocFormat *const doc_formats[] = { &fmt_odt, &fmt_docx, &fmt_doc, &fmt_rtf, &fmt_html, &fmt_markdown, &fmt_txt };
+extern const DocFormat fmt_odt, fmt_fodt, fmt_doc, fmt_rtf, fmt_html, fmt_markdown;     /* (fmt_fodt: WP28b's Flat ODT) */
+const DocFormat *const doc_formats[] = { &fmt_odt, &fmt_fodt, &fmt_docx, &fmt_doc, &fmt_rtf, &fmt_html, &fmt_markdown, &fmt_txt };
 const int doc_nformats = (int)(sizeof doc_formats / sizeof doc_formats[0]);
 /* whether path ends in "." and one of exts (ext|ext|...), ignoring case (Amiga names are case-insensitive) */
 static int ext_in(const char *path, const char *exts)

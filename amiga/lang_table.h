@@ -2998,6 +2998,8 @@
   { { "Save as Rich Text Format", "Im Rich-Text-Format speichern", "Enregistrer au format RTF", "Guardar en formato RTF", "Salva in formato RTF" } },
 /* ---- end WP28a */
 /* ---- begin WP28b (tools/lang/wp28b.py) */
+  { { "Save As OpenDocument Text...", "Als OpenDocument-Text speichern...", "Enregistrer en texte OpenDocument...", "Guardar como texto de OpenDocument...", "Salva come testo OpenDocument..." } },
+  { { "Save as OpenDocument Text", "Als OpenDocument-Text speichern", "Enregistrer au format Texte OpenDocument", "Guardar como texto de OpenDocument", "Salva come testo OpenDocument" } },
 /* ---- end WP28b */
 /* ---- begin WP28c (tools/lang/wp28c.py) */
   { { "Save As Web Page...", "Als Webseite speichern...", "Enregistrer en page Web...", "Guardar como p\341gina web...", "Salva come pagina Web..." } },
