@@ -16,6 +16,7 @@
 #include "notes.h"   /* (WP22b) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a: equations */
+#include "protect.h"  /* WP7: Restrict Editing, encryption */
 
 /* ------------------------------------------------------------------ */
 /* reading: formatting as found (which fields a pPr or rPr sets) */
@@ -2250,6 +2251,7 @@ static int docx_read_block_ext(Xml *x, PCtx *pc)
   /* WP4: */
   /* WP5: */
   /* WP7: */
+  if (prot_read_perm(pc->c->d, x, pc, pc->out, pc->nout, NULL)) { xml_skip(x); return 1; }
   /* WP9: */
   /* WP10: */
   /* WP11: */
@@ -2284,6 +2286,7 @@ static int docx_read_elem_ext(Xml *x, PCtx *pc)
   /* WP4: */
   /* WP5: */
   /* WP7: */
+  if (prot_read_perm(pc->c->d, x, pc, pc->out, pc->nout, pc->p)) return 1;
   /* WP9: */
   /* WP10: */
   /* WP11: */
@@ -2341,6 +2344,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
   /* WP4: */
   /* WP5: */
   /* WP7: */
+  prot_read_setting(c->d, x);
   /* WP9: */
   /* WP10: */
   /* WP11: */
@@ -3255,6 +3259,7 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
 static void w_sectpr(Buf *o, Doc *d, const SectFmt *s, int g, int last);
 static int w_inbody;                  /* writing the body's paragraphs */
 static u16 w_bmark;                   /* the bookmark open in the body (its runs are being written), 0 none */
+static u16 w_perm;                    /* (WP7) the exception to Restrict Editing open in the body, 0 none */
 /* the body's runs move from bookmark w_bmark to k: the one open ended, the new one started (Word
    numbers them by w:id; Quill uses the bookmark's number) */
 static void w_bmark_to(Buf *o, Doc *d, u16 k)
@@ -3350,6 +3355,7 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
       const CharFmt *f = &p->r[k].f;
       if (f->link != link) { w_link(o, d, link, 0); w_link(o, d, f->link, 1); link = f->link; }
       if (w_inbody) w_bmark_to(o, d, f->bmark);
+      if (w_inbody) prot_write_perm(o, d, &w_perm, f->perm);   /* (WP7: Restrict Editing's exceptions) */
       w_runlink = f->link;
       buf_init(&r);
       {
@@ -3640,7 +3646,7 @@ static char *w_document(Doc *d, size_t *len)
   buf_adds(&o, "<w:document "); buf_adds(&o, WNS); buf_adds(&o, ">");
   if (d->pagecolor) buf_printf(&o, "<w:background w:color=\"%06lX\"/>", (unsigned long)(d->pagecolor & 0xFFFFFF));   /* (the page colour) */
   buf_adds(&o, "<w:body>");
-  w_inbody = 1; w_bmark = 0;
+  w_inbody = 1; w_bmark = 0; w_perm = 0;
   for (i = 0; i < d->np; i++) {
     /* a table of contents: Word's TOC field round its entries, so Word can update it */
     int toc = toc_para(d, d->p[i]), first = toc && !(i > 0 && toc_para(d, d->p[i - 1])), last = toc && !(i + 1 < d->np && toc_para(d, d->p[i + 1]));
@@ -3650,6 +3656,7 @@ static char *w_document(Doc *d, size_t *len)
     w_table_close(&o, d, i);
   }
   w_bmark_to(&o, d, 0);
+  prot_write_perm(&o, d, &w_perm, 0);     /* (WP7) */
   w_inbody = 0;
   w_sectpr(&o, d, doc_sect(d, d->np - 1), 0, 1);   /* the last section: the body's */
   buf_adds(&o, "</w:body></w:document>");
@@ -3859,6 +3866,7 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   /* WP4: */
   /* WP5: */
   /* WP7: */
+  if (where == 1) prot_write_setting(d, b);
   /* WP9: */
   /* WP10: */
   /* WP11: */
@@ -4300,6 +4308,7 @@ Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap)
   int i;
   if (lost) *lost = 0;
   if (!data) { snprintf(err, errcap, "Can't read %s.", path); return NULL; }
+  if (!(data = prot_load_decrypt(data, &n, err, errcap))) return NULL;   /* (WP7: an encrypted document) */
   for (i = 0; i < doc_nformats && !f; i++) if (doc_formats[i]->load && doc_formats[i]->sniff && doc_formats[i]->sniff(data, n)) f = doc_formats[i];
   for (i = 0; i < doc_nformats && !f; i++) if (doc_formats[i]->load && !doc_formats[i]->sniff && ext_in(path, doc_formats[i]->exts)) f = doc_formats[i];
   if (!f) f = &fmt_txt;
@@ -4307,6 +4316,7 @@ Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap)
   doc_load_path = path;
   d = f->load(data, n, lost, err, errcap);
   doc_load_path = NULL;
+  prot_load_done(d);                     /* (WP7) */
   if (!d && !err[0]) snprintf(err, errcap, "Quill couldn't read %s.", path);
   free(data);
   return d;
@@ -4319,6 +4329,7 @@ int doc_save_file(Doc *d, const char *path)
   const DocFormat *f = doc_format_for_name(path, 1);
   u8 *data = (f ? f : &fmt_txt)->save(d, &n);
   int ok;
+  if (data && f == &fmt_docx) data = prot_save_encrypt(d, data, &n);   /* (WP7: encrypted with its password) */
   if (!data) return 0;
   ok = file_write(path, data, n);
   free(data);

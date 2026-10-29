@@ -11,6 +11,7 @@
 #include "notes.h"   /* (WP22b) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a */
+#include "protect.h"  /* WP7 */
 
 /* ------------------------------------------------------------------ */
 /* undo: a step replaces paragraphs [p0, p0 + nnew) with copies of what was there before the edit
@@ -97,6 +98,7 @@ static Step *rec(Doc *d, u32 p0, u32 n, Pos where)
   Step *s;
   u32 i;
   if (!g) return NULL;
+  if (!prot_gate(d, p0, n)) return NULL;     /* (WP7: Restrict Editing) */
   if (g->ns >= g->cap) {
     int nc = g->cap ? g->cap * 2 : 4;
     Step *ns = (Step *)realloc(g->s, nc * sizeof(Step));
@@ -116,6 +118,7 @@ static int rec_styles(Doc *d, Pos where)
 {
   Group *g = cur_group(d, where);
   if (!g) return 0;
+  if (!prot_gate_styles(d)) return 0;        /* (WP7) */
   if (g->styles) return 1;
   if (!(g->styles = (Style *)malloc((d->nstyles ? d->nstyles : 1) * sizeof(Style)))) return 0;
   memcpy(g->styles, d->styles, d->nstyles * sizeof(Style));
@@ -372,7 +375,8 @@ static int cf_eq(const CharFmt *a, const CharFmt *b)
   return a->flags == b->flags && a->font == b->font && a->size == b->size && a->color == b->color && a->hl == b->hl && a->rev == b->rev && a->rid == b->rid &&
          a->cstyle == b->cstyle && a->fx == b->fx && a->ul == b->ul && a->spacing == b->spacing && a->scale == b->scale && a->position == b->position &&
          a->link == b->link && a->bmark == b->bmark &&
-         a->fx2 == b->fx2 && a->ulcolor == b->ulcolor && a->shade == b->shade && a->rx == b->rx;   /* (WP9's) */
+         a->fx2 == b->fx2 && a->ulcolor == b->ulcolor && a->shade == b->shade && a->rx == b->rx &&   /* (WP9's) */
+         a->perm == b->perm;   /* (WP7's) */
 }
 /* the run covering byte off (past the end: the last run). Points into the paragraph, so it is good
    until the paragraph next changes */
@@ -544,6 +548,7 @@ int doc_insert(Doc *d, Pos *at, const char *s, u32 n, const CharFmt *f)
   if (at->para >= d->np) return 0;
   p = d->p[at->para];
   if (at->off > p->len) at->off = p->len;
+  if (!prot_insert_ok(d, *at, s, n)) return 0;    /* (WP7) */
   fmt = f ? *f : *para_fmt_before(p, at->off);
   /* typing one character in a run of typing: no new undo step, the paragraph's copy is saved */
   single = n > 0 && n <= 4 && memchr(s, '\n', n) == NULL && memchr(s, '\r', n) == NULL;
@@ -601,6 +606,7 @@ int doc_delete(Doc *d, Pos a, Pos b)
   if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
   a = pos_clamp(d, a); b = pos_clamp(d, b);
   if (!pos_cmp(a, b)) return 0;
+  if (!prot_range_ok(d, a, b, 0)) return 0;      /* (WP7) */
   if (!(st = rec(d, a.para, b.para - a.para + 1, b))) { close_auto(d); return 0; }
   if (a.para == b.para) para_delete_text(d->p[a.para], a.off, b.off);
   else {
@@ -645,6 +651,7 @@ void cf_apply(CharFmt *c, unsigned mask, const CharFmt *v)
   if (mask & CM_ULCOLOR) c->ulcolor = v->ulcolor;
   if (mask & CM_SHADE) c->shade = v->shade;
   if (mask & CM_RX) c->rx = v->rx;
+  if (mask & CM_PERM) c->perm = v->perm;     /* (WP7) */
 }
 /* the CM_ fields mask names set from val on a..b (either order), runs split at the ends; an empty
    paragraph's one run takes it too. One undo step; 0 if the range is empty */
@@ -655,6 +662,7 @@ int doc_format(Doc *d, Pos a, Pos b, unsigned mask, const CharFmt *val)
   if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
   a = pos_clamp(d, a); b = pos_clamp(d, b);
   if (!pos_cmp(a, b)) return 0;
+  if (!prot_range_ok(d, a, b, 1)) return 0;      /* (WP7) */
   if (!(st = rec(d, a.para, b.para - a.para + 1, a))) { close_auto(d); return 0; }
   for (pi = a.para; pi <= b.para; pi++) {
     Para *p = d->p[pi];
@@ -700,6 +708,7 @@ static int each_run(Doc *d, Pos a, Pos b, void (*fn)(Doc *, Para *, CharFmt *, v
   if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
   a = pos_clamp(d, a); b = pos_clamp(d, b);
   if (!pos_cmp(a, b)) return 0;
+  if (!prot_range_ok(d, a, b, 1)) return 0;      /* (WP7) */
   if (!rec(d, a.para, b.para - a.para + 1, a)) { close_auto(d); return 0; }
   for (pi = a.para; pi <= b.para; pi++) {
     Para *p = d->p[pi];
@@ -883,6 +892,7 @@ int doc_resolve(Doc *d, Pos a, Pos b, int accept)
   int any;
   if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
   a = pos_clamp(d, a); b = pos_clamp(d, b);
+  if (!prot_resolve_ok(d)) return 0;             /* (WP7) */
   doc_begin(d, a);
   any = each_run_back(d, a, b, resolve_one, &accept);
   doc_end(d, a);
@@ -2073,6 +2083,7 @@ static CharFmt paste_cf(Doc *d, const Fragment *f, const CharFmt *src, const Cha
     if (src->cstyle && src->cstyle < f->nstyles) { int k = doc_style(d, f->styles[src->cstyle].id); c.cstyle = (u8)(k > 0 && d->styles[k].type == ST_CHAR ? k : 0); }
   }
   c.rev = 0; c.rid = 0;
+  c.perm = dst->perm;                  /* (WP7: pasted text is as free to edit as where it goes) */
   return c;
 }
 /* a pasted paragraph's text with its references made right for d: notes and comment marks left out,
@@ -2133,6 +2144,7 @@ int doc_paste(Doc *d, Pos *at, const Fragment *f, int mode)
   Pos where;
   if (!n) return 0;
   where = *at = pos_clamp(d, *at);
+  if (!prot_insert_ok(d, *at, "", 0)) return 0;   /* (WP7) */
   dp = d->p[at->para];
   off = at->off;
   dst = *para_fmt_before(dp, off);
@@ -2739,6 +2751,7 @@ void doc_free(Doc *d)
   notes_free(d);                 /* (WP22b) */
   info_free(d);                  /* (WP24) */
   math_doc_free(d);     /* WP14a: equations */
+  prot_free(d);         /* WP7 */
   free(d);
 }
 

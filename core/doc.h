@@ -37,6 +37,7 @@ typedef struct {
   u32 ulcolor;              /* the underline's colour: 0 the text's, else HL_ON | 0xRRGGBB */
   u32 shade;                /* character shading (w:shd, kept apart from the highlight): 0 none, else HL_ON | 0xRRGGBB */
   u16 rx;                   /* run properties kept verbatim (w14 text effects, w:effect): charfx.h rx_text(rx), 0 none */
+  u16 perm;                 /* (WP7) in an exception to Restrict Editing: DocProtect.perms index + 1 (core/protect.h), 0 none */
 } CharFmt;
 enum { REV_NONE, REV_INS, REV_DEL };
 enum { FX_SMALLCAPS = 1, FX_DSTRIKE = 2, FX_BORDER = 4 };   /* FX_BORDER: a box round the characters (w:bdr) */
@@ -455,6 +456,7 @@ typedef struct Doc {
      settings.xml's m:mathPr kept verbatim */
   struct MathEq **maths; int nmaths, mathcap;
   char *mathpr;
+  struct DocProtect *prot;  /* (WP7) Restrict Editing and the encryption password (core/protect.h), NULL: none */
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */
