@@ -368,7 +368,7 @@ u8 *objfx_media_bytes(const Image *im, u32 key, u32 *len, u8 *type)
   fit_size(im, &w, &h);
   if (key == 1) { w = im->pw; h = im->ph; }
   if ((long)w * h > 8000000L || !(rgb = img_decode(im->data, im->len, w, h))) return NULL;
-  if (!rgba_alloc(&ra, (i32)w, (i32)h)) { free(rgb); return NULL; }
+  if (!pic_rgba_alloc(&ra, (i32)w, (i32)h)) { free(rgb); return NULL; }
   /* only the effects Word doesn't draw itself; the others stay in the file as they are */
   memset(&b, 0, sizeof b);
   if (key > 1) { b.art = im->fx.art; b.sharp = im->fx.sharp; b.temp = im->fx.temp; b.sat = im->fx.sat; }
@@ -383,9 +383,9 @@ u8 *objfx_media_bytes(const Image *im, u32 key, u32 *len, u8 *type)
   objfx_adjust(rgb, w, h, &b);
   for (i = 0; i < w * h; i++) { ra.px[i * 4] = rgb[i * 3]; ra.px[i * 4 + 1] = rgb[i * 3 + 1]; ra.px[i * 4 + 2] = rgb[i * 3 + 2]; }
   free(rgb);
-  if (im->type == IMG_JPEG && !alpha) { out = jpeg_encode(&ra, 90, 0, &n); *type = IMG_JPEG; }
-  else { out = png_encode(&ra, 0, &n); *type = IMG_PNG; }
-  rgba_free(&ra);
+  if (im->type == IMG_JPEG && !alpha) { out = pic_jpeg_encode(&ra, 90, 0, &n); *type = IMG_JPEG; }
+  else { out = pic_png_encode(&ra, 0, &n); *type = IMG_PNG; }
+  pic_rgba_free(&ra);
   *len = (u32)n;
   return out;
 }
@@ -416,11 +416,11 @@ u8 *objfx_compress(const Image *im, int ppi, int delcrop, u32 *len)
   if (delcrop) { Image t = *im; t.cx = (i32)w; t.cy = (i32)h; rgb = objfx_picture_rgb(&t, (i32)w, (i32)h, 1); }
   else rgb = img_decode(im->data, im->len, w, h);
   if (!rgb) return NULL;
-  if (!rgba_alloc(&ra, (i32)w, (i32)h)) { free(rgb); return NULL; }
+  if (!pic_rgba_alloc(&ra, (i32)w, (i32)h)) { free(rgb); return NULL; }
   for (i = 0; i < w * h; i++) { ra.px[i * 4] = rgb[i * 3]; ra.px[i * 4 + 1] = rgb[i * 3 + 1]; ra.px[i * 4 + 2] = rgb[i * 3 + 2]; ra.px[i * 4 + 3] = 255; }
   free(rgb);
-  out = im->type == IMG_JPEG ? jpeg_encode(&ra, 85, ppi, &n) : png_encode(&ra, ppi, &n);
-  rgba_free(&ra);
+  out = im->type == IMG_JPEG ? pic_jpeg_encode(&ra, 85, ppi, &n) : pic_png_encode(&ra, ppi, &n);
+  pic_rgba_free(&ra);
   if (out && !delcrop && n >= im->len && im->type != IMG_ILBM && im->type != IMG_BMP) { free(out); return NULL; }
   *len = (u32)n;
   return out;

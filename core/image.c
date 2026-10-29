@@ -714,7 +714,7 @@ static int other_decode(const u8 *d, u32 n, Scaler *sc)
   u8 *row;
   i32 x, y;
   if (!picfmt_rgba(d, n, &im)) return 0;
-  if ((u32)im.w != sc->sw || (u32)im.h != sc->sh || !(row = (u8 *)malloc((size_t)im.w * 3))) { rgba_free(&im); return 0; }
+  if ((u32)im.w != sc->sw || (u32)im.h != sc->sh || !(row = (u8 *)malloc((size_t)im.w * 3))) { pic_rgba_free(&im); return 0; }
   for (y = 0; y < im.h; y++) {
     const u8 *s = im.px + (size_t)y * im.w * 4;
     for (x = 0; x < im.w; x++, s += 4) {
@@ -723,7 +723,7 @@ static int other_decode(const u8 *d, u32 n, Scaler *sc)
     }
     sc_row(sc, row, (u32)y);
   }
-  free(row); rgba_free(&im);
+  free(row); pic_rgba_free(&im);
   return 1;
 }
 /* ------------------------------------------------------------------ */

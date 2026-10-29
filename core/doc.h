@@ -216,6 +216,18 @@ enum { SB_NEXT, SB_CONT, SB_EVEN, SB_ODD };
 enum { VA_TOP, VA_CENTER, VA_BOTTOM };
 enum { LN_NONE, LN_PAGE, LN_SECTION, LN_CONT };     /* line numbers, starting again each page, each section, or never */
 #define MAX_SECT_COLS 6
+/* footnote and endnote options (WP22b, core/notes.h): where the notes go, how they are numbered.
+   set: which of the others are given (NPS_); what isn't comes from the document's (Doc.fnpr, Doc.enpr),
+   else Word's defaults (footnotes 1, 2, 3 at the page's foot; endnotes i, ii, iii at the end) */
+enum { NPS_POS = 1, NPS_FMT = 2, NPS_START = 4, NPS_RESTART = 8 };
+typedef struct {
+  u8 set;                   /* NPS_ bits */
+  u8 pos;                   /* NPOS_ (core/notes.h) */
+  u8 fmt;                   /* NNF_ */
+  u8 restart;               /* NRS_ */
+  u16 start;                /* the first number (1...) */
+  char other[22];           /* a w:numFmt Quill doesn't draw (NNF_OTHER, shown as digits), kept */
+} NotePr;
 typedef struct {
   u8 start;                 /* SB_ */
   u8 cols;                  /* 1 to MAX_SECT_COLS, of equal width */
@@ -232,6 +244,7 @@ typedef struct {
   PageSetup page;           /* (haspage) */
   struct Story *hf;         /* its own headers and footers: HF_N headers then HF_N footers (malloc'd,
                                the section format owns them); NULL: the document's */
+  NotePr fnpr, enpr;        /* (WP22b) its own footnote and endnote options (w:footnotePr, w:endnotePr) */
 } SectFmt;
 /* s set to a section with no settings of its own: one column from a new page, 720 twips between
    columns, no line numbers */
@@ -360,6 +373,7 @@ typedef struct DocImage {
   i32 *poly; u16 npoly;
   i32 z;                    /* floating objects: the order they stack in, higher in front (equal ones in the
                                order their anchors come); Word's relativeHeight */
+  u8 decorative;            /* (WP24) marked decorative: a screen reader passes over it (Word's adec:decorative) */
   ObjFx fx;                 /* WP17/WP18: adjustments, fills, effects, text settings */
 } Image;
 /* an object copied (dst a new entry): its text, objects and outline copied; its picture shared (it
@@ -444,6 +458,13 @@ typedef struct Doc {
   StoryEdit edit;           /* a story being edited in the body's place */
   struct KeptPart *kept; int nkept;   /* .docx parts kept verbatim, written back on saving (core/keep.h) */
   /* (work packages: new fields go below, at the end) */
+  NotePr fnpr, enpr;        /* (WP22b) the document's footnote and endnote options (settings.xml) */
+  struct NoteSeps *nseps;   /* (WP22b) the document's own note separators (core/notes.h), NULL: Word's */
+  struct DocInfo *info;     /* (WP24) the document's properties (core/info.h), NULL: none read or set */
+  /* WP14a: equations (core/math.h): the entries the text's references name (only ever added to), and
+     settings.xml's m:mathPr kept verbatim */
+  struct MathEq **maths; int nmaths, mathcap;
+  char *mathpr;
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */
@@ -699,5 +720,17 @@ enum { FIND_CASE = 1, FIND_WORD = 2, FIND_BACK = 4 };
 int  doc_find(Doc *d, Pos from, const char *what, unsigned flags, Pos *a, Pos *b);
 /* replace every match with 'with' (one undo step); returns how many */
 u32  doc_replace_all(Doc *d, const char *what, const char *with, unsigned flags);
+
+/* (WP12) the undo history read, for the Undo and Redo lists, Go Back and Repeat. What an action did
+   (UK_): typing, inserting or deleting text, replacing, character or paragraph formatting, styles.
+   doc_undo_count: how many steps can be undone (redo: redone). doc_undo_step: step i (0 the newest)
+   of either list: its kind (-1: no such step), where the caret was before and after it, and its
+   serial (from one counter: newer steps have higher ones). doc_undo_kind: the newest step named so.
+   doc_undo_typed: the text the typing steps newer than serial since typed (malloc'd), NULL if none */
+enum { UK_EDIT = 1, UK_TYPING, UK_INSERT, UK_DELETE, UK_REPLACE, UK_FORMAT, UK_PARA, UK_STYLE, UK_REPLACEALL, UK_N };
+int   doc_undo_count(Doc *d, int redo);
+int   doc_undo_step(Doc *d, int redo, int i, Pos *before, Pos *after, u32 *serial);
+void  doc_undo_kind(Doc *d, int kind);
+char *doc_undo_typed(Doc *d, u32 since);
 
 #endif

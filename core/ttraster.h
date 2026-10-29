@@ -62,4 +62,11 @@ int  ttr_glyph(TTRaster *r, u16 g, i32 ppem64, TTBitmap *bm);
    between pixels and vanish, keeps its strongest pixel (across and down) */
 void ttr_dropout(TTBitmap *bm, int thr);
 
+/* (WP14a, equations) glyph g's outline box in font units, y up; 0 if it has no outline */
+int  ttr_bbox(TTRaster *r, u16 g, i32 *x0, i32 *y0, i32 *x1, i32 *y1);
+/* glyph g's outline as line segments (curves cut into short ones) in font units, y up: x0 y0 x1 y1
+   each, at most max of them into seg; how many, -1 on a damaged glyph. Consecutive segments run on
+   from each other within a contour */
+int  ttr_segments(TTRaster *r, u16 g, i32 *seg, int max);
+
 #endif

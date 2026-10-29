@@ -38,6 +38,8 @@
 #include "../core/table.h"
 #include "../core/image.h"
 #include "../core/toc.h"
+#include "wp_math.h"     /* WP14a: equations */
+#include "../core/math.h"
 #include "../core/spell.h"
 #include "ids.h"
 #include <libraries/gadtools.h>        /* NM_BARLABEL: a line between menu items */
@@ -134,6 +136,7 @@ struct Data {
   LONG cube[216]; int cubelv, ncube;
   struct { const u8 *data; LONG w, h; u16 rot; u8 flip; long crop; UBYTE *px; LONG *span; } pic[8];   /* span: each row's first and last pixel shown */
   int npic;
+  void *wp12;                           /* WP12's own state (wp_find_view.h) */
 };
 
 static struct MUI_CustomClass *cls;
@@ -548,6 +551,7 @@ static i32 line_x(Layout *L, ParaLay *pl, Line *ln, u32 off)
   }
   return x;
 }
+#include "wp_find_view.h"               /* WP12: block and similar selections, Extend Selection, Select Objects, Highlight All */
 /* each author's changes in a colour of their own */
 static u32 rev_colour(int rid)
 {
@@ -1021,6 +1025,9 @@ static int comments_open(struct Data *d, u32 para)
   }
   return d->copen;
 }
+/* WP14a: equations' colours as pens (for wp14a_draw) */
+static struct Data *mpen_d; static Object *mpen_obj;
+static LONG math_pen(ULONG rgb) { return pen_for(mpen_d, mpen_obj, rgb); }
 /* one laid-out line (pl: its paragraph's layout, pc: where it was placed) on the page whose top left
    is at (px, py). Back to front: change bar, comment shading, highlights, the selection (sel: slo to
    shi), then the text, note numbers, fields, inline pictures, leaders and formatting marks. Headers,
@@ -1069,8 +1076,9 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     SetAPen(rp, pen_bg(d, obj, (b->f.hl & 0xFFFFFF) ? (b->f.hl & 0xFFFFFF) : 0x010101));
     if (x1 > x0) RectFill(rp, x0, base - sz + sz / 8, x1 - 1, base + sz / 4);
   }
+  fv_draw_line(d, obj, rp, pl, pc, ln, lx, top, sel);     /* WP12 */
   /* the selection behind the text (a block of cells is shown by its cells instead) */
-  if (sel && pc->para >= slo.para && pc->para <= shi.para && !(d->blk && cell_in(&pl->p->pf, d->blk_t))) {
+  if (sel && !fv_hidesel(d) && pc->para >= slo.para && pc->para <= shi.para && !(d->blk && cell_in(&pl->p->pf, d->blk_t))) {
     u32 s = pc->para == slo.para ? slo.off : 0, e = pc->para == shi.para ? shi.off : pl->p->len;
     u32 ls = ln->start, le = pc->line + 1 < pl->nlines ? pl->lines[pc->line + 1].start : pl->p->len;
     if (s < ls) s = ls;
@@ -1143,6 +1151,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
       nb.kind = BX_TEXT; nb.off = 0; nb.len = (u16)strlen(num);
       draw_text(d, obj, rp, &nb, num, lx + tx(d, b->x), base);
     }
+    else if (b->kind == BX_MATH) { mpen_d = d; mpen_obj = obj; wp14a_draw(rp, L, b, pl->p->t, lx + tx(d, b->x), base, d->zoom, math_pen); }   /* WP14a */
     else if (b->kind == BX_PIC) {
       Pos at;
       int pk = pic_index(pl->p->t + b->off);
@@ -1580,7 +1589,7 @@ static void draw_page(struct Data *d, Object *obj, struct RastPort *rp, u32 k, L
       if (w < 2 ? !lay_furniture(L, k0, w, &f) : w == 2 ? !lay_notes(L, k0, &f, &sepy) : !lay_endnotes(L, k0, &f, &sepy)) continue;
       if (w >= 2 && sepy >= 0) {
         SetAPen(rp, d->pen_text);
-        Move(rp, pl + tx(d, d->pg->left), pt + tx(d, sepy)); Draw(rp, pl + tx(d, d->pg->left + 2880), pt + tx(d, sepy));
+        Move(rp, pl + tx(d, d->pg->left), pt + tx(d, sepy)); Draw(rp, pl + tx(d, d->pg->left + L->sepw), pt + tx(d, sepy));   /* (WP22b: L->sepw) */
       }
       for (j = 0; j < f.n; j++) {
         Placed fp;
@@ -2096,6 +2105,7 @@ static int scroll_blit(struct Data *d, Object *obj, LONG dy);
 static void refresh(struct Data *d, Object *obj, int edited)
 {
   LONG was = d->scrolly, wasx = d->scrollx;
+  if (fv_quiet(d)) return;                     /* WP12: a command done for each of several ranges */
   if (edited) {
     d->nmsel = 0;                                /* (the chosen objects' places may have moved) */
     relayout(d, obj);
@@ -2561,6 +2571,7 @@ static ULONG do_command(struct IClass *cl, Object *obj, struct MUIP_Quill_Comman
   CharFmt v;
   int edited = 1;
   if (!doc) return 0;
+  if (fv_command(d, obj, m)) return 0;         /* WP12's commands, and commands while several ranges are selected */
   caret_hide(d, obj);
   memset(&v, 0, sizeof v);
   if (qlog) {
@@ -3990,6 +4001,7 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
     wp_ctx(d, &wc, WPC_TEXT);
     if ((wid = wp_key(code, q, &wc))) { DoMethod(_app(obj), MUIM_Application_ReturnID, wid); return 1; }
   }
+  if (fv_key(d, obj, im, &shift)) return 1;    /* WP12: Extend Selection, column selection */
   caret_hide(d, obj);
   if (d->stale && ((code >= 0x4C && code <= 0x4F) || code == 0x70 || code == 0x71 || code == 0x48 || code == 0x49)) { relayout(d, obj); d->stale = 0; }   /* the cursor keys need the layout */
   switch (code) {
@@ -4167,6 +4179,7 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
   struct IntuiMessage *im = m->imsg;
   if (!im || !d->doc || !d->lay || !d->shown) return 0;
   if (im->Class == IDCMP_RAWKEY) return key_grab || !key(d, obj, im) ? 0 : MUI_EventHandlerRC_Eat;
+  { ULONG r = fv_mouse(d, obj, im); if (r) return r; }    /* WP12: Select Objects */
   if (im->Class == IDCMP_MOUSEBUTTONS) {
     if (im->Code == SELECTDOWN && im->MouseX >= _mleft(obj) && im->MouseX <= _mright(obj) && im->MouseY >= _mtop(obj) && im->MouseY <= _mbottom(obj)) {
       Pos p;
@@ -4276,6 +4289,7 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
       }
       p = point_pos(d, obj, im->MouseX, im->MouseY);
       int shift = (im->Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) != 0;
+      fv_click(d, im, &shift);                 /* WP12 */
       caret_hide(d, obj);
       if (DoubleClick(d->secs, d->micros, im->Seconds, im->Micros) && !shift) d->clicks++; else d->clicks = 1;
       d->secs = im->Seconds; d->micros = im->Micros;
@@ -4560,6 +4574,7 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     free(d->wm_mask);
     free(d->rowt);
     drop_plain(d);
+    fv_free(d);                         /* WP12 */
     break;
   case OM_SET:
     mSet(cl, obj, (struct opSet *)msg, 0);

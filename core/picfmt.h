@@ -12,19 +12,15 @@
 
 /* a flat picture: w * h * 4 bytes of straight RGBA, rows top down, malloc'd */
 typedef struct { i32 w, h; u8 *px; } Rgba;
-int  rgba_alloc(Rgba *im, i32 w, i32 h);          /* transparent black; 0 if too big or out of memory */
-void rgba_free(Rgba *im);
+int  pic_rgba_alloc(Rgba *im, i32 w, i32 h);          /* transparent black; 0 if too big or out of memory */
+void pic_rgba_free(Rgba *im);
 /* GIF, BMP or ILBM (IMG_, image.h) and its size from the header; IMG_NONE if none of them */
 int  picfmt_info(const u8 *d, u32 n, u32 *w, u32 *h);
 /* one of them decoded as RGBA (1), or 0 */
 int  picfmt_rgba(const u8 *d, u32 n, Rgba *out);
-/* each 1 on success, else 0 with a message in err (err may be NULL) */
-int  gif_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap);
-int  bmp_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap);
-int  ilbm_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap);
 /* 8-bit RGB (RGBA if anything isn't opaque), a pHYs chunk when dpi > 0; malloc'd, NULL if out of memory */
-u8  *png_encode(const Rgba *im, int dpi, size_t *len);
+u8  *pic_png_encode(const Rgba *im, int dpi, size_t *len);
 /* baseline JPEG, quality 1-100, transparency laid over white; malloc'd, NULL if out of memory */
-u8  *jpeg_encode(const Rgba *im, int quality, int dpi, size_t *len);
+u8  *pic_jpeg_encode(const Rgba *im, int quality, int dpi, size_t *len);
 
 #endif

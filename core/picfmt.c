@@ -19,7 +19,7 @@ static u32 be32(const u8 *p) { return ((u32)p[0] << 24) | ((u32)p[1] << 16) | ((
 static u32 be16(const u8 *p) { return ((u32)p[0] << 8) | p[1]; }
 static void put32(Buf *b, u32 v) { buf_addc(b, (int)(v >> 24)); buf_addc(b, (int)((v >> 16) & 255)); buf_addc(b, (int)((v >> 8) & 255)); buf_addc(b, (int)(v & 255)); }
 static void codec_err(char *err, size_t cap, const char *msg) { if (err && cap) { strncpy(err, msg, cap - 1); err[cap - 1] = 0; } }
-int rgba_alloc(Rgba *im, i32 w, i32 h)
+int pic_rgba_alloc(Rgba *im, i32 w, i32 h)
 {
   im->w = im->h = 0; im->px = NULL;
   if (w < 1 || h < 1 || w > MAXDIM || h > MAXDIM || (long)w * h > CODEC_MAXPIXELS) return 0;
@@ -27,7 +27,7 @@ int rgba_alloc(Rgba *im, i32 w, i32 h)
   im->w = w; im->h = h;
   return 1;
 }
-void rgba_free(Rgba *im) { free(im->px); im->px = NULL; im->w = im->h = 0; }
+void pic_rgba_free(Rgba *im) { free(im->px); im->px = NULL; im->w = im->h = 0; }
 
 /* ---- GIF (Easel core/gif.c) */
 
@@ -81,7 +81,7 @@ static long lzw(const u8 *s, size_t n, int mcs, u8 *out, long npx)
 /* header and logical screen, the global table, then blocks up to the first image: extensions are
    skipped except a Graphic Control one (for its transparent colour). The image's sub-blocks are
    joined and decompressed; every pixel must be there */
-int gif_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap)
+static int gif_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap)
 {
   const u8 *gct = NULL, *ct;
   int ngct = 0, nct, trans = -1, mcs, inter, ok = 0;
@@ -131,7 +131,7 @@ int gif_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap)
     memcpy(data + k, d + e + 1, l); k += l;
   }
   if (lzw(data, k, mcs, idx, (long)iw * ih) < (long)iw * ih) { msg = "Truncated GIF file"; goto done; }
-  if (!rgba_alloc(out, cw, ch)) { msg = "Out of memory"; goto done; }
+  if (!pic_rgba_alloc(out, cw, ch)) { msg = "Out of memory"; goto done; }
   {
     /* interlaced rows come in four passes: every 8th from 0, every 8th from 4, every 4th from 2, every 2nd from 1 */
     static const u8 pstart[4] = { 0, 4, 2, 1 }, pstep[4] = { 8, 8, 4, 2 };
@@ -156,7 +156,7 @@ int gif_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap)
   }
   ok = 1;
 done:
-  if (!ok) { rgba_free(out); codec_err(err, errcap, msg); }
+  if (!ok) { pic_rgba_free(out); codec_err(err, errcap, msg); }
   free(data); free(idx);
   return ok;
 }
@@ -219,7 +219,7 @@ static int unrle(const u8 *s, size_t n, int rle4, u8 *idx, i32 w, i32 h)
 
 /* the file header, then the info header (12 bytes for OS/2, 40 and up for Windows: masks come in
    the V2+ header or, for a 40-byte one, just after it), the palette, the pixels */
-int bmp_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap)
+static int bmp_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap)
 {
   u32 off, hs, comp = 0, bpp, ncol, palsz = 4, i, stride;
   i32 w, h, x, y;
@@ -272,10 +272,10 @@ int bmp_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap)
     pal[i][0] = p[2]; pal[i][1] = p[1]; pal[i][2] = p[0];
   }
   if (off >= n) { codec_err(err, errcap, "Truncated BMP file"); return 0; }
-  if (!rgba_alloc(out, w, h)) { codec_err(err, errcap, "Out of memory"); return 0; }
+  if (!pic_rgba_alloc(out, w, h)) { codec_err(err, errcap, "Out of memory"); return 0; }
   if (comp == 1 || comp == 2) {
-    if (!(idx = (u8 *)calloc((size_t)w * h, 1))) { rgba_free(out); codec_err(err, errcap, "Out of memory"); return 0; }
-    if (!unrle(d + off, n - off, comp == 2, idx, w, h)) { free(idx); rgba_free(out); codec_err(err, errcap, "Truncated BMP file"); return 0; }
+    if (!(idx = (u8 *)calloc((size_t)w * h, 1))) { pic_rgba_free(out); codec_err(err, errcap, "Out of memory"); return 0; }
+    if (!unrle(d + off, n - off, comp == 2, idx, w, h)) { free(idx); pic_rgba_free(out); codec_err(err, errcap, "Truncated BMP file"); return 0; }
     for (y = 0; y < h; y++)
       for (x = 0; x < w; x++) {
         u8 *o = out->px + ((long)(h - 1 - y) * w + x) * 4, *c = pal[idx[(long)y * w + x]];
@@ -287,7 +287,7 @@ int bmp_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap)
   /* uncompressed: every row must be there (the last one's padding may be missing) */
   stride = (((u32)w * bpp + 31) / 32) * 4;
   if ((unsigned long)(n - off) < (unsigned long)stride * (h - 1) + ((u32)w * bpp + 7) / 8) {
-    rgba_free(out); codec_err(err, errcap, "Truncated BMP file"); return 0;
+    pic_rgba_free(out); codec_err(err, errcap, "Truncated BMP file"); return 0;
   }
   /* plain 32-bit: the fourth byte is alpha only if some pixel has it non-zero */
   if (bpp == 32 && comp == 0 && !usealpha) {
@@ -348,7 +348,7 @@ static int unpack(const u8 *s, size_t n, u8 *out, size_t size)
 
 /* walks the FORM's chunks (a chunk running past the end of the file is cut short, which the BODY
    decoding then notices), unpacks the whole BODY, then turns each row's planes into pixels */
-int ilbm_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap)
+static int ilbm_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap)
 {
   size_t end, o, rowsize, rowbytes = 0, size;
   const u8 *body = NULL;
@@ -397,7 +397,7 @@ int ilbm_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap)
   if (!(buf = (u8 *)malloc(size)) || !(vals = (u32 *)malloc(sizeof(u32) * (size_t)w))) { msg = "Out of memory"; goto done; }
   if (comp == 0) memcpy(buf, body, size);
   else if (!unpack(body, bodylen, buf, size)) { msg = "Truncated ILBM file"; goto done; }
-  if (!rgba_alloc(out, w, h)) { msg = "Out of memory"; goto done; }
+  if (!pic_rgba_alloc(out, w, h)) { msg = "Out of memory"; goto done; }
   for (y = 0; y < h; y++) {
     const u8 *row = buf + (size_t)y * rowsize;
     u8 *px = out->px + (size_t)y * w * 4, cr, cg, cb;
@@ -437,7 +437,7 @@ int ilbm_read(const u8 *d, size_t n, Rgba *out, char *err, size_t errcap)
   }
   ok = 1;
 done:
-  if (!ok) { rgba_free(out); codec_err(err, errcap, msg); }
+  if (!ok) { pic_rgba_free(out); codec_err(err, errcap, msg); }
   free(buf); free(vals);
   return ok;
 }
@@ -507,7 +507,7 @@ static u8 filt(int f, const u8 *cur, const u8 *prev, u32 x, int fb)
 
 /* RGB if every alpha is 255 (a quarter smaller), else RGBA; each row gets whichever of the five
    filters gives the smallest sum of its bytes taken as signed, then the whole lot is deflated */
-u8 *png_encode(const Rgba *im, int dpi, size_t *len)
+u8 *pic_png_encode(const Rgba *im, int dpi, size_t *len)
 {
   long i, n = (long)im->w * im->h;
   int ch = 3, fb, f, best;
@@ -722,7 +722,7 @@ static void mcu_samples(const Rgba *im, i32 x0, i32 y0, int mcu, long *Y, long *
 }
 
 /* the markers (SOI, APP0 JFIF, DQT, SOF0, DHT, SOS), the entropy-coded macroblocks, EOI */
-u8 *jpeg_encode(const Rgba *im, int quality, int dpi, size_t *len)
+u8 *pic_jpeg_encode(const Rgba *im, int quality, int dpi, size_t *len)
 {
   Enc *e;
   u8 qt[2][64];
