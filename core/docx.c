@@ -1515,6 +1515,7 @@ static int wp19_read_pict(Xml *x, PCtx *pc, const CharFmt *f)
   pic_utf8(t, k);
   run_text(pc, t, 4, f);
   return 1;
+}
 /* ---- WP1: fields (core/field.h). Complex fields (w:fldChar begin, code in w:instrText, separate,
    result, end) may nest, and may sit in another's code; each one in the text gets its marks round its
    result and a record with its code. A page field's result is Quill's placeholder (a bare one for a
