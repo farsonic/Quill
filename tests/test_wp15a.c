@@ -247,6 +247,14 @@ static void pasting(Doc *d, const u8 *orig, size_t on)
   fragment_free(fr);
   free(out);
   doc_free(e); doc_free(f);
+  /* grouped: refused (a group can't save a chart) */
+  {
+    Pos two[2];
+    i32 box[8] = { 0, 0, 1000, 1000, 2000, 0, 1000, 1000 };
+    int n0 = d->nimages;
+    nth_kind(d, OBJ_CHART, 0, &two[0]); nth_kind(d, OBJ_CHART, 2, &two[1]);
+    ok("charts grouped: refused", doc_group(d, two, box, 2) < 0 && d->nimages == n0);
+  }
   /* deleted: not saved */
   {
     Doc *g = docx_load(orig, on, &lost, err, sizeof err);

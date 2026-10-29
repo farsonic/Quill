@@ -1468,6 +1468,7 @@ int doc_group(Doc *d, const Pos *at, const i32 *box, int n)
   for (i = 0; i < n; i++) {
     if (at[i].para >= d->np || at[i].off + 4 > d->p[at[i].para]->len || !IS_PIC(d->p[at[i].para]->t + at[i].off) ||
         pic_index(d->p[at[i].para]->t + at[i].off) >= d->nimages) return -1;
+    if (OBJ_IS_GRAPHIC(d->images[pic_index(d->p[at[i].para]->t + at[i].off)].kind)) return -1;   /* (WP15a) a chart isn't grouped: a group can't save it */
     if (box[4 * i] < ux0) ux0 = box[4 * i];
     if (box[4 * i + 1] < uy0) uy0 = box[4 * i + 1];
     if (box[4 * i] + box[4 * i + 2] > ux1) ux1 = box[4 * i] + box[4 * i + 2];
