@@ -1261,6 +1261,7 @@ static void parse_drawing(Xml *x, PCtx *pc, const CharFmt *f)
     else if (!strcmp(n, "wrapPolygon")) { parse_polygon(x, im); continue; }
     else if (!strncmp(n, "wrap", 4) && !wrapname[0] && strlen(n) < sizeof wrapname) strcpy(wrapname, n);
     else if (!strcmp(n, "docPr")) { const char *d = xml_attr(x, "descr"); if (d) { strncpy(im->alt, d, sizeof im->alt - 1); im->alt[sizeof im->alt - 1] = 0; } }
+    else if (!strcmp(n, "decorative")) { const char *v = xml_attr(x, "val"); im->decorative = (u8)(!v || *v == '1' || *v == 't'); }   /* (WP24) */
     else dshape_elem(x, pc, &s);
   }
   /* the wrap: none (behind or in front, as behindDoc says), square, tight, through or top and bottom */
@@ -2399,6 +2400,27 @@ static void keep_rels(Doc *d, ZipReader *z, const char *ct, size_t ctn, const ch
   }
   xml_free(&x);
 }
+/* (WP24) the document's properties: core.xml, app.xml and custom.xml (core/info.h), no longer kept whole */
+static void read_info_parts(Doc *d, ZipReader *z, const char *pkgrels, size_t pn)
+{
+  static const char *const types[3] = { "/core-properties", "/extended-properties", "/custom-properties" };
+  int k;
+  if (!pkgrels) return;
+  for (k = 0; k < 3; k++) {
+    char path[300] = "", rels[340];
+    char *xml;
+    size_t n;
+    const char *sl;
+    rel_target(pkgrels, pn, types[k], "", path, sizeof path);
+    if (!path[0] || !(xml = part(z, path, &n))) continue;
+    if (k == 0) info_read_core(d, xml, n); else if (k == 1) info_read_app(d, xml, n); else info_read_custom(d, xml, n);
+    free(xml);
+    keep_remove(d, path);
+    sl = strrchr(path, '/');
+    snprintf(rels, sizeof rels, "%.*s_rels/%s.rels", sl ? (int)(sl - path + 1) : 0, path, sl ? sl + 1 : path);
+    keep_remove(d, rels);
+  }
+}
 /* after everything Quill reads has been read: the parts kept verbatim, then the packages' own parts.
    docrels: the main part's relationships (base its folder, "word/") */
 static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_t rn, const char *base, const char *mainpart)
@@ -2433,6 +2455,7 @@ static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_
   /* WP22b: */
   /* WP23: */
   /* WP24: */
+  read_info_parts(c->d, z, pkgrels, pn);
   /* WP27: */
   /* WP31: */
   free(ct); free(pkgrels);
@@ -3051,7 +3074,9 @@ static void w_picture(Buf *o, Doc *d, const char *rpr, size_t rl, int k)
   buf_printf(o, "<wp:docPr id=\"%lu\" name=\"%s %lu\"", (unsigned long)id, im->kind == OBJ_PICTURE ? "Picture" : im->kind == OBJ_TEXTBOX ? "Text Box" : im->kind == OBJ_GROUP ? "Group" : "Shape",
              (unsigned long)id);
   if (im->alt[0]) { buf_adds(o, " descr=\""); xml_escape(o, im->alt, strlen(im->alt)); buf_adds(o, "\""); }
-  buf_adds(o, "/><wp:cNvGraphicFramePr/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">");
+  buf_adds(o, im->decorative ? "><a:extLst xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:ext uri=\"{C183D7F6-B498-43B3-948B-1728B52AA6E4}\">"   /* (WP24: decorative) */
+              "<adec:decorative xmlns:adec=\"http://schemas.microsoft.com/office/drawing/2017/decorative\" val=\"1\"/></a:ext></a:extLst></wp:docPr>" : "/>");
+  buf_adds(o, "<wp:cNvGraphicFramePr/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">");
   buf_printf(o, "<a:graphicData uri=\"%s\">", im->kind == OBJ_PICTURE ? "http://schemas.openxmlformats.org/drawingml/2006/picture" :
              im->kind == OBJ_GROUP ? "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" : "http://schemas.microsoft.com/office/word/2010/wordprocessingShape");
   w_obj(o, d, im, 0, 0, 0, &save_drawing);
@@ -3661,6 +3686,22 @@ int docx_out_part(DocxOut *o, const char *name, const char *ctype, const char *o
   }
   return 1;
 }
+/* (WP24) docProps/app.xml and (with custom properties) docProps/custom.xml */
+static void write_info_parts(Doc *d, DocxOut *o)
+{
+  size_t n;
+  char *x;
+  if ((x = info_app_xml(d, &n))) {
+    docx_out_part(o, "docProps/app.xml", "application/vnd.openxmlformats-officedocument.extended-properties+xml", "",
+                  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", "rIdApp", x, n);
+    free(x);
+  } else o->oom = 1;
+  if ((x = info_custom_xml(d, &n))) {
+    docx_out_part(o, "docProps/custom.xml", "application/vnd.openxmlformats-officedocument.custom-properties+xml", "",
+                  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties", "rIdCustom", x, n);
+    free(x);
+  }
+}
 /* the kept parts (core/keep.h), then each package's own */
 static void docx_write_parts_ext(Doc *d, DocxOut *o)
 {
@@ -3694,6 +3735,7 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
   /* WP22b: */
   /* WP23: */
   /* WP24: */
+  write_info_parts(d, o);
   /* WP27: */
   /* WP31: */
 }
@@ -3828,13 +3870,7 @@ u8 *docx_save(Doc *d, size_t *len)
   if (save_nml) buf_adds(&ct, "<Default Extension=\"png\" ContentType=\"image/png\"/><Default Extension=\"jpeg\" ContentType=\"image/jpeg\"/>");
   buf_add(&ct, ext.ct.data, ext.ct.len);
   buf_adds(&ct, "<Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/></Types>");
-  buf_adds(&core, XMLHDR);
-  buf_adds(&core, "<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" "
-                  "xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:dcterms=\"http://purl.org/dc/terms/\" "
-                  "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
-  if (d->title[0]) { buf_adds(&core, "<dc:title>"); xml_escape(&core, d->title, strlen(d->title)); buf_adds(&core, "</dc:title>"); }
-  if (d->author[0]) { buf_adds(&core, "<dc:creator>"); xml_escape(&core, d->author, strlen(d->author)); buf_adds(&core, "</dc:creator>"); }
-  buf_adds(&core, "</cp:coreProperties>");
+  info_write_core(d, &core);             /* (WP24: every core property, core/info.h) */
   zip_begin(&z);
   ok = zip_add(&z, "[Content_Types].xml", ct.data, ct.len);
   {
