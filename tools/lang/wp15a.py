@@ -4,4 +4,7 @@
 # changing it run python3 tools/mklang.py, which writes these rows into WP15a's section of
 # amiga/lang_table.h.
 W = [
+# the right-button menu's title for a chart or SmartArt (amiga/view.c ctx_object)
+("Chart", "Diagramm", "Graphique", "Gráfico", "Grafico"),
+("SmartArt", "SmartArt", "SmartArt", "SmartArt", "SmartArt"),
 ]

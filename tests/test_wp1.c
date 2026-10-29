@@ -82,7 +82,7 @@ static void result_of(Doc *d, Pos s, char *out, size_t cap)
 static char *plain(Doc *d)
 {
   char *t = all(d), *r = t, *w = t;
-  while (*r) { if (r[0] == '\xF4' && ((unsigned char)r[1] & 0xF8) == 0x88) { r += 4; continue; } *w++ = *r++; }
+  while (*r) { if (r[0] == '\xF4' && (unsigned char)r[1] >= 0x84 && (unsigned char)r[1] <= 0x8B) { r += 4; continue; } *w++ = *r++; }
   *w = 0;
   return t;
 }
@@ -415,7 +415,7 @@ static void editing(void)
       if (lay_furniture(L, 2, 1, &f)) { snprintf(got, sizeof got, "%s", f.f[0].p->t); lay_furniture_free(&f); }
       {
         char *w = got, *r = got;
-        while (*r) { if ((unsigned char)*r == 0xF4) { r += 4; continue; } *w++ = *r++; }
+        while (*r) { if ((unsigned char)*r == 0xF4 && (unsigned char)r[1] >= 0x84 && (unsigned char)r[1] <= 0x8B) { r += 4; continue; } *w++ = *r++; }
         *w = 0;
       }
       ok("fields: PAGE \\* roman and NUMPAGES \\* CardText in a footer", L->npages == 4 && !strcmp(got, "iii/Four"));
@@ -464,6 +464,15 @@ static void saving(void)
     ok("fields: pasted in the same document they stay fields", field_next(d, doc_start(d), 1, &s, &e) >= 0 && field_next(d, e, 1, &s, &e) >= 0);
     ok("fields: pasted into another document only their text", field_next(o, doc_start(o), 1, NULL, NULL) < 0 && strstr(o->p[0]->t, "Chapter"));
     fragment_free(f); doc_free(o);
+  }
+  /* an equation (WP14a) next to a field: each keeps its own reference */
+  {
+    Doc *g = from_body("<w:p>" BEGIN INSTR(" SEQ Eq ") SEP R("1") END "<m:oMath><m:r><m:t>x</m:t></m:r></m:oMath></w:p>", NULL, NULL), *h;
+    Pos at;
+    h = g ? docx_again(g, NULL) : NULL;
+    ok("fields: a field and an equation side by side through a save", h && g->nmaths == 1 && h->nmaths == 1 && !strcmp(code_n(h, 0, &at), " SEQ Eq ") &&
+       h->p[0]->len == g->p[0]->len);
+    doc_free(g); doc_free(h);
   }
   /* the TOC keeps its own code */
   {

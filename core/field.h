@@ -4,8 +4,8 @@
  *
  * THE MODEL (for every package that builds on fields: refs, cite, mailings, controls)
  *  - In the text a field is its result between two marks without width, like the comment marks:
- *    a start mark U+108000 + k and an end mark U+10C000 + k (4 bytes of UTF-8 each: F4 88-8B xx xx
- *    and F4 8C-8F xx xx), k being its record in Doc.fields. So results move, copy and undo with the
+ *    a start mark U+104000 + k and an end mark U+108000 + k (4 bytes of UTF-8 each: F4 84-87 xx xx
+ *    and F4 88-8B xx xx; endnotes have F4 80-83, equations (WP14a) F4 8C-8F), k being its record in Doc.fields. So results move, copy and undo with the
  *    text, and may hold anything text holds (formatting, pictures, other fields; a result may run
  *    over several paragraphs, as a bibliography's does). A field with no result (XE, TC) is the two
  *    marks side by side.
@@ -41,9 +41,9 @@ struct Layout;
 
 /* ---- the marks */
 #define FIELD_MAX 16384
-#define IS_FSTART(t) ((u8)(t)[0] == 0xF4 && ((u8)(t)[1] & 0xFC) == 0x88)
-#define IS_FEND(t)   ((u8)(t)[0] == 0xF4 && ((u8)(t)[1] & 0xFC) == 0x8C)
-#define IS_FMARK(t)  ((u8)(t)[0] == 0xF4 && ((u8)(t)[1] & 0xF8) == 0x88)       /* either */
+#define IS_FSTART(t) ((u8)(t)[0] == 0xF4 && ((u8)(t)[1] & 0xFC) == 0x84)
+#define IS_FEND(t)   ((u8)(t)[0] == 0xF4 && ((u8)(t)[1] & 0xFC) == 0x88)
+#define IS_FMARK(t)  ((u8)(t)[0] == 0xF4 && (u8)(t)[1] >= 0x84 && (u8)(t)[1] <= 0x8B)       /* either */
 void fmark_utf8(char *out, int k, int end);      /* field k's start (end: its end) mark: 4 bytes and a NUL */
 int  fmark_index(const char *t);                 /* the field a mark names (t at its first byte) */
 

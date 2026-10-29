@@ -15,7 +15,7 @@
 
 /* ------------------------------------------------------------------ */
 /* the marks and the records */
-void fmark_utf8(char *out, int k, int end) { out[utf8_put(out, (end ? 0x10C000u : 0x108000u) + (u32)k)] = 0; }
+void fmark_utf8(char *out, int k, int end) { out[utf8_put(out, (end ? 0x108000u : 0x104000u) + (u32)k)] = 0; }
 int fmark_index(const char *t) { int used; return (int)(utf8_get(t, 4, &used) & 0x3FFF); }
 
 int field_shading = FS_SELECTED;

@@ -1424,7 +1424,6 @@
   { { "Footnote Mark", "Fu\337notenzeichen", "Appel de note de bas de page", "Marca de nota al pie", "Segno di nota a pi\350 di pagina" } },
   { { "Endnote Mark", "Endnotenzeichen", "Appel de note de fin", "Marca de nota al final", "Segno di nota di chiusura" } },
   { { "Comment Mark", "Kommentarzeichen", "Marque de commentaire", "Marca de comentario", "Segno di commento" } },
-  { { "Field", "Feld", "Champ", "Campo", "Campo" } },
   { { "Find What Text", "Suchen-nach-Text", "Texte recherch\351", "Texto de b\372squeda", "Testo da trovare" } },
   { { "Clipboard Contents", "Inhalt der Zwischenablage", "Contenu du Presse-papiers", "Contenido del Portapapeles", "Contenuto degli Appunti" } },
   { { "Any Character (wildcards)", "Beliebiges Zeichen (Platzhalter)", "N'importe quel caract\350re (g\351n\351riques)", "Cualquier car\341cter (comodines)", "Qualsiasi carattere (jolly)" } },
@@ -1512,10 +1511,18 @@
 /* ---- begin WP13 (tools/lang/wp13.py) */
 /* ---- end WP13 */
 /* ---- begin WP14a (tools/lang/wp14a.py) */
+  { { "Equation...", "Formel...", "\311quation...", "Ecuaci\363n...", "Equazione..." } },
+  { { "Equation:", "Formel:", "\311quation :", "Ecuaci\363n:", "Equazione:" } },
+  { { "Edit Equation...", "Formel bearbeiten...", "Modifier l'\351quation...", "Editar ecuaci\363n...", "Modifica equazione..." } },
+  { { "Insert an equation, typed in linear format", "Eine Formel im linearen Format eingeben und einf\374gen", "Ins\351rer une \351quation tap\351e au format lin\351aire", "Insertar una ecuaci\363n escrita en formato lineal", "Inserisci un'equazione digitata in formato lineare" } },
+  { { "Type the equation in linear format, for example:", "Geben Sie die Formel im linearen Format ein, zum Beispiel:", "Tapez l'\351quation au format lin\351aire, par exemple :", "Escriba la ecuaci\363n en formato lineal, por ejemplo:", "Digitare l'equazione in formato lineare, ad esempio:" } },
+  { { "x^2+(a+b)/c   \\sqrt(x)   \\sum_(i=1)^n i   \\matrix(a&b@c&d)", NULL, NULL, NULL, NULL } },
 /* ---- end WP14a */
 /* ---- begin WP14b (tools/lang/wp14b.py) */
 /* ---- end WP14b */
 /* ---- begin WP15a (tools/lang/wp15a.py) */
+  { { "Chart", "Diagramm", "Graphique", "Gr\341fico", "Grafico" } },
+  { { "SmartArt", "SmartArt", "SmartArt", "SmartArt", "SmartArt" } },
 /* ---- end WP15a */
 /* ---- begin WP15b (tools/lang/wp15b.py) */
 /* ---- end WP15b */
@@ -1585,11 +1592,6 @@
   { { "Yes or no", "Ja oder nein", "Oui ou non", "S\355 o no", "S\354 o no" } },
   { { "No", "Nein", "Non", "No", "No" } },
   { { "Yes", "Ja", "Oui", "S\355", "S\354" } },
-  { { "Subject", "Thema", "Objet", "Asunto", "Oggetto" } },
-  { { "Manager", "Manager", "Responsable", "Administrador", "Responsabile" } },
-  { { "Company", "Firma", "Soci\351t\351", "Organizaci\363n", "Societ\340" } },
-  { { "Category", "Kategorie", "Cat\351gorie", "Categor\355a", "Categoria" } },
-  { { "Keywords", "Stichw\366rter", "Mots cl\351s", "Palabras clave", "Parole chiave" } },
   { { "Hyperlink base", "Linkbasis", "Base du lien hypertexte", "Base de hiperv\355nculo", "Base collegamento ipertestuale" } },
   { { "Created", "Erstellt", "Cr\351ation", "Creado", "Data creazione" } },
   { { "Modified", "Ge\344ndert", "Modification", "Modificado", "Data modifica" } },

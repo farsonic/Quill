@@ -2770,7 +2770,7 @@ static void bookmarks(void)
     zip_free(&z); buf_free(&doc);
     ok("bookmarks: read from Word's REF and PAGEREF fields", g && g->np >= 2 && doc_bmark_find(g, "_Ref1", &a, &b) && b.off == 6 &&
        /* (WP1: the REF field keeps its code, its result between its marks) */
-       !memcmp(g->p[1]->t, "See \xF4\x88\x80\x80Target\xF4\x8C\x80\x80 on page " FIELD_PAGEREF, 30) && g->p[1]->len == 30 &&
+       !memcmp(g->p[1]->t, "See \xF4\x84\x80\x80Target\xF4\x88\x80\x80 on page " FIELD_PAGEREF, 30) && g->p[1]->len == 30 &&
        !strcmp(doc_link_url(g, para_fmt_at(g->p[1], 9)->link), "#_Ref1") && !strcmp(doc_link_url(g, para_fmt_at(g->p[1], 27)->link), "#_Ref1"));
     doc_free(g);
   }
