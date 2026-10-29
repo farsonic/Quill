@@ -196,6 +196,7 @@ static void open_recover(void)
     Object *op, *del, *cl;
     recwin = mkwin("Recover Unsaved Documents", MAKE_ID('W','2','4','R'), VGroup, QDLG,
       Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Copies Quill kept of documents that were not saved when it ended."), End,
+      Child, HSpace(420),
       Child, reclist = mklist(),
       Child, HGroup, Child, op = QButton(tr("_Open")), Child, del = QButton(tr("_Delete")), Child, HSpace(0), Child, cl = QButton(tr("_Close")), End,
     End);
@@ -380,7 +381,7 @@ static void inspect_now(void)
   InspectReport r;
   u32 v[NINS];
   int i;
-  static const char *const found[NINS] = { "%lu comment(s) found", "%lu tracked change(s) found", "%lu propertie(s) and personal details found",
+  static const char *const found[NINS] = { "%lu comment(s) found", "%lu tracked change(s) found", "%lu properties and personal details found",
                                            "%lu header(s), footer(s) or watermark(s) found", "%lu custom XML part(s) found" };
   if (!wp_doc()) return;
   inspect_doc(wp_doc(), &r);
@@ -454,6 +455,7 @@ static void open_acc(void)
   if (!acwin) {
     Object *go, *alt, *dec, *again, *cl;
     acwin = mkwin("Accessibility", MAKE_ID('W','2','4','A'), VGroup, QDLG,
+      Child, HSpace(460),
       Child, aclist = mklist(),
       Child, acfix = TextObject, MUIA_Text_Contents, (ULONG)"", MUIA_Text_SetMin, FALSE, End,
       Child, HGroup, Child, go = QButton(tr("_Go To")), Child, alt = QButton(tr("_Alt Text...")), Child, dec = QButton(tr("_Mark as Decorative")), End,
@@ -547,8 +549,18 @@ static void compat_now(void)
   snprintf(msg, sizeof msg, "%s\n", tr("Compatibility Checker"));
   if (!n) strcat(msg, tr("\nNo compatibility issues were found."));
   for (i = 0; i < n; i++) {
+    char *p, *sp;
+    int col = 0;
     snprintf(line, sizeof line, tr(c[i].msg), (int)c[i].count);
-    if (strlen(msg) + strlen(line) + 6 < sizeof msg) { strcat(msg, "\n - "); strcat(msg, line); }
+    /* wrapped at 52 characters, so the requester fits the screen */
+    for (p = line, sp = NULL; *p; p++, col++) {
+      if (*p == ' ') sp = p;
+      if (col >= 52 && sp) { *sp = '\n'; col = (int)(p - sp); sp = NULL; }
+    }
+    if (strlen(msg) + strlen(line) * 2 + 6 < sizeof msg) {
+      strcat(msg, "\n - ");
+      for (p = line; *p; p++) { size_t l = strlen(msg); if (*p == '\n') { strcpy(msg + l, "\n   "); } else { msg[l] = *p; msg[l + 1] = 0; } }
+    }
   }
   wp_ask("OK", "%s", msg);
 }
@@ -580,6 +592,7 @@ static void open_versions(void)
   if (!verwin) {
     Object *op, *rs, *del, *cl;
     verwin = mkwin("Version History", MAKE_ID('W','2','4','V'), VGroup, QDLG,
+      Child, HSpace(420),
       Child, verfile = TextObject, MUIA_Text_Contents, (ULONG)"", End,
       Child, verlist = mklist(),
       Child, HGroup, Child, op = QButton(tr("_Open Version")), Child, rs = QButton(tr("_Restore")), Child, del = QButton(tr("_Delete")),

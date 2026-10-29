@@ -45,7 +45,7 @@ W = [
 ("Date", "Datum", "Date", "Fecha", "Data"),
 ("%lu comment(s) found", "%lu Kommentar(e) gefunden", "%lu commentaire(s) trouvé(s)", "%lu comentario(s) encontrado(s)", "%lu commento/i trovato/i"),
 ("%lu tracked change(s) found", "%lu nachverfolgte Änderung(en) gefunden", "%lu modification(s) suivie(s) trouvée(s)", "%lu cambio(s) con seguimiento encontrado(s)", "%lu revisione/i trovata/e"),
-("%lu propertie(s) and personal details found", "%lu Eigenschaft(en) und persönliche Angaben gefunden", "%lu propriété(s) et informations personnelles trouvées", "%lu propiedad(es) y datos personales encontrados", "%lu proprietà e dati personali trovati"),
+("%lu properties and personal details found", "%lu Eigenschaften und persönliche Angaben gefunden", "%lu propriétés et informations personnelles trouvées", "%lu propiedades y datos personales encontrados", "%lu proprietà e dati personali trovati"),
 ("%lu header(s), footer(s) or watermark(s) found", "%lu Kopf-/Fußzeile(n) oder Wasserzeichen gefunden", "%lu en-tête(s), pied(s) de page ou filigrane(s) trouvé(s)", "%lu encabezado(s), pie(s) de página o marca(s) de agua encontrado(s)", "%lu intestazione/i, piè di pagina o filigrana/e trovati"),
 ("%lu custom XML part(s) found", "%lu benutzerdefinierte XML-Teile gefunden", "%lu partie(s) XML personnalisée(s) trouvée(s)", "%lu parte(s) XML personalizada(s) encontrada(s)", "%lu parte/i XML personalizzata/e trovata/e"),
 ("None found", "Nichts gefunden", "Aucun élément trouvé", "No se encontró nada", "Nessun elemento trovato"),

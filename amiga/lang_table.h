@@ -1307,7 +1307,7 @@
   { { "Value", "Wert", "Valeur", "Valor", "Valore" } },
   { { "%lu comment(s) found", "%lu Kommentar(e) gefunden", "%lu commentaire(s) trouv\351(s)", "%lu comentario(s) encontrado(s)", "%lu commento/i trovato/i" } },
   { { "%lu tracked change(s) found", "%lu nachverfolgte \304nderung(en) gefunden", "%lu modification(s) suivie(s) trouv\351e(s)", "%lu cambio(s) con seguimiento encontrado(s)", "%lu revisione/i trovata/e" } },
-  { { "%lu propertie(s) and personal details found", "%lu Eigenschaft(en) und pers\366nliche Angaben gefunden", "%lu propri\351t\351(s) et informations personnelles trouv\351es", "%lu propiedad(es) y datos personales encontrados", "%lu propriet\340 e dati personali trovati" } },
+  { { "%lu properties and personal details found", "%lu Eigenschaften und pers\366nliche Angaben gefunden", "%lu propri\351t\351s et informations personnelles trouv\351es", "%lu propiedades y datos personales encontrados", "%lu propriet\340 e dati personali trovati" } },
   { { "%lu header(s), footer(s) or watermark(s) found", "%lu Kopf-/Fu\337zeile(n) oder Wasserzeichen gefunden", "%lu en-t\352te(s), pied(s) de page ou filigrane(s) trouv\351(s)", "%lu encabezado(s), pie(s) de p\341gina o marca(s) de agua encontrado(s)", "%lu intestazione/i, pi\350 di pagina o filigrana/e trovati" } },
   { { "%lu custom XML part(s) found", "%lu benutzerdefinierte XML-Teile gefunden", "%lu partie(s) XML personnalis\351e(s) trouv\351e(s)", "%lu parte(s) XML personalizada(s) encontrada(s)", "%lu parte/i XML personalizzata/e trovata/e" } },
   { { "None found", "Nichts gefunden", "Aucun \351l\351ment trouv\351", "No se encontr\363 nada", "Nessun elemento trovato" } },

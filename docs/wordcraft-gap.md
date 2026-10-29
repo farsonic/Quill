@@ -10,7 +10,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 - **Beyond the ribbon (section 2):** 152 features: ✅ 27, 🟨 51, ⬜ 57, ➖ 17.
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
 - **Missing whole:** Mailings (22), the Equation tab and equations (21), Outline view and Outlining (14), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
-- **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; content controls, charts, SmartArt, equations, OLE objects, VML pictures and formatting revisions are dropped; no AutoSave or recovery. These are in priority 1 below.
+- **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; content controls, charts, SmartArt, equations, OLE objects, VML pictures and formatting revisions are dropped; no AutoSave or recovery (WP24 adds them). These are in priority 1 below.
 - **Other formats:** Quill reads and writes .docx and plain text and exports PDF; WordCraft also reads .doc and reads/writes .rtf, .odt, .html, .md, .tex and Word XML (WP28a-d).
 
 | Tab | Commands | ✅ | 🟨 | ⬜ | ➖ |
@@ -159,18 +159,18 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Print Markup (Backstage) `file.printMarkup` — printing left out on purpose
 - ✅ Close (Backstage) `file.close` — `ID_CLOSE` (Amiga-W, `win_close_current()`)
 - ✅ Info (Backstage) `file.info` — File page `BP_INFO` (backstage.c), filled by `ID_INFO` in main.c
-- 🟨 Properties (Backstage) `file.properties` — read-only Name/Location/Pages/Words/Title/Author list on the Info page; title and author can't be edited, no subject/keywords/custom properties [WP24]
+- ✅ Properties (Backstage) `file.properties` — `ID_INFO_PROPS` (wp_info.c): Properties window (Summary, Statistics, Custom) from the Info page and File › Info; core.xml, app.xml, custom.xml read and written (core/info.c, tests/test_wp24.c `properties`) [WP24]
 - ✅ Export PDF (Backstage) `file.exportPdf` — `ID_PDF` (Amiga-D, `export_pdf()`)
 - ⬜ Export Image (Backstage) `file.exportPng` — no PNG (or IFF) page export [WP29]
 - 🟨 Options (Backstage) `file.options` — `BP_OPTIONS` page: units (cm/in), theme, text size, language, user name, Window and screen; most of WordCraft's Options panes missing (see "Options") [WP26]
 - ⬜ Numerals (Options) `view.numeral` — no Arabic/Hindi numeral choice [WP27]
 - ✅ Share (Backstage) `file.share` — WordCraft's Share only opens Save As with a hint; Quill's Save As / Export cover it
 - ⬜ Protect Document (Backstage) `file.protect` — no password encryption [WP7]
-- ⬜ Inspect Document (Backstage) `file.inspect` [WP24]
-- ⬜ Check Accessibility (Backstage) `file.accessibility` [WP24]
-- ⬜ Check Compatibility (Backstage) `file.compatibility` [WP24]
-- ⬜ Version History (Backstage) `file.versions` [WP24]
-- ⬜ Recover Unsaved (Backstage) `file.recover` — no AutoSave or recovery copies [WP24]
+- ✅ Inspect Document (Backstage) `file.inspect` — `ID_INFO_INSPECT`: Document Inspector (comments, tracked changes, properties and personal information, headers/footers/watermarks, custom XML; Remove Checked), core/inspect.c; hidden text once WP9 models it [WP24]
+- ✅ Check Accessibility (Backstage) `file.accessibility` — `ID_INFO_ACC`: Accessibility pane (missing alt text, heading order, table header row, contrast by WCAG ratio, floating objects, merged cells, empty paragraphs, link text, title), Go To / Alt Text / Mark as Decorative [WP24]
+- ✅ Check Compatibility (Backstage) `file.compatibility` — `ID_INFO_COMPAT` (core/inspect.c `compat_check`: shapes, decorative marks, wide tables, notes beneath text, own separators, custom properties, kept parts) [WP24]
+- ✅ Version History (Backstage) `file.versions` — `ID_INFO_VERSIONS`: each save kept in PROGDIR:Versions (a run of AutoSaves keeps its last, newest 25), Open Version / Restore / Delete (core/recover.c) [WP24]
+- ✅ Recover Unsaved (Backstage) `file.recover` — `ID_INFO_RECOVER`: recovery copies every minute in PROGDIR:Recovery, offered at the next start and listed here (Open, Delete) [WP24]
 - ✅ New from Template (Backstage) `file.newFromTemplate` — `ID_TEMPLATE` (5 built-in templates in core/template.c: Blank, Welcome, Letter, Résumé, Report)
 - ⬜ Save as Template (Backstage) `file.saveTemplate` — no .dotx writing [WP23]
 - ⬜ Personal Templates (Backstage) `file.listTemplates` [WP23]
@@ -181,7 +181,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Undo List (Toolbar) `edit.undoTo` — no list of undo steps to undo to [WP12]
 - ✅ Redo (Toolbar) `edit.redo` — `ID_REDO`
 - ⬜ Repeat (Toolbar) `edit.repeat` — no Repeat (F4) [WP12]
-- ⬜ AutoSave (Toolbar) `file.autosave` [WP24]
+- ✅ AutoSave (Toolbar) `file.autosave` — `ID_INFO_AUTOSAVE`: switch on the quick access bar, File › Info › AutoSave and File › Options; saves a document with a .docx of its own 3 s after typing stops (at most every 30 s) [WP24]
 
 ### Title Bar (1: ✅ 0 · 🟨 0 · ⬜ 1 · ➖ 0)
 
@@ -412,8 +412,8 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Insert Footnote (Footnotes) `references.footnote` — `ID_NOTE`
 - ✅ Insert Endnote (Footnotes) `references.endnote` — `ID_ENDNOTE`
 - ✅ Next Footnote (Footnotes) `references.nextFootnote` — `ID_NEXTNOTE`
-- ⬜ Show Notes (Footnotes) `references.notes` [WP22b]
-- ⬜ Footnote Options (Footnotes) `references.noteOptions` — no Footnote and Endnote dialog (position, number format, start, restart); w:footnotePr is not read [WP22b]
+- ✅ Show Notes (Footnotes) `references.notes` — `ID_NOTES_SHOW` (wp_notes.c): to the next footnote or endnote (asks which when both), and from a note back to its reference [WP22b]
+- ✅ Footnote Options (Footnotes) `references.noteOptions` — `ID_NOTES_OPTIONS`: Footnote and Endnote window (position, number format, start, restart each section/page, whole document or this section, Insert/Apply); footnotePr/endnotePr in settings.xml and each sectPr read and written (core/notes.c, tests/test_wp22b.c) [WP22b]
 - ➖ Researcher (Research) `references.researcher` — needs an online service (WordCraft's only reports that)
 - ⬜ Insert Citation (Citations) `references.citation` [WP3]
 - ⬜ Manage Sources (Citations) `references.sources` [WP3]
@@ -463,8 +463,8 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Thesaurus (Proofing) `review.thesaurus` [WP8]
 - ✅ Word Count (Proofing) `review.wordCount` — `ID_WORDCOUNT` (`word_count()`)
 - ⬜ Read Aloud (Speech) `review.readAloud` — (narrator.device/translator.library could speak it offline) [WP8]
-- ⬜ Check Accessibility (Accessibility) `file.accessibility` [WP24]
-- 🟨 Alt Text (Accessibility) `view.altTextPane` — `ID_ALTTEXT` for one picture/shape at a time (`open_object(OP_ALT)`); no Alt Text pane, no decorative mark, no table alt text [WP24]
+- ✅ Check Accessibility (Accessibility) `file.accessibility` — Review › Accessibility, `ID_INFO_ACC` [WP24]
+- ✅ Alt Text (Accessibility) `view.altTextPane` — `ID_INFO_ALTPANE` / `ID_ALTTEXT`: Alt Text pane following the selected object, Mark as decorative (`adec:decorative` read and written); table alt text is WP21b's (`table.altText`) [WP24]
 - ➖ Translate (Language) `review.translate` — needs an online service; WordCraft doesn't have it either
 - ⬜ Language (Language) `review.language` — no proofing language per text; one British English dictionary [WP31]
 - ✅ New Comment (Comments) `review.newComment` — `ID_COMMENT`
@@ -521,7 +521,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - 🟨 Switch Windows (Window) `view.switchWindows` — `ID_NEXTWIN` (Amiga-`) cycles; no list of open documents (README roadmap "a Window menu") [WP25]
 - ➖ Macros (Macros) `tools.macros` — macros and scripting left out on purpose
 - ➖ Record Macro (Macros) `tools.recordMacro` — macros and scripting left out on purpose
-- 🟨 Properties (SharePoint) `file.properties` — as File › Properties: read-only [WP24]
+- ✅ Properties (SharePoint) `file.properties` — as File › Properties: `ID_INFO_PROPS` [WP24]
 
 ### Read Mode (3: ✅ 0 · 🟨 0 · ⬜ 2 · ➖ 1)
 
@@ -794,7 +794,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Tables** — widths, merges, borders, shading, styles with conditional formatting, nested tables (one level), cantSplit, heading rows: ✅. Floating tables (`w:tblpPr`) are placed in the text (README roadmap); row exceptions (`w:tblPrEx`) and right-to-left tables (`w:bidiVisual`) not read; tables in headers and footers come in as their text (README roadmap).
 - 🟨 **Headers/footers, page borders, line numbers, gutter, mirror margins** — first/even/odd, per section, link to previous: ✅. Gutter is written as 0 and not read; `w:mirrorMargins` not read; page borders one kind on all sides, document-wide only.
 - 🟨 **Hyphenation settings** — `w:autoHyphenation` ✅; `w:hyphenationZone`, `w:doNotHyphenateCaps`, `w:consecutiveHyphenLimit` not read (zone fixed at 360 twips, layout.c `HYPH_ZONE`).
-- 🟨 **Footnotes, endnotes, comments** — read and written. Missing: note options (`w:footnotePr`/`w:endnotePr` position, format, start, restart) are not read (only the separators are written), the document's own separators, comments' replies, resolved state and durable ids (`commentsExtended`, `commentsIds`, `commentsExtensible`, `people.xml`).
+- 🟨 **Footnotes, endnotes, comments** — read and written. Note options (`w:footnotePr`/`w:endnotePr`) and the document's own separators and continuation notice read and written (WP22b ✅). Missing: comments' replies, resolved state and durable ids (`commentsExtended`, `commentsIds`, `commentsExtensible`, `people.xml`).
 - ✅ **Tracked insertions and deletions** — `w:ins`/`w:del` with author and date (docx.c, `REV_INS`/`REV_DEL`).
 - ⬜ **Formatting revisions (`w:rPrChange`, `w:pPrChange`, `w:sectPrChange`, table ones, `w:numberingChange`)** — not read or kept (README roadmap "tracked formatting changes").
 - 🟨 **Move tracking (`w:moveFrom`/`w:moveTo`)** — read as a plain deletion and insertion (docx.c line 1462) and written so; ranges and the move link are lost.
@@ -810,13 +810,13 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ⬜ **Freeform shapes (`a:custGeom`) and ink** — not read.
 - 🟨 **Group shapes and drawing canvas** — groups (`wpg:`), nested, ✅; drawing canvases (`wpc:`) not read (README roadmap).
 - 🟨 **VML (`w:pict`, `v:shape`, `v:textbox`)** — only Word's text watermark is read and written (docx.c line 927); VML pictures, text boxes and shapes are not read (README "Not read yet"). WordCraft reads VML pictures, text boxes, lines, rectangles, ovals and presets.
-- 🟨 **Alt text** — pictures, shapes, text boxes and groups (`descr`) ✅; `title`, the decorative mark (`adec:decorative`) and table alt text (`w:tblCaption`, `w:tblDescription`) not read.
+- 🟨 **Alt text** — pictures, shapes, text boxes and groups (`descr`) ✅; the decorative mark (`adec:decorative`) ✅ (WP24); `title` and table alt text (`w:tblCaption`, `w:tblDescription`, WP21b) not read.
 - ⬜ **Charts (`c:chart`) and SmartArt (`dgm`)** — not read: `report_lost()` warns of "pictures it cannot read" and saving leaves them out. WordCraft draws charts from their cached data and SmartArt from its stored drawing, and writes both.
 - ⬜ **OLE objects (`w:object`)** — dropped (WordCraft shows their picture and saves them back whole).
 - 🟨 **Native Word ink (`w14:contentPart`)** — dropped; WordCraft keeps it opaque.
 - ⬜ **Equations (OMML `m:oMath`)** — not read or written; WordCraft reads every ECMA-376 §22.1 element, lays it out (OpenType MATH) and writes it.
 - 🟨 **Themes, font table, settings, compatibility mode** — theme fonts are read (major/minor), compatibility mode 15 is written; the theme part's colours (`a:clrScheme`) only resolve shape colours, and the document's theme isn't written back as its own; embedded fonts (`w:embedRegular`…) not read.
-- 🟨 **Custom XML, document properties, bibliography sources** — title and author from docProps/core.xml ✅ (read and written); subject, keywords, description, category, custom properties (docProps/custom.xml), customXml parts and bibliography sources dropped.
+- 🟨 **Custom XML, document properties, bibliography sources** — every core property (core.xml), app.xml (company, manager, hyperlink base, statistics; the rest kept verbatim) and custom properties (custom.xml) read and written ✅ (WP24); customXml parts kept verbatim (WP0); bibliography sources: WP3.
 - ⬜ **Section text direction (`w:textDirection`)** — not read.
 - 🟨 **Section vertical alignment (`w:vAlign`)** — top, center, bottom ✅; `both` (justified) not.
 - ⬜ **Ruby (`w:ruby`)** — not read (the base text is kept).
@@ -845,7 +845,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Line numbering** — ✅ for the document (start, count by, distance, restart); per-section line numbers ⬜ (README roadmap).
 - ✅ **Drop caps** — dropped or in the margin, 1-10 lines.
 - 🟨 **Tables across pages** — rows break, heading rows repeat ✅; floating tables ⬜.
-- 🟨 **Footnotes** — at the foot of the page that refers to them; a long note doesn't continue onto the next page under a continuation separator (layout.c reserves the whole note), no notes beneath text or at section end, endnotes only at the document's end.
+- ✅ **Footnotes** — at the foot of the page that refers to them or beneath its text; a long note continues on the next page under the continuation separator (with the document's continuation notice); endnotes at the document's or each section's end; numbering by format, start, restart each section/page (WP22b).
 - ✅ **Tab stops** — left, centre, right, decimal, leaders (at most 8 a paragraph).
 - ✅ **Contextual spacing, line spacing rules (auto/at least/exactly)**.
 - ✅ **Vertical alignment of the page** — top, centre, bottom.
@@ -880,9 +880,9 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ⬜ **Protect document / Restrict Editing** — WordCraft cmd/protect (read-only, comments only, tracked changes only, forms, exceptions, password hash).
 - ➖ **Macros and scripts** — left out on purpose (WordCraft records and plays back commands, `tools.macros`, `tools.recordMacro`; it keeps but never runs VBA).
 - ➖ **Add-ins** — WordCraft has none either (Get Add-ins is an online store).
-- ⬜ **Accessibility checker** — WordCraft cmd/accessibility (missing alt text, headings, table headers, contrast, an Accessibility pane).
-- ⬜ **Document inspector** — WordCraft cmd/inspector (comments, revisions, properties, hidden text, custom XML).
-- ⬜ **AutoSave, recovery copies, version history** — WordCraft engine/src/recovery (docs/recovery.md). Quill none: a crash loses unsaved work.
+- ✅ **Accessibility checker** — core/inspect.c `acc_check`, the Accessibility pane (WP24).
+- ✅ **Document inspector** — core/inspect.c (comments, revisions, properties, headers, custom XML; hidden text once WP9 has it) (WP24).
+- ✅ **AutoSave, recovery copies, version history** — wp_info.c and core/recover.c (PROGDIR:Recovery, PROGDIR:Versions) (WP24).
 - 🟨 **Templates** — five built-in templates on the File page (core/template.c). Missing: reading user .dotx templates as templates (a new untitled document from them), Save as Template, a personal templates folder, attaching a template.
 - ➖ **Printing and print preview** — left out on purpose: PDF export instead (Quill has an untested printer.device path, `print_doc()`).
 - ✅ **Several documents at once** — up to eight windows (`win_new()`).
@@ -906,7 +906,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Comments** — balloons beside the page; no Comments pane (WordCraft panes/comments.rs) listing threads with replies.
 - 🟨 **Styles pane** — a Styles window (Manage); not docked, no previews, no Style Inspector or Reveal Formatting (WordCraft panes/inspector.rs).
 - ✅ **Selection pane** — `open_selpane()` (a window).
-- ⬜ **Alt Text pane, Format Shape pane, Reviewing pane, Accessibility pane, Restrict Editing pane, Clipboard pane** — none (Quill uses modal windows for alt text and object formatting).
+- 🟨 **Alt Text pane, Format Shape pane, Reviewing pane, Accessibility pane, Restrict Editing pane, Clipboard pane** — Alt Text and Accessibility panes ✅ (WP24, windows that stay open and follow the selection); the others none.
 - ⬜ **Alignment guides when moving objects** — WordCraft crates/ui-egui/src/guides.rs.
 - ✅ **Start page** — File page Home with templates and recent documents (backstage.c).
 - ✅ **Dark interface and dark page** — `ID_THEME`, `ID_DARKPAGE`.
@@ -921,7 +921,7 @@ WordCraft's Options has eight panes (crates/ui-egui/src/options.rs). Quill's Opt
 - 🟨 **General** — WordCraft: mini toolbar, dark page, community button, start screen, user name and initials, interface theme, interface size. Quill: user name ✅, theme ✅, text size ✅, dark page (View) ✅; initials ⬜ (comments get them only from files), start screen choice ⬜, mini toolbar ➖ (no mini toolbar).
 - ⬜ **Display** — which formatting marks show even when ¶ is off (tabs, spaces, paragraph marks, hidden text), show rulers by default, print page colour, update fields before printing. Quill: rulers are remembered (`ID_RULER`), the rest ⬜ (printing ones ➖).
 - ⬜ **Proofing** — AutoCorrect Options, ignore capitals/numbers/addresses, check spelling as you type on/off, mark grammar, custom dictionary editor, dictionaries folder and per-language dictionary status. Quill: none of these settings (the custom dictionary exists as Quill.words but can't be edited in Quill).
-- ⬜ **Save** — AutoSave, remove personal information (author names and dates) when saving.
+- 🟨 **Save** — AutoSave ✅ (File › Options, WP24); personal information removed through Inspect Document ✅, not automatically on each save ⬜.
 - 🟨 **Language** — interface language ✅ (5 languages); proofing language ⬜; region ⬜.
 - ⬜ **Accessibility** — animation effects, Read Aloud voice and speed, skip citations.
 - 🟨 **Advanced** — measurement units: Quill cm/in ✅ (WordCraft also mm, pt, pi); alignment guides ⬜; recent documents count ⬜ (Quill keeps a fixed number); region and decimal separator ⬜; KeyTips ⬜; caret animation ➖; user templates folder ⬜; customize keyboard and ribbon ⬜.
