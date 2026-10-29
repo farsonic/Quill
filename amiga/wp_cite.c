@@ -31,6 +31,10 @@
 #endif
 #define WLabel(l) QLabel(l, MUIO_Label_SingleFrame)
 #define MASTER_FILE "PROGDIR:Sources.xml"
+/* lists in the dialogs' font, as their other gadgets */
+#define LFONT (ULONG)(theme_dialog_font() ? MUIA_Font : TAG_IGNORE), (ULONG)theme_dialog_font()
+#define W30 (ULONG)"MMMMMMMMMMMMMMMMMMMMMMMMM"
+#define W50 (ULONG)"MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM"
 
 enum {
   ID_CITE_INSERT = ID_WP3_FIRST,      /* the ribbon's Insert Citation list (value: a source, then Add New Source, Add New Placeholder) */
@@ -237,7 +241,7 @@ static void s_preview(void)
   char p[600];
   memset(&one, 0, sizeof one);
   one.s = &s_src; one.n = 1;
-  src_preview(&one, 0, p, sizeof p);
+  if (cite_get(&s_src, CITE_TITLE)[0] || s_src.nr) src_preview(&one, 0, p, sizeof p); else p[0] = 0;
   set(s_prev, MUIA_Text_Contents, (ULONG)p);
 }
 /* the field chosen: its label and value in the gadgets */
@@ -254,8 +258,6 @@ static void s_pick(void)
   s_busy = 1;
   set(s_flabel, MUIA_Text_Contents, (ULONG)tr(cite_field_label(k)));
   set(s_value, MUIA_String_Contents, (ULONG)l1);
-  set(s_names, MUIA_Disabled, !cite_is_role(k));
-  set(s_corp, MUIA_Disabled, !cite_is_role(k));
   { const CiteRole *r = cite_role_c(&s_src, k); set(s_corp, MUIA_Selected, r && r->corp ? TRUE : FALSE); }
   s_busy = 0;
 }
@@ -301,9 +303,9 @@ static void s_open(int list, int i, int citeafter)
     typel[t] = NULL;
     c = VGroup,
       Child, HGroup, Child, WLabel(tr("Type of Source")), Child, s_type = CycleObject, MUIA_Cycle_Entries, (ULONG)typel, MUIA_CycleChain, 1, End, End,
-      Child, WLabel(tr("Bibliography Fields")),
-      Child, s_fields = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
-        MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, MUIA_CycleChain, 1, MUIA_FixHeightTxt, (ULONG)"\n\n\n\n\n\n\n\n\n", End,
+      Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Bibliography Fields"), End,
+      Child, s_fields = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, LFONT, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
+        MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, MUIA_CycleChain, 1, MUIA_FixHeightTxt, (ULONG)"\n\n\n\n\n\n\n\n\n", MUIA_FixWidthTxt, W50, End,
       Child, HGroup,
         Child, s_flabel = TextObject, MUIA_Text_Contents, (ULONG)"", MUIA_FixWidthTxt, (ULONG)"Conference Publication Na", End,
         Child, s_value = StringObject, StringFrame, MUIA_String_MaxLen, 500, MUIA_CycleChain, 1, End,
@@ -415,9 +417,9 @@ static void n_open(void)
         Child, WLabel(tr("Middle:")), Child, n_mid = StringObject, StringFrame, MUIA_String_MaxLen, 120, MUIA_CycleChain, 1, End,
       End,
       Child, HGroup, Child, HSpace(0), Child, n_addb = QButton(tr("_Add")), End,
-      Child, WLabel(tr("Names")),
+      Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Names"), End,
       Child, HGroup,
-        Child, n_list = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
+        Child, n_list = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, LFONT, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
           MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, MUIA_CycleChain, 1, MUIA_FixHeightTxt, (ULONG)"\n\n\n\n", End,
         Child, VGroup, MUIA_HorizWeight, 0, Child, n_upb = QButton(tr("_Up")), Child, n_downb = QButton(tr("D_own")), Child, n_delb = QButton(tr("_Delete")), Child, VSpace(0), End,
       End,
@@ -578,10 +580,6 @@ static void m_show(void)
   if (a >= 0) i = m_focus ? (a < m_mn ? m_mi[a] : -1) : (a < m_cn ? m_ci[a] : -1);
   if (l && i >= 0) src_preview(l, i, p, sizeof p); else p[0] = 0;
   set(m_prev, MUIA_Text_Contents, (ULONG)p);
-  set(m_tocur, MUIA_Disabled, !(m_focus && i >= 0));
-  set(m_tomaster, MUIA_Disabled, !(!m_focus && i >= 0));
-  set(m_del, MUIA_Disabled, i < 0);
-  set(m_edit, MUIA_Disabled, i < 0);
 }
 static void man_refill(void)
 {
@@ -611,8 +609,8 @@ static void man_open(void)
       Child, HGroup,
         Child, VGroup,
           Child, m_mlab = TextObject, MUIA_Text_Contents, (ULONG)"", End,
-          Child, m_master = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
-            MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, MUIA_CycleChain, 1, MUIA_FixHeightTxt, (ULONG)"\n\n\n\n\n\n\n\n\n", End,
+          Child, m_master = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, LFONT, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
+            MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, MUIA_CycleChain, 1, MUIA_FixHeightTxt, (ULONG)"\n\n\n\n\n\n\n\n\n", MUIA_FixWidthTxt, W30, End,
         End,
         Child, VGroup, MUIA_HorizWeight, 0,
           Child, VSpace(0),
@@ -625,12 +623,12 @@ static void man_open(void)
         End,
         Child, VGroup,
           Child, m_clab = TextObject, MUIA_Text_Contents, (ULONG)"", End,
-          Child, m_cur = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
-            MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, MUIA_CycleChain, 1, MUIA_FixHeightTxt, (ULONG)"\n\n\n\n\n\n\n\n\n", End,
+          Child, m_cur = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, LFONT, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
+            MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, MUIA_CycleChain, 1, MUIA_FixHeightTxt, (ULONG)"\n\n\n\n\n\n\n\n\n", MUIA_FixWidthTxt, W30, End,
         End,
       End,
       Child, TextObject, MUIA_Text_Contents, (ULONG)m_legend, End,
-      Child, WLabel(tr("Preview:")),
+      Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Preview:"), End,
       Child, m_prev = TextObject, TextFrame, MUIA_Text_Contents, (ULONG)"", MUIA_Text_SetMin, FALSE, MUIA_FixHeightTxt, (ULONG)"\n\n", End,
     End;
     if (!(mwin = wp_dialog("Source Manager", MAKE_ID('C','I','T','1'), c, "C_lose", ID_CITE_MAN_CLOSE))) return;
@@ -712,9 +710,9 @@ static void i_open(void)
   master_load();
   if (!iwin) {
     Object *c = VGroup,
-      Child, WLabel(tr("Sources")),
-      Child, i_list = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
-        MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, MUIA_CycleChain, 1, MUIA_FixHeightTxt, (ULONG)"\n\n\n\n\n\n\n\n", End,
+      Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Sources"), End,
+      Child, i_list = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, LFONT, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
+        MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, MUIA_CycleChain, 1, MUIA_FixHeightTxt, (ULONG)"\n\n\n\n\n\n\n\n", MUIA_FixWidthTxt, W50, End,
     End;
     if (!(iwin = wp_dialog("Insert Citation", MAKE_ID('C','I','T','5'), c, "_Insert", ID_CITE_INSERT_OK))) return;
     DoMethod(i_list, MUIM_Notify, MUIA_Listview_DoubleClick, TRUE, (ULONG)wp_app(), 2, MUIM_Application_ReturnID, ID_CITE_INSERT_OK);
@@ -811,7 +809,7 @@ static void e_open(void)
   if (!ewin) {
     Object *c = VGroup,
       Child, HGroup, Child, WLabel(tr("Pages:")), Child, e_pages = StringObject, StringFrame, MUIA_String_MaxLen, 60, MUIA_CycleChain, 1, End, End,
-      Child, WLabel(tr("Suppress")),
+      Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Suppress"), End,
       Child, HGroup,
         Child, e_auth = CheckMark(FALSE), Child, WLabel(tr("Author")),
         Child, e_year = CheckMark(FALSE), Child, WLabel(tr("Year")),
