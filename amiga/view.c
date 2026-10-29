@@ -1172,6 +1172,7 @@ static void draw_turned(struct Data *d, Object *obj, struct RastPort *rp, ParaLa
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *b = &pl->boxes[k], nb = *b;
     char num[24];
+    if (LAY_HIDDEN(d->lay, b)) continue;                   /* (WP9: hidden text, formatting marks off) */
     if (b->kind == BX_TEXT) draw_text(d, obj, &trp, b, pl->p->t, sh + tx(d, b->x), tx(d, ln->ascent));
     else if (b->kind == BX_NOTE || b->kind == BX_ENOTE || b->kind == BX_FIELD) {
       if (b->kind == BX_FIELD) lay_field_text(d->lay, pl->p, b, pc->page, num); else lay_note_label(pl, k, num);
