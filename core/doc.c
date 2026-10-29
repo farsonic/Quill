@@ -11,6 +11,7 @@
 #include "notes.h"   /* (WP22b) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a */
+#include "review.h"
 
 /* ------------------------------------------------------------------ */
 /* undo: a step replaces paragraphs [p0, p0 + nnew) with copies of what was there before the edit
@@ -84,11 +85,26 @@ static Group *cur_group(Doc *d, Pos where)
   u->open = 1;
   return g;
 }
+/* WP5: an action made while formatting is tracked has ended: where its steps changed only how
+   paragraphs look, the old look is recorded as a tracked formatting change (core/review.h) */
+static void track_group(Doc *d, Group *g)
+{
+  int i;
+  u32 k;
+  for (i = 0; i < g->ns; i++) {
+    Step *s = &g->s[i];
+    if (s->nold != s->nnew || s->p0 + s->nnew > d->np) continue;
+    for (k = 0; k < s->nold; k++) rv_track_para(d, s->old[k], d->p[s->p0 + k]);
+  }
+}
 /* an edit made outside doc_begin/doc_end is a group of its own: closed as soon as the edit is
    done, so the next one starts another */
 static void close_auto(Doc *d)
 {
-  if (!d->undo->depth) d->undo->open = 0;
+  if (!d->undo->depth) {
+    if (d->rvtrack && d->undo->open && d->undo->nu) track_group(d, &d->undo->u[d->undo->nu - 1]);
+    d->undo->open = 0;
+  }
 }
 /* save paragraphs [p0, p0 + n) before they change; returns the step to complete with its nnew */
 static Step *rec(Doc *d, u32 p0, u32 n, Pos where)
@@ -148,6 +164,7 @@ void doc_end(Doc *d, Pos caret)
 {
   Undo *u = d->undo;
   if (u->depth && !--u->depth) {
+    if (u->open && d->rvtrack && u->nu) track_group(d, &u->u[u->nu - 1]);
     if (u->open) u->u[u->nu - 1].after = caret;
     u->open = 0;
   }
@@ -372,7 +389,8 @@ static int cf_eq(const CharFmt *a, const CharFmt *b)
   return a->flags == b->flags && a->font == b->font && a->size == b->size && a->color == b->color && a->hl == b->hl && a->rev == b->rev && a->rid == b->rid &&
          a->cstyle == b->cstyle && a->fx == b->fx && a->ul == b->ul && a->spacing == b->spacing && a->scale == b->scale && a->position == b->position &&
          a->link == b->link && a->bmark == b->bmark &&
-         a->fx2 == b->fx2 && a->ulcolor == b->ulcolor && a->shade == b->shade && a->rx == b->rx;   /* (WP9's) */
+         a->fx2 == b->fx2 && a->ulcolor == b->ulcolor && a->shade == b->shade && a->rx == b->rx &&   /* (WP9's) */
+         a->frev == b->frev && a->move == b->move;       /* (WP5) */
 }
 /* the run covering byte off (past the end: the last run). Points into the paragraph, so it is good
    until the paragraph next changes */
@@ -629,7 +647,8 @@ void cf_apply(CharFmt *c, unsigned mask, const CharFmt *v)
   if (mask & CM_SIZE) c->size = v->size;
   if (mask & CM_COLOR) c->color = v->color;
   if (mask & CM_HL) c->hl = v->hl;
-  if (mask & CM_REV) { c->rev = v->rev; c->rid = v->rid; }
+  if (mask & CM_REV) { c->rev = v->rev; c->rid = v->rid; c->move = v->rev ? v->move : 0; }
+  if (mask & CM_FREV) c->frev = v->frev;       /* (WP5) */
   if (mask & CM_CSTYLE) c->cstyle = v->cstyle;
   if (mask & CM_SMALLCAPS) c->fx = (u8)((c->fx & ~FX_SMALLCAPS) | (v->fx & FX_SMALLCAPS));
   if (mask & CM_DSTRIKE) c->fx = (u8)((c->fx & ~FX_DSTRIKE) | (v->fx & FX_DSTRIKE));
@@ -862,64 +881,11 @@ int doc_track_delete(Doc *d, Pos a, Pos b, int rid)
   doc_end(d, a);
   return any;
 }
-/* one run of doc_resolve: made plain text (an accepted insertion or rejected deletion) or deleted;
-   1 if it was a tracked change at all */
-static int resolve_one(Doc *d, u32 pi, u32 s, u32 e, CharFmt *f, void *arg)
-{
-  int accept = *(int *)arg;
-  Pos a, b;
-  a.para = b.para = pi; a.off = s; b.off = e;
-  if (!f->rev) return 0;
-  if ((f->rev == REV_INS) == (accept != 0)) {
-    CharFmt v = *f;
-    v.rev = REV_NONE; v.rid = 0;
-    doc_format(d, a, b, CM_REV, &v);
-  } else doc_delete(d, a, b);
-  return 1;
-}
-/* see doc.h; through each_run_back, in one undo step */
-int doc_resolve(Doc *d, Pos a, Pos b, int accept)
-{
-  int any;
-  if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
-  a = pos_clamp(d, a); b = pos_clamp(d, b);
-  doc_begin(d, a);
-  any = each_run_back(d, a, b, resolve_one, &accept);
-  doc_end(d, a);
-  return any;
-}
-/* see doc.h. Goes round the document once, wrapping at its ends; in p's own paragraph it looks
-   only after p (forward) or before it (back) until it comes back round. A change over several runs
-   is found one run at a time */
-int doc_next_change(Doc *d, Pos p, int dir, Pos *a, Pos *b)
-{
-  u32 pi = p.para, n;
-  p = pos_clamp(d, p);
-  for (n = 0; n <= d->np; n++) {
-    Para *q = d->p[pi];
-    u32 r;
-    if (dir > 0) {
-      for (r = 0; r < q->nr; r++) {
-        u32 rs = r ? q->r[r - 1].end : 0;
-        if (q->r[r].f.rev && q->r[r].end > rs && (n > 0 || rs >= p.off)) {
-          a->para = b->para = pi; a->off = rs; b->off = q->r[r].end;
-          return 1;
-        }
-      }
-      if (++pi >= d->np) pi = 0;
-    } else {
-      for (r = q->nr; r-- > 0; ) {
-        u32 rs = r ? q->r[r - 1].end : 0;
-        if (q->r[r].f.rev && q->r[r].end > rs && (n > 0 || q->r[r].end <= p.off)) {
-          a->para = b->para = pi; a->off = rs; b->off = q->r[r].end;
-          return 1;
-        }
-      }
-      pi = pi ? pi - 1 : d->np - 1;
-    }
-  }
-  return 0;
-}
+/* see doc.h: WP5's rv_resolve (core/review.c), which also resolves formatting changes */
+int doc_resolve(Doc *d, Pos a, Pos b, int accept) { return rv_resolve(d, a, b, accept, 0); }
+/* see doc.h: WP5's rv_next_change (core/review.c), which finds changes of every kind (a change over
+   several runs is found whole) */
+int doc_next_change(Doc *d, Pos p, int dir, Pos *a, Pos *b) { return rv_next_change(d, p, dir, a, b); }
 /* paragraphs pa..pb in alphabetical order of their text (not in tables): two compared by their
    bytes with ASCII letters folded to lower case, so accented letters sort after z */
 static int para_cmp(const Para *x, const Para *y)
@@ -975,6 +941,7 @@ void pf_apply(ParaFmt *p, unsigned mask, const ParaFmt *v)
   if (mask & PM_SHADE) p->shade = v->shade;
   if (mask & PM_PAGINATION) { p->keeplines = v->keeplines; p->nowidow = v->nowidow; }
   if (mask & PM_CONTEXT) p->contextual = v->contextual;
+  if (mask & PM_PREV) p->prev = v->prev;       /* (WP5) */
 }
 /* the PM_ groups mask names set from val on paragraphs pa..pb (either order, pb clamped to the
    last). One undo step */
@@ -1227,17 +1194,18 @@ int doc_comment(Doc *d, Pos a, Pos b, const char *text, const char *author, cons
   doc_end(d, a);
   return k;
 }
-/* see doc.h; a scan of the whole body for the mark's 4 bytes */
+/* see doc.h; a scan of the whole body for the mark's 4 bytes ((char)0xF3: vbcc's memchr compares the
+   byte as a signed char, so a value above 0x7F must be passed as one) */
 int doc_comment_mark(Doc *d, int k, int end, Pos *at)
 {
   char m[8];
   u32 i;
   cmark_utf8(m, k, end);
   for (i = 0; i < d->np; i++) {
-    const char *f = d->p[i]->len >= 4 ? (const char *)memchr(d->p[i]->t, 0xF3, d->p[i]->len) : NULL;
+    const char *f = d->p[i]->len >= 4 ? (const char *)memchr(d->p[i]->t, (char)0xF3, d->p[i]->len) : NULL;
     while (f && f + 4 <= d->p[i]->t + d->p[i]->len) {
       if (!memcmp(f, m, 4)) { at->para = i; at->off = (u32)(f - d->p[i]->t); return 1; }
-      f = (const char *)memchr(f + 1, 0xF3, (size_t)(d->p[i]->t + d->p[i]->len - (f + 1)));
+      f = (const char *)memchr(f + 1, (char)0xF3, (size_t)(d->p[i]->t + d->p[i]->len - (f + 1)));
     }
   }
   return 0;
@@ -1989,6 +1957,7 @@ Fragment *doc_fragment(Doc *d, Pos a, Pos b)
     u32 st = i == 0 ? a.off : 0, en = i + 1 == f->np ? b.off : s->len, r, pos = 0;
     ParaFmt pf = s->pf;
     memset(&pf.cell, 0, sizeof pf.cell); memset(&pf.outer, 0, sizeof pf.outer); pf.sect = 0;
+    pf.prev = 0;                                /* (WP5: a tracked change stays behind) */
     if (!(q = para_new(&pf, para_fmt_at(s, st)))) goto oom;
     f->p[i] = q;
     for (r = 0; r < s->nr; r++) {
@@ -2082,6 +2051,7 @@ static int paste_runs(Doc *d, Para *q, const Fragment *f, const Para *s, const C
   u32 r, pos = 0;
   for (r = 0; r < s->nr; r++) {
     CharFmt c = paste_cf(d, f, &s->r[r].f, dst, mode, same);
+    c.frev = 0; c.move = 0;                     /* (WP5: pasted text is new, not a tracked change) */
     u32 o = pos, e = s->r[r].end;
     while (o < e) {
       u32 m = o;
@@ -2739,6 +2709,7 @@ void doc_free(Doc *d)
   notes_free(d);                 /* (WP22b) */
   info_free(d);                  /* (WP24) */
   math_doc_free(d);     /* WP14a: equations */
+  rv_free(d);                                   /* (WP5) */
   free(d);
 }
 
