@@ -122,6 +122,23 @@ static void adjust(void)
     memset(&f, 0, sizeof f); f.sharp = -50;
     rgb = img_decode(jpg, (u32)n, 64, 48); objfx_adjust(rgb, 64, 48, &f); free(rgb);
     ok("adjust: the artistic effects, sharpen and soften run", all);
+    {
+      /* the JPEG and PNG writers: what they write reads back as it was */
+      Rgba ra;
+      size_t jl = 0, pl = 0;
+      u8 *j, *p2, *back, *back2;
+      long diff = 0;
+      int i2;
+      rgb = img_decode(jpg, (u32)n, 64, 48);
+      rgba_alloc(&ra, 64, 48);
+      for (i2 = 0; i2 < 64 * 48; i2++) { memcpy(ra.px + i2 * 4, rgb + i2 * 3, 3); ra.px[i2 * 4 + 3] = 255; }
+      j = jpeg_encode(&ra, 90, 0, &jl); p2 = png_encode(&ra, 96, &pl);
+      back = j ? img_decode(j, (u32)jl, 64, 48) : NULL; back2 = p2 ? img_decode(p2, (u32)pl, 64, 48) : NULL;
+      for (i2 = 0; back && i2 < 64 * 48 * 3; i2++) diff += abs(back[i2] - rgb[i2]);
+      ok("jpeg writer: read back close to the original", back && diff / (64 * 48 * 3) < 6);
+      ok("png writer: read back exactly", back2 && !memcmp(back2, rgb, 64 * 48 * 3));
+      free(j); free(p2); free(back); free(back2); free(rgb); rgba_free(&ra);
+    }
     free(jpg);
   }
 }

@@ -134,6 +134,8 @@ void objfx_write_blip(Buf *o, const Image *im, int orig);
 void objfx_write_geom(Buf *o, const Image *im, const char *prst);
 /* a shape's fill (solid, gradient, picture with rIdImg media number m, or none) */
 void objfx_write_fill(Buf *o, const Image *im, int m);
+/* an icon's a:ln (its strokes in its fill colour); 0 for others */
+int  objfx_write_line(Buf *o, const Image *im);
 /* a:effectLst, if any effect is set */
 void objfx_write_effects(Buf *o, const Image *im);
 /* wps:bodyPr (text direction, anchoring, insets) */

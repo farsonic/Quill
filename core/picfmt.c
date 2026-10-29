@@ -1,7 +1,8 @@
 /*
  * picfmt.c - see picfmt.h. The readers and writers here are Easel's (core/gif.c, bmp.c, ilbm.c,
  * png.c, jpegenc.c of Easel 1.0, the Amiga paint program by Quill's author), copied with their
- * comments; only the glue (Rgba, the error messages, no progress bar) is Quill's. WP17.
+ * comments; only the glue (Rgba, the error messages, no progress bar) and the JPEG encoder's
+ * integer DCT (Quill's core has no floating point) are Quill's. WP17.
  */
 #include <stdlib.h>
 #include <string.h>
@@ -605,11 +606,13 @@ static void huff_build(HuffEnc *h, const u8 *bits, const u8 *vals)
 }
 
 /* ------------------------------------------------------------------ encoding */
+/* (Quill: integer arithmetic throughout, as the rest of the core: the slow but accurate integer DCT
+   of the JPEG standard's reference (as IJG's jfdctint.c) instead of Easel's floating-point one) */
 typedef struct {
   Buf o;
   u32 bits; int nbits;                /* bits waiting to make a byte, most significant first */
   HuffEnc dc[2], ac[2];
-  float div[2][64];                   /* 1 / (quantizer * AAN scale * 8), natural order */
+  int q[2][64];                       /* the quantizers times 8 (the DCT's output is 8 times too big), natural order */
   int pred[3];                        /* the last DC of each component */
 } Enc;
 
@@ -625,24 +628,34 @@ static void putbits(Enc *e, u32 v, int n)
     e->nbits -= 8;
   }
 }
-/* the forward DCT of an 8 x 8 block in place (AAN; the output is scaled, see div) */
-static void fdct(float *d)
+#define CB 13
+#define P1 2
+#define DESC(x, n) (((x) + (1L << ((n) - 1))) >> (n))
+/* the forward DCT of an 8 x 8 block in place (Loeffler, Ligtenberg and Moschytz; the output 8 times too big) */
+static void fdct(long *d)
 {
-  float t0, t1, t2, t3, t4, t5, t6, t7, t10, t11, t12, t13, z1, z2, z3, z4, z5, z11, z13, *p;
+  long t0, t1, t2, t3, t4, t5, t6, t7, t10, t11, t12, t13, z1, z2, z3, z4, z5, *p;
   int i;
   for (i = 0; i < 16; i++) {
-    int s = i < 8 ? 1 : 8;              /* rows, then columns */
+    int s = i < 8 ? 1 : 8, col = i >= 8;
     p = i < 8 ? d + i * 8 : d + (i - 8);
     t0 = p[0] + p[7 * s]; t7 = p[0] - p[7 * s]; t1 = p[s] + p[6 * s]; t6 = p[s] - p[6 * s];
     t2 = p[2 * s] + p[5 * s]; t5 = p[2 * s] - p[5 * s]; t3 = p[3 * s] + p[4 * s]; t4 = p[3 * s] - p[4 * s];
     t10 = t0 + t3; t13 = t0 - t3; t11 = t1 + t2; t12 = t1 - t2;
-    p[0] = t10 + t11; p[4 * s] = t10 - t11;
-    z1 = (t12 + t13) * 0.707106781f;
-    p[2 * s] = t13 + z1; p[6 * s] = t13 - z1;
-    t10 = t4 + t5; t11 = t5 + t6; t12 = t6 + t7;
-    z5 = (t10 - t12) * 0.382683433f; z2 = 0.541196100f * t10 + z5; z4 = 1.306562965f * t12 + z5; z3 = t11 * 0.707106781f;
-    z11 = t7 + z3; z13 = t7 - z3;
-    p[5 * s] = z13 + z2; p[3 * s] = z13 - z2; p[s] = z11 + z4; p[7 * s] = z11 - z4;
+    if (!col) { p[0] = (t10 + t11) * (1 << P1); p[4 * s] = (t10 - t11) * (1 << P1); }
+    else { p[0] = DESC(t10 + t11, P1); p[4 * s] = DESC(t10 - t11, P1); }
+    z1 = (t12 + t13) * 4433;
+    p[2 * s] = DESC(z1 + t13 * 6270, col ? CB + P1 : CB - P1);
+    p[6 * s] = DESC(z1 - t12 * 15137, col ? CB + P1 : CB - P1);
+    z1 = t4 + t7; z2 = t5 + t6; z3 = t4 + t6; z4 = t5 + t7;
+    z5 = (z3 + z4) * 9633;
+    t4 *= 2446; t5 *= 16819; t6 *= 25172; t7 *= 12299;
+    z1 *= -7373; z2 *= -20995; z3 *= -16069; z4 *= -3196;
+    z3 += z5; z4 += z5;
+    p[7 * s] = DESC(t4 + z1 + z3, col ? CB + P1 : CB - P1);
+    p[5 * s] = DESC(t5 + z2 + z4, col ? CB + P1 : CB - P1);
+    p[3 * s] = DESC(t6 + z2 + z3, col ? CB + P1 : CB - P1);
+    p[s] = DESC(t7 + z1 + z4, col ? CB + P1 : CB - P1);
   }
 }
 /* the size category of a coefficient (the bits its magnitude needs) */
@@ -655,13 +668,13 @@ static int category(int v)
 }
 /* transform, quantize and Huffman-code one block of level-shifted samples for component c
    (table t: 0 luminance, 1 chrominance) */
-static void block(Enc *e, float *blk, int c, int t)
+static void block(Enc *e, long *blk, int c, int t)
 {
   int q[64], k, run, diff, cat;
   fdct(blk);
   for (k = 0; k < 64; k++) {
-    float v = blk[zigzag[k]] * e->div[t][zigzag[k]];
-    q[k] = (int)(v < 0 ? v - 0.5f : v + 0.5f);
+    long v = blk[zigzag[k]], d = e->q[t][zigzag[k]];
+    q[k] = (int)(v < 0 ? -((-v + d / 2) / d) : (v + d / 2) / d);
   }
   diff = q[0] - e->pred[c]; e->pred[c] = q[0];
   cat = category(diff);
@@ -691,7 +704,7 @@ static void dht(Buf *b, int tc, const u8 *bits, const u8 *vals)
 
 /* the picture's samples over white, as Y, Cb and Cr minus 128, for an mcu x mcu square at x0, y0
    (edges repeated past the picture's right and bottom) */
-static void mcu_samples(const Rgba *im, i32 x0, i32 y0, int mcu, float *Y, float *Cb, float *Cr)
+static void mcu_samples(const Rgba *im, i32 x0, i32 y0, int mcu, long *Y, long *Cb, long *Cr)
 {
   int x, y;
   for (y = 0; y < mcu; y++) {
@@ -699,14 +712,11 @@ static void mcu_samples(const Rgba *im, i32 x0, i32 y0, int mcu, float *Y, float
     for (x = 0; x < mcu; x++) {
       i32 sx = x0 + x < im->w ? x0 + x : im->w - 1;
       const u8 *p = im->px + ((long)sy * im->w + sx) * 4;
-      float r = p[0], g = p[1], b = p[2];
-      if (p[3] != 255) {
-        float a = p[3] / 255.0f;
-        r = r * a + 255 * (1 - a); g = g * a + 255 * (1 - a); b = b * a + 255 * (1 - a);
-      }
-      Y[y * mcu + x] = 0.299f * r + 0.587f * g + 0.114f * b - 128;
-      Cb[y * mcu + x] = -0.168736f * r - 0.331264f * g + 0.5f * b;
-      Cr[y * mcu + x] = 0.5f * r - 0.418688f * g - 0.081312f * b;
+      long r = p[0], g = p[1], b = p[2], a = p[3];
+      if (a != 255) { r = (r * a + 255 * (255 - a)) / 255; g = (g * a + 255 * (255 - a)) / 255; b = (b * a + 255 * (255 - a)) / 255; }
+      Y[y * mcu + x] = ((19595 * r + 38470 * g + 7471 * b + 32768) >> 16) - 128;
+      Cb[y * mcu + x] = (-11059 * r - 21709 * g + 32768 * b + 32768) >> 16;
+      Cr[y * mcu + x] = (32768 * r - 27439 * g - 5329 * b + 32768) >> 16;
     }
   }
 }
@@ -714,16 +724,15 @@ static void mcu_samples(const Rgba *im, i32 x0, i32 y0, int mcu, float *Y, float
 /* the markers (SOI, APP0 JFIF, DQT, SOF0, DHT, SOS), the entropy-coded macroblocks, EOI */
 u8 *jpeg_encode(const Rgba *im, int quality, int dpi, size_t *len)
 {
-  static const double aan[8] = { 1.0, 1.387039845, 1.306562965, 1.175875602, 1.0, 0.785694958, 0.541196100, 0.275899379 };
   Enc *e;
   u8 qt[2][64];
   int sub = quality < 90, mcu = sub ? 16 : 8, i, t, scale;
   i32 mx, my;
-  float *Y, *Cb, *Cr, blk[64];
+  long *Y, *Cb, *Cr, blk[64];
   u8 *res;
   if (!im->px || im->w < 1 || im->h < 1 || im->w > 65535 || im->h > 65535) return NULL;
   if (!(e = (Enc *)calloc(1, sizeof *e))) return NULL;
-  if (!(Y = (float *)malloc(sizeof(float) * 256 * 3))) { free(e); return NULL; }
+  if (!(Y = (long *)malloc(sizeof(long) * 256 * 3))) { free(e); return NULL; }
   Cb = Y + 256; Cr = Y + 512;
   /* IJG quality scaling, clamped to baseline's 8-bit quantizers */
   if (quality < 1) quality = 1;
@@ -733,7 +742,7 @@ u8 *jpeg_encode(const Rgba *im, int quality, int dpi, size_t *len)
     for (i = 0; i < 64; i++) {
       long v = ((long)(t ? std_chr_q[i] : std_lum_q[i]) * scale + 50) / 100;
       qt[t][i] = (u8)(v < 1 ? 1 : v > 255 ? 255 : v);
-      e->div[t][i] = (float)(1.0 / (qt[t][i] * aan[i >> 3] * aan[i & 7] * 8.0));
+      e->q[t][i] = qt[t][i] * 8;
     }
   huff_build(&e->dc[0], dc_lum_bits, dc_vals); huff_build(&e->ac[0], ac_lum_bits, ac_lum_vals);
   huff_build(&e->dc[1], dc_chr_bits, dc_vals); huff_build(&e->ac[1], ac_chr_bits, ac_chr_vals);
@@ -768,9 +777,9 @@ u8 *jpeg_encode(const Rgba *im, int quality, int dpi, size_t *len)
           block(e, blk, 0, 0);
         }
       for (t = 0; t < 2; t++) {
-        float *c = t ? Cr : Cb;
+        long *c = t ? Cr : Cb;
         if (sub) for (y = 0; y < 8; y++) for (x = 0; x < 8; x++)
-          blk[y * 8 + x] = (c[(2 * y) * 16 + 2 * x] + c[(2 * y) * 16 + 2 * x + 1] + c[(2 * y + 1) * 16 + 2 * x] + c[(2 * y + 1) * 16 + 2 * x + 1]) * 0.25f;
+          blk[y * 8 + x] = (c[(2 * y) * 16 + 2 * x] + c[(2 * y) * 16 + 2 * x + 1] + c[(2 * y + 1) * 16 + 2 * x] + c[(2 * y + 1) * 16 + 2 * x + 1] + 2) >> 2;
         else memcpy(blk, c, sizeof blk);
         block(e, blk, 1 + t, 1);
       }
@@ -784,7 +793,6 @@ u8 *jpeg_encode(const Rgba *im, int quality, int dpi, size_t *len)
   free(e);
   return res;
 }
-
 
 /* ---- Quill's own: which of the three a file is, its size from its header, and decoding it */
 int picfmt_info(const u8 *d, u32 n, u32 *w, u32 *h)

@@ -3024,7 +3024,7 @@ static void w_obj(Buf *o, Doc *d, const Image *im, int child, long offx, long of
     w_xfrm(o, im, offx, offy, cx, cy);
     objfx_write_geom(o, im, im->shape < SH_N ? prst_names[im->shape] : NULL);    /* WP18: more shapes, icons */
     objfx_write_fill(o, im, media_find(im));     /* WP18: gradients, picture fills */
-    w_outline(o, im);
+    if (!objfx_write_line(o, im)) w_outline(o, im);     /* (an icon's strokes) */
     objfx_write_effects(o, im);
     buf_adds(o, "</wps:spPr>");
     if (im->text && im->text->np && !objfx_linked_follower(im)) {

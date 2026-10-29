@@ -290,6 +290,17 @@ void objfx_write_fill(Buf *o, const Image *im, int m)
   } else if (im->fill == COLOR_AUTO) buf_adds(o, "<a:noFill/>");
   else { buf_adds(o, "<a:solidFill>"); srgb(o, im->fill, a); buf_adds(o, "</a:solidFill>"); }
 }
+int objfx_write_line(Buf *o, const Image *im)
+{
+  long w;
+  if (im->shape != SHX_ICON) return 0;
+  /* a stroke is 1.1 of the drawing's 16 units */
+  w = (long)(im->cx < im->cy ? im->cx : im->cy) * 635 * 11 / 160;
+  buf_printf(o, "<a:ln w=\"%ld\" cap=\"rnd\"><a:solidFill>", w);
+  srgb(o, im->fill == COLOR_AUTO ? 0 : im->fill, 100);
+  buf_adds(o, "</a:solidFill><a:round/></a:ln>");
+  return 1;
+}
 void objfx_write_effects(Buf *o, const Image *im)
 {
   const ObjFx *f = &im->fx;
