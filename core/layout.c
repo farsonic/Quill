@@ -285,13 +285,13 @@ static int hyphenate(Layout *L, Para *p, Work *w, u32 bi, u32 x, u32 room)
   FaceSize *z = lay_face(L, &b->f);
   const char *t = p->t + b->off;
   u32 lead = 0, core, k, hw;
-  u8 brk[40];
+  u8 brk[72];
   if (!z || b->kind != BX_TEXT || room < x + HYPH_ZONE * QFINE || (bi + 1 < w->n && w->b[bi + 1].kind == BX_TEXT)) return 0;
   while (lead < b->len && (t[lead] == '"' || t[lead] == '(' || t[lead] == '\'')) lead++;
-  for (core = lead; core < b->len && (((t[core] | 32) >= 'a' && (t[core] | 32) <= 'z') || t[core] == '\''); core++) ;
+  for (core = lead; core < b->len && (((t[core] | 32) >= 'a' && (t[core] | 32) <= 'z') || t[core] == '\'' || (u8)t[core] >= 0x80); core++) ;   /* (WP31: letters past ASCII too) */
   /* the rest may only be punctuation */
   for (k = core; k < b->len; k++) if (!strchr(".,;:!?\")'", t[k])) return 0;
-  if (core - lead < 5 || core - lead > 32 || !hyph_word(t + lead, core - lead, brk)) return 0;
+  if (core - lead < 5 || core - lead > 62 || !hyph_word_lang(b->f.lang, t + lead, core - lead, brk)) return 0;   /* (WP31: the run's language) */
   hw = measure(L, z, "-", 1, NULL);
   for (k = core - lead; k-- > 1; ) {
     if (!brk[k]) continue;

@@ -37,6 +37,10 @@ typedef struct {
   u32 ulcolor;              /* the underline's colour: 0 the text's, else HL_ON | 0xRRGGBB */
   u32 shade;                /* character shading (w:shd, kept apart from the highlight): 0 none, else HL_ON | 0xRRGGBB */
   u16 rx;                   /* run properties kept verbatim (w14 text effects, w:effect): charfx.h rx_text(rx), 0 none */
+  /* WP31 proofing languages (core/proflang.h): */
+  u16 lang;                 /* the text's language (w:lang w:val): a proflang.h number, 0 not set */
+  u16 langea, langbidi;     /* w:lang's w:eastAsia and w:bidi, kept as they were read */
+  u8  noproof;              /* not checked for spelling or grammar (w:noProof) */
 } CharFmt;
 enum { REV_NONE, REV_INS, REV_DEL };
 enum { FX_SMALLCAPS = 1, FX_DSTRIKE = 2, FX_BORDER = 4 };   /* FX_BORDER: a box round the characters (w:bdr) */
@@ -65,8 +69,8 @@ enum { CM_BOLD = 1, CM_ITALIC = 2, CM_UNDERLINE = 4, CM_STRIKE = 8, CM_SUPER = 1
        CM_LINK = 0x100000,       /* (not in CM_ALL: clearing formatting or painting it keeps links, as in Word) */
        CM_BMARK = 0x200000,      /* (nor this: bookmarks stay where they are) */
        CM_CBORDER = 0x400000,    /* FX_BORDER */
-       CM_LOOK = 0x704FCFFF,     /* how it looks (not its character style nor tracked changes; WP9's bits too) */
-       CM_ALL = 0x704FEFFF };     /* CM_ALL leaves tracked changes alone */
+       CM_LOOK = 0x7C4FCFFF,     /* how it looks (not its character style nor tracked changes; WP9's and WP31's bits too) */
+       CM_ALL = 0x7C4FEFFF };     /* CM_ALL leaves tracked changes alone */
 
 enum { AL_LEFT, AL_CENTER, AL_RIGHT, AL_JUSTIFY, AL_DISTRIBUTE };   /* AL_DISTRIBUTE (WP10): every line spread out, the last too (w:jc distribute) */
 enum { LS_AUTO, LS_ATLEAST, LS_EXACT };    /* line spacing rule: line is 240ths of a line, or twips */
