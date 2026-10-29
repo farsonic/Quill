@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include "layout.h"
 #include "field.h"
+#include "objtext.h"
 #include "hyph.h"
 #include "charfx.h"
 #include "notes.h"   /* (WP22b) */
@@ -1355,13 +1356,14 @@ int lay_furniture(Layout *L, u32 page, int footer, Furn *f)
 }
 /* see layout.h. The text is inset TB_INSET_X at the sides and TB_INSET_Y at the top, and gets at least
    a quarter inch. Free f with lay_furniture_free */
-int lay_textbox(Layout *L, const Image *im, i32 cx, Furn *f)
+/* (WP18: laid out w wide, with its own insets, by tb_layout in objtext.c, which turns, anchors and
+   links text boxes) */
+static int lay_textbox_plain(Layout *L, const Image *im, i32 w, Furn *f)
 {
-  i32 y = TB_INSET_Y, w;
+  i32 y = tb_inset(im, 1);
   u32 i, k;
   memset(f, 0, sizeof *f);
   if (!im || !im->text || !im->text->np) return 0;
-  w = (cx > 0 ? cx : im->cx) - 2 * TB_INSET_X;
   if (w < 360) w = 360;
   if (!(f->f = (FPara *)calloc(im->text->np, sizeof(FPara)))) return 0;
   for (i = 0; i < im->text->np; i++) {
@@ -1371,11 +1373,12 @@ int lay_textbox(Layout *L, const Image *im, i32 cx, Furn *f)
     if (!layout_para(L, &fp->pl, fp->p, w, "", 0, 0)) break;
     y += fp->p->pf.before;
     fp->y = y;
-    for (k = 0; k < fp->pl.nlines; k++) { fp->pl.lines[k].left += TB_INSET_X; y += fp->pl.lines[k].height; }
+    for (k = 0; k < fp->pl.nlines; k++) { fp->pl.lines[k].left += tb_inset(im, 0); y += fp->pl.lines[k].height; }
     y += fp->p->pf.after;
   }
   return f->n > 0;
 }
+int lay_textbox(Layout *L, const Image *im, i32 cx, Furn *f) { return tb_layout(L, im, cx, f, lay_textbox_plain); }
 /* what a page placeholder at off of p shows on page (from 0) of pages: the page's number, the number
    of pages, or a bookmark's page (link: the placeholder's link, which names it); inside a field (WP1)
    what that field asks for (SECTION, SECTIONPAGES too), in its own format (\* roman, \# "00"...) */
@@ -2808,6 +2811,7 @@ u32 shape_points(int shape, i32 w, i32 h, i32 *xy, u32 max, int *closed)
     }
     break;
   default:
+    if ((n = shapex_points(shape, w, h, xy, max, closed))) break;     /* WP18: more of Word's shapes */
     PT(0, 0); PT(w, 0); PT(w, h); PT(0, h);
   }
   return n;

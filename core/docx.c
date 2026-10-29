@@ -12,6 +12,7 @@
 #include "tstyle.h"
 #include "keep.h"
 #include "field.h"
+#include "objfx.h"
 #include "chart.h"                 /* (WP15a) charts and SmartArt */
 #include "charfx.h"
 #include "notes.h"   /* (WP22b) */
@@ -1028,6 +1029,7 @@ typedef struct {
   u32 stylefill, styleline;
   char embed[40];
   i32 offx, offy, extx, exty, choffx, choffy, chextx, chexty;   /* its a:xfrm (EMU) */
+  ObjRead ox;                       /* WP17/WP18: adjustments, fills, effects, text settings (objdocx.c) */
 } DShape;
 /* a shape being read starts as a picture with Image's defaults, no wrap distances left and right,
    and its fill and line still to come from its style */
@@ -1055,6 +1057,48 @@ static int load_blip(Ctx *c, const char *embed, Image *im)
   return 1;
 }
 static void parse_group(Xml *x, PCtx *pc, DShape *g);
+/* WP17/WP18 (objdocx.c): a DrawingML colour for objfx_read; and what was read finished off: a shape's
+   picture fill loaded, a picture's unchanged original (a14:imgLayer) loaded in its place when Quill
+   can read it (its a14 effects then drawn by Quill), else the a14 extension kept as it was with the
+   part it names (Word's HD Photo), when the picture is in the document's own text */
+static u32 objfx_colour(void *x, void *c) { return dml_color((Xml *)x, (Ctx *)c); }
+static void objfx_docx_finish(Ctx *c, DShape *s)
+{
+  Image *im = &s->im;
+  int layer = objfx_read_finish(im, &s->ox);
+  if (im->kind != OBJ_PICTURE && im->kind != OBJ_GROUP && im->fx.filltype == FT_PIC && !im->data && !load_blip(c, s->embed, im)) im->fx.filltype = FT_SOLID;
+  if (!s->ox.raw) return;
+  if (layer && im->kind == OBJ_PICTURE && !im->data && load_blip(c, s->ox.layer, im)) {
+    ObjFx *f = &im->fx, *a = &s->ox.a14;
+    f->art = a->art; f->sharp = a->sharp; f->temp = a->temp; f->sat = a->sat;
+    if (a->bright || a->contrast) { f->bright = a->bright; f->contrast = a->contrast; }
+    if (a->bgkey) { f->bgkey = 1; f->bgtol = a->bgtol; f->bgcolor = objfx_corner_colour(im); }
+    free(s->ox.raw); s->ox.raw = NULL;
+    return;
+  }
+  if (layer && c->rels && c->z && strstr(c->rels, "styles.xml")) {
+    char path[300];
+    size_t len = 0;
+    u8 *data;
+    rel_by_id(c->rels, c->rn, s->ox.layer, c->base, path, sizeof path);
+    if (path[0] && (data = (u8 *)zip_read(c->z, zip_find(c->z, path), &len))) {
+      int k = keep_find(c->d, path);
+      if (k < 0) k = keep_add(c->d, path, "image/vnd.ms-photo", "word/document.xml", "http://schemas.microsoft.com/office/2007/relationships/hdphoto", s->ox.layer, data, len);
+      free(data);
+      if (k >= 0 && strcmp(c->d->kept[k].relid, s->ox.layer)) {
+        /* the part kept under another id: the extension names that one */
+        char *e = strstr(s->ox.raw, s->ox.layer), *nr;
+        size_t ol = strlen(s->ox.layer), nl = strlen(c->d->kept[k].relid), rl = strlen(s->ox.raw);
+        if (e && (nr = (char *)malloc(rl - ol + nl + 1))) {
+          memcpy(nr, s->ox.raw, (size_t)(e - s->ox.raw)); memcpy(nr + (e - s->ox.raw), c->d->kept[k].relid, nl); strcpy(nr + (e - s->ox.raw) + nl, e + ol);
+          free(s->ox.raw); s->ox.raw = nr;
+        }
+      }
+      if (k >= 0) { im->fx.raw = s->ox.raw; s->ox.raw = NULL; return; }
+    }
+  }
+  free(s->ox.raw); s->ox.raw = NULL;      /* (its part couldn't be kept: the picture shows as it is) */
+}
 /* one element inside a shape (or the drawing round it): 1 if its contents were read here too */
 static int dshape_elem(Xml *x, PCtx *pc, DShape *s)
 {
@@ -1063,6 +1107,7 @@ static int dshape_elem(Xml *x, PCtx *pc, DShape *s)
   Image *im = &s->im;
   i32 v;
   int k;
+  if (objfx_read(x, im, &s->ox, objfx_colour, c)) return 1;     /* WP17/WP18 */
   if (!strcmp(n, "blip") && !s->embed[0]) copy_attr(x, "embed", s->embed, sizeof s->embed);
   else if (!strcmp(n, "srcRect")) {
     if (attr_num(x, "l", &v)) im->crop[0] = v;
@@ -1128,6 +1173,7 @@ static int dshape_elem(Xml *x, PCtx *pc, DShape *s)
 static void dshape_end(Xml *x, DShape *s)
 {
   const char *n = x->name;
+  objfx_read_end(x, &s->im, &s->ox);       /* WP17 */
   if (!strcmp(n, "ln")) s->inln = 0;
   else if (!strcmp(n, "spPr")) s->insp = 0;
   else if (!strcmp(n, "style")) s->instyle = 0;
@@ -1171,7 +1217,8 @@ static void parse_group(Xml *x, PCtx *pc, DShape *g)
           if (x->type == XT_START) dshape_elem(x, pc, &k);
         }
       dshape_finish(&k);
-      if (k.im.kind == OBJ_PICTURE && !load_blip(pc->c, k.embed, &k.im)) { img_release(&k.im); pc->c->lost |= LOST_PICTURES; continue; }
+      objfx_docx_finish(pc->c, &k);         /* WP17/WP18 */
+      if (k.im.kind == OBJ_PICTURE && !k.im.data && !load_blip(pc->c, k.embed, &k.im)) { img_release(&k.im); pc->c->lost |= LOST_PICTURES; continue; }
       k.im.x = (k.offx - g->choffx) / 635; k.im.y = (k.offy - g->choffy) / 635;
       k.im.cx = (k.extx + 317) / 635; k.im.cy = (k.exty + 317) / 635;
       if (k.im.kind == OBJ_GROUP) { k.im.chw = (k.chextx + 317) / 635; k.im.chh = (k.chexty + 317) / 635; }
@@ -1279,7 +1326,7 @@ static void parse_drawing(Xml *x, PCtx *pc, const CharFmt *f)
     else if (!strcmp(n, "extent") && !cx) { attr_num(x, "cx", &cx); attr_num(x, "cy", &cy); }
     else if (!strcmp(n, "wrapPolygon")) { parse_polygon(x, im); continue; }
     else if (!strncmp(n, "wrap", 4) && !wrapname[0] && strlen(n) < sizeof wrapname) strcpy(wrapname, n);
-    else if (!strcmp(n, "docPr")) { const char *d = xml_attr(x, "descr"); if (d) { strncpy(im->alt, d, sizeof im->alt - 1); im->alt[sizeof im->alt - 1] = 0; } }
+    else if (!strcmp(n, "docPr")) { const char *d = xml_attr(x, "descr"); if (d) { strncpy(im->alt, d, sizeof im->alt - 1); im->alt[sizeof im->alt - 1] = 0; } objfx_read_docpr(x, im); }
     else if (read_graphic_ref(x, c, im)) continue;     /* (WP15a) a chart or SmartArt */
     else if (!strcmp(n, "decorative")) { const char *v = xml_attr(x, "val"); im->decorative = (u8)(!v || *v == '1' || *v == 't'); }   /* (WP24) */
     else dshape_elem(x, pc, &s);
@@ -1292,7 +1339,8 @@ static void parse_drawing(Xml *x, PCtx *pc, const CharFmt *f)
   dshape_finish(&s);
   im->cx = (cx + 317) / 635; im->cy = (cy + 317) / 635;
   if (im->kind == OBJ_GROUP && (!im->chw || !im->chh)) { im->chw = im->cx; im->chh = im->cy; }
-  if (im->kind == OBJ_PICTURE && !load_blip(c, s.embed, im)) k = -1;
+  objfx_docx_finish(c, &s);                 /* WP17/WP18 */
+  if (im->kind == OBJ_PICTURE && !im->data && !load_blip(c, s.embed, im)) k = -1;
   else if (im->kind == OBJ_GROUP && !im->nkids) k = -1;
   else k = doc_take_object(c->d, im);           /* the entry takes what was read as it is */
   if (k < 0) img_release(im);
@@ -3380,17 +3428,34 @@ static const char *const WNS = "xmlns:w=\"http://schemas.openxmlformats.org/word
    sharing a file share its number), and a counter for drawing ids */
 /* the pictures saved, each file once (by its data), numbered for the media folder */
 static u32 save_drawing;                 /* drawings so far (their ids) */
-typedef struct { const u8 *data; u32 len; u8 type; } Media;
+typedef struct { const u8 *data; u32 len; u8 type; const u8 *src; u32 key; u8 *own; } Media;   /* (WP17: src, key, own) */
 static Media *save_ml; static int save_nml;
 /* the media number (1-based) of a picture's data in save_ml, matched by pointer so entries that
-   share one file share it; 0 if it isn't there */
-static int media_find(const Image *im)
+   share one file share it; 0 if it isn't there. WP17: and by objfx_media_key (a file made afresh:
+   an ILBM as PNG, effects drawn in); media_find_orig: its unchanged file's, 0 if none is needed */
+static int media_find_key(const u8 *src, u32 key)
 {
   int k;
-  if (!im->data) return 0;
-  for (k = 0; k < save_nml; k++) if (save_ml[k].data == im->data) return k + 1;
+  if (!src) return 0;
+  for (k = 0; k < save_nml; k++) if (save_ml[k].src == src && save_ml[k].key == key) return k + 1;
   return 0;
 }
+static int media_find(const Image *im) { return media_find_key(im->data, objfx_media_key(im)); }
+static int media_find_orig(const Image *im) { return objfx_media_key(im) > 1 ? media_find_key(im->data, objfx_orig_key(im)) : 0; }
+static void media_put(const Image *im, u32 key)
+{
+  Media *nm;
+  u8 *own = NULL, type = im->type;
+  u32 len = im->len;
+  if (media_find_key(im->data, key)) return;
+  if (key && !(own = objfx_media_bytes(im, key, &len, &type))) return;
+  if (!(nm = (Media *)realloc(save_ml, (save_nml + 1) * sizeof(Media)))) { free(own); return; }
+  save_ml = nm;
+  save_ml[save_nml].data = own ? own : im->data; save_ml[save_nml].len = len; save_ml[save_nml].type = type;
+  save_ml[save_nml].src = im->data; save_ml[save_nml].key = key; save_ml[save_nml].own = own;
+  save_nml++;
+}
+static void media_clear(void) { int k; for (k = 0; k < save_nml; k++) free(save_ml[k].own); free(save_ml); save_ml = NULL; save_nml = 0; }
 /* add a picture's data to save_ml unless it's already there (a group adds each of its pictures);
    if memory runs out the picture is simply left out of the file */
 static void media_add(const Image *im)
@@ -3398,11 +3463,10 @@ static void media_add(const Image *im)
   Media *nm;
   int k;
   if (im->kind == OBJ_GROUP) { for (k = 0; k < im->nkids; k++) media_add(&im->kids[k]); return; }
-  if (im->kind != OBJ_PICTURE || !im->data || media_find(im)) return;
-  if (!(nm = (Media *)realloc(save_ml, (save_nml + 1) * sizeof(Media)))) return;
-  save_ml = nm;
-  save_ml[save_nml].data = im->data; save_ml[save_nml].len = im->len; save_ml[save_nml].type = im->type;
-  save_nml++;
+  (void)nm;
+  if (!im->data || (im->kind != OBJ_PICTURE && im->fx.filltype != FT_PIC)) return;     /* (WP18: a shape's picture fill too) */
+  media_put(im, objfx_media_key(im));
+  if (objfx_media_key(im) > 1) media_put(im, objfx_orig_key(im));     /* (WP17: the unchanged picture, for a14:imgLayer) */
 }
 /* an object can be saved: it isn't a picture whose file is missing */
 static int obj_saved(const Image *im) { return im->kind != OBJ_PICTURE || media_find(im) > 0; }
@@ -3637,13 +3701,15 @@ static void w_obj(Buf *o, Doc *d, const Image *im, int child, long offx, long of
     int m = media_find(im);
     buf_printf(o, "<pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
                   "<pic:nvPicPr><pic:cNvPr id=\"%lu\" name=\"image%d\"/><pic:cNvPicPr/></pic:nvPicPr>"
-                  "<pic:blipFill><a:blip r:embed=\"rIdImg%d\"/>", (unsigned long)me, m, m);
+                  "<pic:blipFill><a:blip r:embed=\"rIdImg%d\"", (unsigned long)me, m, m);
+    objfx_write_blip(o, im, media_find_orig(im));     /* WP17: its adjustments */
     if (im->crop[0] || im->crop[1] || im->crop[2] || im->crop[3])
       buf_printf(o, "<a:srcRect l=\"%ld\" t=\"%ld\" r=\"%ld\" b=\"%ld\"/>", (long)im->crop[0], (long)im->crop[1], (long)im->crop[2], (long)im->crop[3]);
     buf_adds(o, "<a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr>");
     w_xfrm(o, im, offx, offy, cx, cy);
-    buf_adds(o, "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>");
+    objfx_write_geom(o, im, im->shape < SH_N ? prst_names[im->shape] : NULL);    /* WP17: a picture style's shape */
     if (im->lstyle != PB_NONE && im->lwidth) w_outline(o, im);
+    objfx_write_effects(o, im);
     buf_adds(o, "</pic:spPr></pic:pic>");
   } else if (im->kind == OBJ_GROUP) {
     if (child) buf_printf(o, "<wpg:grpSp><wpg:cNvPr id=\"%lu\" name=\"Group %lu\"/><wpg:cNvGrpSpPr/><wpg:grpSpPr>", (unsigned long)me, (unsigned long)me);
@@ -3658,17 +3724,20 @@ static void w_obj(Buf *o, Doc *d, const Image *im, int child, long offx, long of
     if (child) buf_printf(o, "<wps:cNvPr id=\"%lu\" name=\"Shape %lu\"/>", (unsigned long)me, (unsigned long)me);
     buf_adds(o, im->kind == OBJ_TEXTBOX ? "<wps:cNvSpPr txBox=\"1\"/><wps:spPr>" : "<wps:cNvSpPr/><wps:spPr>");
     w_xfrm(o, im, offx, offy, cx, cy);
-    buf_printf(o, "<a:prstGeom prst=\"%s\"><a:avLst/></a:prstGeom>", prst_names[im->shape < SH_N ? im->shape : 0]);
-    if (im->fill == COLOR_AUTO) buf_adds(o, "<a:noFill/>"); else buf_printf(o, "<a:solidFill><a:srgbClr val=\"%06lX\"/></a:solidFill>", (unsigned long)(im->fill & 0xFFFFFF));
-    w_outline(o, im);
+    objfx_write_geom(o, im, im->shape < SH_N ? prst_names[im->shape] : NULL);    /* WP18: more shapes, icons */
+    objfx_write_fill(o, im, media_find(im));     /* WP18: gradients, picture fills */
+    if (!objfx_write_line(o, im)) w_outline(o, im);     /* (an icon's strokes) */
+    objfx_write_effects(o, im);
     buf_adds(o, "</wps:spPr>");
-    if (im->text && im->text->np) {
+    if (im->text && im->text->np && !objfx_linked_follower(im)) {
       u32 i;
-      buf_adds(o, "<wps:txbx><w:txbxContent>");
+      objfx_write_txbx(o, im);     /* WP18: a chain's first box (id) */
+      buf_adds(o, "<w:txbxContent>");
       for (i = 0; i < im->text->np; i++) w_para_ex(o, d, im->text->p[i], NULL, NULL);
       buf_adds(o, "</w:txbxContent></wps:txbx>");
-    }
-    buf_adds(o, "<wps:bodyPr rot=\"0\" vert=\"horz\" wrap=\"square\" lIns=\"91440\" tIns=\"45720\" rIns=\"91440\" bIns=\"45720\" anchor=\"t\"><a:noAutofit/></wps:bodyPr></wps:wsp>");
+    } else if (objfx_linked_follower(im)) objfx_write_linked(o, im);
+    objfx_write_bodypr(o, im);     /* WP18: text direction, anchoring, insets */
+    buf_adds(o, "</wps:wsp>");
   }
 }
 /* a picture, shape or text box (Doc image k) as a run: in line (wp:inline) or floating (wp:anchor),
@@ -3711,8 +3780,13 @@ static void w_picture(Buf *o, Doc *d, const char *rpr, size_t rl, int k)
     default: buf_adds(o, "<wp:wrapNone/>");
     }
   }
-  buf_printf(o, "<wp:docPr id=\"%lu\" name=\"%s %lu\"", (unsigned long)id, im->kind == OBJ_PICTURE ? "Picture" : im->kind == OBJ_TEXTBOX ? "Text Box" : im->kind == OBJ_GROUP ? "Group" : "Shape",
-             (unsigned long)id);
+  {
+    char nb[80];
+    const char *icn = objfx_docpr_name(im, nb, sizeof nb);    /* WP18: an icon's name says which */
+    if (icn) { buf_printf(o, "<wp:docPr id=\"%lu\" name=\"", (unsigned long)id); xml_escape(o, icn, strlen(icn)); buf_adds(o, "\""); }
+    else buf_printf(o, "<wp:docPr id=\"%lu\" name=\"%s %lu\"", (unsigned long)id, im->kind == OBJ_PICTURE ? "Picture" : im->kind == OBJ_TEXTBOX ? "Text Box" : im->kind == OBJ_GROUP ? "Group" : "Shape",
+                    (unsigned long)id);
+  }
   if (im->alt[0]) { buf_adds(o, " descr=\""); xml_escape(o, im->alt, strlen(im->alt)); buf_adds(o, "\""); }
   buf_adds(o, im->decorative ? "><a:extLst xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:ext uri=\"{C183D7F6-B498-43B3-948B-1728B52AA6E4}\">"   /* (WP24: decorative) */
               "<adec:decorative xmlns:adec=\"http://schemas.microsoft.com/office/drawing/2017/decorative\" val=\"1\"/></a:ext></a:extLst></wp:docPr>" : "/>");
@@ -4682,7 +4756,7 @@ u8 *docx_save(Doc *d, size_t *len)
   u8 *out;
   DocxOut ext;
   /* the pictures the text refers to, numbered for the media folder */
-  free(save_ml); save_ml = NULL; save_nml = 0; save_drawing = 0;
+  media_clear(); save_drawing = 0;
   pack_save_begin(d);                    /* (WP15a) charts' and SmartArt's parts: names and ids */
   if (d->nimages) {
     int w, n;
@@ -4765,7 +4839,8 @@ u8 *docx_save(Doc *d, size_t *len)
   if (save_notes) buf_adds(&ct, "<Override PartName=\"/word/footnotes.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml\"/>");
   if (save_enotes) buf_adds(&ct, "<Override PartName=\"/word/endnotes.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml\"/>");
   if (save_comments) buf_adds(&ct, "<Override PartName=\"/word/comments.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml\"/>");
-  if (save_nml) buf_adds(&ct, "<Default Extension=\"png\" ContentType=\"image/png\"/><Default Extension=\"jpeg\" ContentType=\"image/jpeg\"/>");
+  if (save_nml) buf_adds(&ct, "<Default Extension=\"png\" ContentType=\"image/png\"/><Default Extension=\"jpeg\" ContentType=\"image/jpeg\"/>"
+                             "<Default Extension=\"gif\" ContentType=\"image/gif\"/><Default Extension=\"bmp\" ContentType=\"image/bmp\"/>");     /* (WP17: gif, bmp) */
   buf_add(&ct, ext.ct.data, ext.ct.len);
   buf_adds(&ct, "<Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/></Types>");
   info_write_core(d, &core);             /* (WP24: every core property, core/info.h) */
@@ -4812,7 +4887,7 @@ u8 *docx_save(Doc *d, size_t *len)
       int k;
       for (k = 0; k < save_nml; k++)
         buf_printf(&wr, "<Relationship Id=\"rIdImg%d\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image%d.%s\"/>",
-                   k + 1, k + 1, save_ml[k].type == IMG_PNG ? "png" : "jpeg");
+                   k + 1, k + 1, objfx_ext(save_ml[k].type));
     }
     buf_add(&wr, ext.docrels.data, ext.docrels.len);
     buf_adds(&wr, "</Relationships>");
@@ -4867,7 +4942,7 @@ u8 *docx_save(Doc *d, size_t *len)
         buf_adds(&hr, "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">");
         for (i = 0; i < save_nml; i++)
           buf_printf(&hr, "<Relationship Id=\"rIdImg%d\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image%d.%s\"/>",
-                     i + 1, i + 1, save_ml[i].type == IMG_PNG ? "png" : "jpeg");
+                     i + 1, i + 1, objfx_ext(save_ml[i].type));
         pack_save_rels(&hr);
         buf_adds(&hr, "</Relationships>");
         sprintf(name, "word/_rels/%s%d.xml.rels", pk < HF_N ? "header" : "footer", g * HF_N + pk % HF_N + 1);
@@ -4895,7 +4970,7 @@ u8 *docx_save(Doc *d, size_t *len)
     }
     for (k = 0; k < save_nml && ok; k++) {
       char name[40];
-      sprintf(name, "word/media/image%d.%s", k + 1, save_ml[k].type == IMG_PNG ? "png" : "jpeg");
+      sprintf(name, "word/media/image%d.%s", k + 1, objfx_ext(save_ml[k].type));
       ok = zip_add(&z, name, save_ml[k].data, save_ml[k].len);
     }
   }
@@ -4911,7 +4986,7 @@ u8 *docx_save(Doc *d, size_t *len)
   }
   ok = ok && zip_finish(&z) && !ct.oom && !core.oom;
   free(docxml); free(stxml); free(numxml); buf_free(&ct); buf_free(&core);
-  free(save_ml); save_ml = NULL; save_nml = 0;
+  media_clear();
   free(save_notes); save_notes = NULL;
   free(save_comments); save_comments = NULL;
   free(save_enotes); save_enotes = NULL;

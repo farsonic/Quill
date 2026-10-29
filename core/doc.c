@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include "doc.h"
 #include "field.h"
+#include "objfx.h"
 #include "keep.h"
 #include "image.h"
 #include "chart.h"                 /* (WP15a) Image.pack */
@@ -1304,6 +1305,7 @@ int img_clone(Image *dst, const Image *src, int own)
   int k;
   *dst = *src;
   dst->text = NULL; dst->kids = NULL; dst->nkids = 0; dst->poly = NULL; dst->npoly = 0;
+  dst->fx.raw = NULL;                         /* WP17 */
   pack_ref(dst->pack);                       /* (WP15a) a chart's parts: shared */
   if (own) {
     dst->data = NULL; dst->shared = 0;
@@ -1311,6 +1313,7 @@ int img_clone(Image *dst, const Image *src, int own)
     if (src->data && !dst->data) return 0;
   } else dst->shared = src->data != NULL;     /* the file stays with the entry that brought it */
   if (src->text && !(dst->text = story_copy(src->text))) goto oom;
+  if (src->fx.raw && !(dst->fx.raw = str_dup(src->fx.raw))) goto oom;   /* WP17 */
   if (src->npoly) {
     if (!(dst->poly = (i32 *)malloc(src->npoly * 2 * sizeof(i32)))) goto oom;
     memcpy(dst->poly, src->poly, src->npoly * 2 * sizeof(i32));
@@ -1338,6 +1341,7 @@ void img_release(Image *im)
   for (k = 0; k < im->nkids; k++) img_release(&im->kids[k]);
   free(im->kids); im->kids = NULL; im->nkids = 0;
   free(im->poly); im->poly = NULL; im->npoly = 0;
+  free(im->fx.raw); im->fx.raw = NULL;      /* WP17 */
   pack_unref(im->pack); im->pack = NULL;     /* (WP15a) */
 }
 /* an entry added that the document takes as it is (what it holds is its own) */
@@ -3052,6 +3056,7 @@ int doc_story_begin(Doc *d, int kind, int index, int sect, u32 fpage, u32 fpages
   PageSetup pg = d->page;
   u32 i, n;
   if (e->kind || kind <= SK_NONE || kind > SK_TEXTBOX) return 0;
+  if (kind == SK_TEXTBOX) index = tb_head(d, index);       /* WP18: a linked box's text is its chain's first box's */
   if (kind == SK_TEXTBOX && index >= 0 && index < d->nimages && !d->images[index].text &&
       !(d->images[index].text = (Story *)calloc(1, sizeof(Story)))) return 0;
   if (!(s = doc_story(d, kind, index, sect))) return 0;
@@ -3077,8 +3082,7 @@ int doc_story_begin(Doc *d, int kind, int index, int sect, u32 fpage, u32 fpages
     pg.top = kind == SK_HEADER ? pg.header : pg.footer;
     pg.bottom = pg.top;
   } else if (kind == SK_TEXTBOX) {
-    i32 w = d->images[index].cx - 2 * 144;   /* layout.h's TB_INSET_X each side */
-    if (w < 360) w = 360;
+    i32 w = tb_text_width(&d->images[index], d->images[index].cx, d->images[index].cy);   /* (WP18: its insets, turned text) */
     if (pg.width < w + 1440) pg.width = w + 1440;
     pg.left = (pg.width - w) / 2; pg.right = pg.width - pg.left - w;
   }
