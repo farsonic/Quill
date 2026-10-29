@@ -107,5 +107,7 @@ W = [
 ("Space Before/After", "Abstand Vor/Nach", "Espacement Avant/Après", "Espacio Antes/Después", "Spaziatura Prima/Dopo"),
 ("Tab stops", "Tabstopps", "Taquets de tabulation", "Tabulaciones", "Tabulazioni"),
 ("No bullets or numbering", "Keine Aufzählungszeichen oder Nummerierung", "Pas de puces ni de numérotation", "Sin viñetas ni numeración", "Nessun elenco puntato o numerato"),
+("Text effects", "Texteffekte", "Effets de texte", "Efectos de texto", "Effetti testo"),
+("Underline color", "Unterstreichungsfarbe", "Couleur de soulignement", "Color de subrayado", "Colore sottolineatura"),
 ("Drop cap", "Initiale", "Lettrine", "Letra capital", "Capolettera"),
 ]

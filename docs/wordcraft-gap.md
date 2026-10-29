@@ -81,8 +81,8 @@ Sizes are for one engineer-agent; "ribbon" counts the ⬜ and 🟨 commands of s
 
 - **WP1 Fields** (ribbon 12; 4-6 h). A field model: a field's code and result kept as a range in the text (marks like the comment marks, a `Doc.fields` table); every field read from .docx kept with its code and cached result and written back (`w:fldChar`/`w:instrText`, `w:fldSimple`), so DATE, SEQ, MERGEFIELD, ADDIN (Zotero, Mendeley), IF, DOCPROPERTY, XE, TC survive a save; evaluate DATE, TIME, CREATEDATE, SAVEDATE, AUTHOR, TITLE, FILENAME, NUMPAGES, SECTION, SECTIONPAGES, DOCPROPERTY, SEQ; Insert › Field and Document Property windows; Date & Time with formats (as text or as a DATE field); Update Fields (F9), Show/Toggle Field Codes, Edit Field Code, Unlink, Lock, Unlock, Next/Previous Field; field shading. Files: core/doc.h, core/doc.c, new core/field.c/.h, core/docx.c, core/layout.c, amiga/view.c, new amiga/wp_fields.c, core/pdf.c (results only).
 - **WP5 Review: comments and markup** (ribbon 6; 4-5 h). Comment replies and Resolve (`commentsExtended`, `commentsIds`, `commentsExtensible`, people.xml), a Comments pane with threads; Display for Review (Simple/All/No Markup/Original), Show Markup filters, balloons for deletions; Reviewing pane; Track Changes Options (colours by author, moves); formatting changes tracked and kept (`w:rPrChange`, `w:pPrChange`). Files: core/doc.h (Comment, CharFmt revision), core/doc.c, core/docx.c, amiga/view.c (balloons), amiga/panes.c, new amiga/wp_review.c.
-- **WP9 Character formatting** (ribbon 9; 3-4 h). Hidden text (shown with marks, left out of PDFs), outline, shadow, emboss, engrave, underline colour, character shading kept apart from highlight (`w:shd` on runs), simple text effects; Enclose Characters if Amiga fonts allow; all in the Font window and .docx. Files: core/doc.h (CharFmt `fx` bits, `ulcolor`, `shade`), core/docx.c, core/layout.c, amiga/view.c (drawing), core/pdf.c, amiga/main.c (`open_font()`/`font_done()`), amiga/ribbon.c.
-- **WP10 Paragraph and Home quick commands** (ribbon 16; 3-4 h; after WP9 for core/docx.c). Distributed alignment, Add Space Before / Remove Space After, Horizontal Line (a bottom border paragraph, as Word's AutoFormat makes), Hanging Indent and Remove Hanging (Ctrl+T), Define New Bullet (symbol and font) and Define New Number Format windows, a Sort Text window (descending, number/date, by field), nonbreaking space and hyphen and optional hyphen (keys, layout, marks, .docx `w:noBreakHyphen`/`w:softHyphen`), a Symbol window (a font's characters by code), a Paste Special window, Copy/Paste Formatting commands, the Clipboard pane. Files: amiga/main.c, amiga/ribbon.c, new amiga/wp_para.c, core/doc.h (`AL_DISTRIBUTE`), core/doc.c (sort), core/layout.c, core/docx.c, amiga/view.c (keys).
+- **WP9 Character formatting** (ribbon 9; 3-4 h). Hidden text (shown with marks, left out of PDFs), outline, shadow, emboss, engrave, underline colour, character shading kept apart from highlight (`w:shd` on runs), simple text effects; Enclose Characters if Amiga fonts allow; all in the Font window and .docx. Files: core/doc.h (CharFmt `fx` bits, `ulcolor`, `shade`), core/docx.c, core/layout.c, amiga/view.c (drawing), core/pdf.c, amiga/main.c (`open_font()`/`font_done()`), amiga/ribbon.c. **Done** (branch charpara): all 11 lines ✅ but Text Effects and Typography 🟨 (its fill/glow/reflection galleries are WP19's; those effects are kept verbatim meanwhile). Model: `CharFmt.fx2` (with `fx2mask` for changing single bits), `ulcolor`, `shade`, `rx` (kept run properties); core/charfx.c, core/docx_charfx.c, amiga/wp_charfmt.c, amiga/wp_charpara.h; tests in tests/test_wp9.c.
+- **WP10 Paragraph and Home quick commands** (ribbon 16; 3-4 h; after WP9 for core/docx.c). Distributed alignment, Add Space Before / Remove Space After, Horizontal Line (a bottom border paragraph, as Word's AutoFormat makes), Hanging Indent and Remove Hanging (Ctrl+T), Define New Bullet (symbol and font) and Define New Number Format windows, a Sort Text window (descending, number/date, by field), nonbreaking space and hyphen and optional hyphen (keys, layout, marks, .docx `w:noBreakHyphen`/`w:softHyphen`), a Symbol window (a font's characters by code), a Paste Special window, Copy/Paste Formatting commands, the Clipboard pane. Files: amiga/main.c, amiga/ribbon.c, new amiga/wp_para.c, core/doc.h (`AL_DISTRIBUTE`), core/doc.c (sort), core/layout.c, core/docx.c, amiga/view.c (keys). **Done** (branch charpara): all 17 lines ✅. Core: `AL_DISTRIBUTE`, four more `NF_` formats, `doc_sort_text` (core/charfx.c), optional/nonbreaking hyphens in layout.c and docx.c; UI in amiga/wp_para.c (Sort Text, Symbol, Define New Bullet, Define New Number Format, Paste Special windows, the docked Clipboard pane, Ctrl keys); tests in tests/test_wp10.c.
 - **WP12 Find, Go To, selection and editing keys** (ribbon 12; 4-5 h). Advanced Find: formatting and styles, special characters (^p ^t ^m ^l ^^), wildcards, find in the selection, Highlight All; Go To any target (page, section, line, bookmark, comment, footnote, endnote, field, table, picture, heading); Select Objects, Select Similar Formatting; Go Back (Shift+F5), Extend Selection (F8), column (block) selection, Spike and Insert Spike, Alt+X, Repeat (F4), Undo list. Files: core/doc.c (find), amiga/main.c (`open_find()`, `find_next()`, `open_goto()`), amiga/view.c (`key()`, selection), new amiga/wp_find.c.
 - **WP14a Equations: model, layout, .docx** (ribbon 2; 5-7 h). Read and write OMML (`m:oMath`, `m:oMathPara`: fractions, scripts, radicals, n-ary operators, delimiters, functions, accents, limits, matrices, boxes, bars), lay them out with Quill's fonts (no OpenType MATH needed: build-up rules as in TeX), draw on the screen and in PDFs; Insert › Equation as linear format text. Files: new core/math.c/.h, core/docx.c, core/layout.c, amiga/view.c, core/pdf.c, new amiga/wp_math.c.
 - **WP15a Charts and SmartArt: read, draw, keep** (ribbon 0, beyond-ribbon 2; 4-6 h). Keep chart and SmartArt parts (and their embedded workbooks) through a save, byte for byte with their relationships; draw charts from their cached data (bar, column, line, area, pie, doughnut, scatter; a placeholder with title for others) and SmartArt from its stored drawing (`dsp:drawing`); stop warning about them in `report_lost()`. Files: new core/chart.c, new core/smartart.c, core/docx.c, core/doc.h (`OBJ_CHART`, `OBJ_SMARTART`), core/layout.c, amiga/view.c, core/pdf.c.
@@ -192,13 +192,13 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Paste (Clipboard) `edit.paste` — `ID_PASTEDD` split button / `ID_PASTE`
 - ✅ Paste Keep Text Only (Clipboard) `edit.pasteText` — `ID_PASTETEXT` (`CMD_PASTEAS`)
 - ✅ Paste Merge Formatting (Clipboard) `edit.pasteMerge` — `ID_PASTEMERGE`
-- 🟨 Paste Special (Clipboard) `edit.pasteSpecial` — `ID_PASTESPECDD`: keep source / merge / text only; no Paste Special dialog (RTF, HTML, picture, paste link) [WP10]
+- ✅ Paste Special (Clipboard) `edit.pasteSpecial` — WP10's Paste Special window (`ID_P_PASTESPECIAL`, amiga/wp_para.c; Paste list "Paste Special...", Edit menu): Quill's formatted text, the destination's formatting, unformatted text, and RTF or HTML text on the clipboard read through the RTF/HTML formats' readers (WP28a/c rows of `doc_formats[]`; until they are merged it says no reader); Paste link ➖ (no linked objects on the Amiga), pictures ➖ (the clipboard device carries text only) [WP10]
 - ✅ Cut (Clipboard) `edit.cut` — `ID_CUT`
 - ✅ Copy (Clipboard) `edit.copy` — `ID_COPY`
 - ✅ Format Painter (Clipboard) `edit.formatPainter` — `ID_BRUSH` (`CMD_BRUSH`)
-- 🟨 Copy Formatting (Clipboard) `edit.copyFormat` — only through the format painter (`ID_BRUSH`); no separate Copy Formatting command/key [WP10]
-- 🟨 Paste Formatting (Clipboard) `edit.pasteFormat` — only through the format painter; no separate Paste Formatting command/key [WP10]
-- ⬜ Clipboard Pane (Clipboard) `edit.clipboardPane` [WP10]
+- ✅ Copy Formatting (Clipboard) `edit.copyFormat` — `ID_P_COPYFMT` (Ctrl-Shift-C, Edit menu): the character formatting at the caret, and the paragraph's when the selection takes in a paragraph mark [WP10]
+- ✅ Paste Formatting (Clipboard) `edit.pasteFormat` — `ID_P_PASTEFMT` (Ctrl-Shift-V, Edit menu), one undo step [WP10]
+- ✅ Clipboard Pane (Clipboard) `edit.clipboardPane` — `ID_P_CLIPPANE` (Paste list "Clipboard Pane", Edit menu): docked right of the page, the last 24 things copied or cut in any window (view.c `copy_sel` hands them over), each pasted with its formatting; Paste All, Clear All, Delete [WP10]
 - ✅ Font (Font) `format.font` — `ID_FONTDD` (font list with previews)
 - ✅ Font Size (Font) `format.size` — `ID_SIZEDD`
 - ✅ Increase Font Size (Font) `format.growFont` — `ID_GROW` (`CMD_GROW`)
@@ -209,29 +209,29 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Italic (Font) `format.italic` — `ID_ITALIC`
 - ✅ Underline (Font) `format.underline` — `ID_UNDERLINEDD` (7 kinds, `UL_` in core/doc.h)
 - ✅ Double Underline (Font) `format.doubleUnderline` — `ID_UNDERLINEDD` entry `UL_DOUBLE`
-- ⬜ Underline Color (Font) `format.underlineColor` — `CharFmt` has no underline colour [WP9]
+- ✅ Underline Color (Font) `format.underlineColor` — `CharFmt.ulcolor` (WP9): Font window "Underline colour", Text Effects list and Format › Text Effects › Underline Colour...; `w:u w:color` read and written; drawn on screen and in the PDF [WP9]
 - ✅ Strikethrough (Font) `format.strikethrough` — `ID_STRIKE`
 - ✅ Subscript (Font) `format.subscript` — `ID_SUB`
 - ✅ Superscript (Font) `format.superscript` — `ID_SUPER`
-- ⬜ Text Effects Outline (Font) `format.outline` — no outline font effect [WP9]
-- ⬜ Text Effects Shadow (Font) `format.shadow` — no shadow font effect [WP9]
-- ⬜ Text Effects and Typography (Font) `format.textEffects` — no text effects, ligatures, stylistic sets [WP9]
+- ✅ Text Effects Outline (Font) `format.outline` — `FX2_OUTLINE` (`w:outline`): Text Effects list, Font window, Format menu, right-button menu; hollow letters on screen, stroked (2 Tr) in the PDF [WP9]
+- ✅ Text Effects Shadow (Font) `format.shadow` — `FX2_SHADOW` (`w:shadow`): a grey copy behind, on screen and in the PDF [WP9]
+- 🟨 Text Effects and Typography (Font) `format.textEffects` — the Font group's Text Effects list (`ID_C_EFFECTS`): outline, shadow, emboss, engrave, hidden, shading, underline colour, enclose, standard ligatures and old-style/lining numbers (kept as `w14:ligatures`/`w14:numForm`, not drawn: the Amiga's fonts have no OpenType features). Every other `w14` text effect (fill, outline colour, glow, reflection, 3-D) and `w:effect`/`w:kern` are kept verbatim through a save (`CharFmt.rx`, core/charfx.c); their galleries are WordArt's, WP19 [WP9]
 - ✅ Text Highlight Color (Font) `format.highlight` — `ID_HIGHLIGHT` (16 colours)
 - ✅ Font Color (Font) `format.color` — `ID_FONTCOLOR` (+ More Colours)
-- 🟨 Character Shading (Font) `format.shading` — w:shd on runs is read into the highlight field (`CharFmt.hl`, docx.c "shading behind the text, as highlighting"); no command, and not kept apart from highlight [WP9]
+- ✅ Character Shading (Font) `format.shading` — `CharFmt.shade`, apart from the highlight (`w:shd` on runs, Word's pct patterns as greys): Text Effects list and Format menu (grey on or off, `ID_C_SHADETOGGLE`), Font window "Shading" colours; drawn under the highlight on screen and in the PDF [WP9]
 - ✅ Font Dialog (Font) `format.fontDialog` — `ID_FONTDLG` (`open_font()`)
 - ✅ Double Strikethrough (Font) `format.doubleStrikethrough` — Font window `fo_dstrike` (`FX_DSTRIKE`)
 - ✅ Small Caps (Font) `format.smallCaps` — Font window `fo_small` (`FX_SMALLCAPS`)
 - ✅ All Caps (Font) `format.allCaps` — `ID_CAPS`
-- ⬜ Hidden (Font) `format.hidden` — no hidden text [WP9]
-- ⬜ Emboss (Font) `format.emboss` [WP9]
-- ⬜ Engrave (Font) `format.engrave` [WP9]
+- ✅ Hidden (Font) `format.hidden` — `FX2_HIDDEN` (`w:vanish`): Font window, Text Effects list, Format menu; takes no room unless formatting marks show (then a dotted underline: `Layout.showhidden`, layout.c `LAY_HIDDEN`), left out of the PDF [WP9]
+- ✅ Emboss (Font) `format.emboss` — `FX2_EMBOSS` (`w:emboss`): white letters, a grey edge below right [WP9]
+- ✅ Engrave (Font) `format.engrave` — `FX2_ENGRAVE` (`w:imprint`): white letters, a grey edge above left [WP9]
 - ✅ Character Spacing (Font) `format.spacing` — Font window `fo_spc`/`fo_spcby` (`CharFmt.spacing`)
 - ✅ Character Scale (Font) `format.scale` — Font window `fo_scale`
 - ✅ Character Position (Font) `format.position` — Font window `fo_pos`/`fo_posby`
 - ✅ Character Border (Font) `format.border` — `ID_CBORDER` (`FX_BORDER`)
 - ⬜ Phonetic Guide (Font) `format.phonetic` — no ruby text (w:ruby is not read) [WP27]
-- ⬜ Enclose Characters (Font) `format.enclose` — README 0.14 "Not done" [WP9]
+- ✅ Enclose Characters (Font) `format.enclose` — the Enclose Characters window (`ID_C_ENCLOSE`; Text Effects list, Format menu): one or two characters in a circle, square, triangle or diamond, text shrunk or symbol enlarged; saved as Word's `eq \o\ac(○,字)` field with the symbol and text in runs of their own sizes, read back (also LibreOffice's), drawn on screen and in the PDF [WP9]
 - ✅ Bullets (Paragraph) `para.bullets` — `ID_BULLETS`
 - ✅ Numbering (Paragraph) `para.numbering` — `ID_NUMBERS`
 - ✅ Multilevel List (Paragraph) `para.multilevel` — `ID_MULTILISTDD`
@@ -239,24 +239,24 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Multilevel List Library (Paragraph) `list.multilevelPreset` — `ID_MULTILISTDD` presets (`LP_` in doc.h)
 - ✅ Change List Level (Paragraph) `para.listLevel` — "Next/Previous List Level" in `ID_MULTILISTDD`; Tab/Shift-Tab
 - ✅ Restart Numbering (Paragraph) `para.restartNumbering` — "Restart at 1" (`CMD_LISTRESTART`)
-- 🟨 Define New Bullet (Paragraph) `para.defineBullet` — only via Define New List (`ID_LISTDEF`: level format and text); no bullet picker (symbol, picture bullet, font) [WP10]
-- 🟨 Define New Number Format (Paragraph) `para.defineNumber` — only via Define New List; formats limited to `NF_` decimal/letters/roman [WP10]
+- ✅ Define New Bullet (Paragraph) `para.defineBullet` — the Bullets split button's list (7 bullets, None, Define New Bullet...) and the Define New Bullet window (`ID_P_BULLETDEF`): a bullet from a list, by its code, or from the Symbol window, in a font of its own (written to numbering.xml for bullets now too); picture bullets ➖ (WordCraft's take a symbol and font only) [WP10]
+- ✅ Define New Number Format (Paragraph) `para.defineNumber` — the Numbering split button's list and the Define New Number Format window (`ID_P_NUMDEF`): style (adds `NF_DECIMAL_ZERO` 01, `NF_ORDINAL` 1st, `NF_CARDINAL_TEXT` One, `NF_ORDINAL_TEXT` First to the roman, letter and decimal ones; core/charfx.c `nf_counter`), format text, start, font [WP10]
 - ✅ Set Numbering Value (Paragraph) `para.setNumberingValue` — `ID_NUMVAL`
 - ✅ Decrease Indent (Paragraph) `para.outdent` — `ID_OUTDENT`
 - ✅ Increase Indent (Paragraph) `para.indent` — `ID_INDENT`
-- 🟨 Sort (Paragraph) `para.sort` — `ID_SORT` sorts A to Z only (`CMD_SORT`); no Sort Text dialog (descending, by field, number/date) [WP10]
+- ✅ Sort (Paragraph) `para.sort` — `ID_SORT` opens WP10's Sort Text window: up to three keys (paragraphs or field 1-9, separated by tabs, commas or a character), text/number/date, ascending or descending, header row, case sensitive (core/charfx.c `doc_sort_text`, one undo step); in a table, the rows by a column (`CMD_TSORT`) [WP10]
 - ✅ Show/Hide Marks (Paragraph) `view.marks` — `ID_MARKS`
 - ✅ Align Left (Paragraph) `para.alignLeft` — `ID_LEFT`
 - ✅ Center (Paragraph) `para.alignCenter` — `ID_CENTER`
 - ✅ Align Right (Paragraph) `para.alignRight` — `ID_RIGHT`
 - ✅ Justify (Paragraph) `para.justify` — `ID_JUSTIFY`
-- ⬜ Distributed (Paragraph) `para.distribute` — `AL_` has no distributed [WP10]
+- ✅ Distributed (Paragraph) `para.distribute` — `AL_DISTRIBUTE` (`w:jc distribute`): every line's characters spread between the margins, the last line's too (layout.c `wp10_distribute`), screen and PDF; Ctrl-Shift-J, Format › Paragraph Tools, the Paragraph window (no ribbon button: the Home tab is full at 640 pixels) [WP10]
 - ✅ Line Spacing (Paragraph) `para.lineSpacing` — `ID_SPACINGDD` (1.0-3.0) and the Paragraph window
-- ⬜ Add Space Before (Paragraph) `para.addSpaceBefore` — no toggle (spacing only through Layout `ID_SPACEB` and the Paragraph window) [WP10]
-- ⬜ Remove Space After (Paragraph) `para.removeSpaceAfter` — no toggle [WP10]
+- ✅ Add Space Before (Paragraph) `para.addSpaceBefore` — `ID_P_SPACEBEFORE` (12 pt on or off, as WordCraft): Line Spacing list, Ctrl-0, Format › Paragraph Tools [WP10]
+- ✅ Remove Space After (Paragraph) `para.removeSpaceAfter` — `ID_P_SPACEAFTER` (off, or 8 pt back): Line Spacing list, Format › Paragraph Tools [WP10]
 - ✅ Shading (Paragraph) `para.shading` — `ID_PSHADEDD`
 - ✅ Borders (Paragraph) `para.borders` — `ID_PBORDERDD`, Borders and Shading `ID_BORDERSDLG`
-- ⬜ Horizontal Line (Paragraph) `insert.horizontalLine` [WP10]
+- ✅ Horizontal Line (Paragraph) `insert.horizontalLine` — `ID_P_HLINE`: a 1.5 pt bottom border, as Word's AutoFormat makes (Borders list, Insert menu) [WP10]
 - ✅ Paragraph Dialog (Paragraph) `para.dialog` — `ID_PARADLG` (`open_para()`)
 - ✅ Tabs (Paragraph) `para.tabs` — `ID_TABS` (`open_tabs()`; at most 8 stops a paragraph, `ParaFmt.tabs[8]`)
 - ✅ Keep with Next (Paragraph) `para.keepNext` — Paragraph window `pa_keep`
@@ -264,7 +264,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Page Break Before (Paragraph) `para.pageBreakBefore` — Paragraph window `pa_break`
 - ✅ Widow/Orphan Control (Paragraph) `para.widowControl` — Paragraph window `pa_widow`
 - ⬜ Outline Level (Paragraph) `para.outlineLevel` — `ParaFmt` has no outline level (only "heading N" style names count, core/toc.c) [WP11]
-- 🟨 Hanging Indent (Paragraph) `para.hangingIndent` — Paragraph window "Special: Hanging"; no Hanging Indent command (Ctrl+T) [WP10]
+- ✅ Hanging Indent (Paragraph) `para.hangingIndent` — `ID_P_HANG` (Ctrl-T) and `ID_P_UNHANG` (Ctrl-Shift-T), Format › Paragraph Tools [WP10]
 - ⬜ Right-to-Left Text Direction (Paragraph) `para.rtl` — no bidi [WP27]
 - ⬜ Left-to-Right Text Direction (Paragraph) `para.ltr` — no bidi [WP27]
 - ⬜ Asian Typography (Paragraph) `para.asianTypography` [WP27]
@@ -346,10 +346,10 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Text from File (Text) `insert.textFromFile` [WP23]
 - ✅ Equation (Symbols) `insert.equation` — Insert › Equation (Insert menu, and the Equation button of Insert › Symbols, amiga/wp_math.c): the equation typed in linear format (UnicodeMath subset: a/b, x^2, x_i, √(…), ∑_(i=1)^n▒…, brackets, functions, accents, ■ matrices, █ arrays, □ ▭ ⟡ boxes, "text"; characters outside Latin-1 as \control words), a display equation when the paragraph is empty as in Word; with an equation selected (or "Edit Equation..." on the right-button menu) it is changed. Checked: tests/test_wp14a.c (linear format in and out), emulator screenshot of the dialog [WP14a]
 - ➖ Ink Equation (Symbols) `insert.inkEquation` — WordCraft doesn't have it either
-- 🟨 Symbol (Symbols) `insert.symbol` — `ID_SYMBOLDD`: 17 fixed symbols; no Symbol window with a font's characters or character codes [WP10]
-- 🟨 Nonbreaking Space (Symbols) `text.nbsp` — U+00A0 typed through the keymap (Alt-Space) is kept and doesn't break (layout.c breaks at ' ' only); no command or Ctrl+Shift+Space, not shown as ° with marks [WP10]
-- ⬜ Nonbreaking Hyphen (Symbols) `text.nbHyphen` [WP10]
-- ⬜ Optional Hyphen (Symbols) `text.optionalHyphen` [WP10]
+- ✅ Symbol (Symbols) `insert.symbol` — the Symbol list's "More Symbols..." and WP10's Symbol window (`ID_P_SYMBOL`, Insert menu): every Latin-1 character as a button (what the interface can show), any Unicode character by its code (hex or decimal), inserted in a font chosen, the recently used ones, and a Special Characters page (dashes, spaces, hyphens, quotes, ©, ®, ™...) [WP10]
+- ✅ Nonbreaking Space (Symbols) `text.nbsp` — `ID_P_NBSP` (Ctrl-Shift-Space, Insert › Special Characters, the Symbol window), shown as ° with formatting marks [WP10]
+- ✅ Nonbreaking Hyphen (Symbols) `text.nbHyphen` — U+2011 (`ID_P_NBHYPHEN`, Ctrl-Shift-minus): drawn and measured as a hyphen, never broken at (lines now break after ordinary hyphens), `w:noBreakHyphen` read and written [WP10]
+- ✅ Optional Hyphen (Symbols) `text.optionalHyphen` — U+00AD (`ID_P_SOFTHYPHEN`, Ctrl-minus): no room and not drawn unless a line breaks there (then a hyphen), ¬ with formatting marks, `w:softHyphen` read and written [WP10]
 
 ### Draw (11: ✅ 0 · 🟨 0 · ⬜ 10 · ➖ 1)
 

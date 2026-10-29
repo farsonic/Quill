@@ -12,6 +12,7 @@
 #include "tstyle.h"
 #include "keep.h"
 #include "chart.h"                 /* (WP15a) charts and SmartArt */
+#include "charfx.h"
 #include "notes.h"   /* (WP22b) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a: equations */
@@ -61,6 +62,8 @@ typedef struct {
   i32 *fnid; int *fnidx; int nfn;   /* footnotes: their ids in the file and indexes in Doc.notes */
   i32 *enid; int *enidx; int nen;   /* endnotes the same */
   i32 *cmid; int *cmidx; u8 *cmopen; int ncm;   /* comments the same; whether their range has started */
+  /* (work packages: new fields go below, at the end) */
+  u16 eqsym;                        /* WP9: an enclosure's field code: the size its symbol is written in (0: none yet) */
   /* WP5: a w:rPrChange or w:pPrChange just read, waiting for its run or paragraph; the move being read */
   int w5r; RPr w5rold; char w5rstyle[40]; u16 w5rrid; const char *w5rraw; size_t w5rrawn;
   int w5p; PPr w5pold; char w5pstyle[40]; u16 w5prid; const char *w5praw; size_t w5prawn;
@@ -221,6 +224,7 @@ static void parse_rpr(Xml *x, Ctx *c, RPr *r, char *rstyle)
     if (x->type == XT_END && x->depth < d0) break;
     if (x->type != XT_START) continue;
     v = xml_attr(x, "val");
+    { int w9 = wp9_read_rpr(x, &r->set, &r->cf); if (w9 == 2) continue; if (w9) { xml_skip(x); continue; } }   /* WP9's (charfx.h) */
     if (!strcmp(n, "rStyle") && rstyle && v) { strncpy(rstyle, v, 39); rstyle[39] = 0; }
     else if (!strcmp(n, "b")) set_flag(r, CF_BOLD, onoff(x));
     else if (!strcmp(n, "i")) set_flag(r, CF_ITALIC, onoff(x));
@@ -255,11 +259,6 @@ static void parse_rpr(Xml *x, Ctx *c, RPr *r, char *rstyle)
     else if (!strcmp(n, "color") && v) { r->set |= CM_COLOR; r->cf.color = hexcolor(v); }
     else if (!strcmp(n, "highlight") && v) { r->set |= CM_HL; r->cf.hl = highlight_rgb(v); }
     else if (!strcmp(n, "rPrChange") && rstyle) { wp5_read_rprchange(x, c); continue; }   /* (WP5: a run's) */
-    else if (!strcmp(n, "shd")) {
-      /* shading behind the text, as highlighting (a highlight wins) */
-      const char *fill = xml_attr(x, "fill");
-      if (!(r->set & CM_HL) || !r->cf.hl) { r->set |= CM_HL; r->cf.hl = fill && strcmp(fill, "auto") && hexcolor(fill) != COLOR_AUTO ? HL_ON | hexcolor(fill) : 0; }
-    }
     xml_skip(x);
   }
 }
@@ -283,7 +282,7 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
     else if (!strcmp(n, "jc") && v) {
       p->set |= PM_ALIGN;
       p->pf.align = (u8)(!strcmp(v, "center") ? AL_CENTER : (!strcmp(v, "right") || !strcmp(v, "end")) ? AL_RIGHT :
-                         (!strcmp(v, "both") || !strcmp(v, "distribute")) ? AL_JUSTIFY : AL_LEFT);
+                         !strcmp(v, "both") ? AL_JUSTIFY : !strcmp(v, "distribute") ? AL_DISTRIBUTE : AL_LEFT);
     }
     else if (!strcmp(n, "ind")) {
       i32 h = 0;
@@ -748,8 +747,8 @@ static void parse_lvl(Xml *x, Ctx *c, ListLevel *lv)
     v = xml_attr(x, "val");
     if (!strcmp(x->name, "start") && num(v, &k) && k >= 0 && k < 65536) lv->start = (u16)k;
     else if (!strcmp(x->name, "numFmt") && v) {
-      lv->fmt = (u8)(!strcmp(v, "bullet") ? NF_BULLET : !strcmp(v, "lowerLetter") ? NF_LOWER_LETTER : !strcmp(v, "upperLetter") ? NF_UPPER_LETTER :
-                     !strcmp(v, "lowerRoman") ? NF_LOWER_ROMAN : !strcmp(v, "upperRoman") ? NF_UPPER_ROMAN : !strcmp(v, "none") ? NF_NONE : NF_DECIMAL);
+      int nf = nf_from_name(v);                   /* (WP10's formats too: charfx.c) */
+      lv->fmt = (u8)(nf >= 0 ? nf : NF_DECIMAL);
     }
     else if (!strcmp(x->name, "lvlText") && v) { strncpy(lv->text, v, sizeof lv->text - 1); lv->text[sizeof lv->text - 1] = 0; }
     else if (!strcmp(x->name, "ind")) {
@@ -856,6 +855,7 @@ typedef struct {
 } PCtx;
 /* (the work packages' reading hooks, further down) */
 static int docx_read_block_ext(Xml *x, PCtx *pc), docx_read_elem_ext(Xml *x, PCtx *pc);
+static int wp9_enclose_field(PCtx *pc, const CharFmt *f);     /* (WP9: further down, by the hooks) */
 /* (WP5's, further down) */
 static void wp5_read_rprchange(Xml *x, Ctx *c), wp5_read_pprchange(Xml *x, Ctx *c), wp5_run_change(PCtx *pc, CharFmt *f), wp5_para_change(PCtx *pc);
 static int wp5_read_move(Xml *x, PCtx *pc);
@@ -1362,7 +1362,7 @@ static void parse_run(Xml *x, PCtx *pc)
     }
     if (!strcmp(n, "fldChar")) {
       const char *t = xml_attr(x, "fldCharType");
-      if (t && !strcmp(t, "begin")) { c->field = 1; c->instr[0] = 0; c->fieldkind = 0; c->fieldlink = 0; }
+      if (t && !strcmp(t, "begin")) { c->field = 1; c->instr[0] = 0; c->fieldkind = 0; c->fieldlink = 0; c->eqsym = 0; }
       else if (t && !strcmp(t, "separate")) {
         char url[512];
         c->field = 2;
@@ -1382,14 +1382,18 @@ static void parse_run(Xml *x, PCtx *pc)
         }
         /* a page number field becomes its placeholder; its result is left out */
         if (!c->fieldkind && (c->fieldkind = field_kind(c->instr))) run_text(pc, c->fieldkind == 1 ? FIELD_PAGE : FIELD_PAGES, 3, &f);
+        if (!c->fieldkind && wp9_enclose_field(pc, &f)) c->fieldkind = 4;     /* (WP9: enclosed characters; the result left out) */
       }
-      else if (t && !strcmp(t, "end")) { c->field = 0; c->fieldkind = 0; c->fieldlink = 0; f.link = pc->link; }
+      else if (t && !strcmp(t, "end")) {
+        if (c->field == 1) wp9_enclose_field(pc, &f);    /* (WP9: enclosed characters, written with no result as Word does) */
+        c->field = 0; c->fieldkind = 0; c->fieldlink = 0; f.link = pc->link; }
     }
     else if (c->field == 1 && !strcmp(n, "instrText")) {
       int d1 = x->depth;
       while (xml_next(x) != XT_EOF) {
         if (x->type == XT_END && x->depth < d1) break;
-        if (x->type == XT_TEXT) { size_t l = strlen(c->instr); snprintf(c->instr + l, sizeof c->instr - l, "%.*s", (int)x->text.len, x->text.data); }
+        if (x->type == XT_TEXT) { size_t l = strlen(c->instr); snprintf(c->instr + l, sizeof c->instr - l, "%.*s", (int)x->text.len, x->text.data);
+                                  if (wp9_symbol_run(x->text.data, x->text.len)) c->eqsym = f.size; }   /* (WP9) */
       }
       continue;
     }
@@ -1405,6 +1409,7 @@ static void parse_run(Xml *x, PCtx *pc)
     }
     else if (!strcmp(n, "tab") || !strcmp(n, "ptab")) { Para *p = cur(pc); if (p) para_append(p, "\t", 1, &f); }
     else if (!strcmp(n, "noBreakHyphen")) run_text(pc, "\xE2\x80\x91", 3, &f);
+    else if (!strcmp(n, "softHyphen")) run_text(pc, "\xC2\xAD", 2, &f);      /* (WP10: an optional hyphen, U+00AD) */
     else if (!strcmp(n, "br") || !strcmp(n, "cr")) {
       const char *t = xml_attr(x, "type");
       if (t && (!strcmp(t, "page") || !strcmp(t, "column"))) {
@@ -2606,6 +2611,22 @@ static int docx_read_elem_ext(Xml *x, PCtx *pc)
   /* WP31: */
   return 0;
 }
+/* WP9: a complex field ending (or reaching its result): enclosed characters (eq \o\ac) become their
+   text with the enclosure in its format, the symbol written larger than the text meaning "enlarge
+   symbol" (as Word stores the style). 1 if it was one */
+static int wp9_enclose_field(PCtx *pc, const CharFmt *f)
+{
+  Ctx *c = pc->c;
+  int shape, enlarge;
+  char text[64];
+  CharFmt e = *f;
+  if (!enclose_parse(c->instr, &shape, &enlarge, text, sizeof text) || !text[0]) return 0;
+  if (c->eqsym > f->size) enlarge = 1;
+  e.fx2 = (u16)((e.fx2 & ~(FX2_ENCLOSE | FX2_ENLARGE)) | (shape << 5) | (enlarge ? FX2_ENLARGE : 0));
+  run_text(pc, text, (u32)strlen(text), &e);
+  c->instr[0] = 0;
+  return 1;
+}
 /* (WP22b) settings.xml's w:footnotePr and w:endnotePr: the document's note options */
 static void read_notes_setting(Ctx *c, Xml *x)
 {
@@ -2981,6 +3002,7 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
     if (f->spacing != base->spacing) diff |= CM_SPACING;
     if (f->scale != base->scale) diff |= CM_SCALE;
     if (f->position != base->position) diff |= CM_POSITION;
+    diff |= wp9_rpr_diff(f, base);                  /* WP9's */
   }
   if (w_rstyle) {
     buf_adds(&b, "<w:rStyle w:val=\""); xml_escape(&b, w_rstyle, strlen(w_rstyle)); buf_adds(&b, "\"/>");
@@ -3006,19 +3028,28 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
     buf_printf(&b, "<w:highlight w:val=\"%s\"/>", highlight_name(f->hl) ? highlight_name(f->hl) : "none");
   if ((diff & CM_UNDERLINE) && (!full || (f->flags & CF_UNDERLINE))) {
     static const char *const uls[UL_N] = { "single", "double", "thick", "dotted", "dash", "wave", "words" };
-    buf_printf(&b, "<w:u w:val=\"%s\"/>", f->flags & CF_UNDERLINE ? uls[f->ul < UL_N ? f->ul : 0] : "none");
+    buf_printf(&b, "<w:u w:val=\"%s\"", f->flags & CF_UNDERLINE ? uls[f->ul < UL_N ? f->ul : 0] : "none");
+    if (f->flags & CF_UNDERLINE) wp9_ulcolor_attr(&b, f);     /* (WP9) */
+    buf_adds(&b, "/>");
+  }
+  else if ((diff & CM_ULCOLOR) && (f->flags & CF_UNDERLINE)) {   /* (WP9: the colour alone changed) */
+    static const char *const uls[UL_N] = { "single", "double", "thick", "dotted", "dash", "wave", "words" };
+    buf_printf(&b, "<w:u w:val=\"%s\"", uls[f->ul < UL_N ? f->ul : 0]); wp9_ulcolor_attr(&b, f); buf_adds(&b, "/>");
   }
   if ((diff & CM_SMALLCAPS) && (!full || (f->fx & FX_SMALLCAPS))) buf_adds(&b, f->fx & FX_SMALLCAPS ? "<w:smallCaps/>" : "<w:smallCaps w:val=\"0\"/>");
   if ((diff & CM_DSTRIKE) && (!full || (f->fx & FX_DSTRIKE))) buf_adds(&b, f->fx & FX_DSTRIKE ? "<w:dstrike/>" : "<w:dstrike w:val=\"0\"/>");
+  wp9_write_rpr(&b, f, base, diff, full, 0);          /* WP9's effects */
   if ((diff & CM_SPACING) && (!full || f->spacing)) buf_printf(&b, "<w:spacing w:val=\"%d\"/>", (int)f->spacing);
   if ((diff & CM_SCALE) && (!full || f->scale)) buf_printf(&b, "<w:w w:val=\"%u\"/>", (unsigned)(f->scale ? f->scale : 100));
   if ((diff & CM_POSITION) && (!full || f->position)) buf_printf(&b, "<w:position w:val=\"%d\"/>", (int)f->position);
   if ((diff & CM_CBORDER) && (!full || (f->fx & FX_BORDER)))
     buf_adds(&b, f->fx & FX_BORDER ? "<w:bdr w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/>" : "<w:bdr w:val=\"nil\"/>");
-  if ((diff & CM_HL) && f->hl && !highlight_name(f->hl))     /* not one of Word's highlights: shading */
+  wp9_write_rpr(&b, f, base, diff, full, 1);          /* WP9's shading */
+  if ((diff & CM_HL) && f->hl && !highlight_name(f->hl) && !f->shade)     /* not one of Word's highlights: shading */
     buf_printf(&b, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"%06lX\"/>", (unsigned long)(f->hl & 0xFFFFFF));
   if ((diff & (CM_SUPER | CM_SUB)) && (!full || (f->flags & (CF_SUPER | CF_SUB))))
     buf_adds(&b, f->flags & CF_SUPER ? "<w:vertAlign w:val=\"superscript\"/>" : f->flags & CF_SUB ? "<w:vertAlign w:val=\"subscript\"/>" : "<w:vertAlign w:val=\"baseline\"/>");
+  wp9_write_rpr(&b, f, base, diff, full, 2);          /* WP9's kept ones */
   if (b.len) { buf_adds(o, "<w:rPr>"); buf_add(o, b.data, b.len); buf_adds(o, "</w:rPr>"); }
   buf_free(&b);
 }
@@ -3028,7 +3059,7 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
    schema wants: Word can refuse a file with them out of order. */
 static void w_ppr_body(Buf *b, Doc *d, const ParaFmt *p, const ParaFmt *base, int full)
 {
-  static const char *const jc[4] = { "left", "center", "right", "both" };
+  static const char *const jc[5] = { "left", "center", "right", "both", "distribute" };   /* (AL_DISTRIBUTE: WP10) */
   int k;
   if (!full && p->style) { buf_adds(b, "<w:pStyle w:val=\""); xml_escape(b, d->styles[p->style].id, strlen(d->styles[p->style].id)); buf_adds(b, "\"/>"); }
   if (full ? p->keepnext : p->keepnext != base->keepnext) buf_adds(b, p->keepnext ? "<w:keepNext/>" : "<w:keepNext w:val=\"0\"/>");
@@ -3076,7 +3107,7 @@ static void w_ppr_body(Buf *b, Doc *d, const ParaFmt *p, const ParaFmt *base, in
     else buf_printf(b, " w:firstLine=\"%ld\"/>", (long)p->first);
   }
   if (full ? p->contextual : p->contextual != base->contextual) buf_adds(b, p->contextual ? "<w:contextualSpacing/>" : "<w:contextualSpacing w:val=\"0\"/>");
-  if (full ? p->align != AL_LEFT : p->align != base->align) buf_printf(b, "<w:jc w:val=\"%s\"/>", jc[p->align & 3]);
+  if (full ? p->align != AL_LEFT : p->align != base->align) buf_printf(b, "<w:jc w:val=\"%s\"/>", jc[p->align <= AL_DISTRIBUTE ? p->align : 0]);
 }
 /* ---- WP5 writing (core/review.h): tracked formatting changes, moves, kept property changes */
 static int w5_revid = 500000;           /* ids of the change elements WP5 writes (clear of w_para_ex's) */
@@ -3180,6 +3211,9 @@ static void w_text(Buf *o, const char *s, u32 n)
 {
   u32 i, a = 0;
   for (i = 0; i <= n; i++) {
+    /* (WP10) a nonbreaking hyphen U+2011 and an optional hyphen U+00AD: Word's elements for them */
+    if (i + 1 < n && ((u8)s[i] == 0xC2 && (u8)s[i + 1] == 0xAD)) { w_text(o, s + a, i - a); buf_adds(o, "<w:softHyphen/>"); a = i + 2; i++; continue; }
+    if (i + 2 < n && (u8)s[i] == 0xE2 && (u8)s[i + 1] == 0x80 && (u8)s[i + 2] == 0x91) { w_text(o, s + a, i - a); buf_adds(o, "<w:noBreakHyphen/>"); a = i + 3; i += 2; continue; }
     if (i < n && s[i] != '\t' && s[i] != '\v') continue;
     if (i > a) {
       int keep = s[a] == ' ' || s[i - 1] == ' ';
@@ -3195,7 +3229,8 @@ static void w_text(Buf *o, const char *s, u32 n)
 static const char *const XMLHDR = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n";
 static const char *const WNS = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
                                "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" "
-                               "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\"";
+                               "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" "
+                               "xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\"";   /* (w14: WP9's kept text effects) */
 /* while saving: each picture's media number (0: not used: shapes and text boxes have none, and entries
    sharing a file share its number), and a counter for drawing ids */
 /* the pictures saved, each file once (by its data), numbered for the media folder */
@@ -3259,8 +3294,8 @@ static void w_tcond(Buf *o, Doc *d, const TableStyle *ts, int k)
   static const char *const edges[TE_N] = { "top", "left", "bottom", "right", "insideH", "insideV" };
   const TCond *c = &ts->c[k];
   int e, any = 0;
-  static const char *const jc[4] = { "left", "center", "right", "both" };
-  if (c->align_set) buf_printf(o, "<w:pPr><w:jc w:val=\"%s\"/></w:pPr>", jc[c->align & 3]);
+  static const char *const jc[5] = { "left", "center", "right", "both", "distribute" };   /* (AL_DISTRIBUTE: WP10) */
+  if (c->align_set) buf_printf(o, "<w:pPr><w:jc w:val=\"%s\"/></w:pPr>", jc[c->align <= AL_DISTRIBUTE ? c->align : 0]);
   if (c->cmask) w_rpr_mask(o, d, c->cmask, &c->cf);
   for (e = 0; e < TE_N; e++) if (c->b[e].set) any = 1;
   if (any || (k == TC_WHOLE && ts->mar_set)) {
@@ -3743,7 +3778,8 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
         buf_adds(o, ">");
         w_deleted = f->rev == REV_DEL;
       }
-      w_run(o, d, r.data ? r.data : "", r.len, p->t + start, p->r[k].end - start);
+      if (!wp9_write_enclosed(o, f, r.data ? r.data : "", r.len, p->t + start, p->r[k].end - start))    /* (WP9: enclosed characters, as a field) */
+        w_run(o, d, r.data ? r.data : "", r.len, p->t + start, p->r[k].end - start);
       if (f->rev) { buf_printf(o, "</w:%s>", wp5_rev_tag(f)); w_deleted = 0; }
       buf_free(&r);
     }
@@ -4113,7 +4149,6 @@ static char *w_styles(Doc *d, size_t *len)
    the list's own id, which the paragraphs' numPr refer to. Malloc'd; NULL if out of memory. */
 static char *w_numbering(Doc *d, size_t *len)
 {
-  static const char *const fmts[] = { "bullet", "decimal", "lowerLetter", "upperLetter", "lowerRoman", "upperRoman", "none" };
   Buf o;
   int i, k;
   buf_init(&o);
@@ -4123,10 +4158,10 @@ static char *w_numbering(Doc *d, size_t *len)
     buf_printf(&o, "<w:abstractNum w:abstractNumId=\"%d\"><w:multiLevelType w:val=\"hybridMultilevel\"/>", i);
     for (k = 0; k < 9; k++) {
       ListLevel *v = &d->lists[i].lvl[k];
-      buf_printf(&o, "<w:lvl w:ilvl=\"%d\"><w:start w:val=\"%u\"/><w:numFmt w:val=\"%s\"/><w:lvlText w:val=\"", k, (unsigned)v->start, fmts[v->fmt <= NF_NONE ? v->fmt : 1]);
+      buf_printf(&o, "<w:lvl w:ilvl=\"%d\"><w:start w:val=\"%u\"/><w:numFmt w:val=\"%s\"/><w:lvlText w:val=\"", k, (unsigned)v->start, nf_name(v->fmt));
       xml_escape(&o, v->text, strlen(v->text));
       buf_printf(&o, "\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"%ld\" w:hanging=\"%ld\"/></w:pPr>", (long)v->left, (long)v->hanging);
-      if (v->font[0] && v->fmt != NF_BULLET) { buf_adds(&o, "<w:rPr><w:rFonts w:ascii=\""); xml_escape(&o, v->font, strlen(v->font)); buf_adds(&o, "\" w:hAnsi=\""); xml_escape(&o, v->font, strlen(v->font)); buf_adds(&o, "\"/></w:rPr>"); }
+      if (v->font[0] && (v->fmt != NF_BULLET || wp10_bullet_font(v->font))) {   /* (WP10: a bullet's own font, not a symbol font mapped to Unicode) */ buf_adds(&o, "<w:rPr><w:rFonts w:ascii=\""); xml_escape(&o, v->font, strlen(v->font)); buf_adds(&o, "\" w:hAnsi=\""); xml_escape(&o, v->font, strlen(v->font)); buf_adds(&o, "\"/></w:rPr>"); }
       buf_adds(&o, "</w:lvl>");
     }
     buf_adds(&o, "</w:abstractNum>");

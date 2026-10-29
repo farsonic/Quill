@@ -389,6 +389,7 @@ static int cf_eq(const CharFmt *a, const CharFmt *b)
   return a->flags == b->flags && a->font == b->font && a->size == b->size && a->color == b->color && a->hl == b->hl && a->rev == b->rev && a->rid == b->rid &&
          a->cstyle == b->cstyle && a->fx == b->fx && a->ul == b->ul && a->spacing == b->spacing && a->scale == b->scale && a->position == b->position &&
          a->link == b->link && a->bmark == b->bmark &&
+         a->fx2 == b->fx2 && a->ulcolor == b->ulcolor && a->shade == b->shade && a->rx == b->rx &&   /* (WP9's) */
          a->frev == b->frev && a->move == b->move;       /* (WP5) */
 }
 /* the run covering byte off (past the end: the last run). Points into the paragraph, so it is good
@@ -658,6 +659,11 @@ void cf_apply(CharFmt *c, unsigned mask, const CharFmt *v)
   if (mask & CM_POSITION) c->position = v->position;
   if (mask & CM_LINK) c->link = v->link;
   if (mask & CM_BMARK) c->bmark = v->bmark;
+  /* WP9's: the fx2 bits v->fx2mask names (0: all of them), the underline's colour, shading, kept properties */
+  if (mask & CM_FX2) { u16 m = v->fx2mask ? v->fx2mask : 0xFFFF; c->fx2 = (u16)((c->fx2 & ~m) | (v->fx2 & m)); }
+  if (mask & CM_ULCOLOR) c->ulcolor = v->ulcolor;
+  if (mask & CM_SHADE) c->shade = v->shade;
+  if (mask & CM_RX) c->rx = v->rx;
 }
 /* the CM_ fields mask names set from val on a..b (either order), runs split at the ends; an empty
    paragraph's one run takes it too. One undo step; 0 if the range is empty */
@@ -2197,7 +2203,8 @@ int doc_add_style(Doc *d, const Style *s)
 static const unsigned pf_groups[] = { PM_ALIGN, PM_INDENT, PM_SPACING, PM_LINE, PM_TABS, PM_KEEP, PM_LIST, PM_BREAK, PM_BORDER, PM_SHADE,
                                       PM_PAGINATION, PM_CONTEXT };
 static const unsigned cf_fields[] = { CM_BOLD, CM_ITALIC, CM_UNDERLINE, CM_STRIKE, CM_SUPER, CM_SUB, CM_CAPS, CM_FONT, CM_SIZE, CM_COLOR, CM_HL,
-                                      CM_SMALLCAPS, CM_DSTRIKE, CM_UL, CM_SPACING, CM_SCALE, CM_POSITION, CM_CBORDER };
+                                      CM_SMALLCAPS, CM_DSTRIKE, CM_UL, CM_SPACING, CM_SCALE, CM_POSITION, CM_CBORDER,
+                                      CM_FX2, CM_ULCOLOR, CM_SHADE, CM_RX };
 #define NGROUPS (sizeof pf_groups / sizeof pf_groups[0])
 #define NFIELDS (sizeof cf_fields / sizeof cf_fields[0])
 /* a and b agree in PM_ group g */
@@ -2224,6 +2231,11 @@ static int pf_same(const ParaFmt *a, const ParaFmt *b, unsigned g)
 static int cf_same(const CharFmt *a, const CharFmt *b, unsigned f)
 {
   if (f <= CM_CAPS) return (a->flags & f) == (b->flags & f);
+  /* (WP9's) */
+  if (f == CM_FX2) return a->fx2 == b->fx2;
+  if (f == CM_ULCOLOR) return a->ulcolor == b->ulcolor;
+  if (f == CM_SHADE) return a->shade == b->shade;
+  if (f == CM_RX) return a->rx == b->rx;
   switch (f) {
   case CM_FONT: return a->font == b->font;
   case CM_SIZE: return a->size == b->size;

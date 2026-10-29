@@ -50,6 +50,10 @@ unsigned rv_cf_diff(const CharFmt *a, const CharFmt *b)
   if (a->spacing != b->spacing) m |= CM_SPACING;
   if (a->scale != b->scale) m |= CM_SCALE;
   if (a->position != b->position) m |= CM_POSITION;
+  if (a->fx2 != b->fx2) m |= CM_FX2;                 /* (WP9's) */
+  if (a->ulcolor != b->ulcolor) m |= CM_ULCOLOR;
+  if (a->shade != b->shade) m |= CM_SHADE;
+  if (a->rx != b->rx) m |= CM_RX;
   return m;
 }
 unsigned rv_pf_diff(const ParaFmt *a, const ParaFmt *b)
@@ -526,6 +530,9 @@ void rv_fmt_names(const Doc *d, u16 frev, const CharFmt *now, const ParaFmt *pno
     if (m & (CM_SPACING | CM_SCALE)) add_name(out, cap, tr("Character spacing"));
     if (m & CM_POSITION) add_name(out, cap, tr(now->position > 0 ? "Raised" : now->position < 0 ? "Lowered" : "Not Raised by / Lowered by"));
     if (m & CM_CBORDER) add_name(out, cap, tr("Border"));
+    if (m & CM_FX2) add_name(out, cap, tr((fr->ocf.fx2 ^ now->fx2) & FX2_HIDDEN ? "Hidden" : "Text effects"));
+    if (m & CM_ULCOLOR) add_name(out, cap, tr("Underline color"));
+    if (m & (CM_SHADE | CM_RX)) add_name(out, cap, tr(m & CM_SHADE ? "Shading" : "Text effects"));
     if (m & CM_CSTYLE) {
       snprintf(b, sizeof b, "%s: %s", tr("Style"), now->cstyle && now->cstyle < d->nstyles ? d->styles[now->cstyle].name : tr("Default Paragraph Font"));
       add_name(out, cap, b);

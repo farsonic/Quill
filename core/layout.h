@@ -53,6 +53,7 @@ typedef struct {
   u8 hyph;                    /* laid out with hyphenation */
   u8 shaped;                  /* its lines made room for floating objects (laid out afresh next time) */
   struct Layout *lay;         /* (WP22b) the layout it belongs to (its notes' numbers as shown) */
+  u8 hidden;                  /* WP9: it has hidden text, laid out shown (1) or left out (0); 2: it has none */
   u32 rvsig;                  /* WP5: how tracked changes were shown when it was laid out (rv_sig) */
 } ParaLay;
 /* an object's size on the page (turned: the box round it) */
@@ -126,7 +127,10 @@ typedef struct Layout {
   u32 encap;                  /* room in en */
   i32 sepw;                   /* the line lay_notes or lay_endnotes last gave: its length (twips), 0 none */
   u8 notesep_cont;            /* ... and it is a continuation separator (the text area's width) */
+  u8 showhidden;              /* WP9: hidden text laid out (formatting marks shown), else it takes no room (and the PDF leaves it out) */
 } Layout;
+/* WP9: a box of hidden text that takes no room in L */
+#define LAY_HIDDEN(L, b) (((b)->f.fx2 & FX2_HIDDEN) && !(L)->showhidden)
 
 /* a header or footer laid out for one page (its page fields filled in) */
 typedef struct { Para *p; ParaLay pl; i32 y; } FPara;     /* y: the top of its first line from the page top */
