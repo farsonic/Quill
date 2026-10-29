@@ -6,6 +6,7 @@
 #include "zip.h"
 #include "docx.h"
 #include "image.h"
+#include "objfx.h"
 
 /* Windows-1252's 0x80-0x9F (0: not used) */
 static const u16 cp1252_hi[32] = {
@@ -36,6 +37,7 @@ typedef struct {
   /* hyperlinks' clickable areas, in points from the page's bottom left (link annotations, written
      as objects of their own after the pages) */
   struct PLink { u32 page; i32 x0, y0, x1, y1; u16 link; } *links; int nlinks, linkcap;
+  struct PRich { u8 *rgb, *a; i32 w, h; } *rich; int nrich;   /* WP17/WP18: objects drawn by objfx_render, as /R0... */
 } Pdf;
 /* a link's area (twips, as the content stream draws) noted for the page being written; a box
    just right of the last area of the same link on the same line joins it */
@@ -396,6 +398,32 @@ static void fix4(Buf *b, i32 v)
   long a = v < 0 ? -(long)v : v, w = a / TRIG_ONE, f = (a % TRIG_ONE) * 10000 / TRIG_ONE;
   buf_printf(b, "%s%ld.%04ld ", v < 0 ? "-" : "", w, f);
 }
+/* WP17/WP18: an object with adjustments, a gradient or picture fill or effects drawn by objfx_render
+   at up to 150 dpi, as an image with a soft mask (its centre at cx, cy); 0 if it is not one */
+static int pdf_rich(Pdf *p, Buf *b, const ObjPart *pt, i32 cx, i32 cy)
+{
+  Image t = *pt->im;
+  ObjRaster r;
+  struct PRich *nr;
+  long num = 150, den = 1440, px;
+  i32 k;
+  t.cx = pt->cx; t.cy = pt->cy; t.rot = pt->rot; t.flip = pt->flip;
+  if (!objfx_rich(&t)) return 0;
+  px = ((long)t.cx + 2 * objfx_margin(&t)) * num / den * (((long)t.cy + 2 * objfx_margin(&t)) * num / den);
+  while (px > 2500000L && num > 20) { num = num * 2 / 3; px = px * 4 / 9; }
+  if (!objfx_render(&t, num, den, &r)) return 0;
+  if (!(nr = (struct PRich *)realloc(p->rich, (size_t)(p->nrich + 1) * sizeof *nr))) { objraster_free(&r); return 1; }
+  p->rich = nr; nr += p->nrich;
+  nr->w = r.w; nr->h = r.h;
+  nr->rgb = (u8 *)malloc((size_t)r.w * r.h * 3); nr->a = (u8 *)malloc((size_t)r.w * r.h);
+  if (!nr->rgb || !nr->a) { free(nr->rgb); free(nr->a); objraster_free(&r); return 1; }
+  for (k = 0; k < r.w * r.h; k++) { memcpy(nr->rgb + k * 3, r.px + k * 4, 3); nr->a[k] = r.px[k * 4 + 3]; }
+  buf_printf(b, "q %ld 0 0 %ld %ld %ld cm /R%d Do Q\n", (long)r.w * den / num, (long)r.h * den / num, (long)(cx - obj_w(&t) / 2 + (long)r.ox * den / num),
+             (long)(cy + obj_h(&t) / 2 - (long)r.oy * den / num - (long)r.h * den / num), p->nrich);
+  p->nrich++;
+  objraster_free(&r);
+  return 1;
+}
 /* one simple object (pt: as obj_parts gives it) with its centre at cx, cy in PDF space */
 static void pdf_leaf(Pdf *p, Buf *b, const ObjPart *pt, i32 cx, i32 cy)
 {
@@ -404,6 +432,7 @@ static void pdf_leaf(Pdf *p, Buf *b, const ObjPart *pt, i32 cx, i32 cy)
   int fx = pt->flip & 1 ? -1 : 1, fy = pt->flip & 2 ? -1 : 1, ri;
   int outline = im->lstyle != PB_NONE && im->lwidth;
   if (lw < 5) lw = 5;
+  if (pdf_rich(p, b, pt, cx, cy)) goto text;      /* WP17/WP18 */
   /* the object's own space: its centre at the origin, y up, turned (clockwise on the page) and flipped */
   buf_printf(b, "q 1 0 0 1 %ld %ld cm ", (long)cx, (long)cy);
   fix4(b, c); fix4(b, -sn); fix4(b, sn); fix4(b, c);
@@ -445,13 +474,20 @@ static void pdf_leaf(Pdf *p, Buf *b, const ObjPart *pt, i32 cx, i32 cy)
     }
   }
   buf_adds(b, "Q\n");
-  /* a text box's (or shape's) text, upright in its box */
-  if (im->text) {
+text:
+  /* a text box's (or shape's) text, turned with it (WP18; and a quarter more for text across its height) */
+  if (im->text || im->fx.link) {
     Furn f;
     u32 j, l;
     if (lay_textbox(p->L, im, w, &f)) {
-      i32 top = cy + h / 2, x0 = cx - w / 2;
-      buf_printf(b, "q %ld %ld %ld %ld re W n\n", (long)x0, (long)(cy - h / 2), (long)w, (long)h);
+      int a = (pt->rot + (im->fx.vert == TV_VERT ? 900 : im->fx.vert == TV_VERT270 ? 2700 : 0)) % 3600;
+      i32 tw = im->fx.vert ? h : w, th = im->fx.vert ? w : h, top = cy + th / 2, x0 = cx - tw / 2;
+      if (a) {
+        buf_printf(b, "q 1 0 0 1 %ld %ld cm ", (long)cx, (long)cy);
+        fix4(b, icos(a)); fix4(b, -isin(a)); fix4(b, isin(a)); fix4(b, icos(a));
+        buf_printf(b, "0 0 cm 1 0 0 1 %ld %ld cm\n", (long)-cx, (long)-cy);
+      }
+      buf_printf(b, "q %ld %ld %ld %ld re W n\n", (long)x0, (long)(cy - th / 2), (long)tw, (long)th);
       for (j = 0; j < f.n; j++) {
         i32 ty = f.f[j].y;
         for (l = 0; l < f.f[j].pl.nlines; l++) {
@@ -460,7 +496,7 @@ static void pdf_leaf(Pdf *p, Buf *b, const ObjPart *pt, i32 cx, i32 cy)
           ty += ln->height;
         }
       }
-      buf_adds(b, "Q\n");
+      buf_adds(b, a ? "Q Q\n" : "Q\n");
     }
     lay_furniture_free(&f);
   }
@@ -650,6 +686,7 @@ u8 *pdf_export(Layout *L, size_t *len)
   for (k = 0; k < L->npages; k++) { buf_init(&pages[k]); page_content(&p, k, &pages[k]); }
   pg0 = 4 + 3 * (u32)p.nfonts + (u32)p.nimgs;
   p.objcap = pg0 + 2 * L->npages + (u32)p.nlinks + 1;     /* (the link annotations come after the pages) */
+  p.objcap += 2 * (u32)p.nrich;                          /* (WP17/WP18: then each drawn object and its soft mask) */
   if (!(p.off = (u32 *)calloc(p.objcap, sizeof(u32)))) { for (k = 0; k < L->npages; k++) buf_free(&pages[k]); free(pages); return NULL; }
   {
     /* 1.4, or 1.6 for a whole OpenType font (CFF outlines) embedded */
@@ -736,9 +773,10 @@ u8 *pdf_export(Layout *L, size_t *len)
                (unsigned long)(pg0 + 2 * k + 1));
     for (i = 0; i < (u32)p.nfonts; i++) buf_printf(&p.o, "/F%lu %lu 0 R ", (unsigned long)i, (unsigned long)(4 + 3 * i));
     buf_adds(&p.o, ">>");
-    if (p.nimgs) {
+    if (p.nimgs || p.nrich) {
       buf_adds(&p.o, " /XObject <<");
       for (i = 0; i < (u32)p.nimgs; i++) buf_printf(&p.o, "/Im%lu %lu 0 R ", (unsigned long)i, (unsigned long)(4 + 3 * p.nfonts + i));
+      for (i = 0; i < (u32)p.nrich; i++) buf_printf(&p.o, "/R%lu %lu 0 R ", (unsigned long)i, (unsigned long)(pg0 + 2 * L->npages + p.nlinks + 1 + 2 * i));
       buf_adds(&p.o, ">>");
     }
     buf_adds(&p.o, " >>");
@@ -762,6 +800,18 @@ u8 *pdf_export(Layout *L, size_t *len)
     buf_adds(&p.o, ">> >>\nendobj\n");
   }
   free(p.links);
+  for (i = 0; i < (u32)p.nrich; i++) {
+    /* WP17/WP18: the drawn objects, each with its transparency as a soft mask */
+    u32 on = pg0 + 2 * L->npages + (u32)p.nlinks + 1 + 2 * i;
+    char dict[200];
+    sprintf(dict, "/Type /XObject /Subtype /Image /Width %ld /Height %ld /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask %lu 0 R",
+            (long)p.rich[i].w, (long)p.rich[i].h, (unsigned long)(on + 1));
+    stream(&p, on, dict, p.rich[i].rgb, (size_t)p.rich[i].w * p.rich[i].h * 3);
+    sprintf(dict, "/Type /XObject /Subtype /Image /Width %ld /Height %ld /ColorSpace /DeviceGray /BitsPerComponent 8", (long)p.rich[i].w, (long)p.rich[i].h);
+    stream(&p, on + 1, dict, p.rich[i].a, (size_t)p.rich[i].w * p.rich[i].h);
+    free(p.rich[i].rgb); free(p.rich[i].a);
+  }
+  free(p.rich);
   xref = (u32)p.o.len;
   buf_printf(&p.o, "xref\n0 %lu\n0000000000 65535 f \n", (unsigned long)p.objcap);
   for (i = 1; i < p.objcap; i++) buf_printf(&p.o, "%010lu 00000 n \n", (unsigned long)p.off[i]);
