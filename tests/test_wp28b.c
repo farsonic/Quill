@@ -408,7 +408,7 @@ static void odt_from_libreoffice(void)
   static const char *const names[] = { "word", "lo", "tables", "headers", "notes", "pictures", "equations" };
   int i;
   for (i = 0; i < (int)(sizeof names / sizeof names[0]) + 1; i++) {
-    char a[80], b[80], err[200], what[120];
+    char a[80], b[80], err[200], what[240];
     unsigned lost;
     Doc *d, *e;
     u32 k, same = 0;
