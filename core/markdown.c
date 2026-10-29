@@ -700,12 +700,14 @@ static void inlines(MR *m, const char *s, size_t n)
     if (c == ']' && nopen) {
       int op = opens[nopen - 1];
       int image = m->pc[op].kind == PK_IMGOPEN;
-      char url[1024];
+      char *url;
       size_t k = i + 1;
       const char *def = NULL;
       int ok = 0;
       if (m->pc[op].kind != PK_OPEN && m->pc[op].kind != PK_IMGOPEN) { nopen--; add_text(m, "]", 1); i++; continue; }
-      if (scan_inline_link(s, n, &k, url, sizeof url)) ok = 1;
+      if (!(url = (char *)malloc(n - i + 1))) { free(opens); return; }      /* (a picture's data: URI is long) */
+      url[0] = 0;
+      if (scan_inline_link(s, n, &k, url, n - i + 1)) ok = 1;
       else if (k < n && s[k] == '[') {
         size_t e = k + 1;
         while (e < n && s[e] != ']') e++;
@@ -722,10 +724,12 @@ static void inlines(MR *m, const char *s, size_t n)
       }
       if (ok) {
         finish_link(m, op, ok == 1 ? url : def, image);
+        free(url);
         nopen--;
         i = ok == 1 ? k : (k > i + 1 && s[i + 1] == '[' ? k : i + 1);
         continue;
       }
+      free(url);
       /* not a link: the bracket is text */
       m->pc[op].kind = PK_TEXT; m->pc[op].off = (u32)m->text.len; buf_adds(&m->text, image ? "![" : "["); m->pc[op].len = image ? 2 : 1;
       nopen--;
@@ -1010,9 +1014,9 @@ static Doc *md_load(const u8 *data, size_t len, unsigned *lost, char *err, size_
         size_t l = k + 1;
         while (l < e && s[l] != ']') l++;
         if (l + 1 < e && s[l + 1] == ':') {
-          char url[1024];
+          char *url = (char *)malloc(e - l + 1);
           size_t q = l + 2;
-          if (scan_dest(s, e, &q, url, sizeof url) && url[0]) {
+          if (url && scan_dest(s, e, &q, url, e - l + 1) && url[0]) {
             LinkDef *nd = (LinkDef *)realloc(b->m.defs, (size_t)(b->m.ndefs + 1) * sizeof(LinkDef));
             if (nd) {
               b->m.defs = nd;
@@ -1021,6 +1025,7 @@ static Doc *md_load(const u8 *data, size_t len, unsigned *lost, char *err, size_
               if (nd[b->m.ndefs].url) b->m.ndefs++;
             }
           }
+          free(url);
         }
       }
       i = e + 1;

@@ -179,6 +179,15 @@ static void markdown_roundtrip(void)
   ok("md: footnote", e->nnotes == 1 && e->notes[0].np == 1 && !strcmp(e->notes[0].p[0]->t, "The note's text.") && strstr(md, "[^1]") && strstr(md, "\n[^1]: The note's text.\n"));
   ok("md: what was read is sane", runs_sane(e));
   {
+    /* pictures of any size (their data: URIs are long) */
+    char err[200];
+    unsigned lost;
+    Doc *pd = doc_load_file("tests/data/pictures.docx", &lost, err, sizeof err), *pe = pd ? again(&fmt_markdown, pd, NULL) : NULL;
+    ok("md: pictures.docx's pictures come back whole", pe && pe->nimages == 2 && pe->images[0].len == pd->images[0].len && pe->images[1].len == pd->images[1].len &&
+       !memcmp(pe->images[1].data, pd->images[1].data, pd->images[1].len));
+    doc_free(pe); doc_free(pd);
+  }
+  {
     char *md2 = NULL;
     Doc *g = again(&fmt_markdown, e, &md2);
     ok("md: a second round trip writes the same file", g && md2 && !strcmp(md, md2));
