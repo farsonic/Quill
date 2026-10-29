@@ -370,6 +370,9 @@ typedef struct DocImage {
                                order their anchors come); Word's relativeHeight */
   struct ObjPack *pack;     /* (WP15a) a chart's or SmartArt's parts and model (core/chart.h), shared between the
                                entries copies make (counted); NULL for other objects */
+  /* WP20 (core/ink.h; here rather than at the end so the packages adding fields there merge cleanly) */
+  struct Freeform *ff;      /* a freeform shape's or ink stroke's paths (Image.shape SH_FREEFORM), shared between copies (counted); NULL none */
+  u8 canvas;                /* CANVAS_GROUP: a drawing canvas (a group, wpc:wpc); CANVAS_BG: its background, its first object */
   u8 decorative;            /* (WP24) marked decorative: a screen reader passes over it (Word's adec:decorative) */
 } Image;
 /* an object copied (dst a new entry): its text, objects and outline copied; its picture shared (it
