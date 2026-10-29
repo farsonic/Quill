@@ -913,10 +913,10 @@ static int comments_open(struct Data *d, u32 para)
   }
   while (d->cpara < para) {
     Para *q = doc->p[d->cpara];
-    const char *f = q->len >= 4 ? (const char *)memchr(q->t, 0xF3, q->len) : NULL;
+    const char *f = q->len >= 4 ? (const char *)memchr(q->t, (char)0xF3, q->len) : NULL;
     while (f && f + 4 <= q->t + q->len) {
       if (IS_CSTART(f)) d->copen++; else if (IS_CEND(f) && d->copen > 0) d->copen--;
-      f = (const char *)memchr(f + 1, 0xF3, (size_t)(q->t + q->len - (f + 1)));
+      f = (const char *)memchr(f + 1, (char)0xF3, (size_t)(q->t + q->len - (f + 1)));
     }
     d->cpara++;
   }

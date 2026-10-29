@@ -314,11 +314,11 @@ static const Doc *live_doc; static u32 live_ver, live_serial; static int live_n;
 /* the comments whose start marks are in p, in live_map */
 static void live_para(const Para *p, int nc)
 {
-  const char *f = p->len >= 4 ? (const char *)memchr(p->t, 0xF3, p->len) : NULL;
-  while (f && f + 4 <= p->t + p->len) {
-    if (IS_CSTART(f)) { int n = note_index(f); if (n < nc) live_map[n] = 1; }
-    f = (const char *)memchr(f + 1, 0xF3, (size_t)(p->t + p->len - (f + 1)));
-  }
+  const u8 *t = (const u8 *)p->t;
+  u32 k;
+  /* (a plain loop: vbcc's memchr has been seen to miss bytes above 0x7F) */
+  for (k = 0; k + 4 <= p->len; k++)
+    if (t[k] == 0xF3 && (t[k + 1] & 0xFC) == 0xB8) { int n = note_index(p->t + k); if (n < nc) live_map[n] = 1; k += 3; }
 }
 static const u8 *live(Doc *d)
 {

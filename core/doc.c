@@ -1186,17 +1186,18 @@ int doc_comment(Doc *d, Pos a, Pos b, const char *text, const char *author, cons
   doc_end(d, a);
   return k;
 }
-/* see doc.h; a scan of the whole body for the mark's 4 bytes */
+/* see doc.h; a scan of the whole body for the mark's 4 bytes ((char)0xF3: vbcc's memchr compares the
+   byte as a signed char, so a value above 0x7F must be passed as one) */
 int doc_comment_mark(Doc *d, int k, int end, Pos *at)
 {
   char m[8];
   u32 i;
   cmark_utf8(m, k, end);
   for (i = 0; i < d->np; i++) {
-    const char *f = d->p[i]->len >= 4 ? (const char *)memchr(d->p[i]->t, 0xF3, d->p[i]->len) : NULL;
+    const char *f = d->p[i]->len >= 4 ? (const char *)memchr(d->p[i]->t, (char)0xF3, d->p[i]->len) : NULL;
     while (f && f + 4 <= d->p[i]->t + d->p[i]->len) {
       if (!memcmp(f, m, 4)) { at->para = i; at->off = (u32)(f - d->p[i]->t); return 1; }
-      f = (const char *)memchr(f + 1, 0xF3, (size_t)(d->p[i]->t + d->p[i]->len - (f + 1)));
+      f = (const char *)memchr(f + 1, (char)0xF3, (size_t)(d->p[i]->t + d->p[i]->len - (f + 1)));
     }
   }
   return 0;
