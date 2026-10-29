@@ -23,6 +23,8 @@ static i32 overlap(i32 a0, i32 a1, i32 b0, i32 b1)
   i32 lo = a0 > b0 ? a0 : b0, hi = a1 < b1 ? a1 : b1;
   return hi > lo ? hi - lo : 0;
 }
+/* a stroke runs through a cell when it covers a third of it, or a quarter of an inch */
+static int crosses(i32 ov, i32 len) { return ov * 3 >= len || ov >= 360; }
 /* the last row a cell's merge (down from row) reaches */
 static int chain_end(Doc *d, Pos in, int row, int col)
 {
@@ -61,7 +63,7 @@ int tbl_draw_stroke(Doc *d, Layout *L, u32 page, i32 x0, i32 y0, i32 x1, i32 y1,
     Pos in;
     for (i = 0; i < L->ncells; i++) {
       const CellBox *c = &L->cells[i];
-      if (c->page != page || c->depth || y <= c->y + 60 || y >= c->y + c->h - 60 || overlap(lx, rx, c->x, c->x + c->w) * 3 < c->w) continue;
+      if (c->page != page || c->depth || y <= c->y + 60 || y >= c->y + c->h - 60 || !crosses(overlap(lx, rx, c->x, c->x + c->w), c->w)) continue;
       if (!tab) { tab = c->table; row = c->row; }
       if (c->table == tab && c->row < row) row = c->row;
     }
@@ -69,7 +71,7 @@ int tbl_draw_stroke(Doc *d, Layout *L, u32 page, i32 x0, i32 y0, i32 x1, i32 y1,
     for (i = 0; i < L->ncells && n < MAX_COLS; i++) {
       const CellBox *c = &L->cells[i];
       if (c->page != page || c->table != tab || c->row != row || c->depth || y <= c->y + 60 || y >= c->y + c->h - 60 ||
-          overlap(lx, rx, c->x, c->x + c->w) * 3 < c->w) continue;
+          !crosses(overlap(lx, rx, c->x, c->x + c->w), c->w)) continue;
       if (!n && !box_pos(d, c, &in)) return 0;
       cols[n++] = c->col;
     }
@@ -85,7 +87,7 @@ int tbl_draw_stroke(Doc *d, Layout *L, u32 page, i32 x0, i32 y0, i32 x1, i32 y1,
     Pos in;
     for (i = 0; i < L->ncells; i++) {
       const CellBox *c = &L->cells[i];
-      if (c->page != page || c->depth || x <= c->x + 60 || x >= c->x + c->w - 60 || overlap(ty, by, c->y, c->y + c->h) * 3 < c->h) continue;
+      if (c->page != page || c->depth || x <= c->x + 60 || x >= c->x + c->w - 60 || !crosses(overlap(ty, by, c->y, c->y + c->h), c->h)) continue;
       if (!tab) { tab = c->table; tl = table_left(d, c); if (!box_pos(d, c, &in)) return 0; }
       if (c->table != tab) continue;
       if (c->row < r0) r0 = c->row;
