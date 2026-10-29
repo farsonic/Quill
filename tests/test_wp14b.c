@@ -274,8 +274,27 @@ static void t_numbers(void)
     }
     lay_free(L);
   }
+  {
+    /* a sample for LibreOffice and the emulator: text, an inline equation, numbered display ones */
+    size_t len;
+    u8 *z;
+    Pos q = doc_start(d);
+    doc_insert(d, &q, "Numbered equations made in Quill:\n", 35, NULL);
+    q = doc_end_pos(d);
+    doc_insert(d, &q, "\nInline ", 9, NULL);
+    doc_insert_math(d, &q, math_from_linear("x_i^2+\\sqrt(y)", 0), NULL);
+    doc_insert(d, &q, " and an empty one ", 18, NULL);
+    doc_insert_math(d, &q, math_template_eq(&math_galleries[MG_FRACTION].s[0].t[0]), NULL);
+    doc_insert(d, &q, "\n", 1, NULL);
+    doc_insert_math(d, &q, math_from_linear("f(x)=\\sum_(n=0)^\\infty (f^(n)(a))/n! (x-a)^n#(9)", 1), NULL);
+    math_renumber(d);
+    z = docx_save(d, &len);
+    if (z) file_write("/tmp/quill_wp14b.docx", z, len);
+    free(z);
+  }
   r = docx_again(d, &lost);
-  ok("number: kept through .docx (an equation array of one row with #)", r && r->nmaths == 2 && math_numbered(r->maths[0]) == 2 && math_numbered(r->maths[1]) == 2 && !lost);
+  ok("number: kept through .docx (an equation array of one row with #)", r && r->nmaths == 5 && math_numbered(r->maths[0]) == 2 && math_numbered(r->maths[1]) == 2 && !lost);
+  { char *t = r && r->nmaths == 5 ? lin(r->maths[4]) : NULL; ok("number: the third renumbered (3)", t && strlen(t) > 4 && !strcmp(t + strlen(t) - 4, "#(3)")); free(t); }
   doc_free(r);
   e = math_clone(doc_math(d, k1));
   ok("number: taken away", me_number(e, 0, 0) && !math_numbered(e) && lin_is(e, "E=mc^2"));

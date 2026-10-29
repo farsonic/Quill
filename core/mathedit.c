@@ -1231,6 +1231,7 @@ int me_number(MathEq *e, int on, int n)
     if (r) return 0;
     if (e->nline != 1) return 0;
     if (!(arr = mn_new(MK_EQARR))) return 0;
+    arr->pv[P_EQ_MAXDIST] = MB_ON;           /* (as Word writes a numbered equation's array) */
     row = e->line[0];
     if (!(e->line[0] = mn_new(MK_ROW))) { e->line[0] = row; mn_free(arr); return 0; }
     mn_insert(arr, -1, row);

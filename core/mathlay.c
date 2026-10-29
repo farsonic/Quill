@@ -1383,7 +1383,7 @@ static Bx lay_row(Ctx *c, MNode *row, St st)
         if (!(at = more_atoms(c, at, na, &cap))) return r;
         memset(&at[na], 0, sizeof at[na]);
         at[na].a = c->L->n;
-        if (cp == '&' && rec) at[na].mark = 1;                  /* an equation array's alignment point */
+        if (cp == '&' && rec == 1) at[na].mark = 1;                  /* an equation array's alignment point */
         else if (cp == '#' && c->eqno == row && !hash) { at[na].mark = 3; hash = na + 1; }   /* WP14b: an equation number follows */
         else at[na].b = lay_char(c, n, cp, rem);
         at[na].e = c->L->n; at[na].n = o == 0 ? n : NULL;
@@ -1554,7 +1554,7 @@ const MLay *math_layout(FontSet *fs, Doc *d, int k, const CharFmt *f)
   for (i = 0; i < e->nline; i++) {
     Bx b;
     int nb, s;
-    c.rec = e->display; c.nbrk = 0;
+    c.rec = e->display ? 2 : 0; c.nbrk = 0;      /* (2: a display line: its m:brk breaks it; & aligns only in equation arrays) */
     ln_i0 = L->n;
     b = lay_row(&c, e->line[i], st);
     nb = e->display ? c.nbrk : 0;

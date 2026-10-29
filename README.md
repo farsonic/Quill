@@ -518,6 +518,7 @@ The MUI headers come from Aminet's `dev/mui/mui38dev.lha`. That archive may only
 
 - **Quill:** the code is new, written for this project. It borrows WordCraft's ideas but none of its code.
 - **Its licence:** not chosen yet; the author will choose one before the code is published.
+- **WordCraft (MIT OR Apache-2.0, © the WordCraft authors):** the equation editor (WP14b) takes its gallery templates and symbol sets from WordCraft's `math_gallery.rs` (core/mathgal.c) and follows its `math_edit.rs` rules for moving and deleting in an equation, written again in C (core/mathedit.c). WordCraft's MIT licence asks that its copyright notice and licence go with copies of that material.
 - **TrueType fonts:** Liberation (Red Hat, Google), Carlito and Caladea, under the SIL Open Font License 1.1. See `TrueType/LICENSE-fonts.txt`.
 - **Word list:** `Dict/british-english` is SCOWL's British English list (Copyright 2000-2011 Kevin Atkinson and others), used under its permissive licence: see `Dict/LICENSE-dict.txt`.
 - **Screen fonts:** the screen fonts in `Fonts/` are renderings of those fonts, so they are modified versions under the same licence. They are renamed QuillSerif, QuillSans, QuillMono, QuillSansC and QuillSerifC, as the licence requires of modified versions.

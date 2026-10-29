@@ -393,7 +393,7 @@ static const Item i_hf[] = {
 static const Item i_text[] = { { K_BUTTON, S_LARGE, IC_DATE, 0, "Date", ID_DATE, 0, 0, 0, 0, "Today's date" },
   { K_DROP, S_LARGE, IC_DROPCAP, L_DROPCAP, "Drop Cap", ID_DROPCAPDD, 0, 0, 0, 0, "The paragraph's first letter large, over three lines" } };
 static const Item i_sym[] = {
-  { K_BUTTON, S_SMALL, 0, 0, NULL, ID_WP14A_FIRST, 0, 0, 0, 0, "Insert an equation, typed in linear format", NULL,     /* WP14a (amiga/wp_math.c): Equation */
+  { K_BUTTON, S_SMALL, 0, 0, NULL, ID_WP14B_FIRST, 0, 0, 0, 0, "Insert a new equation (Alt+=); with text selected, the text made an equation", NULL,     /* WP14a's icon; WP14b (amiga/wp_equation.c): a new equation edited in place */
     "ci L 2 3 14 3 L 2 3 1 5 L 5 3 5 13 L 4 13 6 13 L 10 3 10 12 L 10 12 12 13 L 12 13 14 12 ca L 1 15 14 15" },
   { K_DROP, S_LARGE, IC_SYMBOL, L_SYMBOLS, "Symbol", ID_SYMBOLDD, 0, 0, 0, 0, "A symbol" } };
 static const Group insert[] = { { "Pages", G_COLS, i_pages, N(i_pages) }, { "Tables", G_COLS, i_tables, N(i_tables) }, { "Illustrations", G_COLS, i_ill, N(i_ill) },
