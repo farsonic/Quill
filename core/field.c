@@ -12,6 +12,7 @@
 #include "layout.h"
 #include "xml.h"
 #include "info.h"
+#include "refs.h"                 /* (WP2) */
 
 /* ------------------------------------------------------------------ */
 /* the marks and the records */
@@ -981,6 +982,8 @@ static int eval_flat(Doc *d, Paras s, const char *flat, Pos at, const FieldEnv *
   if (cap) out[0] = 0;
   field_name(flat, nm, sizeof nm);
   if (!nm[0]) return FE_KEEP;
+  /* (WP2: REF \n \r \w \p, NOTEREF, STYLEREF, PAGEREF \p; a STYLEREF outside the body shows the page's: kept) */
+  if ((s.p == d->p && !d->edit.kind) || strcmp(nm, "STYLEREF")) { int r = refs_eval(d, nm, flat, at, e, out, cap); if (r >= 0) return r; }
   if (!strcmp(nm, "DATE")) return e ? date_result(flat, &e->now, DEF_DATE, out, cap) : FE_KEEP;
   if (!strcmp(nm, "TIME")) return e ? date_result(flat, &e->now, DEF_TIME, out, cap) : FE_KEEP;
   if (!strcmp(nm, "CREATEDATE") || !strcmp(nm, "SAVEDATE") || !strcmp(nm, "PRINTDATE")) {
@@ -1199,7 +1202,14 @@ static int update_in(Doc *d, Paras *s, int undo, Pos a, Pos b, const FieldEnv *e
     CharFmt f;
     if (at[i].off + 4 > q->len || !IS_FSTART(q->t + at[i].off)) continue;
     k = fmark_index(q->t + at[i].off);
-    if (k >= d->nfields || d->fields[k].locked || !find_end(*s, at[i], &en) || en.para != at[i].para) continue;
+    if (k >= d->nfields || d->fields[k].locked || !find_end(*s, at[i], &en)) continue;
+    if (undo && refs_block_kind(d->fields[k].code)) {
+      /* (WP2) a table of contents, figures or authorities, or an index: its paragraphs made afresh */
+      if (refs_field_update(d, at[i], en, e)) done++;
+      s->p = d->p; s->np = d->np;
+      continue;
+    }
+    if (en.para != at[i].para) continue;
     r = new_result(d, *s, k, at[i], e, seq[i], res, sizeof res, &link);
     if (r == FE_KEEP) continue;
     if (en.off - at[i].off - 4 == strlen(res) && !memcmp(q->t + at[i].off + 4, res, strlen(res))) continue;

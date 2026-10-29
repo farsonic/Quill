@@ -589,6 +589,8 @@ typedef struct Doc {
   struct Field *fields; int nfields;
   u8 fieldcodes;
   struct FieldInfo *finfo;
+  /* WP2 (core/refs.h): the caption labels, AutoCaption and the authorities' categories (settings.xml w:captions) */
+  struct RefsInfo *refs;
 } Doc;
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */

@@ -11,6 +11,7 @@
 #include "image.h"
 #include "chart.h"                 /* (WP15a) Image.pack */
 #include "notes.h"   /* (WP22b) */
+#include "refs.h"    /* (WP2) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a */
 #include "review.h"
@@ -2723,6 +2724,7 @@ void doc_free(Doc *d)
   undo_free(d->undo);
   keep_free(d);
   field_free_all(d);
+  refs_free(d);                  /* (WP2) */
   free(d->wm.pic);          /* (WP22a) */
   notes_free(d);                 /* (WP22b) */
   info_free(d);                  /* (WP24) */

@@ -11,6 +11,7 @@
 #include "pages.h"
 #include "charfx.h"
 #include "notes.h"   /* (WP22b) */
+#include "refs.h"    /* (WP2) */
 #include "math.h"     /* WP14a: equations */
 #include "review.h"
 
@@ -176,7 +177,7 @@ static int make_boxes(Layout *L, Para *p, Work *w, u32 note, u32 enote)
         /* a field's mark has no width; one showing its code shows it at its start mark instead of
            its result */
         j = i + 4; b.kind = BX_MARK;
-        if (IS_FSTART(p->t + i) && field_code_shown(L->d, fmark_index(p->t + i))) { b.kind = BX_FIELD; hide = field_end_in_para(p, i); }
+        if (IS_FSTART(p->t + i) && (field_code_shown(L->d, fmark_index(p->t + i)) || (L->showhidden && refs_mark_field(L->d, fmark_index(p->t + i))))) { b.kind = BX_FIELD; hide = field_end_in_para(p, i); }   /* (WP2: XE, TC, TA show with the marks) */
       } else if (p->t[i] == ' ') {
         while (j < end && p->t[j] == ' ' && j - i < 255) j++;
         b.kind = BX_SPACE; b.nspace = (u8)(j - i);
