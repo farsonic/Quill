@@ -3250,7 +3250,9 @@ static void command(ULONG id)
   case ID_GROUP: DoMethod(view, MUIM_Quill_Command, CMD_GROUP, 0); break;
   case ID_UNGROUP: DoMethod(view, MUIM_Quill_Command, CMD_UNGROUP, 0); break;
   case ID_EDITTEXT: { int k = sel_obj(); if (k >= 0 && doc->images[k].kind != OBJ_PICTURE) story_open(SK_TEXTBOX, k, 0, 0); break; }
-  case ID_OBJEDIT: { int k = sel_obj(); if (k >= 0) { if (doc->images[k].kind == OBJ_PICTURE) open_object(OP_SIZE); else story_open(SK_TEXTBOX, k, 0, 0); } break; }
+  case ID_OBJEDIT: { int k = sel_obj(); if (k >= 0) { if (doc->images[k].kind == OBJ_PICTURE) open_object(OP_SIZE);
+    else if (OBJ_IS_GRAPHIC(doc->images[k].kind)) wp_run(doc->images[k].kind == OBJ_CHART ? ID_WP15B_FIRST + 4 : ID_WP15C_FIRST + 6, WPV_NONE);   /* (WP15b Edit Data, WP15c Text Pane) */
+    else story_open(SK_TEXTBOX, k, 0, 0); } break; }
   case ID_OBJGO: object_done(); break;
   case ID_FONTDLG: open_font(); break;
   case ID_FONTGO: font_done(); break;

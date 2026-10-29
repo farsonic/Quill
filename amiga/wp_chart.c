@@ -32,7 +32,7 @@
 #define Label2(l) QLabel(l, MUIO_Label_DoubleFrame)
 
 enum { ID_CH_INSERT = ID_WP15B_FIRST,       /* (ribbon.c's Illustrations group names it ID_WP15B_FIRST) */
-       ID_CH_INSGO, ID_CH_PICK, ID_CH_TYPE, ID_CH_EDITDATA, ID_CH_DATAGO, ID_CH_DATAL, ID_CH_DATAR, ID_CH_DATAU, ID_CH_DATAD, ID_CH_DATASIZE,
+       ID_CH_INSGO, ID_CH_PICK, ID_CH_TYPE, ID_CH_EDITDATA = ID_WP15B_FIRST + 4 /* (main.c runs it for a double-clicked chart) */, ID_CH_DATAGO, ID_CH_DATAL, ID_CH_DATAR, ID_CH_DATAU, ID_CH_DATAD, ID_CH_DATASIZE,
        ID_CH_SWITCH, ID_CH_SELECT, ID_CH_SELGO, ID_CH_SELPICK, ID_CH_SELUP, ID_CH_SELDOWN, ID_CH_SELDEL, ID_CH_SELNAME, ID_CH_SELSWITCH,
        ID_CH_ELEMENT, ID_CH_QUICK, ID_CH_COLORS, ID_CH_STYLE, ID_CH_FORMAT, ID_CH_FMTGO, ID_CH_FMTELEM, ID_CH_FMTQUICK };
 #define ST_CHART 1                   /* state bit: a chart is selected */
@@ -63,7 +63,7 @@ static int apply(const Chart *c)
   Doc *d = wp_doc();
   int k = sel_index();
   Image im;
-  if (k < 0 || !c) { beep(); return 0; }
+  if (k < 0 || !c || c->kind == CK_OTHER) { beep(); return 0; }     /* (a kind Quill can't write: change its type first) */
   im = d->images[k];
   if (!(im.pack = chart_pack_make(c, d->images[k].pack))) { beep(); return 0; }
   DoMethod(wp_view(), MUIM_Quill_Command, CMD_OBJSET, (ULONG)&im);
