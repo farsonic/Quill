@@ -50,6 +50,8 @@
 #include "wp_charpara.h"                /* (WP9, WP10) */
 #include "theme.h"
 #include "lang.h"
+#include "wp_objects.h"            /* WP17/WP18 */
+#include "../core/objfx.h"
 
 /* (not in the public MUI 3.8 headers) */
 #ifndef MUIM_GoActive
@@ -490,6 +492,7 @@ static void free_pens(struct Data *d, Object *obj)
   ReleasePen(cm, d->pen_text); ReleasePen(cm, d->pen_sel); ReleasePen(cm, d->pen_grid);
   for (i = 0; i < d->ncube; i++) ReleasePen(cm, d->cube[i]);
   d->ncube = 0;
+  wp18_flush();                         /* (WP18: drawings made with those pens) */
   free_pics(d);
   for (i = 0; i < d->ncol; i++) ReleasePen(cm, d->col[i].pen);
   d->ncol = 0;
@@ -856,6 +859,89 @@ static void thick_line(struct RastPort *rp, LONG ax, LONG ay, LONG bx, LONG by, 
   }
 }
 static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Placed *pc, LONG px, LONG py, Pos slo, Pos shi, int sel);
+/* WP18: a text box's text (f, laid out by lay_textbox) turned with its box t, and a quarter more for
+   text running down (src->fx.vert): drawn upright into a bitmap of its own twice, on two different
+   pens, so the pixels that come out the same both times are the text's; those are then copied turned
+   round the box's centre (cx, cy twips on the page at pl, pt) */
+static void draw_text_turned(struct Data *d, Object *obj, struct RastPort *rp, const Image *src, const Image *t, i32 cx, i32 cy, LONG pl, LONG pt, Furn *f)
+{
+  int a = (t->rot + (src->fx.vert == TV_VERT ? 900 : src->fx.vert == TV_VERT270 ? 2700 : 0)) % 3600, pass, depth, k;
+  i32 tw = src->fx.vert ? t->cy : t->cx, th = src->fx.vert ? t->cx : t->cy;
+  LONG W = tx(d, tw) + 2, H = tx(d, th) + 2, x, y, c = icos(a), sn = isin(a), R, ox, oy, bw, bh, bpr;
+  struct BitMap *bm = NULL;
+  struct Layer_Info *li = NULL;
+  struct Layer *ly = NULL;
+  UBYTE *buf[2] = { NULL, NULL }, *row = NULL;
+  Pos none;
+  u32 j, ln;
+  if (W < 2 || H < 2 || W * H > 600000) return;
+  /* a bitmap of our own as the printing code makes them (planar when it can be: its planes then read
+     directly, else pixel by pixel), with a layer to clip the text to it */
+  depth = (int)GetBitMapAttr(rp->BitMap, BMA_DEPTH);
+  if (depth > 8) depth = 8;
+  if ((bm = AllocBitMap((ULONG)W, (ULONG)H, (ULONG)depth, BMF_CLEAR, NULL)) && (li = NewLayerInfo()) &&
+      (ly = CreateUpfrontLayer(li, bm, 0, 0, W - 1, H - 1, LAYERSIMPLE, NULL)) &&
+      (buf[0] = (UBYTE *)AllocVec((ULONG)(W * H), MEMF_ANY)) && (buf[1] = (UBYTE *)AllocVec((ULONG)(W * H), MEMF_ANY)) &&
+      (row = (UBYTE *)AllocVec((ULONG)(2 * (W + H) + 16), MEMF_ANY))) {
+    LONG b0 = d->band0, b1 = d->band1;
+    int planar = (GetBitMapAttr(bm, BMA_FLAGS) & BMF_STANDARD) != 0;
+    bpr = bm->BytesPerRow;
+    none.para = 0xFFFFFFFFUL; none.off = 0;
+    d->band0 = 0; d->band1 = 0;                 /* (inline pictures in the box: drawn whole) */
+    for (pass = 0; pass < 2; pass++) {
+      SetAPen(ly->rp, (ULONG)(pass ? d->pen_shadow : d->pen_page));
+      SetDrMd(ly->rp, JAM1);
+      RectFill(ly->rp, 0, 0, W - 1, H - 1);
+      for (j = 0; j < f->n; j++) {
+        Placed fp;
+        memset(&fp, 0, sizeof fp);
+        fp.para = 0xFFFFFFFFUL; fp.x = -d->pg->left; fp.y = f->f[j].y;
+        for (ln = 0; ln < f->f[j].pl.nlines; ln++) {
+          fp.line = ln;
+          if (fp.y + f->f[j].pl.lines[ln].height <= th + 20) draw_line(d, obj, ly->rp, &f->f[j].pl, &fp, 0, 0, none, none, 0);
+          fp.y += f->f[j].pl.lines[ln].height;
+        }
+      }
+      WaitBlit();
+      for (y = 0; y < H; y++)
+        for (x = 0; x < W; x++) {
+          UBYTE v = 0, m = (UBYTE)(0x80 >> (x & 7));
+          LONG o = y * bpr + (x >> 3);
+          if (planar) { for (k = 0; k < depth; k++) if (((UBYTE *)bm->Planes[k])[o] & m) v |= (UBYTE)(1 << k); }
+          else v = (UBYTE)ReadPixel(ly->rp, x, y);
+          buf[pass][y * W + x] = v;
+        }
+    }
+    d->band0 = b0; d->band1 = b1;
+    /* each pixel of the turned frame from the upright one: across in steps of (cos, -sin) */
+    R = W + H;
+    ox = pl + tx(d, cx) - R / 2; oy = pt + tx(d, cy) - R / 2;
+    bw = GetBitMapAttr(rp->BitMap, BMA_WIDTH); bh = GetBitMapAttr(rp->BitMap, BMA_HEIGHT);
+    for (y = 0; y < R; y++) {
+      LONG yy = oy + y, run = -1;
+      if (yy < 0 || yy >= bh || yy < d->band0 || (d->band1 && yy > d->band1)) continue;
+      for (x = 0; x <= R; x++) {
+        int on = 0;
+        if (x < R) {
+          long dx = 2 * x + 1 - R, dy = 2 * y + 1 - R, u = (dx * c + dy * sn) / TRIG_ONE, v = (dy * c - dx * sn) / TRIG_ONE;   /* (doubled) */
+          LONG su = (LONG)((u + W) >> 1), sv = (LONG)((v + H) >> 1), xx = ox + x;
+          if (su >= 0 && sv >= 0 && su < W && sv < H && xx >= 0 && xx < bw) {
+            LONG o = sv * W + su;
+            if (buf[0][o] == buf[1][o]) { on = 1; row[x] = buf[0][o]; }
+          }
+        }
+        if (on && run < 0) run = x;
+        if (!on && run >= 0) { WriteChunkyPixels(rp, (ULONG)(ox + run), (ULONG)yy, (ULONG)(ox + x - 1), (ULONG)yy, row + run, R); run = -1; }
+      }
+    }
+  }
+  if (row) FreeVec(row);
+  if (buf[0]) FreeVec(buf[0]);
+  if (buf[1]) FreeVec(buf[1]);
+  if (ly) DeleteLayer(0, ly);
+  if (li) DisposeLayerInfo(li);
+  if (bm) { WaitBlit(); FreeBitMap(bm); }
+}
 /* ---- (WP15a) charts and SmartArt: their pack's primitives (pixels at 96 dpi, 15 twips each) */
 /* a polygon (xy: n points, pixels x 16) filled row by row, with room for many crossings (area charts) */
 static void pk_fill(struct RastPort *rp, const LONG *xy, int n)
@@ -993,6 +1079,10 @@ static void draw_leaf(struct Data *d, Object *obj, struct RastPort *rp, const Ob
   if (th < 1) th = 1;
   if (th > 8) th = 8;
   bw = GetBitMapAttr(rp->BitMap, BMA_WIDTH); bh = GetBitMapAttr(rp->BitMap, BMA_HEIGHT);
+  if (objfx_rich(&t)) {                 /* WP17/WP18: adjustments, gradients, picture fills, effects */
+    get_cube(d, obj);
+    if (wp18_draw_rich(rp, &t, d->zoom, pl + tx(d, bx), pt + tx(d, by), d->cube, d->cubelv, d->band0, d->band1)) goto text;
+  }
   if (src->kind == OBJ_PICTURE) {
     LONG w, h, *span, row, x = pl + tx(d, cx), y = pt + tx(d, cy), uw = tx(d, t.cx), uh = tx(d, t.cy);
     UBYTE *px;
@@ -1055,11 +1145,13 @@ static void draw_leaf(struct Data *d, Object *obj, struct RastPort *rp, const Ob
       }
     }
   }
-  /* a text box's (or shape's) text, upright in its box */
-  if (src->text && src->text->np) {
+text:
+  /* a text box's (or shape's) text, upright in its box (WP18: or turned with it, or running down) */
+  if ((src->text && src->text->np) || src->fx.link) {
     Furn f;
     u32 j, ln;
-    if (lay_textbox(d->lay, src, t.cx, &f)) {
+    if (lay_textbox(d->lay, src, t.cx, &f) && (t.rot || src->fx.vert)) draw_text_turned(d, obj, rp, src, &t, cx, cy, pl, pt, &f);
+    else if (f.n) {
       Pos none;
       i32 tx0 = cx - t.cx / 2, ty0 = cy - t.cy / 2;
       none.para = 0xFFFFFFFFUL; none.off = 0;
@@ -1104,6 +1196,20 @@ static void draw_object(struct Data *d, Object *obj, struct RastPort *rp, int k,
     Move(rp, x - 1, y - 1); Draw(rp, x + w, y - 1); Draw(rp, x + w, y + h); Draw(rp, x - 1, y + h); Draw(rp, x - 1, y - 1);
     for (i = 0; i < 8; i++) {
       LONG cx = x + hxs[i] * (w - 1) / 2, cy = y + hys[i] * (h - 1) / 2;
+      if (wp17_cropping(k)) {
+        /* WP17: cropping: black bars on the frame at the corners (two) and the middles (one) */
+        LONG sx = hxs[i] == 2 ? -1 : 1, sy = hys[i] == 2 ? -1 : 1, a0, a1, b0, b1;
+        SetAPen(rp, d->pen_text);
+        if (hys[i] != 1) {
+          a0 = hxs[i] == 1 ? cx - 6 : cx; a1 = hxs[i] == 1 ? cx + 6 : cx + sx * 9; b0 = cy; b1 = cy - sy * 2;
+          RectFill(rp, a0 < a1 ? a0 : a1, b0 < b1 ? b0 : b1, a0 < a1 ? a1 : a0, b0 < b1 ? b1 : b0);
+        }
+        if (hxs[i] != 1) {
+          b0 = hys[i] == 1 ? cy - 6 : cy; b1 = hys[i] == 1 ? cy + 6 : cy + sy * 9; a0 = cx; a1 = cx - sx * 2;
+          RectFill(rp, a0 < a1 ? a0 : a1, b0 < b1 ? b0 : b1, a0 < a1 ? a1 : a0, b0 < b1 ? b1 : b0);
+        }
+        continue;
+      }
       SetAPen(rp, d->pen_text);
       RectFill(rp, cx - 3, cy - 3, cx + 3, cy + 3);
       SetAPen(rp, d->pen_page);
@@ -4040,7 +4146,7 @@ static void drag_rect(struct Data *d, LONG mx, LONG my, i32 *l, i32 *t, i32 *r, 
     if (*r - *l < 120) { if (hx == 0) *l = *r - 120; else *r = *l + 120; }
     if (*b - *t < 120) { if (hy == 0) *t = *b - 120; else *b = *t + 120; }
     /* a picture's corner keeps its shape */
-    if (hx != 1 && hy != 1 && d->odrag_k < d->doc->nimages && d->doc->images[d->odrag_k].kind == OBJ_PICTURE && f->w > 0) {
+    if (hx != 1 && hy != 1 && d->odrag_k < d->doc->nimages && d->doc->images[d->odrag_k].kind == OBJ_PICTURE && f->w > 0 && !wp17_cropping(d->odrag_k)) {
       i32 nh = (i32)((long)(*r - *l) * f->h / f->w);
       if (hy == 0) *t = *b - nh; else *b = *t + nh;
     }
@@ -4344,6 +4450,13 @@ static void obj_drop(struct Data *d, Object *obj, LONG mx, LONG my)
   }
   drag_rect(d, mx, my, &l, &t, &r, &b);
   if (l == f->x && t == f->y && r == f->x + f->w && b == f->y + f->h) return;
+  if (d->odrag != 9 && wp17_cropping(d->odrag_k) && f->w > 0 && f->h > 0) {
+    /* WP17: cropped by its handles, the picture staying where it was */
+    wp17_crop_drop(&m, f, l, t, r, b);
+    if (f->wrap != WRAP_INLINE && (l != f->x || t != f->y)) lay_float_moved(d->lay, f, &m, l, t);
+    DoMethod(obj, MUIM_Quill_Command, CMD_OBJSET, (ULONG)&m);
+    return;
+  }
   if (d->odrag != 9 && f->w > 0 && f->h > 0) {
     /* the box stretched: the object stretched along its own sides as much as they lie across and down */
     long c = icos(m.rot), sn = isin(m.rot), c2 = c * c / TRIG_ONE, s2 = sn * sn / TRIG_ONE;

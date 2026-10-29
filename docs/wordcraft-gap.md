@@ -6,8 +6,8 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 ## Summary
 
-- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 500 of them applicable to Quill. Quill has **251** (✅), **26** partly (🟨) and lacks **223** (⬜); 31 are ➖. So Quill covers 50% of the applicable commands fully and 55% at least in part.
-- **Beyond the ribbon (section 2):** 152 features: ✅ 40, 🟨 43, ⬜ 52, ➖ 17.
+- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 500 of them applicable to Quill. Quill has **314** (✅), **12** partly (🟨) and lacks **174** (⬜); 31 are ➖. So Quill covers 63% of the applicable commands fully and 65% at least in part.
+- **Beyond the ribbon (section 2):** 152 features: ✅ 48, 🟨 43, ⬜ 44, ➖ 17.
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
 - **Missing whole:** Mailings (22), the Equation tab and equations (21), Outline view and Outlining (14), Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
 - **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; content controls, charts, SmartArt, equations, OLE objects and VML pictures are dropped (formatting revisions are kept since WP5); no AutoSave or recovery (WP24 adds them). These are in priority 1 below.
@@ -15,49 +15,49 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 | Tab | Commands | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|---|
-| File | 23 | 9 | 2 | 10 | 2 |
-| Quick Access | 5 | 2 | 0 | 3 | 0 |
+| File | 23 | 16 | 1 | 4 | 2 |
+| Quick Access | 5 | 5 | 0 | 0 | 0 |
 | Title Bar | 1 | 0 | 0 | 1 | 0 |
-| Home | 105 | 72 | 11 | 21 | 1 |
-| Insert | 53 | 27 | 3 | 17 | 6 |
+| Home | 105 | 96 | 2 | 6 | 1 |
+| Insert | 53 | 32 | 1 | 14 | 6 |
 | Draw | 11 | 0 | 0 | 10 | 1 |
 | Design | 10 | 9 | 0 | 1 | 0 |
 | Layout | 22 | 19 | 0 | 3 | 0 |
-| References | 25 | 6 | 2 | 16 | 1 |
+| References | 25 | 8 | 2 | 14 | 1 |
 | Mailings | 23 | 0 | 0 | 22 | 1 |
 | Review | 31 | 21 | 1 | 7 | 2 |
-| View | 29 | 17 | 3 | 4 | 5 |
+| View | 29 | 18 | 2 | 4 | 5 |
 | Read Mode | 3 | 0 | 0 | 2 | 1 |
 | Developer | 11 | 0 | 0 | 11 | 0 |
 | Zotero | 7 | 0 | 0 | 0 | 7 |
 | Help | 4 | 1 | 0 | 0 | 3 |
 | Table Design | 8 | 4 | 0 | 4 | 0 |
 | Table Layout | 33 | 26 | 1 | 6 | 0 |
-| Picture Format | 14 | 5 | 0 | 9 | 0 |
-| Shape Format | 13 | 3 | 1 | 9 | 0 |
+| Picture Format | 14 | 14 | 0 | 0 | 0 |
+| Shape Format | 13 | 9 | 0 | 4 | 0 |
 | Header & Footer | 5 | 5 | 0 | 0 | 0 |
 | Equation | 22 | 1 | 0 | 20 | 1 |
 | Outlining | 13 | 0 | 0 | 13 | 0 |
 | SmartArt Design | 7 | 0 | 0 | 7 | 0 |
 | Chart Design | 5 | 0 | 0 | 5 | 0 |
-| Editing | 41 | 23 | 2 | 16 | 0 |
+| Editing | 41 | 29 | 2 | 10 | 0 |
 | Tools | 7 | 1 | 0 | 6 | 0 |
-| **All** | **531** | **251** | **26** | **223** | **31** |
+| **All** | **531** | **314** | **12** | **174** | **31** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
-| 2.1 File formats | 1 | 5 | 10 | 3 |
+| 2.1 File formats | 5 | 5 | 6 | 3 |
 | 2.2 DOCX features | 8 | 15 | 14 | 1 |
-| 2.3 Layout | 15 | 4 | 5 | 0 |
-| 2.4 Editing | 4 | 11 | 12 | 7 |
+| 2.3 Layout | 16 | 3 | 5 | 0 |
+| 2.4 Editing | 7 | 11 | 9 | 7 |
 | 2.5 Interface: panes, toolbars and the window | 10 | 2 | 5 | 2 |
-| 2.6 The Options dialog | 1 | 3 | 4 | 1 |
+| 2.6 The Options dialog | 1 | 4 | 3 | 1 |
 | 2.7 Keyboard shortcuts | 1 | 0 | 2 | 0 |
 | 2.8 Interface and proofing languages | 0 | 3 | 0 | 0 |
 | 2.9 Zotero | 0 | 0 | 0 | 1 |
 | 2.10 Control protocol, MCP, command line, scripting | 0 | 0 | 0 | 1 |
 | 2.11 Network and cloud features (left out on purpose) | 0 | 0 | 0 | 1 |
-| **All** | **40** | **43** | **52** | **17** |
+| **All** | **48** | **43** | **44** | **17** |
 
 ## Work packages
 
@@ -149,7 +149,7 @@ core/docx.c is touched by most lanes. Each package should add its reading and wr
 
 In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help tabs from its ribbon code. Each line: the mark, WordCraft's command (its group) and command id, Quill's evidence or what is missing, and the work package. WordCraft has no separate Header & Footer tab (those tools are in its catalogue as a pseudo-tab, shown here as such); Quill has Header & Footer and Edit Text contextual tabs of its own. Editing and Tools are WordCraft's keyboard and dialog commands that have no ribbon button.
 
-### File (23: ✅ 9 · 🟨 2 · ⬜ 10 · ➖ 2)
+### File (23: ✅ 16 · 🟨 1 · ⬜ 4 · ➖ 2)
 
 - ✅ New (Backstage) `file.new` — `ID_NEW` (File menu Amiga-N, File page New)
 - ✅ Open (Backstage) `file.open` — `ID_OPEN`
@@ -175,7 +175,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Save as Template (Backstage) `file.saveTemplate` — no .dotx writing [WP23]
 - ⬜ Personal Templates (Backstage) `file.listTemplates` [WP23]
 
-### Quick Access (5: ✅ 2 · 🟨 0 · ⬜ 3 · ➖ 0)
+### Quick Access (5: ✅ 5 · 🟨 0 · ⬜ 0 · ➖ 0)
 
 - ✅ Undo (Toolbar) `edit.undo` — `ID_UNDO` (Amiga-Z, tab strip button)
 - ✅ Undo List (Toolbar) `edit.undoTo` — Edit › Find and Select › Undo List... / Redo List... (`ID_FX_UNDOLIST`, wp_find.c): the steps named by `doc_undo_step()` (Typing, Delete, Formatting, Replace All...), choosing one undoes it and those after it [WP12]
@@ -187,7 +187,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 
 - ⬜ Search (Tell Me) (Search) `tools.search` — no command search [WP26]
 
-### Home (105: ✅ 72 · 🟨 11 · ⬜ 21 · ➖ 1)
+### Home (105: ✅ 96 · 🟨 2 · ⬜ 6 · ➖ 1)
 
 - ✅ Paste (Clipboard) `edit.paste` — `ID_PASTEDD` split button / `ID_PASTE`
 - ✅ Paste Keep Text Only (Clipboard) `edit.pasteText` — `ID_PASTETEXT` (`CMD_PASTEAS`)
@@ -295,7 +295,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ➖ Dictate (Voice) `tools.dictate` — WordCraft doesn't have it either (cloud speech service)
 - ✅ Editor (Editor) `review.editor` — WordCraft's Editor runs Spelling: Quill `ID_SPELL`
 
-### Insert (53: ✅ 27 · 🟨 3 · ⬜ 17 · ➖ 6)
+### Insert (53: ✅ 32 · 🟨 1 · ⬜ 14 · ➖ 6)
 
 - ✅ Cover Page (Pages) `insert.coverPage` — `ID_COVERDD` (3 designs, remove)
 - ✅ Blank Page (Pages) `insert.blankPage` — `ID_BLANKPAGE`
@@ -308,7 +308,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Pictures (Illustrations) `insert.picture` — `ID_PICTURE` (PNG, JPEG only)
 - ➖ Online Pictures (Illustrations) `insert.onlinePicture` — WordCraft doesn't have it either (online service)
 - ✅ Shapes (Illustrations) `insert.shape` — `ID_SHAPESDD` (24 presets, `SH_` in doc.h)
-- ⬜ Icons (Illustrations) `insert.icon` [WP18]
+- ✅ Icons (Illustrations) `insert.icon` — `ID_SH_ICONS` (amiga/wp_shapes.c): a window of 52 icons in six categories, drawn in Quill's own icon language (core/shapex.c), inserted as a shape in its own colour; saved as `a:custGeom` named "Icon: …" in `wp:docPr`, which LibreOffice and Word draw and Quill reads back as the icon [WP18]
 - ➖ 3D Models (Illustrations) `insert.model3d` — WordCraft doesn't have it either
 - ⬜ SmartArt (Illustrations) `insert.smartArt` [WP15c]
 - ⬜ Chart (Illustrations) `insert.chart` [WP15b]
@@ -403,7 +403,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Group (Arrange) `arrange.group` — `ID_GROUPDD`, `ID_GROUP`, `ID_UNGROUP`
 - ✅ Rotate (Arrange) `arrange.rotate` — `ID_OBJROTDD`
 
-### References (25: ✅ 6 · 🟨 2 · ⬜ 16 · ➖ 1)
+### References (25: ✅ 8 · 🟨 2 · ⬜ 14 · ➖ 1)
 
 - 🟨 Table of Contents (Table of Contents) `references.toc` — `ID_TOCDD`/`ID_TOC` (one built-in format, levels 1-3); no Custom Table of Contents dialog (levels, leaders, page numbers, styles) [WP2]
 - ✅ Add Text (Table of Contents) `references.addText` — `ID_ADDTEXTDD` (`add_text()`)
@@ -491,7 +491,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Restrict Editing (Protect) `review.restrict` [WP7]
 - ⬜ Hide Ink (Ink) `review.hideInk` — (no ink) [WP20]
 
-### View (29: ✅ 17 · 🟨 3 · ⬜ 4 · ➖ 5)
+### View (29: ✅ 18 · 🟨 2 · ⬜ 4 · ➖ 5)
 
 - ✅ Read Mode (Views) `view.readMode` — `ID_VREAD`
 - ✅ Print Layout (Views) `view.printLayout` — `ID_VPRINT`
@@ -607,38 +607,38 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Convert to Text (Data) `table.toText` — `ID_TOTEXT`
 - ✅ Formula (Data) `table.formula` — `ID_FORMULA`
 
-### Picture Format (14: ✅ 5 · 🟨 0 · ⬜ 9 · ➖ 0)
+### Picture Format (14: ✅ 14 · 🟨 0 · ⬜ 0 · ➖ 0)
 
-- ⬜ Remove Background (Adjust) `picture.removeBackground` [WP17]
-- ⬜ Corrections (Adjust) `picture.corrections` [WP17]
-- ⬜ Color (Adjust) `picture.color` [WP17]
-- ⬜ Artistic Effects (Adjust) `picture.effects` [WP17]
-- ⬜ Transparency (Adjust) `picture.transparency` [WP17]
-- ⬜ Compress Pictures (Adjust) `picture.compress` [WP17]
-- ⬜ Change Picture (Adjust) `picture.change` [WP17]
-- ⬜ Reset Picture (Adjust) `picture.reset` [WP17]
-- ⬜ Picture Styles (Picture Styles) `picture.style` — Quill's "Picture Styles" group holds only Border/Weight/Dashes; no style presets (frames, shadows, soft edges) [WP17]
+- ✅ Remove Background (Adjust) `picture.removeBackground` — `ID_PIC_REMOVEBG` (amiga/wp_picture.c): the corner colour and those near it made transparent (`ObjFx.bgkey`); saved drawn into the picture with `a14:backgroundRemoval`, Set Transparent Color as `a:clrChange` [WP17]
+- ✅ Corrections (Adjust) `picture.corrections` — `ID_PIC_CORRDD` (sharpen/soften, brightness, contrast) and the Format Picture pane's sliders; `a:lum`, `a14:sharpenSoften` [WP17]
+- ✅ Color (Adjust) `picture.color` — `ID_PIC_COLORDD`: saturation, temperature, greyscale, sepia, washout, black and white, recolour dark/light, Set Transparent Color; `a:grayscl`, `a:biLevel`, `a:duotone`, `a:clrChange`, `a14:saturation`, `a14:colorTemperature` [WP17]
+- ✅ Artistic Effects (Adjust) `picture.effects` — `ID_PIC_ARTDD`: blur, pencil greyscale, line drawing, photocopy, cutout, film grain, glow edges, mosaic (core/objfx.c); saved drawn into the picture with the original as `a14:imgLayer`, as Word does [WP17]
+- ✅ Transparency (Adjust) `picture.transparency` — `ID_PIC_ALPHADD`, `a:alphaModFix`; see-through on the screen (ordered pattern) and in PDFs (soft mask) [WP17]
+- ✅ Compress Pictures (Adjust) `picture.compress` — `ID_PIC_COMPRESS`: 220/150/96 ppi, delete cropped areas, this picture or all; JPEG and PNG writers from Easel (core/picfmt.c) [WP17]
+- ✅ Change Picture (Adjust) `picture.change` — `ID_PIC_CHANGE` (size and formatting kept) [WP17]
+- ✅ Reset Picture (Adjust) `picture.reset` — `ID_PIC_RESETDD` (Reset Picture, Reset Picture & Size) [WP17]
+- ✅ Picture Styles (Picture Styles) `picture.style` — `ID_PIC_STYLEDD`: 14 presets (frames, drop and centre shadows, rounded and snipped corners, ovals, soft edges, metal, rotated), and Picture Effects `ID_PIC_EFFECTSDD`; the picture's geometry (`a:prstGeom`) and `a:effectLst` read and written [WP17]
 - ✅ Picture Border (Picture Styles) `picture.border` — `ID_OBJLINEDD`, `ID_OBJWEIGHTDD`, `ID_OBJDASHDD`
 - ✅ Alt Text (Accessibility) `picture.altText` — `ID_ALTTEXT`
-- ✅ Crop (Size) `picture.crop` — `ID_OBJCROP` (by numbers; no crop by dragging)
+- ✅ Crop (Size) `picture.crop` — `ID_OBJCROP` (by numbers); WP17: crop by dragging the handles (`ID_PIC_CROP`, crop marks on the frame), Crop to Shape, Aspect Ratio
 - ✅ Size (Size) `picture.size` — `ID_OBJSIZE`
 - ✅ Rotation (Size) `arrange.rotation` — `ID_OBJROTDD`, round handle
 
-### Shape Format (13: ✅ 3 · 🟨 1 · ⬜ 9 · ➖ 0)
+### Shape Format (13: ✅ 9 · 🟨 0 · ⬜ 4 · ➖ 0)
 
 - ✅ Alt Text (Accessibility) `object.altText` — `ID_ALTTEXT` (Shape Format's Accessibility group, `o_salt`)
 - ✅ Shape Fill (Shape Styles) `shape.fill` — `ID_OBJFILLDD` (solid colours)
-- ⬜ Shape Fill Gradient (Shape Styles) `shape.fill` [WP18]
-- 🟨 Format Shape Pane (Shape Styles) `view.formatShapePane` — Format window `ID_OBJLAYOUT` (`open_object()`: size, rotation, crop, position, wrapping, alt text) is a window, and has no fill, line or effects [WP18]
+- ✅ Shape Fill Gradient (Shape Styles) `shape.fill` — `ID_SH_GRADDD` (light and dark variations, linear, radial, from the corners), the pane's gradient settings; picture fills `ID_SH_PICFILL`; `a:gradFill`, a shape's `a:blipFill` [WP18]
+- ✅ Format Shape Pane (Shape Styles) `view.formatShapePane` — `ID_SH_PANE`: a pane window beside the page that follows the selection and changes the object as you set it (fill, line, shadow, glow, soft edges, size, rotation, text box alignment, direction and margins; for a picture its corrections, colour, transparency and artistic effect) [WP18]
 - ✅ Shape Outline (Shape Styles) `shape.outline` — `ID_OBJLINEDD`
-- ⬜ Shape Effects (Shape Styles) `shape.effects` [WP18]
+- ✅ Shape Effects (Shape Styles) `shape.effects` — `ID_SH_EFFECTSDD`: shadows, glows, soft edges (`a:outerShdw`, `a:glow`, `a:softEdge`), drawn on the screen and in PDFs [WP18]
 - ⬜ WordArt Quick Styles (WordArt Styles) `wordArt.style` [WP19]
 - ⬜ Text Fill (WordArt Styles) `wordArt.textFill` [WP19]
 - ⬜ Text Outline (WordArt Styles) `wordArt.textOutline` [WP19]
 - ⬜ Text Effects Transform (WordArt Styles) `wordArt.transform` [WP19]
-- ⬜ Text Direction (Text) `shape.textDirection` [WP18]
-- ⬜ Align Text (Text) `shape.alignText` — no text anchoring (top/middle/bottom) in text boxes [WP18]
-- ⬜ Create Link (Text) `shape.link` — no linked text boxes [WP18]
+- ✅ Text Direction (Text) `shape.textDirection` — `ID_SH_TEXTDIRDD` (`bodyPr vert`: across, turned 90° or 270°, drawn turned on the screen and in PDFs) [WP18]
+- ✅ Align Text (Text) `shape.alignText` — `ID_SH_ALIGNDD` (`bodyPr anchor`: top, middle, bottom; core/objtext.c) [WP18]
+- ✅ Create Link (Text) `shape.link` — `ID_SH_LINK` (then click the empty box) and Break Link `ID_SH_UNLINK`; the chain's text flows from box to box (core/objtext.c), `wps:txbx id`/`wps:linkedTxbx` read and written [WP18]
 
 ### Header & Footer (5: ✅ 5 · 🟨 0 · ⬜ 0 · ➖ 0)
 
@@ -707,7 +707,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ⬜ Legend (Chart Layouts) `chart.legend` [WP15b]
 - ⬜ Data Labels (Chart Layouts) `chart.dataLabels` [WP15b]
 
-### Editing (41: ✅ 23 · 🟨 2 · ⬜ 16 · ➖ 0)
+### Editing (41: ✅ 29 · 🟨 2 · ⬜ 10 · ➖ 0)
 
 - ✅ Type Text (Keyboard) `text.insert` — view.c `key()`, `CMD_TEXT`
 - ✅ New Paragraph (Keyboard) `text.newParagraph` — Return
@@ -784,7 +784,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ✅ **Export page as image (.png)** — WP29: Export Image writes PNG or IFF ILBM pages (core/pngwrite.c, core/raster.c), with Export Options for the pages and resolution [WP29]
 - ⬜ **Encrypted .docx (open and save with a password)** — WordCraft crates/docx/src/crypt (ECMA-376 agile AES-256, standard encryption). Quill none.
 - ⬜ **Spreadsheets (.xlsx, .xls, .ods, .csv) as mail-merge recipient lists** — WordCraft crates/formats/src/sheet. Quill has no mail merge.
-- 🟨 **Picture formats for Insert › Picture** — Quill: PNG and JPEG (baseline, progressive, CMYK; core/image.c). WordCraft also GIF, WebP, BMP, WMF and EMF (crates/metafile). An Amiga user would also expect IFF ILBM.
+- 🟨 **Picture formats for Insert › Picture** — Quill: PNG and JPEG (baseline, progressive, CMYK; core/image.c); WP17: GIF, BMP and IFF ILBM (EHB, HAM6/8, deep, PBM; readers from Easel in core/picfmt.c), GIF and BMP saved as they are, ILBM as PNG. Not yet: WebP, WMF and EMF (WordCraft has them).
 - ➖ **.json document model** — WordCraft's format for agents (control protocol, left out on purpose).
 
 ### 2.2 DOCX features
@@ -806,7 +806,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ⬜ **WordArt text effects (`w14:textFill`, `w14:textOutline`, `w14:shadow`, `w14:glow`, `w14:reflection`)** — not read.
 - ⬜ **Legacy font effects (`w:outline`, `w:shadow`, `w:emboss`, `w:imprint`)** — not read.
 - ⬜ **OpenType ligatures (`w14:ligatures`)** — not read.
-- 🟨 **DrawingML shapes and text boxes (`wps:`)** — 24 presets (`SH_` in doc.h), solid fill and outline, theme colours with tints and shades, text box text. WordCraft: many more presets (callouts, flowchart), gradient and picture fills, effects, outline caps, `bodyPr` vertical text and anchoring, linked text boxes (`wps:linkedTxbx`); Quill reads rarer presets as rectangles.
+- 🟨 **DrawingML shapes and text boxes (`wps:`)** — 24 presets (`SH_` in doc.h), solid fill and outline, theme colours with tints and shades, text box text; WP18: 69 more presets (basic, block arrows, flowchart, callouts, stars and explosions; core/shapex.c), gradient and picture fills, shadow/glow/soft edge effects, `bodyPr` vertical text, anchoring and insets, linked text boxes, icons (`a:custGeom`). Not yet: outline caps and arrowhead kinds, adjust handles (`a:avLst` values), presets with inner lines (cube, can, smiley) still come in as rectangles, custom geometry in general (WP20).
 - ⬜ **Freeform shapes (`a:custGeom`) and ink** — not read.
 - 🟨 **Group shapes and drawing canvas** — groups (`wpg:`), nested, ✅; drawing canvases (`wpc:`) not read (README roadmap).
 - 🟨 **VML (`w:pict`, `v:shape`, `v:textbox`)** — only Word's text watermark is read and written (docx.c line 927); VML pictures, text boxes and shapes are not read (README "Not read yet"). WordCraft reads VML pictures, text boxes, lines, rectangles, ovals and presets.
@@ -841,7 +841,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ✅ **Section breaks of each kind, each section with its own page setup and headers/footers**.
 - ✅ **Text boxes and shapes with text** — edited in place.
 - 🟨 **Wrap types** — square, tight round the outline, top and bottom, behind, in front ✅; through ⬜; wrap on one side only ⬜.
-- 🟨 **Turned text** — objects turn by any angle, but text in shapes and text boxes stays upright (README 0.11).
+- ✅ **Turned text** — WP18: text in shapes and text boxes turns with them, and turns a quarter for vertical text, on the screen (drawn upright into a bitmap of its own and copied turned, amiga/view.c `draw_text_turned`) and in PDFs.
 - ✅ **Line numbering** — start, count by, distance, restart, for each section on its own (WP22a: Apply to in the Line Numbers window).
 - ✅ **Drop caps** — dropped or in the margin, 1-10 lines.
 - 🟨 **Tables across pages** — rows break, heading rows repeat ✅; floating tables ⬜.

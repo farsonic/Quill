@@ -5,6 +5,7 @@
 #include "pages.h"
 #include "image.h"
 #include "hyph.h"
+#include "objfx.h"
 
 /* ------------------------------------------------------------------ */
 /* the page as laid out */
@@ -395,7 +396,7 @@ int pages_wm_picture(Doc *d, const u8 *data, u32 len)
   u32 w, h;
   int t = img_info(data, len, &w, &h);
   u8 *c;
-  if (t == IMG_NONE || !w || !h || !(c = (u8 *)malloc(len))) return 0;
+  if (t == IMG_NONE || t == IMG_ILBM || !w || !h || !(c = (u8 *)malloc(len))) return 0;     /* (an ILBM has no place in a .docx) */
   memcpy(c, data, len);
   free(d->wm.pic);
   d->wm.pic = c; d->wm.piclen = len; d->wm.pictype = (u8)t; d->wm.pw = w; d->wm.ph = h;
@@ -732,9 +733,12 @@ void pages_write_settings(const Doc *d, Buf *b, int where)
 }
 const char *pages_wm_part(const Doc *d, const char **ctype)
 {
+  static char name[40], ct[24];
   if (!d->wm.pic) return "";
-  if (ctype) *ctype = d->wm.pictype == IMG_PNG ? "image/png" : "image/jpeg";
-  return d->wm.pictype == IMG_PNG ? "word/media/wmark1.png" : "word/media/wmark1.jpeg";
+  sprintf(name, "word/media/wmark1.%s", objfx_ext(d->wm.pictype));       /* (png, jpeg, gif, bmp: WP17's) */
+  sprintf(ct, "image/%s", objfx_ext(d->wm.pictype));
+  if (ctype) *ctype = ct;
+  return name;
 }
 /* Word's picture watermark: a VML picture (shape type 75) behind the text, centred on the margins */
 void pages_write_wm_picture(Buf *o, const Doc *d)

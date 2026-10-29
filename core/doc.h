@@ -368,6 +368,42 @@ enum { PA_NONE, PA_START, PA_CENTER, PA_END };            /* or where it is alig
 enum { SH_RECT, SH_ROUNDRECT, SH_ELLIPSE, SH_LINE, SH_ARROW, SH_TRIANGLE, SH_DIAMOND, SH_RARROW, SH_STAR,
        SH_PENTAGON, SH_HEXAGON, SH_OCTAGON, SH_PARALLELOGRAM, SH_TRAPEZOID, SH_RTRIANGLE, SH_LARROW, SH_UARROW, SH_DARROW,
        SH_PLUS, SH_HEART, SH_CALLOUT, SH_CHEVRON, SH_HOMEPLATE, SH_STAR4, SH_N };
+/* WP17/WP18: a picture's adjustments, an object's fill and effects and its text's settings (core/objfx.h
+   works with them). All zero: none, as an object always was */
+typedef struct {
+  /* a picture's adjustments: corrections, colour, transparency, an artistic effect, its background */
+  signed char bright, contrast;   /* -100..100 per cent (a:lum) */
+  signed char sharp;        /* -100..100: softened .. sharpened (a14:sharpenSoften) */
+  u8 cmode;                 /* PCM_ (objfx.h): greyscale, sepia, washout, black and white, recoloured */
+  u32 recolor;              /* PCM_RECOLOR's colour, 0xRRGGBB (a:duotone from it to white) */
+  u16 sat;                  /* saturation, per cent (0: unchanged) (a14:saturation) */
+  u16 temp;                 /* colour temperature, kelvin (0: unchanged) (a14:colorTemperature) */
+  u8 alpha;                 /* transparency, per cent (a:alphaModFix) */
+  u8 art;                   /* ART_ (objfx.h): an artistic effect (a14:artistic...) */
+  u8 bgkey, bgtol;          /* the background removed: colours near bgcolor (bgtol 0-100) made transparent (a:clrChange) */
+  u32 bgcolor;
+  /* a shape's fill (or a picture's under it): FT_ (objfx.h) solid (Image.fill), gradient, picture */
+  u8 filltype, gtype;       /* gtype: GT_ linear, radial, rectangular */
+  u16 gangle;               /* a linear gradient's direction, tenths of a degree clockwise from left to right */
+  u8 ngs, gpos[4];          /* its stops: how many (2-4), where (per cent) */
+  u32 gcol[4];
+  u8 falpha;                /* the fill's transparency, per cent */
+  /* effects: shadow, glow, soft edges (twips, tenths of a degree, per cent transparency) */
+  u8 shadow, shalpha;       /* shadow 1: an outer shadow (a:outerShdw) */
+  u16 shdist, shblur, shdir;
+  u32 shcolor;
+  u16 glow; u8 glalpha;     /* glow: its size, 0 none */
+  u32 glcolor;
+  u16 soft;                 /* soft edges' size, 0 none */
+  /* the text in a text box or shape */
+  u8 vert;                  /* TV_ (objfx.h): across, turned a quarter right, a quarter left */
+  u8 anchor;                /* TA_ (objfx.h): at the top, middle, bottom */
+  u8 hasins;                /* ins (left, top, right, bottom, twips) set; else Word's 0.1 and 0.05 inch */
+  i32 ins[4];
+  u16 link, seq;            /* linked text boxes: the chain's number (wps:txbx id), the place in it (0 holds the text) */
+  u16 icon;                 /* SHX_ICON: which icon of objicons.c, from 1 */
+  char *raw;                /* a picture's a14:imgProps kept as read (effects drawn into the picture already), or NULL */
+} ObjFx;
 typedef struct DocImage {
   u8 *data; u32 len;        /* the file as it came (PNG or JPEG); shapes and text boxes: none */
   u8 shared;                /* data belongs to an earlier entry (a copy made by changing the object) */
@@ -402,6 +438,7 @@ typedef struct DocImage {
   struct ObjPack *pack;     /* (WP15a) a chart's or SmartArt's parts and model (core/chart.h), shared between the
                                entries copies make (counted); NULL for other objects */
   u8 decorative;            /* (WP24) marked decorative: a screen reader passes over it (Word's adec:decorative) */
+  ObjFx fx;                 /* WP17/WP18: adjustments, fills, effects, text settings */
 } Image;
 /* an object copied (dst a new entry): its text, objects and outline copied; its picture shared (it
    stays with the entry that brought it), or with own, copied too. 0 if out of memory (dst then holds
