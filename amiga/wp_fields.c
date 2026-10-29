@@ -518,11 +518,6 @@ static void shading_save(void)
   sprintf(v, "%d", field_shading);
   SetVar((STRPTR)"Quill/FieldShading", (STRPTR)v, -1, GVF_GLOBAL_ONLY | GVF_SAVE_VAR);
 }
-static void dbg(const char *fmt, long a, long b, long c)     /* TEMPORARY */
-{
-  FILE *f = fopen("DH0:wp1dbg.txt", "a");
-  if (f) { fprintf(f, fmt, a, b, c); fputc('\n', f); fclose(f); }
-}
 static int fields_cmd(ULONG id)
 {
   Doc *d = doc();
@@ -530,8 +525,6 @@ static int fields_cmd(ULONG id)
   FieldEnv fe;
   int n = 0;
   sel(&lo, &hi);
-  dbg("cmd %ld nfields %ld np %ld", (long)id, (long)d->nfields, (long)d->np);
-  dbg("lo %ld.%ld hi.para %ld", (long)lo.para, (long)lo.off, (long)hi.para);
   switch (id) {
   case ID_FLD_UPDATE:
     env(&fe, 1);
@@ -679,7 +672,6 @@ static ULONG key(UWORD code, UWORD qual, const WpCtx *c)
   int shift = (qual & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) != 0, alt = (qual & (IEQUALIFIER_LALT | IEQUALIFIER_RALT)) != 0;
   int ctrl = (qual & IEQUALIFIER_CONTROL) != 0;
   (void)c;
-  if (!(code & 0x80)) dbg("key %ld qual %lx", (long)code, (long)qual, 0);
   if (code == 0x58) {
     if (ctrl && shift) return ID_FLD_UNLINK;
     if (ctrl) return ID_FLD_INSERT;
