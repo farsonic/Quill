@@ -53,8 +53,7 @@ build, finish the package as its entry in the gap document describes, test, merg
 5. **Gap document totals**: after each merge run `python3 <scratchpad>/gapcount.py docs/wordcraft-gap.md --write`
    (or recount by hand); helpers only updated their own lines.
 6. Then: README "New in 0.15", version strings (amiga/main.c, tools/Install-Quill), emulator check of the
-   merged binary, package `Quill-0.15.lha` with the certificate check (no "BEGIN CERTIFICATE",
-   "sandbox-test-only", *.crt, *.pem, *extra-ca* in the package).
+   merged binary, package with the usual certificate check (search the package for certificate text and for certificate/key files; nothing from the sandbox CA may ship).
 
 ## Things learned (pitfalls)
 
