@@ -855,6 +855,7 @@ static int sel_object(struct Data *d, Pos *at)
   if (at) *at = lo;
   return pic_index(d->doc->p[lo.para]->t + lo.off);
 }
+#include "wp_draw_view.h"               /* WP20: freeforms and ink drawn, drawing with the mouse, the eraser, the lasso, Ink Replay */
 /* a polygon (xy: n points, pixels x 16) filled, row by row */
 static void fill_poly(struct RastPort *rp, const LONG *xy, int n)
 {
@@ -1100,6 +1101,7 @@ static void draw_leaf(struct Data *d, Object *obj, struct RastPort *rp, const Ob
   t.cx = part->cx; t.cy = part->cy; t.rot = part->rot; t.flip = part->flip;
   bx = cx - OBJ_W(&t) / 2; by = cy - OBJ_H(&t) / 2;          /* its box's top left */
   if (src->pack) { draw_pack(d, obj, rp, src, pl + tx(d, cx - part->cx / 2), pt + tx(d, cy - part->cy / 2), part->cx, part->cy); return; }   /* (WP15a) */
+  if (dv_leaf(d, obj, rp, part, pl, pt, cx, cy)) return;      /* WP20: a freeform or ink */
   outline = src->lstyle != PB_NONE && src->lwidth;
   th = (int)tx(d, src->lwidth * 5 / 2);
   if (th < 1) th = 1;
@@ -4670,6 +4672,7 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
   if (im->Class == IDCMP_RAWKEY) return key_grab || ww_passive(d) || !key(d, obj, im) ? 0 : MUI_EventHandlerRC_Eat;
   { ULONG r = ev_mouse(d, obj, im); if (r) return r; }    /* WP14b: dragging in an equation */
   { ULONG r = fv_mouse(d, obj, im); if (r) return r; }    /* WP12: Select Objects */
+  { ULONG r = dv_mouse(d, obj, im); if (r) return r; }    /* WP20: drawing, the eraser, the lasso, Ink Replay */
   { ULONG r = ov_mouse(d, obj, im); if (r) return r; }    /* WP11: the outline symbols */
   if (im->Class == IDCMP_MOUSEBUTTONS) {
     if (im->Code == SELECTDOWN && im->MouseX >= _mleft(obj) && im->MouseX <= _mright(obj) && im->MouseY >= _mtop(obj) && im->MouseY <= _mbottom(obj)) {
