@@ -552,12 +552,12 @@ static void formatting2(void)
   f = *para_fmt_at(d->p[0], 0);
   f.hl = HL_ON | 0xFFFF00;
   doc_format(d, P(0, 4), P(0, 9), CM_HL | CM_BOLD, &f);
-  f.hl = HL_ON | 0x123456;
-  doc_format(d, P(0, 10), P(0, 12), CM_HL, &f);
+  f.shade = HL_ON | 0x123456;                 /* (WP9: character shading is its own, apart from the highlight) */
+  doc_format(d, P(0, 10), P(0, 12), CM_SHADE, &f);
   data = docx_save(d, &n);
   e = data ? docx_load(data, n, &lost, err, sizeof err) : NULL;
   ok("highlight: a named one and shading, saved and read back", e && para_fmt_at(e->p[0], 5)->hl == (HL_ON | 0xFFFF00) &&
-     para_fmt_at(e->p[0], 10)->hl == (HL_ON | 0x123456) && para_fmt_at(e->p[0], 13)->hl == 0 && same_doc(d, e));
+     para_fmt_at(e->p[0], 10)->shade == (HL_ON | 0x123456) && para_fmt_at(e->p[0], 10)->hl == 0 && para_fmt_at(e->p[0], 13)->hl == 0 && same_doc(d, e));
   free(data); doc_free(e);
   doc_clear_format(d, P(0, 0), P(0, d->p[0]->len));
   ok("clear formatting: back to the style's", d->p[0]->nr == 1 && d->p[0]->r[0].f.size == 24 && !d->p[0]->r[0].f.hl && !(d->p[0]->r[0].f.flags & CF_BOLD));
@@ -2769,8 +2769,9 @@ static void bookmarks(void)
     if (zip_finish(&z)) g = docx_load((const u8 *)z.out.data, z.out.len, &lost, err, sizeof err);
     zip_free(&z); buf_free(&doc);
     ok("bookmarks: read from Word's REF and PAGEREF fields", g && g->np >= 2 && doc_bmark_find(g, "_Ref1", &a, &b) && b.off == 6 &&
-       !strncmp(g->p[1]->t, "See Target on page " FIELD_PAGEREF, 22) && g->p[1]->len == 22 &&
-       !strcmp(doc_link_url(g, para_fmt_at(g->p[1], 5)->link), "#_Ref1") && !strcmp(doc_link_url(g, para_fmt_at(g->p[1], 19)->link), "#_Ref1"));
+       /* (WP1: the REF field keeps its code, its result between its marks) */
+       !memcmp(g->p[1]->t, "See \xF4\x84\x80\x80Target\xF4\x88\x80\x80 on page " FIELD_PAGEREF, 30) && g->p[1]->len == 30 &&
+       !strcmp(doc_link_url(g, para_fmt_at(g->p[1], 9)->link), "#_Ref1") && !strcmp(doc_link_url(g, para_fmt_at(g->p[1], 27)->link), "#_Ref1"));
     doc_free(g);
   }
 }

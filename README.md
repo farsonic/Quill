@@ -4,6 +4,15 @@ Quill 0.14 is a native word processor for AmigaOS with a MUI interface. It reads
 
 ![Quill with the Welcome template](docs/quill-home.png)
 
+## Character and paragraph formatting (work packages 9 and 10)
+
+- **Text effects:** hidden text (shown, with a dotted line under it, only while formatting marks are on, and left out of PDFs), outline, shadow, emboss and engrave, a colour for the underline of its own, and character shading kept apart from the highlight. They are in the Font window, the Font group's Text Effects list, the Format menu and the right-button menu, and go to and from Word. Word 2010's other text effects (glow, reflection, gradient fills), ligatures and number forms are kept through a save.
+- **Enclosed characters:** one or two characters in a circle, square, triangle or diamond, saved as Word saves them (an EQ field).
+- **Paragraphs:** Distributed alignment (Ctrl-Shift-J), Add Space Before (Ctrl-0) and Remove Space After, a Horizontal Line, Hanging Indent (Ctrl-T, Ctrl-Shift-T), and lists to choose from on the Bullets and Numbering buttons, with Define New Bullet and Define New Number Format (01, 1st, One, First as well).
+- **Sort Text:** by up to three keys, whole paragraphs or fields between tabs or commas, as text, numbers or dates, either way round.
+- **Characters:** nonbreaking spaces (Ctrl-Shift-Space, a degree sign with formatting marks), nonbreaking hyphens (Ctrl-Shift-minus) and optional hyphens (Ctrl-minus, shown only where a line breaks); lines now break after an ordinary hyphen. The Symbol window has every character the screen can show, any character by its code, the recently used ones and a page of special characters.
+- **Clipboard:** a Paste Special window, Copy and Paste Formatting (Ctrl-Shift-C, Ctrl-Shift-V), and the Clipboard pane beside the page with the last 24 things copied.
+
 ## New in 0.14: arranging, bookmarks, page numbers and the Design tab
 
 These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and Layout tabs.
@@ -31,7 +40,7 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
   - **Underline** is a split button. A click underlines. The arrow offers double, thick, dotted, dashed and wavy underlines, words only, and **More Underlines...** (the Font window). Each kind is drawn in the list.
   - **Character Border:** a thin box round the selected characters (also on the Format menu). It's saved in .docx files and drawn in PDFs.
   - The ribbon still fits a 640-pixel-wide screen. Icon buttons are two pixels narrower when space is tight, and the small buttons show their labels whenever the window has room.
-- **Not done:** WordCraft's enclosed characters (a letter in a circle). Word draws them with a font trick that Amiga fonts can't reproduce well, so they're left out for now.
+- Enclosed characters (a letter in a circle) came later: see "Character and paragraph formatting" above.
 - **Bugs fixed:** line numbering started from 1 even when a document asked for another first number.
 
 ## New in 0.13: links, right-click menus and the missing pieces
@@ -270,15 +279,16 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
   - **Paragraphs:** alignment, indents, spacing and line spacing, contextual spacing, borders and shading, tab stops (left, centred, right and decimal, with leaders), keep with next, keep lines together, widow control, and page breaks.
   - **The rest:** bulleted and numbered lists, page size and margins, and title and author.
 - **Tables:** column widths, merged cells (across and down), borders with their kind, width and colour, cell shading, vertical alignment, row heights, rows that mustn't break, heading rows that repeat on each page, alignment and indent, cell margins, table styles with their conditional formatting, and tables inside tables (one level; deeper ones go into the inner table's cells).
-- **Pictures:** PNG and JPEG pictures, in the text or floating with the text wrapping round them, cropped, turned, flipped and outlined, with alt text. Quill decodes them itself, at the size they are shown, and dithers them to the screen's colours: every kind of PNG, and baseline, progressive and CMYK JPEG.
-- **Shapes and text boxes:** rectangles, rounded rectangles, ovals, lines, arrows, triangles, diamonds, right arrows and stars with their fill and outline, and text boxes with their text.
+- **Pictures:** PNG, JPEG, GIF, BMP and IFF ILBM pictures, in the text or floating with the text wrapping round them, cropped, turned, flipped and outlined, with alt text. Quill decodes them itself, at the size they are shown, and dithers them to the screen's colours: every kind of PNG, baseline, progressive and CMYK JPEG, and ILBM with EHB, HAM6/HAM8 and 24-bit. Their adjustments (brightness and contrast, sharpen and soften, greyscale, sepia, washout, black and white, recolouring, saturation, tone, transparency, artistic effects, a removed background) and picture styles (frames, shadows, rounded and snipped corners, ovals, soft edges) are read and written: those Word draws itself as `a:lum`, `a:grayscl`, `a:duotone`, `a:alphaModFix`, `a:clrChange`, the others drawn into the picture saved, the original kept for changing them again, as Word does.
+- **Shapes and text boxes:** Word's preset shapes (basic shapes, block arrows, flowchart, callouts, stars and explosions: 93 of them) with their fill (a colour, a gradient or a picture), outline, shadow, glow and soft edges; text boxes with their text, its direction (turned 90 or 270 degrees), its place (top, middle, bottom) and margins, and linked text boxes whose text flows from one to the next; and icons.
 - **Headers and footers:** including a different first page and even pages, page numbers ("Page 2 of 3"), pictures (logos) and text watermarks.
-- **Pages and sections:** section breaks of each kind, columns (with a line between), column breaks, line numbers, vertical alignment, page borders, drop caps and automatic hyphenation.
+- **Pages and sections:** section breaks of each kind, columns (of their own widths, with a line between; balanced before a continuous break as Word does), column breaks, line numbers and page borders for each section, page borders in each of Word's line kinds with each side its own (its art borders drawn as a pattern), the gutter, mirror margins, two pages per sheet and book folds, vertical alignment (Justified too), drop caps, picture and text watermarks (washed out, solid or half transparent), and hyphenation with its zone, capitals and consecutive-hyphens settings.
 - **Notes:** footnotes at the bottom of the page that refers to them, and endnotes (i, ii, iii) after the text, each under a short line.
 - **Comments:** in balloons beside the page, joined to the text they are about.
 - **Tracked changes:** insertions and deletions, with who made them and when.
 - **A table of contents:** saved as Word's TOC field, so Word can update it too.
-- **Text it keeps:** hyperlinks, content controls and field results keep their text. Field codes are left out (but page numbers and the table of contents are understood).
+- **Text it keeps:** hyperlinks and content controls keep their text.
+- **Fields:** every field keeps its code and its result (DATE, SEQ, MERGEFIELD, Zotero and Mendeley citations, IF, DOCPROPERTY, XE, REF, form fields...) and is written back, so nothing is lost when the document goes back to Word. **Insert > Field** (Ctrl-F9) puts in any of Word's fields, **Document Property** and **Date and Time** (as text or a field that updates) too. **Update Fields** (F9) works out dates, times, the document's properties, page and word counts, sections, sequence numbers (captions), cross-references, IF and more, with Word's \\@ \\* and \\# formats; **Show Field Codes** (Alt-F9), **Toggle** (Shift-F9), **Edit Field Code**, **Unlink** (Ctrl-Shift-F9), **Lock** and **Unlock** (Ctrl-3, Ctrl-4), **Next** and **Previous Field** and field shading are on the References tab.
 - **Not read yet:** VML pictures (from very old Word versions). Quill says when a document had any.
 - **What it writes:** complete .docx files with the document's styles. LibreOffice and python-docx open them; Word itself hasn't been tried yet.
 
@@ -287,6 +297,9 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
 - **PDF:** **Export** writes the pages as laid out. Each font goes in as a subset (only the letters used, so a PDF is kilobytes rather than the whole font files: a one-page letter about 30 KB instead of 370 KB), and any character the font has prints, Greek, Cyrillic and symbols as well as Western European text; copying and searching in a PDF reader find the words. Links to places in the document jump there (bookmarks, cross-references, table of contents entries, footnotes and endnotes and back), web links open, the headings make the reader's bookmarks panel, and the title, author, subject and keywords are in the document properties. **Export Options** (File page or File menu) chooses the pages, whether headings make bookmarks, and the subject and keywords.
 - **Pictures of the pages:** **Export Image** (File page or File menu) saves each page as a PNG or IFF ILBM picture (24 bit), at 72 to 300 dpi, drawn by Quill itself exactly as the PDF shows it.
 - **Plain text:** opened as UTF-8 or Latin-1 (Amiga text). **Save As Text** writes Latin-1.
+- **RTF (.rtf):** opened and saved (**Save As**, or **File > Save As Rich Text...** for a copy) with styles, character and paragraph formatting, lists, tables with merged cells, pictures (PNG and JPEG; older metafile pictures show as an empty box of their size), headers and footers, footnotes and endnotes, links, bookmarks, page-number fields, sections and page setup, and tracked changes. Text in the single-byte Windows, DOS and Mac code pages and in Unicode. Shapes, text boxes and comments are left out when saving.
+- **Web pages (.html, .htm):** opened and saved (**File > Save As Web Page...** for a copy) with headings, styles as CSS, paragraph and character formatting, lists, tables with merged cells, links, bookmarks and footnotes. Pictures are saved inside the page (data: URIs) and read from there or from files next to the page; nothing is fetched from the web. Headers, footers and page setup have no place in a web page.
+- **Markdown (.md):** opened and saved (**File > Save As Markdown...** for a copy): CommonMark with GitHub's tables, strikethrough and footnotes. Headings, bold, italic, code, links, pictures, lists, block quotes and code blocks (in a Code style) come and go; fonts, colours and layout don't exist in Markdown.
 
 ### Layout like Word's
 
@@ -304,7 +317,7 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
 - **Paragraphs:** alignment, indents and spacing, line spacing, borders and shading, keeping lines together, tab stops (on the ruler or in **Layout > Tabs**), sorting paragraphs A to Z, and formatting marks.
 - **Lists:** bullets, numbering and multilevel lists, defined level by level, restarted or continued; Tab and Shift-Tab change the level, and Return in an empty item ends the list.
 - **Tables:** insert a table (in a cell: a table inside it), then insert and delete rows and columns, merge any block of cells and split cells into columns and rows, split the table, apply a table style and its options, borders and shading, set heading rows, alignment, row heights and column widths (or drag the columns' edges), AutoFit, sort the rows, work out formulas, and convert between tables and text. Tab and Shift-Tab move between cells (Tab in the last cell adds a row), and deleting never joins cells.
-- **Pictures and objects:** insert pictures, shapes and text boxes; float them with the text wrapping round them, place them, drag to move and size them, turn, flip, crop and outline them, fill shapes, and give them alt text.
+- **Pictures and objects:** insert pictures, shapes, icons and text boxes; float them with the text wrapping round them, place them, drag to move and size them, turn, flip, crop (by numbers, by dragging the handles, to a shape or an aspect ratio) and outline them, fill shapes, and give them alt text. **Picture Format** adjusts pictures (Remove Background, Corrections, Color, Artistic Effects, Transparency, Picture Styles and Effects, Compress, Change and Reset Picture); **Shape Format** fills shapes with gradients and pictures, adds shadows, glows and soft edges, turns and places text in text boxes and links them (Create Link: click the empty box next). The **Format Shape pane** (Format Pane) stays beside the page and changes the selected object as you set it. Text turns with its shape.
 - **Headers, footers and notes:** headers and footers (first page, odd and even pages, for each section), page numbers, footnotes and endnotes, edited in place with full formatting.
 - **Find and Replace:** matching case and whole words, finding backwards, replacing one match or all of them (one undo step).
 - **Review:**
@@ -312,7 +325,7 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
   - **Tracked changes:** with Track Changes on, what you type is marked as yours and what you delete stays, struck through. Accept or reject changes one at a time, moving on to the next, or all at once.
   - **Spelling:** words not in the dictionary get a red wavy line, and **Review > Spelling** goes from one to the next with suggestions (Change, Change All, Ignore, Ignore All, Add to Dictionary).
   - **Word count:** pages, words, characters with and without spaces, paragraphs and lines.
-- **Page setup:** A4, Letter, A5 or Legal paper, portrait or landscape, and four sets of margins; columns, section and column breaks, line numbers, vertical alignment and hyphenation; watermarks and page borders.
+- **Page setup:** A4, Letter, A5 or Legal paper, portrait or landscape, and four sets of margins; **Page Setup** with the gutter (left or top), mirror margins, two pages per sheet and book fold, the section's start, headers and footers and vertical alignment (top, centre, bottom, justified), for the whole document, the section or from the caret on; **Columns** (presets One, Two, Three, Left and Right, up to six columns of their own widths and spacing, a line between, for the whole document, the section, from the caret on or the selected text); section and column breaks; **Line Numbers** for each section; **Hyphenation** automatic or manual (each word that could break at a line's end, with the place to break), with its zone, capitals and limit of consecutive hyphens; **Printed Watermark** (a picture at a scale, washed out, or words in a font and colour) and **Page Borders** (each side, every line kind and a few art borders, colour, width, distance from the text or the page's edge, the section's first page only or the others, round the header and footer or not).
 - **Templates:** start from Blank, Welcome (a tour of Quill), Letter, Résumé or Report.
 - **Also:** page and line breaks, the date, symbols, and zoom.
 
@@ -418,6 +431,12 @@ Quill draws its own window, as WordCraft does, in WordCraft's light colours, wit
 | Amiga->, Amiga-< | Grow and shrink the font |
 | Amiga-* | Formatting marks |
 | Amiga-= | Spelling |
+| Ctrl-Shift-J | Distributed alignment |
+| Ctrl-0 | Space before the paragraph on or off |
+| Ctrl-T, Ctrl-Shift-T | Hanging indent, one step more or less |
+| Ctrl-Shift-C, Ctrl-Shift-V | Copy and paste formatting |
+| Ctrl-Shift-Space | A nonbreaking space |
+| Ctrl-Shift-minus, Ctrl-minus | A nonbreaking hyphen, an optional hyphen |
 
 ## ARexx
 
@@ -501,12 +520,11 @@ The MUI headers come from Aminet's `dev/mui/mui38dev.lha`. That archive may only
   - floating tables with text around them
   - a table style editor
 - **Pictures and objects:**
-  - editing text in grouped shapes, and turned text on the screen
+  - editing text in grouped shapes
   - drawing canvases
-  - cropping by dragging, and the order objects overlap in
+  - adjust handles on shapes (their yellow diamonds), and WebP, WMF and EMF pictures
 - **Page furniture:**
   - tables in headers and footers (read now as their text)
-  - line numbers and page borders for each section on its own
   - comment balloons showing their formatting (it is kept and saved)
 - **Styles:** linked paragraph and character styles; tab stops and borders in the Modify Style window; selecting text with the same formatting.
 - **Fonts:** choosing a variable font's other designs (weights, widths); antialiased text on RTG screens without AAText.
@@ -516,7 +534,7 @@ The MUI headers come from Aminet's `dev/mui/mui38dev.lha`. That archive may only
 
 ## Licences
 
-- **Quill:** the code is new, written for this project. It borrows WordCraft's ideas but none of its code.
+- **Quill:** the code is new, written for this project. It borrows WordCraft's ideas but none of its code. The GIF, BMP and IFF ILBM readers and the PNG and JPEG writers (core/picfmt.c) come from Easel, the Amiga paint program by Quill's author.
 - **Its licence:** not chosen yet; the author will choose one before the code is published.
 - **WordCraft (MIT OR Apache-2.0, © the WordCraft authors):** the equation editor (WP14b) takes its gallery templates and symbol sets from WordCraft's `math_gallery.rs` (core/mathgal.c) and follows its `math_edit.rs` rules for moving and deleting in an equation, written again in C (core/mathedit.c). WordCraft's MIT licence asks that its copyright notice and licence go with copies of that material.
 - **TrueType fonts:** Liberation (Red Hat, Google), Carlito and Caladea, under the SIL Open Font License 1.1. See `TrueType/LICENSE-fonts.txt`.

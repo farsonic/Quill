@@ -12,7 +12,8 @@
 #include "doc.h"
 #include "fonts.h"
 
-enum { BX_TEXT, BX_SPACE, BX_TAB, BX_BREAK, BX_PIC, BX_NOTE, BX_MARK, BX_ENOTE, BX_DROP, BX_FLOAT, BX_FIELD };   /* BX_FIELD: a page
+enum { BX_TEXT, BX_SPACE, BX_TAB, BX_BREAK, BX_PIC, BX_NOTE, BX_MARK, BX_ENOTE, BX_DROP, BX_FLOAT, BX_FIELD,
+       BX_REVHIDE };   /* BX_REVHIDE (WP5): text a tracked change hides as shown (Display for Review), no width */   /* BX_FIELD: a page
                                                              field (FIELD_PAGE, FIELD_PAGES) in the body or a story being edited */   /* BX_FLOAT: a floating
                                                              object's reference, no width (the object is in Layout.floats) */   /* BX_BREAK: a line break ('\v'), drawn as nothing;
                                                              BX_PIC: a picture; BX_NOTE: a footnote's number;
@@ -26,6 +27,7 @@ typedef struct {
   u8 nspace;                  /* BX_SPACE: how many spaces */
   i32 x, w;                   /* from the line's start (its indent), after alignment */
   CharFmt f;
+  u8 rvmark;                  /* WP5: a tracked change as shown (a bar beside its line: RVK_ kind + 1), 0 none */
 } Box;
 
 typedef struct {
@@ -51,6 +53,8 @@ typedef struct {
   u8 hyph;                    /* laid out with hyphenation */
   u8 shaped;                  /* its lines made room for floating objects (laid out afresh next time) */
   struct Layout *lay;         /* (WP22b) the layout it belongs to (its notes' numbers as shown) */
+  u8 hidden;                  /* WP9: it has hidden text, laid out shown (1) or left out (0); 2: it has none */
+  u32 rvsig;                  /* WP5: how tracked changes were shown when it was laid out (rv_sig) */
 } ParaLay;
 /* an object's size on the page (turned: the box round it) */
 #define OBJ_W(im) obj_w(im)
@@ -116,6 +120,8 @@ typedef struct Layout {
   u32 laid;                   /* paragraphs laid out afresh by the last update (for tests and timing) */
   struct { u32 key; FaceSize *z; } fcache[64];      /* format -> metrics (font substitution is slow) */
   int nfcache;
+  /* WP22a: the pages as laid out (core/pages.c's pages_eff: gutter, mirror margins, two to a sheet) */
+  PageSetup *epg; u32 nepg;
   /* (WP22b) */
   NoteNum *fnn, *enn;         /* each footnote's and endnote's number as shown */
   NoteCut *ncut; u32 nncut, ncutcap;   /* footnotes split across pages */
@@ -123,7 +129,10 @@ typedef struct Layout {
   u32 encap;                  /* room in en */
   i32 sepw;                   /* the line lay_notes or lay_endnotes last gave: its length (twips), 0 none */
   u8 notesep_cont;            /* ... and it is a continuation separator (the text area's width) */
+  u8 showhidden;              /* WP9: hidden text laid out (formatting marks shown), else it takes no room (and the PDF leaves it out) */
 } Layout;
+/* WP9: a box of hidden text that takes no room in L */
+#define LAY_HIDDEN(L, b) (((b)->f.fx2 & FX2_HIDDEN) && !(L)->showhidden)
 
 /* a header or footer laid out for one page (its page fields filled in) */
 typedef struct { Para *p; ParaLay pl; i32 y; } FPara;     /* y: the top of its first line from the page top */
@@ -153,7 +162,9 @@ int  lay_endnotes(Layout *L, u32 page, Furn *f, i32 *sepy);
 u32  lay_note_number(ParaLay *pl, u32 box);
 void lay_note_label(ParaLay *pl, u32 box, char *out);
 void lay_roman(u32 n, char *out);    /* lower case: i, ii, iii, iv...; out at least 16 bytes */
-/* what a BX_FIELD box shows on a page: its number, or the number of pages (a story being edited: those it was opened with) */
+/* what a BX_FIELD box shows on a page: its number, or the number of pages (a story being edited: those it was opened with);
+   a field showing its code (WP1, core/field.h): the code. out: LAY_FIELD_TEXT bytes */
+#define LAY_FIELD_TEXT 160
 void lay_field_text(Layout *L, const Para *p, const Box *b, u32 page, char *out);    /* page from 0 */
 void lay_free(Layout *L);           /* L and everything it holds (not its Doc or FontSet) */
 /* bring the layout up to date with the document; 0 if out of memory (the layout then stays usable,
@@ -186,7 +197,7 @@ int  lay_textbox(Layout *L, const Image *im, i32 cx, Furn *f);
 u32  shape_points(int shape, i32 w, i32 h, i32 *xy, u32 max, int *closed);
 /* SH_ARROW's head at the line's end (w, h): three points, for an outline lw twips wide */
 void shape_arrowhead(i32 w, i32 h, i32 lw, i32 *xy);
-#define SHAPE_MAXPTS 72
+#define SHAPE_MAXPTS 128                /* (WP18: 72 before more shapes came) */
 /* an object's outline in its box (twips, turned): its wrap outline, a shape's own, or the box; how many
    points (at most max), 0 if none */
 int  obj_outline(const Image *im, i32 *xy, int max);

@@ -8,7 +8,7 @@
  * and footers, are flattened); pictures, shapes, text boxes and groups (DrawingML); sections with
  * page setup, columns, line numbers and page borders; headers and footers (with a text watermark);
  * footnotes, endnotes, comments and tracked changes; title and author. Hyperlinks and content controls keep their
- * text; field codes are left out (results kept, page number fields become Quill's own).
+ * text; fields keep their codes and results (core/field.h; page number fields become Quill's own).
  * docx_load reports what it had to leave out.
  */
 #ifndef QUILL_DOCX_H
@@ -68,6 +68,9 @@ Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap);
 /* written in the format its name's ending names, else as plain text in Latin-1; clears the modified
    flag on success, 0 on failure */
 int  doc_save_file(Doc *d, const char *path);
+/* while doc_load_file reads a file: its path (NULL otherwise), so a format can find the files it
+   refers to (an HTML or Markdown file's pictures) */
+extern const char *doc_load_path;
 
 /* ---- for the work packages' .docx parts (see core/docx.c's *_ext hooks) */
 /* what docx_save is building: a package's write hook adds its parts with docx_out_part */

@@ -25,6 +25,7 @@
 #include "wp_info.h"   /* (WP24) */
 #include "../core/tstyle.h"
 #include "ribbondef.h"
+#include "wp_charpara.h"                /* (WP9, WP10: their items in the Font and Paragraph groups) */
 #include "wphooks.h"
 
 /* ------------------------------------------------------------------ */
@@ -77,7 +78,7 @@ static const char *const hlnames[] = { "No Colour", "Yellow", "Bright Green", "T
 static const ULONG hlvals[] = { 0xFF000000, 0xFFFF00, 0x00FF00, 0x00FFFF, 0xFF00FF, 0x0000FF, 0xFF0000, 0x000080, 0x008080,
                                 0x008000, 0x800080, 0x800000, 0x808000, 0x808080, 0xC0C0C0, 0x000000 };
 static const char *const casenames[] = { "Sentence case.", "lowercase", "UPPERCASE", "Capitalise Each Word", "tOGGLE cASE" };
-static const char *const spacings[] = { "1.0", "1.15", "1.5", "2.0", "2.5", "3.0" };
+static const char *const spacings[] = { "1.0", "1.15", "1.5", "2.0", "2.5", "3.0", "Add or Remove Space Before", "Remove or Add Space After" };   /* (the last two: WP10) */
 static const char *const selects[] = { "Select All", "Select Sentence", "Select Paragraph", "Select Objects", "Select Similar Formatting" };   /* (the last two: WP12) */
 static const char *const margins[] = { "Normal: 2.54 cm all round", "Narrow: 1.27 cm all round", "Moderate: 1.91 cm at the sides",
                                        "Wide: 5.08 cm at the sides", "Roomy: 3.17 cm at the sides", "Custom Margins..." };
@@ -99,13 +100,13 @@ static const char *const papers[] = { "A4  21 x 29.7 cm", "Letter  8.5 x 11 in",
                                       "A6  10.5 x 14.8 cm", "B5  17.6 x 25 cm", "Executive  7.25 x 10.5 in", "Tabloid  11 x 17 in", "More Paper Sizes..." };
 static const char *const breaks[] = { "Page break", "Column break", "Line break (text wrapping)", "Section break: next page",
                                       "Section break: continuous", "Section break: even page", "Section break: odd page" };
-static const char *const columns[] = { "One", "Two", "Three", "Line Between" };
+static const char *const columns[] = { "One", "Two", "Three", "Line Between", "Left", "Right", "More Columns..." };   /* (WP22a: the last three) */
 static const char *const linenums[] = { "None", "Continuous", "Restart Each Page", "Restart Each Section", "Line Numbering Options..." };
-static const char *const hyphens[] = { "None", "Automatic" };
-static const char *const pagealigns[] = { "Top", "Centre", "Bottom" };
+static const char *const hyphens[] = { "None", "Automatic", "Manual...", "Hyphenation Options..." };   /* (WP22a: the last two) */
+static const char *const pagealigns[] = { "Top", "Centre", "Bottom", "Justified" };   /* (WP22a: Justified) */
 static const char *const dropcaps[] = { "None", "Dropped", "In Margin", "Drop Cap Options..." };
 static const char *const watermarks[] = { "No Watermark", "DRAFT", "CONFIDENTIAL", "SAMPLE", "DO NOT COPY", "URGENT", "Custom Watermark..." };
-static const char *const pageborders[] = { "No Border", "Box", "Double Box", "Thick Box", "Dotted Box", "Dashed Box" };
+static const char *const pageborders[] = { "No Border", "Box", "Double Box", "Thick Box", "Dotted Box", "Dashed Box", "Page Borders..." };   /* (WP22a) */
 static const char *const indents[] = { "0 cm", "0.5 cm", "1 cm", "1.5 cm", "2 cm", "2.5 cm", "3 cm", "4 cm" };
 static const char *const spaces[] = { "0 pt", "3 pt", "6 pt", "8 pt", "10 pt", "12 pt", "18 pt", "24 pt" };
 static const char *const zooms[] = { "Page width", "50%", "75%", "100%", "125%", "150%", "200%" };
@@ -114,7 +115,8 @@ static const char *const rejects[] = { "Reject and Move to Next", "Reject This C
 /* (the interface font is Latin-1: the symbols outside it are named) */
 static const char *const symbols[] = { "\251  Copyright", "\256  Registered", "TM  Trade mark", "\247  Section", "\266  Pilcrow",
                                        "EUR  Euro", "\243  Pound", "\260  Degree", "\261  Plus or minus", "\327  Times", "\367  Divide",
-                                       "\275  One half", "\274  One quarter", "--  Em dash", "-  En dash", "...  Ellipsis", "\267  Bullet" };
+                                       "\275  One half", "\274  One quarter", "--  Em dash", "-  En dash", "...  Ellipsis", "\267  Bullet",
+                                       "More Symbols..." };   /* (the last: WP10's Symbol window) */
 static const char *const deltables[] = { "Delete Rows", "Delete Columns", "Delete Table" };
 static const char *const shadenames[] = { "No Colour", "Light Grey", "Grey", "Light Blue", "Light Green", "Light Yellow", "Light Red", "More Colours..." };
 static const ULONG shadevals[] = { 0xFF000000, 0xE7E6E6, 0xBFBFBF, 0xDEEAF6, 0xE2EFD9, 0xFFF2CC, 0xF8CBAD, COLOR_MORE };
@@ -144,12 +146,12 @@ static const char *const positions[] = { "In Line with Text", "Top Left", "Top C
                                          "Middle Right", "Bottom Left", "Bottom Centre", "Bottom Right" };
 static const char *const wraps[] = { "In Line with Text", "Square", "Tight", "Top and Bottom", "Behind Text", "In Front of Text",
                                      "More Layout Options..." };
-static const char *const pastespecs[] = { "Keep Source Formatting", "Merge Formatting", "Keep Text Only" };
+static const char *const pastespecs[] = { "Keep Source Formatting", "Merge Formatting", "Keep Text Only", "Paste Special...", "Clipboard Pane" };   /* (the last two: WP10) */
 static const char *const multilists[] = { "Bullets", "1. a. i.", "1) a) i)", "I. A. 1. a)", "1. 1.1. 1.1.1.", "Headings 1, 1.1, 1.1.1", "No Heading Numbering",
                                           "Restart at 1", "Continue Numbering", "Set Numbering Value...", "Define New List...",
                                           "Next List Level", "Previous List Level" };
 static const char *const pborders[] = { "No Border", "Bottom Border", "Top Border", "Left Border", "Right Border", "Outside Borders", "All Borders",
-                                        "Inside Borders", "Borders and Shading..." };
+                                        "Inside Borders", "Borders and Shading...", "Horizontal Line" };   /* (the last: WP10) */
 static const char *const stylesets[] = { "Quill", "Modern", "Classic", "Elegant", "Simple", "Bold" };
 static const char *const themenames[] = { "Quill", "Amiga", "Workbench", "Boing", "Kickstart", "Paper", "Lagoon", "Velvet" };   /* (TH_ order) */
 static const char *const colorsets[] = { "Quill", "Blue", "Blue Green", "Green", "Orange", "Red", "Violet", "Grey" };          /* (CS_ order) */
@@ -240,15 +242,16 @@ static const Item g_font[] = {
   { K_BUTTON, S_ICON, IC_SUPER, 0, NULL, ID_SUPER, RB_SUPER, 0, F_ROW1, 0, "Superscript (Amiga-+)" },
   { K_DROP, S_ICON, IC_HIGHLIGHT, L_HIGHLIGHT, NULL, ID_HIGHLIGHT, 0, 0, F_ROW1, 0, "Text highlight colour" },
   { K_DROP, S_ICON, IC_FONTCOLOR, L_COLORS, NULL, ID_FONTCOLOR, 0, 0, F_ROW1, 0, "Font colour" },
+  { K_DROP, S_ICON, 0, 0, NULL, ID_C_EFFECTS, 0, 0, F_ROW1, 0, "Text effects and typography", &wp9_effects_list, WP9_ICON_EFFECTS },   /* (WP9) */
   { K_BUTTON, S_ICON, IC_FONTDLG, 0, NULL, ID_FONTDLG, 0, 0, F_ROW1, 0, "Font: effects, underlines, character spacing" },
 };
 static const Item g_para[] = {
-  { K_BUTTON, S_ICON, IC_BULLETS, 0, NULL, ID_BULLETS, RB_BULLETS, 0, 0, 0, "Bullets" },
-  { K_BUTTON, S_ICON, IC_NUMBERS, 0, NULL, ID_NUMBERS, RB_NUMBERS, 0, 0, 0, "Numbering" },
+  { K_DROP, S_ICON, IC_BULLETS, 0, NULL, ID_P_BULLETLIB, RB_BULLETS, 0, F_SPLIT, 0, "Bullets", &wp10_bullet_list, NULL, ID_BULLETS },   /* (lists: WP10) */
+  { K_DROP, S_ICON, IC_NUMBERS, 0, NULL, ID_P_NUMLIB, RB_NUMBERS, 0, F_SPLIT, 0, "Numbering", &wp10_number_list, NULL, ID_NUMBERS },
   { K_DROP, S_ICON, IC_MULTILIST, L_MULTILIST, NULL, ID_MULTILISTDD, 0, 0, 0, 0, "Multilevel lists, heading numbering, restarting the numbering" },
   { K_BUTTON, S_ICON, IC_OUTDENT, 0, NULL, ID_OUTDENT, 0, 0, 0, 0, "Decrease indent (Amiga-K)" },
   { K_BUTTON, S_ICON, IC_INDENT, 0, NULL, ID_INDENT, 0, 0, 0, 0, "Increase indent (Amiga-M)" },
-  { K_BUTTON, S_ICON, IC_SORT, 0, NULL, ID_SORT, 0, 0, 0, 0, "Sort the selected paragraphs A to Z" },
+  { K_BUTTON, S_ICON, IC_SORT, 0, NULL, ID_SORT, 0, 0, 0, 0, "Sort" },
   { K_BUTTON, S_ICON, IC_MARKS, 0, NULL, ID_MARKS, RB_MARKS, 0, 0, 0, "Show paragraph marks and other formatting symbols" },
   { K_BUTTON, S_ICON, IC_LEFT, 0, NULL, ID_LEFT, RB_ALIGN0, 0, F_ROW1, 0, "Align left (Amiga-[)" },
   { K_BUTTON, S_ICON, IC_CENTER, 0, NULL, ID_CENTER, RB_ALIGN1, 0, F_ROW1, 0, "Centre (Amiga-E)" },
@@ -300,7 +303,13 @@ static const struct { UWORD id; const char *tip; } tips[] = {
   { ID_MULTILISTDD, "Lists with several levels (1, 1.1, 1.1.1), numbered headings, and starting a list again from 1." },
   { ID_OUTDENT, "Moves the paragraph back towards the margin; in a list, up a level." },
   { ID_INDENT, "Moves the paragraph further in from the margin; in a list, down a level." },
-  { ID_SORT, "Puts the selected paragraphs in alphabetical order." },
+  { ID_SORT, "Puts the selected paragraphs in order: alphabetically, by number or by date, by the whole paragraph or by a field of it." },
+  { ID_C_ENCLOSE, "Puts one or two characters in a circle, square, triangle or diamond." },
+  { ID_C_SHADETOGGLE, "Shades the background of the selected characters (grey, or the colour chosen with the arrow)." },
+  { ID_C_EFFECTS, "Outline, shadow, emboss and engrave; hidden text; ligatures and number forms Word uses." },
+  { ID_P_DISTRIBUTE, "Spreads the characters of every line evenly between the margins, the last line too." },
+  { ID_P_BULLETLIB, "Starts a bulleted list. The arrow offers other bullets and Define New Bullet." },
+  { ID_P_NUMLIB, "Starts a numbered list. The arrow offers other numbers and Define New Number Format." },
   { ID_MARKS, "Shows the marks that don't print: paragraph ends, tabs, spaces and breaks. Useful for seeing why text sits where it does." },
   { ID_LEFT, "Lines the paragraph up against the left margin, with a ragged right edge." },
   { ID_CENTER, "Centres each line of the paragraph between the margins, as for a title." },
