@@ -393,6 +393,7 @@ static int cf_eq(const CharFmt *a, const CharFmt *b)
          a->cstyle == b->cstyle && a->fx == b->fx && a->ul == b->ul && a->spacing == b->spacing && a->scale == b->scale && a->position == b->position &&
          a->link == b->link && a->bmark == b->bmark &&
          a->fx2 == b->fx2 && a->ulcolor == b->ulcolor && a->shade == b->shade && a->rx == b->rx &&   /* (WP9's) */
+         a->lang == b->lang && a->langea == b->langea && a->langbidi == b->langbidi && a->noproof == b->noproof &&   /* (WP31's) */
          a->frev == b->frev && a->move == b->move;       /* (WP5) */
 }
 /* the run covering byte off (past the end: the last run). Points into the paragraph, so it is good
@@ -667,6 +668,9 @@ void cf_apply(CharFmt *c, unsigned mask, const CharFmt *v)
   if (mask & CM_ULCOLOR) c->ulcolor = v->ulcolor;
   if (mask & CM_SHADE) c->shade = v->shade;
   if (mask & CM_RX) c->rx = v->rx;
+  /* WP31's: the language (with w:lang's other two) and "do not check" (proflang.h) */
+  if (mask & 0x04000000U) { c->lang = v->lang; c->langea = v->langea; c->langbidi = v->langbidi; }
+  if (mask & 0x02000000U) c->noproof = v->noproof;
 }
 /* the CM_ fields mask names set from val on a..b (either order), runs split at the ends; an empty
    paragraph's one run takes it too. One undo step; 0 if the range is empty */

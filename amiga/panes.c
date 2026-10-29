@@ -26,6 +26,7 @@
 #include "theme.h"
 #include "lang.h"
 #include "ids.h"
+#include "wp_proof.h"   /* (WP31: the language on the bar) */
 #include "wp_outline.h"               /* (WP11) CMD_OV_MOVEPART: dragging headings */
 
 /* the interface font's height in pixels: rows and boxes are sized from it */
@@ -614,6 +615,7 @@ struct SData {
   LONG zoomset;                  /* the zoom chosen on the bar (MUIA_Status_Zoom) */
   char hint[200];                /* MUIM_Status_Hint's line (the address of a link under the pointer), "" none */
   struct MUI_EventHandlerNode ehn;
+  NBox langb; char lang[64];     /* (WP31) the language shown, and where */
 };
 /* the slider: 10% at the left, 100% in the middle, 500% at the right */
 /* the slider: 10% at the left, 100% in the middle, 500% at the right (two linear halves).
@@ -711,8 +713,18 @@ static void status_draw(struct SData *d, Object *obj)
       while (n > 0 && x + theme_textlen(rp, theme_font(), h) >= d->focus.x0 - 10) h[--n] = 0;
       if (n) theme_text(rp, theme_font(), x, y, h, tpen(T_ACCENT));
     }
-    /* the language, if there is room */
-    else if (x + theme_textlen(rp, theme_font(), "English (UK)") < d->focus.x0 - 10) theme_text(rp, theme_font(), x, y, "English (UK)", tpen(T_DIM));
+    /* the language, if there is room (WP31: the caret's; a click opens the Language window) */
+    else {
+      const char *lg = wp31_status_lang();
+      LONG lw = theme_textlen(rp, theme_font(), lg);
+      d->langb.x0 = d->langb.x1 = 0;
+      if (x + lw < d->focus.x0 - 10) {
+        d->langb.x0 = (WORD)(x - 4); d->langb.x1 = (WORD)(x + lw + 3); d->langb.y0 = (WORD)(t + 1); d->langb.y1 = (WORD)b;
+        if (d->hot == 11) theme_fill(rp, d->langb.x0, d->langb.y0, d->langb.x1, d->langb.y1, tpen(T_HOVER));
+        theme_text(rp, theme_font(), x, y, lg, tpen(T_DIM));
+      }
+      strncpy(d->lang, lg, sizeof d->lang - 1); d->lang[sizeof d->lang - 1] = 0;
+    }
   }
 }
 /* the part of the bar at x, y: 1 page, 2 words, 3 percent, 4 slider, 5 Focus, 6 minus, 7 plus,
@@ -729,6 +741,7 @@ static int status_hit(struct SData *d, WORD x, WORD y)
   if (in_nbox(&d->viewb[0], x, y)) return 8;
   if (in_nbox(&d->viewb[1], x, y)) return 9;
   if (in_nbox(&d->viewb[2], x, y)) return 10;
+  if (d->langb.x1 > d->langb.x0 && in_nbox(&d->langb, x, y)) return 11;     /* (WP31) */
   return 0;
 }
 /* a zoom chosen on the bar: kept for MUIA_Status_Zoom and main.c told (ID_ZOOMSET), which sets
@@ -767,6 +780,7 @@ static ULONG status_events(struct IClass *cl, Object *obj, struct MUIP_HandleEve
   case 8: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_VREAD); break;
   case 9: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_VPRINT); break;
   case 10: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_VWEB); break;
+  case 11: DoMethod(_app(obj), MUIM_Application_ReturnID, WP31_LANGWIN_ID); break;     /* (WP31) */
   default: return 0;
   }
   return MUI_EventHandlerRC_Eat;
@@ -785,6 +799,7 @@ static const char *status_help(struct SData *d, WORD x, WORD y)
   case 8: return theme_bubble(tr("Read Mode"), tr("Two pages to read, without the tools (Esc returns)"));
   case 9: return theme_bubble(tr("Print Layout"), tr("The pages as they print"));
   case 10: return theme_bubble(tr("Web Layout"), tr("The text the window's width, without pages"));
+  case 11: return theme_bubble(tr("Language"), tr("The language the text at the caret is checked in. Click to set it."));   /* (WP31) */
   }
   return NULL;
 }
@@ -847,7 +862,7 @@ static ULONG sdispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, _
   case MUIM_Status_Set: {
     struct MUIP_Status_Set *m = (struct MUIP_Status_Set *)msg;
     d = INST_DATA(cl, obj);
-    if (d->drag || !memcmp(&d->s, m, sizeof *m)) return 0;
+    if (d->drag || (!memcmp(&d->s, m, sizeof *m) && !strcmp(d->lang, wp31_status_lang()))) return 0;   /* (WP31: or the language changed) */
     d->s = *m;
     if (_win(obj)) MUI_Redraw(obj, MADF_DRAWOBJECT);
     return 0;

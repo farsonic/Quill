@@ -19,6 +19,7 @@
 #include "notes.h"   /* (WP22b) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a: equations */
+#include "docx_lang.h"   /* WP31: languages, do not check */
 #include "review.h"
 
 /* ------------------------------------------------------------------ */
@@ -203,6 +204,7 @@ static void parse_rpr(Xml *x, Ctx *c, RPr *r, char *rstyle)
     if (x->type != XT_START) continue;
     v = xml_attr(x, "val");
     { int w9 = wp9_read_rpr(x, &r->set, &r->cf); if (w9 == 2) continue; if (w9) { xml_skip(x); continue; } }   /* WP9's (charfx.h) */
+    if (wp31_read_rpr(x, &r->set, &r->cf)) { xml_skip(x); continue; }   /* WP31's (docx_lang.h) */
     if (!strcmp(n, "rStyle") && rstyle && v) { strncpy(rstyle, v, 39); rstyle[39] = 0; }
     else if (!strcmp(n, "b")) set_flag(r, CF_BOLD, onoff(x));
     else if (!strcmp(n, "i")) set_flag(r, CF_ITALIC, onoff(x));
@@ -3334,6 +3336,7 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
     if (f->scale != base->scale) diff |= CM_SCALE;
     if (f->position != base->position) diff |= CM_POSITION;
     diff |= wp9_rpr_diff(f, base);                  /* WP9's */
+    diff |= wp31_rpr_diff(f, base);                 /* WP31's */
   }
   if (w_rstyle) {
     buf_adds(&b, "<w:rStyle w:val=\""); xml_escape(&b, w_rstyle, strlen(w_rstyle)); buf_adds(&b, "\"/>");
@@ -3370,6 +3373,7 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
   if ((diff & CM_SMALLCAPS) && (!full || (f->fx & FX_SMALLCAPS))) buf_adds(&b, f->fx & FX_SMALLCAPS ? "<w:smallCaps/>" : "<w:smallCaps w:val=\"0\"/>");
   if ((diff & CM_DSTRIKE) && (!full || (f->fx & FX_DSTRIKE))) buf_adds(&b, f->fx & FX_DSTRIKE ? "<w:dstrike/>" : "<w:dstrike w:val=\"0\"/>");
   wp9_write_rpr(&b, f, base, diff, full, 0);          /* WP9's effects */
+  wp31_write_rpr(&b, f, base, diff, full, 0);         /* WP31's w:noProof */
   if ((diff & CM_SPACING) && (!full || f->spacing)) buf_printf(&b, "<w:spacing w:val=\"%d\"/>", (int)f->spacing);
   if ((diff & CM_SCALE) && (!full || f->scale)) buf_printf(&b, "<w:w w:val=\"%u\"/>", (unsigned)(f->scale ? f->scale : 100));
   if ((diff & CM_POSITION) && (!full || f->position)) buf_printf(&b, "<w:position w:val=\"%d\"/>", (int)f->position);
@@ -3380,6 +3384,7 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
     buf_printf(&b, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"%06lX\"/>", (unsigned long)(f->hl & 0xFFFFFF));
   if ((diff & (CM_SUPER | CM_SUB)) && (!full || (f->flags & (CF_SUPER | CF_SUB))))
     buf_adds(&b, f->flags & CF_SUPER ? "<w:vertAlign w:val=\"superscript\"/>" : f->flags & CF_SUB ? "<w:vertAlign w:val=\"subscript\"/>" : "<w:vertAlign w:val=\"baseline\"/>");
+  wp31_write_rpr(&b, f, base, diff, full, 1);         /* WP31's w:lang */
   wp9_write_rpr(&b, f, base, diff, full, 2);          /* WP9's kept ones */
   if (b.len) { buf_adds(o, "<w:rPr>"); buf_add(o, b.data, b.len); buf_adds(o, "</w:rPr>"); }
   buf_free(&b);

@@ -37,6 +37,10 @@ typedef struct {
   u32 ulcolor;              /* the underline's colour: 0 the text's, else HL_ON | 0xRRGGBB */
   u32 shade;                /* character shading (w:shd, kept apart from the highlight): 0 none, else HL_ON | 0xRRGGBB */
   u16 rx;                   /* run properties kept verbatim (w14 text effects, w:effect): charfx.h rx_text(rx), 0 none */
+  /* WP31 proofing languages (core/proflang.h): */
+  u16 lang;                 /* the text's language (w:lang w:val): a proflang.h number, 0 not set */
+  u16 langea, langbidi;     /* w:lang's w:eastAsia and w:bidi, kept as they were read */
+  u8  noproof;              /* not checked for spelling or grammar (w:noProof) */
   u16 frev;                 /* WP5: a tracked formatting change (w:rPrChange): Doc.frevs index + 1, 0 none */
   u8 move;                  /* WP5: a tracked insertion or deletion that is a move (w:moveTo, w:moveFrom):
                                Doc.rvmoves index + 1 (its name), 0 not a move */
@@ -68,8 +72,8 @@ enum { CM_BOLD = 1, CM_ITALIC = 2, CM_UNDERLINE = 4, CM_STRIKE = 8, CM_SUPER = 1
        CM_LINK = 0x100000,       /* (not in CM_ALL: clearing formatting or painting it keeps links, as in Word) */
        CM_BMARK = 0x200000,      /* (nor this: bookmarks stay where they are) */
        CM_CBORDER = 0x400000,    /* FX_BORDER */
-       CM_LOOK = 0x704FCFFF,     /* how it looks (not its character style nor tracked changes; WP9's bits too) */
-       CM_ALL = 0x704FEFFF };     /* CM_ALL leaves tracked changes alone */
+       CM_LOOK = 0x764FCFFF,     /* how it looks (not its character style nor tracked changes; WP9's and WP31's bits too) */
+       CM_ALL = 0x764FEFFF };     /* CM_ALL leaves tracked changes alone */
 #define CM_FREV 0x08000000U        /* WP5: CharFmt.frev (not in CM_ALL; CM_REV carries move with rev) */
 
 enum { AL_LEFT, AL_CENTER, AL_RIGHT, AL_JUSTIFY, AL_DISTRIBUTE };   /* AL_DISTRIBUTE (WP10): every line spread out, the last too (w:jc distribute) */

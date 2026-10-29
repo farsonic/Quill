@@ -13,6 +13,15 @@ Quill 0.14 is a native word processor for AmigaOS with a MUI interface. It reads
 - **Characters:** nonbreaking spaces (Ctrl-Shift-Space, a degree sign with formatting marks), nonbreaking hyphens (Ctrl-Shift-minus) and optional hyphens (Ctrl-minus, shown only where a line breaks); lines now break after an ordinary hyphen. The Symbol window has every character the screen can show, any character by its code, the recently used ones and a page of special characters.
 - **Clipboard:** a Paste Special window, Copy and Paste Formatting (Ctrl-Shift-C, Ctrl-Shift-V), and the Clipboard pane beside the page with the last 24 things copied.
 
+## Proofing and languages (work packages 8 and 31)
+
+- **Spelling and grammar:** **Review > Spelling & Grammar** (F7) goes from mistake to mistake: words its language's dictionary doesn't know, and in English text grammar: a word twice, "a" or "an" by sound, a sentence starting with a small letter, spaces round punctuation, two spaces, commonly confused words ("could of", "their is", "more then"), and if you like passive voice and wordy phrases. Grammar is marked as you type with a blue double line (style with a dotted one); both kinds of marks can be switched off (**Review > Proofing**). The right-button menu offers the grammar suggestion too.
+- **Thesaurus:** **Review > Thesaurus** (Shift-F7) and **Synonyms** on the right-button menu, from an English thesaurus made from Princeton's WordNet (36,834 words); a thesaurus in LibreOffice's format for another language (`Dict/th_de_DE.dat`) is used for text in that language.
+- **AutoCorrect:** typing "teh " gives "the ", "(c)" gives ©; TWo INitial CApitals, the first letter of sentences and table cells, names of days and words typed with Caps Lock on by mistake are put right. **AutoCorrect Options** has the list (add your own; **AutoCorrect** on a misspelt word's menu adds one) and the exceptions. Each correction is an undo step of its own.
+- **AutoFormat as you type:** "smart quotes", dashes, ½, 1st, `* ` and `1. ` starting lists, a line of `---` (or `===`, `___`) becoming a border, web and mail addresses becoming links, *bold* and _italic_. **Format > AutoFormat Now** does it to the selection or the whole document.
+- **Read Aloud:** **Review > Read Aloud** reads the selection, or from the caret on, through translator.library and narrator.device (Workbench 1.3 and 2.0 had them), selecting each sentence as it is read; click again to stop.
+- **Languages:** each piece of text has a language, read from and written to Word files. **Review > Language > Set Proofing Language** marks the selection (or what you type next) as being in a language, or as not to be checked, and **Set As Default** sets the language of text that has none. The status bar shows the language at the caret; click it to change it. Spelling uses Quill's British English list, or for any language a Hunspell dictionary put in the `Dict` drawer (`de_DE.aff` and `de_DE.dic`, as LibreOffice and Firefox ship them; Quill reads their affix rules, compounds and suggestions itself). Hyphenation follows the language too: German, French, Spanish, Italian, Portuguese, Dutch and Polish come with Quill.
+
 ## New in 0.14: arranging, bookmarks, page numbers and the Design tab
 
 These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and Layout tabs.
@@ -263,7 +272,7 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
 | `Quill` | The program: 730 KB, for AmigaOS 3.x with MUI 3.8 or later (MUI 5, or AROS's Zune). |
 | `Fonts/` | Screen fonts: Amiga bitmap fonts made from the same TrueType fonts the layout measures with. Quill loads them from this drawer itself, so nothing needs installing. |
 | `TrueType/` | The TrueType fonts the layout measures text with, `fonts.list`, and their licence. |
-| `Dict/` | The word list spelling is checked against (British English, from SCOWL), the hyphenation patterns (British English, BSD-style licence), and their licences. |
+| `Dict/` | The word list spelling is checked against (British English, from SCOWL), the English thesaurus (`th_en.dat`, from WordNet), the hyphenation patterns (British English, BSD-style licence; German, French, Spanish, Italian, Portuguese, Dutch and Polish from hyph-utf8, MIT or BSD), and their licences. Hunspell dictionaries (`xx_YY.aff`, `xx_YY.dic`) you add here are used for text in their language. |
 | `Example.docx` | A sample document. |
 | `Styles.docx` | A sample of 0.6's styles and formatting: the Modern style set, headings numbered through their styles, character styles, a boxed and shaded style of its own, character effects and a multilevel list. |
 | `Objects.docx` | A sample of 0.5's pictures and objects: a floating photograph with the text round it, a cropped and turned CMYK picture, a row of shapes, a text box and a star behind the text. |
@@ -442,7 +451,8 @@ Quill draws its own window, as WordCraft does, in WordCraft's light colours, wit
 | Amiga-0 | Fit the page width |
 | Amiga->, Amiga-< | Grow and shrink the font |
 | Amiga-* | Formatting marks |
-| Amiga-= | Spelling |
+| Amiga-=, F7 | Spelling & Grammar |
+| Shift-F7 | Thesaurus |
 | Ctrl-Shift-J | Distributed alignment |
 | Ctrl-0 | Space before the paragraph on or off |
 | Ctrl-T, Ctrl-Shift-T | Hanging indent, one step more or less |
@@ -547,4 +557,7 @@ The MUI headers come from Aminet's `dev/mui/mui38dev.lha`. That archive may only
 - **Its licence:** not chosen yet; the author will choose one before the code is published.
 - **TrueType fonts:** Liberation (Red Hat, Google), Carlito and Caladea, under the SIL Open Font License 1.1. See `TrueType/LICENSE-fonts.txt`.
 - **Word list:** `Dict/british-english` is SCOWL's British English list (Copyright 2000-2011 Kevin Atkinson and others), used under its permissive licence: see `Dict/LICENSE-dict.txt`.
+- **Thesaurus:** `Dict/th_en.dat` is made (by `tools/mkthes.py`) from LibreOffice's `th_en_US_v2`, a MyThes thesaurus made from WordNet. WordNet is Copyright Princeton University, used under the WordNet licence: see `Dict/LICENSE-thesaurus.txt`.
+- **Hyphenation patterns:** besides the British English ones (`Dict/README_hyph_en_GB.txt`), `Dict/hyph_de_DE.dic`, `hyph_fr_FR.dic`, `hyph_es_ES.dic`, `hyph_it_IT.dic`, `hyph_pt_PT.dic`, `hyph_nl_NL.dic` and `hyph_pl_PL.dic` are made (by `tools/mkhyph.py`) from the hyph-utf8 project's patterns, under the MIT licence (Portuguese: BSD 3-clause; Italian and Polish offer MIT among others). Each one's authors, copyright and licence are in the `.txt` beside it, and the licences' texts in `Dict/LICENSE-hyph.txt`.
+- **Hunspell:** Quill reads Hunspell's dictionary format with code of its own, written from the format's documentation (hunspell(5)); no Hunspell code is in Quill, and no Hunspell dictionary ships with it.
 - **Screen fonts:** the screen fonts in `Fonts/` are renderings of those fonts, so they are modified versions under the same licence. They are renamed QuillSerif, QuillSans, QuillMono, QuillSansC and QuillSerifC, as the licence requires of modified versions.
