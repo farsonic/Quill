@@ -27,6 +27,7 @@
 #include "ribbondef.h"
 #include "wp_charpara.h"                /* (WP9, WP10: their items in the Font and Paragraph groups) */
 #include "wphooks.h"
+#include "wp_tables.h"                 /* WP21a/WP21b: Insert > Tables' Draw Table, Quick Tables, Spreadsheet */
 
 /* ------------------------------------------------------------------ */
 /* the lists */
@@ -100,13 +101,13 @@ static const char *const papers[] = { "A4  21 x 29.7 cm", "Letter  8.5 x 11 in",
                                       "A6  10.5 x 14.8 cm", "B5  17.6 x 25 cm", "Executive  7.25 x 10.5 in", "Tabloid  11 x 17 in", "More Paper Sizes..." };
 static const char *const breaks[] = { "Page break", "Column break", "Line break (text wrapping)", "Section break: next page",
                                       "Section break: continuous", "Section break: even page", "Section break: odd page" };
-static const char *const columns[] = { "One", "Two", "Three", "Line Between" };
+static const char *const columns[] = { "One", "Two", "Three", "Line Between", "Left", "Right", "More Columns..." };   /* (WP22a: the last three) */
 static const char *const linenums[] = { "None", "Continuous", "Restart Each Page", "Restart Each Section", "Line Numbering Options..." };
-static const char *const hyphens[] = { "None", "Automatic" };
-static const char *const pagealigns[] = { "Top", "Centre", "Bottom" };
+static const char *const hyphens[] = { "None", "Automatic", "Manual...", "Hyphenation Options..." };   /* (WP22a: the last two) */
+static const char *const pagealigns[] = { "Top", "Centre", "Bottom", "Justified" };   /* (WP22a: Justified) */
 static const char *const dropcaps[] = { "None", "Dropped", "In Margin", "Drop Cap Options..." };
 static const char *const watermarks[] = { "No Watermark", "DRAFT", "CONFIDENTIAL", "SAMPLE", "DO NOT COPY", "URGENT", "Custom Watermark..." };
-static const char *const pageborders[] = { "No Border", "Box", "Double Box", "Thick Box", "Dotted Box", "Dashed Box" };
+static const char *const pageborders[] = { "No Border", "Box", "Double Box", "Thick Box", "Dotted Box", "Dashed Box", "Page Borders..." };   /* (WP22a) */
 static const char *const indents[] = { "0 cm", "0.5 cm", "1 cm", "1.5 cm", "2 cm", "2.5 cm", "3 cm", "4 cm" };
 static const char *const spaces[] = { "0 pt", "3 pt", "6 pt", "8 pt", "10 pt", "12 pt", "18 pt", "24 pt" };
 static const char *const zooms[] = { "Page width", "50%", "75%", "100%", "125%", "150%", "200%" };
@@ -385,7 +386,11 @@ static const Item i_pages[] = {
   { K_BUTTON, S_SMALL, IC_BLANKPAGE, 0, "Blank Page", ID_BLANKPAGE, 0, 0, 0, 0, "An empty page at the caret" },
   { K_BUTTON, S_SMALL, IC_BREAKS, 0, "Line Break", ID_LINEBREAK, 0, 0, 0, 0, "A new line in the paragraph (Shift-Return)" } };
 static const Item i_tables[] = { { K_BUTTON, S_LARGE, IC_TABLE, 0, "Table", ID_TABLE, 0, 0, 0, 0, "Insert a table (Amiga-T); in a cell, a table inside it" },
-  { K_BUTTON, S_SMALL, IC_TOTABLE, 0, "Text to Table", ID_TOTABLE, 0, RB_SELECTION, F_NEWCOL, 0, "The selected paragraphs as a table, split at tabs or commas" } };
+  { K_BUTTON, S_SMALL, IC_TOTABLE, 0, "Text to Table", ID_TOTABLE, 0, RB_SELECTION, F_NEWCOL, 0, "The selected paragraphs as a table, split at tabs or commas" },
+  /* WP21a, WP21b (wp_tables.h): */
+  { K_BUTTON, S_SMALL, 0, 0, "Draw Table", WP21_ID_DRAWTABLE, RB_WP(WPI_21B, 1), 0, 0, 0, "Draw a table, or lines that split cells, with the mouse (Esc when done)", NULL, WP21_IC_DRAWTABLE, 0 },
+  { K_BUTTON, S_SMALL, 0, 0, "Quick Tables", WP21_ID_QUICKTABLES, 0, 0, 0, 0, "A ready-made table: calendars, lists, a matrix...", NULL, WP21_IC_QUICK, 0 },
+  { K_BUTTON, S_SMALL, 0, 0, "Spreadsheet", WP21_ID_SPREADSHEET, 0, 0, F_NEWCOL, 0, "A table from a spreadsheet saved as CSV text", NULL, WP21_IC_SHEET, 0 } };
 static const Item i_ill[] = {
   { K_BUTTON, S_LARGE, IC_PICTURE, 0, "Pictures", ID_PICTURE, 0, 0, 0, 0, "A PNG or JPEG picture from a file" },
   { K_DROP, S_LARGE, IC_SHAPES, L_SHAPES, "Shapes", ID_SHAPESDD, 0, 0, 0, 0, "A rectangle, oval, arrow or other shape, in front of the text" },
@@ -1315,7 +1320,7 @@ static void open_list(struct RData *d, Object *obj, int k)
       const TableStyle *ts = &doc->tstyles[k - 1];
       int dup = !strcmp(ts->id, "TableNormal"), used = 0;
       for (i = 0; i < doc->ntables && !used; i++) if (doc->tables[i].tstyle == k) used = 1;
-      if (!used) continue;                       /* (a file from Word may carry a hundred it doesn't use) */
+      if ((!used && !ts->custom) || ts->gone) continue;   /* (a file from Word may carry a hundred it doesn't use; WP21a: one's own are shown) */
       for (i = 0; i < tstyle_builtin_count() && !dup; i++) if (!strcmp(tstyle_builtin(i)->id, ts->id)) dup = 1;
       if (!dup) { d->tsval[d->tsn] = 1000 + k; d->tsp[d->tsn++] = ts; }
     }

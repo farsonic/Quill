@@ -33,6 +33,7 @@
 #include <proto/icon.h>
 #include <clib/alib_protos.h>
 #include "quill.h"
+#include "wp_pages.h"
 /* the dialogs' labels: Quill's in the dark theme (MUI's own are drawn black) */
 #undef Label
 #undef Label1
@@ -259,7 +260,7 @@ static char *title_store(void);
 static Object *lkwin;                   /* the Link window (made when first wanted) */
 static void open_link(void), link_done(void), link_open(void), link_copy(void);
 static Object *gotowin, *dcwin, *lnwin, *mcwin;   /* Go To, Drop Cap, Line Numbers, More Colours (made when first wanted) */
-static void open_goto(void), goto_done(void), open_dropcap(void), dropcap_done(void), open_linenum(void), linenum_done(void);
+static void open_goto(void), goto_done(void), open_dropcap(void), dropcap_done(void), open_linenum(void);
 static void open_morecol(ULONG id), morecol_done(void), remove_headfoot(int footer), add_text(int level);
 static void open_pagesetup(void);
 static Object *spwin2;                  /* the Selection Pane (made when first wanted) */
@@ -272,7 +273,7 @@ static ULONG uibits = RBIT(RB_RULER) | RBIT(RB_NAVPANE) | RBIT(RB_SHOWCOMMENTS);
 static void ui_bit(int b, int on);
 static int focus, chrome_bare;           /* focus (the status bar's): the page alone; the tools hidden now */
 static void chrome(void);
-static void open_watermark(void), watermark_done(void);
+static void open_watermark(void);
 static FontSet fonts;
 static Doc *doc;
 static char docpath[512];
@@ -1493,6 +1494,8 @@ void wp_latin1_utf8(const char *latin1, char *utf8, size_t cap) { latin1_utf8(la
 void wp_story_close(void) { if (doc->edit.kind) story_close(1); }
 void wp_refresh(void) { DoMethod(view, MUIM_Quill_Command, CMD_REFRESH, 0); }
 const char *wp_docpath(void) { return docpath; }     /* (WP29: the document's file, "" untitled) */
+void wp_len_text(i32 tw, char *out) { tab_text(tw, out); }      /* (WP22a: lengths in the dialogs) */
+i32 wp_len_parse(const char *s) { return parse_len(s); }
 static Object *splitwin, *splitcols, *splitrows;
 /* Split Cells, for the caret's cell (a merged cell offers the number of cells it covers) */
 static void open_split(void)
@@ -2902,6 +2905,7 @@ static void formula_done(void)
 }
 /* the borders' pen (Table Design > Borders) */
 static struct QBorders pen = { TB_ALL, PB_SINGLE, 4, COLOR_AUTO };
+const struct QBorders *wp_pen(void) { return &pen; }      /* WP21a: the Border Painter's pen (wp_tables.h) */
 
 /* ------------------------------------------------------------------ */
 /* Window and Screen: the public screen Quill opens on, and where its window opens */
@@ -3038,69 +3042,10 @@ static void winprefs_done(void)
   set(win, MUIA_Window_Activate, TRUE);
 }
 
-/* the Page Setup window: the page's size, margins and the header's and footer's distances exactly */
-static Object *pgwin, *pg_len[8], *pg_apply;
-/* Layout > Page Setup, filled from the caret's page; Apply to is offered only with sections */
-static void open_pagesetup(void)
-{
-  static const char *labels[8] = { "Width", "Height", "Top", "Bottom", "Left", "Right", "Header from edge", "Footer from edge" };
-  static const char *apply[3];
-  const PageSetup *pg;
-  i32 v[8];
-  int k;
-  char b[24];
-  if (!pgwin) {
-    Object *ok, *cancel, *grp[3];
-    apply[0] = tr("Whole document"); apply[1] = tr("This section"); apply[2] = NULL;
-    for (k = 0; k < 8; k++) pg_len[k] = StringObject, StringFrame, MUIA_String_MaxLen, 20, MUIA_CycleChain, 1, MUIA_FixWidthTxt, (ULONG)"00000000", End;
-    grp[0] = ColGroup(4), Child, Label2(tr(labels[0])), Child, pg_len[0], Child, Label2(tr(labels[1])), Child, pg_len[1], End;
-    grp[1] = ColGroup(4), Child, Label2(tr(labels[2])), Child, pg_len[2], Child, Label2(tr(labels[3])), Child, pg_len[3],
-                          Child, Label2(tr(labels[4])), Child, pg_len[4], Child, Label2(tr(labels[5])), Child, pg_len[5], End;
-    grp[2] = ColGroup(4), Child, Label2(tr(labels[6])), Child, pg_len[6], Child, Label2(tr(labels[7])), Child, pg_len[7], End;
-    pgwin = QWindowObject, MUIA_Window_Title, (ULONG)tr("Page Setup"), MUIA_Window_ID, MAKE_ID('P','G','S','U'),
-      WindowContents, VGroup, QDLG,
-        Child, QTitle(tr("Paper")), Child, grp[0],
-        Child, QTitle(tr("Margins")), Child, grp[1],
-        Child, QTitle(tr("Header and footer")), Child, grp[2],
-        Child, HGroup, Child, Label1(tr("Apply to")), Child, pg_apply = CycleObject, MUIA_Cycle_Entries, (ULONG)apply, MUIA_CycleChain, 1, End, Child, HSpace(0), End,
-        Child, HGroup, Child, ok = QButton(tr("_OK")), Child, HSpace(0), Child, cancel = QButton(tr("_Cancel")), End,
-      End, End;
-    if (!pgwin) return;
-    DoMethod(app, OM_ADDMEMBER, (ULONG)pgwin);
-    DoMethod(pgwin, MUIM_Notify, MUIA_Window_CloseRequest, TRUE, (ULONG)pgwin, 3, MUIM_Set, MUIA_Window_Open, FALSE);
-    DoMethod(cancel, MUIM_Notify, MUIA_Pressed, FALSE, (ULONG)pgwin, 3, MUIM_Set, MUIA_Window_Open, FALSE);
-    DoMethod(ok, MUIM_Notify, MUIA_Pressed, FALSE, (ULONG)app, 2, MUIM_Application_ReturnID, ID_PAGESETUPGO);
-  }
-  pg = caret_page();
-  v[0] = pg->width; v[1] = pg->height; v[2] = pg->top; v[3] = pg->bottom; v[4] = pg->left; v[5] = pg->right; v[6] = pg->header; v[7] = pg->footer;
-  for (k = 0; k < 8; k++) { tab_text(v[k], b); set(pg_len[k], MUIA_String_Contents, (ULONG)b); }
-  set(pg_apply, MUIA_Cycle_Active, sections() > 1 && pg != &doc->page && pg != &doc->edit.page ? 1 : 0);
-  set(pg_apply, MUIA_Disabled, sections() < 2);
-  set(pgwin, MUIA_Window_Open, TRUE);
-  set(pgwin, MUIA_Window_ActiveObject, (ULONG)pg_len[0]);
-}
-/* Page Setup's OK: lengths checked (1 to 22 inches a side, room inside the margins), then applied to
-   the whole document or the caret's section */
-static void pagesetup_done(void)
-{
-  i32 v[8];
-  ULONG a = 0;
-  int k;
-  PageSetup *pg;
-  for (k = 0; k < 8; k++) v[k] = str_len(pg_len[k]);
-  if (v[0] < 1440 || v[1] < 1440 || v[0] > 31680 || v[1] > 31680 || v[4] + v[5] > v[0] - 720 || v[2] + v[3] > v[1] - 720) {
-    ask("OK", "%s", tr("The page must be 1 to 22 inches (2.5 to 55 cm) each way, with room between the margins."));
-    return;
-  }
-  get(pg_apply, MUIA_Cycle_Active, &a);
-  set(pgwin, MUIA_Window_Open, FALSE);
-  story_pause();
-  pg = page_to_change(a == 0);
-  pg->width = v[0]; pg->height = v[1]; pg->top = v[2]; pg->bottom = v[3]; pg->left = v[4]; pg->right = v[5]; pg->header = v[6]; pg->footer = v[7];
-  page_changed();
-  story_resume();
-  set(win, MUIA_Window_Activate, TRUE);
-}
+/* the Page Setup window: WP22a's (amiga/wp_pages.c: margins with the gutter, multiple pages, paper,
+   the section's layout, Apply to) */
+static Object *pgwin;
+static void open_pagesetup(void) { wp22a_command(ID_PG_SETUP, WPV_NONE); }
 
 /* commands for the whole document: a story being edited goes back first (kept) */
 static int story_ends(ULONG id)
@@ -3179,7 +3124,6 @@ static void command(ULONG id)
     else story_open(r->kind, r->index, 0, r->page);
     break; }
   case ID_PAGESETUPDLG: open_pagesetup(); break;
-  case ID_PAGESETUPGO: pagesetup_done(); break;
   case ID_PICTURE: insert_picture(); break;
   case ID_NOTE: note_end = 0; open_note(); break;
   case ID_ENDNOTE: note_end = 1; open_note(); break;
@@ -3191,7 +3135,6 @@ static void command(ULONG id)
     DoMethod(view, MUIM_Quill_Command, CMD_PICSIZE, pc);
     set(win, MUIA_Window_Activate, TRUE);
     break; }
-  case ID_WMGO: watermark_done(); break;
   case ID_OUTLINE: { ULONG on = 0; get(navgrp, MUIA_ShowMe, &on); set(navgrp, MUIA_ShowMe, !on); ui_bit(RB_NAVPANE, !on); break; }
   case ID_RULER: { ULONG on = 0; get(ruler, MUIA_ShowMe, &on); set(ruler, MUIA_ShowMe, !on); set(vruler, MUIA_ShowMe, !on); ui_bit(RB_RULER, !on); break; }
   case ID_ZOOMSET: { LONG z = 100; get(statusbar, MUIA_Status_Zoom, &z); set(view, MUIA_Quill_Zoom, z); break; }
@@ -3295,7 +3238,6 @@ static void command(ULONG id)
   case ID_DROPCAPDLG: open_dropcap(); break;
   case ID_DROPCAPGO: dropcap_done(); break;
   case ID_LINENUMDLG: open_linenum(); break;
-  case ID_LINENUMGO: linenum_done(); break;
   case ID_MORECOLGO: morecol_done(); break;
   case ID_SETDEFAULT:
     if (ask(tr("Yes|No"), tr("Make this document's style set, fonts, paragraph spacing and colours\nthe default for new documents?")) == 1)
@@ -3545,37 +3487,9 @@ static void chrome(void)
   set(ruler, MUIA_ShowMe, !bare && rl); set(vruler, MUIA_ShowMe, !bare && rl);
   DoMethod(win, MUIM_Group_ExitChange);
 }
-/* the Custom Watermark window: its words and whether they run across or diagonally */
-static Object *wmwin, *wmstr, *wmlay;
-/* Design > Watermark > Custom, filled from the document's watermark */
-static void open_watermark(void)
-{
-  static const char *lays[3];
-  char lat[80];
-  if (!wmwin) {
-    Object *ok, *cancel;
-    lays[0] = tr("Diagonal"); lays[1] = tr("Horizontal"); lays[2] = NULL;
-    wmwin = QWindowObject, MUIA_Window_Title, (ULONG)tr("Custom Watermark"), MUIA_Window_ID, MAKE_ID('W','M','R','K'),
-      WindowContents, VGroup, QDLG,
-        Child, ColGroup(2),
-          Child, Label2(tr("Text")), Child, wmstr = StringObject, StringFrame, MUIA_String_MaxLen, 60, MUIA_CycleChain, 1, End,
-          Child, Label1(tr("Layout")), Child, wmlay = CycleObject, MUIA_Cycle_Entries, (ULONG)lays, End,
-        End,
-        Child, HGroup, Child, ok = QButton(tr("_OK")), Child, HSpace(0), Child, cancel = QButton(tr("_Cancel")), End,
-      End, End;
-    if (!wmwin) return;
-    DoMethod(app, OM_ADDMEMBER, (ULONG)wmwin);
-    DoMethod(wmwin, MUIM_Notify, MUIA_Window_CloseRequest, TRUE, (ULONG)wmwin, 3, MUIM_Set, MUIA_Window_Open, FALSE);
-    DoMethod(cancel, MUIM_Notify, MUIA_Pressed, FALSE, (ULONG)wmwin, 3, MUIM_Set, MUIA_Window_Open, FALSE);
-    DoMethod(ok, MUIM_Notify, MUIA_Pressed, FALSE, (ULONG)app, 2, MUIM_Application_ReturnID, ID_WMGO);
-    DoMethod(wmstr, MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime, (ULONG)app, 2, MUIM_Application_ReturnID, ID_WMGO);
-  }
-  utf8_to_latin1(doc->wm.text, (u32)strlen(doc->wm.text), lat, sizeof lat);
-  set(wmstr, MUIA_String_Contents, (ULONG)lat);
-  set(wmlay, MUIA_Cycle_Active, doc->wm.horizontal ? 1 : 0);
-  set(wmwin, MUIA_Window_Open, TRUE);
-  set(wmwin, MUIA_Window_ActiveObject, (ULONG)wmstr);
-}
+/* the watermark window: WP22a's Printed Watermark (amiga/wp_pages.c: a picture or words) */
+static Object *wmwin;
+static void open_watermark(void) { wp22a_command(ID_PG_WATERMARK, WPV_NONE); }
 /* ------------------------------------------------------------------ */
 /* hyperlinks (0.13): the Link window (the text to show and the address), opening a link, copying
    its address. The view does the editing (CMD_LINK, CMD_UNLINK) and says what link the caret is
@@ -3670,18 +3584,6 @@ static void link_copy(void)
   utf8_to_latin1(q->url, (u32)strlen(q->url), lat, sizeof lat);
   clip_write(lat, (long)strlen(lat));
 }
-/* (the text in light grey, diagonal or across) */
-static void watermark_done(void)
-{
-  char *t = NULL;
-  ULONG h = 0;
-  get(wmstr, MUIA_String_Contents, &t); get(wmlay, MUIA_Cycle_Active, &h);
-  set(wmwin, MUIA_Window_Open, FALSE);
-  latin1_utf8(t ? t : "", doc->wm.text, sizeof doc->wm.text);
-  doc->wm.horizontal = (u8)(h != 0); doc->wm.color = 0xC0C0C0;
-  DoMethod(view, MUIM_Quill_Command, CMD_DESIGN, 0);
-  set(win, MUIA_Window_Activate, TRUE);
-}
 /* a choice from one of the ribbon's lists or galleries: id says which list, MUIA_Ribbon_Value which
    entry (or, for the colour lists, the colour as 0xRRGGBB) */
 static void ribbon_pick(ULONG id, LONG v)
@@ -3763,28 +3665,31 @@ static void ribbon_pick(ULONG id, LONG v)
     else if (v == 2) command(ID_LINEBREAK);
     else if (v >= 3 && v <= 6) { static const int sb[4] = { SB_NEXT, SB_CONT, SB_EVEN, SB_ODD }; DoMethod(view, MUIM_Quill_Command, CMD_SECTBREAK, (ULONG)sb[v - 3]); }
     break;
-  case ID_COLUMNSDD: if (v >= 0 && v <= 3) DoMethod(view, MUIM_Quill_Command, CMD_COLUMNS, (ULONG)(v < 3 ? v + 1 : 0)); break;
+  case ID_COLUMNSDD: if (v >= 0 && v <= 3) DoMethod(view, MUIM_Quill_Command, CMD_COLUMNS, (ULONG)(v < 3 ? v + 1 : 0)); else if (v > 3) wp22a_command(ID_PG_COLLIST, v); break;
   case ID_LINENUMDD: { static const int ln[4] = { LN_NONE, LN_CONT, LN_PAGE, LN_SECTION }; if (v == 4) open_linenum(); else if (v >= 0 && v < 4) DoMethod(view, MUIM_Quill_Command, CMD_LINENUM, (ULONG)ln[v]); break; }
   case ID_HYPHENDD:
+    if (v >= 2) { wp22a_command(ID_PG_HYPHLIST, v); break; }      /* (WP22a: Manual, Hyphenation Options) */
     if (v == 1 && !hyph_ready()) hyph_load("PROGDIR:Dict/hyph_en_GB.dic");
     DoMethod(view, MUIM_Quill_Command, CMD_HYPHENATE, (ULONG)(v == 1));
     break;
-  case ID_PAGEALIGNDD: if (v >= 0 && v < 3) DoMethod(view, MUIM_Quill_Command, CMD_PAGEALIGN, (ULONG)v); break;
+  case ID_PAGEALIGNDD: if (v >= 0 && v < 4) DoMethod(view, MUIM_Quill_Command, CMD_PAGEALIGN, (ULONG)v); break;     /* (WP22a: 3 Justified) */
   case ID_DROPCAPDD: if (v == 3) open_dropcap(); else if (v >= 0 && v < 3) DoMethod(view, MUIM_Quill_Command, CMD_DROPCAP, (ULONG)v); break;
   case ID_WATERMARKDD: {
     static const char *const wm[] = { "", "DRAFT", "CONFIDENTIAL", "SAMPLE", "DO NOT COPY", "URGENT" };
     if (v == 6) { open_watermark(); break; }
     if (v < 0 || v > 5) break;
     latin1_utf8(tr(wm[v]), doc->wm.text, sizeof doc->wm.text);       /* in the interface's language, as the list shows it */
+    free(doc->wm.pic); doc->wm.pic = NULL; doc->wm.piclen = 0;      /* (WP22a: words instead of a picture) */
     doc->wm.color = 0xC0C0C0; doc->wm.horizontal = 0; doc->wm.font[0] = 0;
     DoMethod(view, MUIM_Quill_Command, CMD_DESIGN, 0);
     break; }
   case ID_BORDERDD:
+    if (v == 6) { wp22a_command(ID_PG_BORDERS, WPV_NONE); break; }       /* (WP22a: Page Borders...) */
     if (v < 0 || v > 5) break;
     memset(&doc->border, 0, sizeof doc->border);
     if (v) {
       static const u8 st[6] = { PB_NONE, PB_SINGLE, PB_DOUBLE, PB_THICK, PB_DOTTED, PB_DASHED };
-      doc->border.style = st[v]; doc->border.width = 4; doc->border.color = COLOR_AUTO; doc->border.frompage = 1; doc->border.space = 480;
+      doc->border.style = st[v]; doc->border.width = (u8)(st[v] == PB_THICK ? 18 : 4); doc->border.color = COLOR_AUTO; doc->border.frompage = 1; doc->border.space = 480;
     }
     DoMethod(view, MUIM_Quill_Command, CMD_DESIGN, 0);
     break;
@@ -3886,59 +3791,8 @@ static void dropcap_done(void)
   DoMethod(view, MUIM_Quill_Command, CMD_DROPCAP, (ULONG)(pos | lines << 8));
   set(win, MUIA_Window_Activate, TRUE);
 }
-static Object *ln_on, *ln_start, *ln_by, *ln_dist, *ln_restart;
-/* Line Numbering Options: on or off, the first number, how far from the text, every how many lines,
-   and when they start again. Shown from the caret's section; OK sets every section (as the list does) */
-static void open_linenum(void)
-{
-  static const char *rs[4];
-  const SectFmt *sf;
-  Pos *c = caret_pos();
-  char b[24];
-  if (!c) return;
-  sf = doc_sect(doc, c->para);
-  if (!lnwin) {
-    Object *g;
-    rs[0] = tr("Restart Each Page"); rs[1] = tr("Restart Each Section"); rs[2] = tr("Continuous"); rs[3] = NULL;
-    g = VGroup,
-      Child, HGroup, Child, ln_on = CheckMark(FALSE), Child, LLabel1(tr("Add line numbers")), Child, HSpace(0), End,
-      Child, ColGroup(2),
-        Child, Label2(tr("Start at")), Child, ln_start = StringObject, StringFrame, MUIA_String_MaxLen, 6, MUIA_String_Accept, (ULONG)"0123456789", MUIA_CycleChain, 1, End,
-        Child, Label2(tr("From text")), Child, ln_dist = StringObject, StringFrame, MUIA_String_MaxLen, 12, MUIA_CycleChain, 1, End,
-        Child, Label2(tr("Count by")), Child, ln_by = StringObject, StringFrame, MUIA_String_MaxLen, 4, MUIA_String_Accept, (ULONG)"0123456789", MUIA_CycleChain, 1, End,
-        Child, Label1(tr("Numbering")), Child, ln_restart = CycleObject, MUIA_Cycle_Entries, (ULONG)rs, MUIA_CycleChain, 1, End,
-      End, End;
-    if (!(lnwin = dialog("Line Numbers", MAKE_ID('L','N','U','M'), g, "_OK", ID_LINENUMGO))) return;
-  }
-  set(ln_on, MUIA_Selected, sf->linenum != LN_NONE);
-  sprintf(b, "%u", (unsigned)(sf->lnstart > 1 ? sf->lnstart : 1)); set_str(ln_start, b);
-  sprintf(b, "%u", (unsigned)(sf->lnby ? sf->lnby : 1)); set_str(ln_by, b);
-  tab_text(sf->lndist > 0 ? sf->lndist : 360, b); set_str(ln_dist, b);
-  set(ln_restart, MUIA_Cycle_Active, sf->linenum == LN_SECTION ? 1 : sf->linenum == LN_CONT ? 2 : 0);
-  set(lnwin, MUIA_Window_Open, TRUE);
-}
-/* (OK: the fields read back, kept in sensible bounds, and every section given them, one undo step) */
-static void linenum_done(void)
-{
-  static const u8 rs[3] = { LN_PAGE, LN_SECTION, LN_CONT };
-  struct QLineNum q;
-  ULONG on = 0, r = 0;
-  char *s = NULL;
-  long v;
-  set(lnwin, MUIA_Window_Open, FALSE);
-  get(ln_on, MUIA_Selected, &on);
-  get(ln_restart, MUIA_Cycle_Active, &r);
-  q.linenum = on ? rs[r < 3 ? r : 0] : LN_NONE;
-  get(ln_start, MUIA_String_Contents, &s); v = s ? atol(s) : 1;
-  q.start = (u16)(v < 1 ? 1 : v > 32000 ? 32000 : v);
-  s = NULL; get(ln_by, MUIA_String_Contents, &s); v = s ? atol(s) : 1;
-  q.by = (u8)(v < 1 ? 1 : v > 100 ? 100 : v);
-  s = NULL; get(ln_dist, MUIA_String_Contents, &s);
-  q.dist = s ? parse_len(s) : 0;
-  if (q.dist <= 0 || q.dist >= 2880) q.dist = 360;
-  DoMethod(view, MUIM_Quill_Command, CMD_LINEOPTS, (ULONG)&q);
-  set(win, MUIA_Window_Activate, TRUE);
-}
+/* Line Numbering Options: WP22a's (amiga/wp_pages.c), with Apply to */
+static void open_linenum(void) { wp22a_command(ID_PG_LINENUM, WPV_NONE); }
 static Object *mc_adj, *mc_rgb[3];
 static ULONG mc_for, mc_last = 0x4472C4;      /* the list More Colours was picked from; the colour last chosen */
 /* More Colours...: MUI's colour adjuster (a wheel and red, green and blue sliders), for the colour
