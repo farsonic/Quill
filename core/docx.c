@@ -4061,6 +4061,7 @@ void doc_format_pattern(int saving, char *out, size_t cap)
   out[o++] = ')'; out[o] = 0;
 }
 /* the first format whose sniff knows the bytes, else the one the name's ending names, else plain text */
+const char *doc_load_path;
 Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap)
 {
   size_t n;
@@ -4074,7 +4075,9 @@ Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap)
   for (i = 0; i < doc_nformats && !f; i++) if (doc_formats[i]->load && !doc_formats[i]->sniff && ext_in(path, doc_formats[i]->exts)) f = doc_formats[i];
   if (!f) f = &fmt_txt;
   err[0] = 0;
+  doc_load_path = path;
   d = f->load(data, n, lost, err, errcap);
+  doc_load_path = NULL;
   if (!d && !err[0]) snprintf(err, errcap, "Quill couldn't read %s.", path);
   free(data);
   return d;
