@@ -2220,7 +2220,6 @@
   { { "Subheading", "Unter\374berschrift", "Sous-titre", "Subt\355tulo", "Sottotitolo" } },
 /* ---- end WP21a */
 /* ---- begin WP21b (tools/lang/wp21b.py) */
-  { { "Eraser", "Radierer", "Gomme", "Borrador", "Gomma" } },
   { { "Click the line between two cells to merge them (Esc when done)", "Die Linie zwischen zwei Zellen anklicken, um sie zu verbinden (Esc: fertig)", "Cliquer sur le trait entre deux cellules pour les fusionner (\311chap : termin\351)", "Haga clic en la l\355nea entre dos celdas para combinarlas (Esc: terminar)", "Fai clic sulla linea tra due celle per unirle (Esc: fine)" } },
   { { "Cells", "Zellen", "Cellules", "Celdas", "Celle" } },
   { { "Delete Cells", "Zellen l\366schen", "Supprimer les cellules", "Eliminar celdas", "Elimina celle" } },
