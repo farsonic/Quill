@@ -11,6 +11,7 @@
 #include "field.h"
 #include "layout.h"
 #include "xml.h"
+#include "info.h"
 
 /* ------------------------------------------------------------------ */
 /* the marks and the records */
@@ -30,11 +31,7 @@ void field_free_all(Doc *d)
   int i;
   for (i = 0; i < d->nfields; i++) { free(d->fields[i].code); free(d->fields[i].ffdata); }
   free(d->fields); d->fields = NULL; d->nfields = 0;
-  if (d->finfo) {
-    for (i = 0; i < d->finfo->ncustom; i++) { free(d->finfo->custom[i].name); free(d->finfo->custom[i].value); }
-    free(d->finfo->custom); free(d->finfo->toccode);
-    free(d->finfo); d->finfo = NULL;
-  }
+  if (d->finfo) { free(d->finfo->toccode); free(d->finfo); d->finfo = NULL; }
 }
 /* a new record copying proto's settings (proto NULL: none) with this code */
 static int new_rec(Doc *d, const char *code, const Field *proto)
@@ -583,32 +580,36 @@ void field_format_case(const char *code, char *s, size_t cap)
 const char *const field_prop_names[] = { "Author", "Category", "Comments", "Company", "Keywords", "Manager", "Status", "Subject", "Title",
   "LastSavedBy", "Template", "RevisionNumber", "CreateTime", "LastSaveTime", "LastPrinted", "TotalEditingTime" };
 const int field_nprop_names = (int)(sizeof field_prop_names / sizeof field_prop_names[0]);
+/* app.xml's TotalTime (minutes), kept by WP24 among its children; -1 if none */
+static long edit_minutes(Doc *d)
+{
+  int i;
+  if (!d->info) return -1;
+  for (i = 0; i < d->info->napp; i++)
+    if (d->info->app[i].name && !strcmp(d->info->app[i].name, "TotalTime") && d->info->app[i].raw) {
+      const char *r = strchr(d->info->app[i].raw, '>');
+      return r ? atol(r + 1) : -1;
+    }
+  return -1;
+}
 int field_prop(Doc *d, const char *name, char *out, size_t cap)
 {
-  FieldInfo *fi = d->finfo;
+  static const struct { const char *name; int ip; } map[] = {
+    { "Subject", IP_SUBJECT }, { "Keywords", IP_KEYWORDS }, { "Comments", IP_DESCRIPTION }, { "Description", IP_DESCRIPTION },
+    { "Category", IP_CATEGORY }, { "Status", IP_STATUS }, { "Company", IP_COMPANY }, { "Manager", IP_MANAGER },
+    { "LastSavedBy", IP_LASTBY }, { "Template", IP_TEMPLATE }, { "RevisionNumber", IP_REVISION }, { "CreateTime", IP_CREATED },
+    { "LastSaveTime", IP_MODIFIED }, { "LastPrinted", IP_LASTPRINTED }, { "HyperlinkBase", IP_HLINKBASE }, { "Language", IP_LANGUAGE } };
   const char *v = NULL;
   char b[32];
-  int i;
+  size_t i;
   if (cap) out[0] = 0;
   if (str_ieq(name, "Title")) v = d->title;
   else if (str_ieq(name, "Author")) v = d->author;
-  else if (!fi) return 0;
-  else if (str_ieq(name, "Subject")) v = fi->subject;
-  else if (str_ieq(name, "Keywords")) v = fi->keywords;
-  else if (str_ieq(name, "Comments") || str_ieq(name, "Description")) v = fi->description;
-  else if (str_ieq(name, "Category")) v = fi->category;
-  else if (str_ieq(name, "Status")) v = fi->status;
-  else if (str_ieq(name, "Company")) v = fi->company;
-  else if (str_ieq(name, "Manager")) v = fi->manager;
-  else if (str_ieq(name, "LastSavedBy")) v = fi->lastby;
-  else if (str_ieq(name, "Template")) v = fi->templ;
-  else if (str_ieq(name, "RevisionNumber")) v = fi->revision;
-  else if (str_ieq(name, "NameofApplication") || str_ieq(name, "Application")) v = fi->app;
-  else if (str_ieq(name, "CreateTime")) v = fi->created;
-  else if (str_ieq(name, "LastSaveTime")) v = fi->modified;
-  else if (str_ieq(name, "LastPrinted")) v = fi->printed;
-  else if (str_ieq(name, "TotalEditingTime")) { sprintf(b, "%ld", fi->edittime); v = b; }
-  else for (i = 0; i < fi->ncustom; i++) if (str_ieq(name, fi->custom[i].name)) { v = fi->custom[i].value; break; }
+  else if (str_ieq(name, "TotalEditingTime")) { long m = edit_minutes(d); if (m >= 0) { sprintf(b, "%ld", m); v = b; } }
+  else {
+    for (i = 0; i < sizeof map / sizeof map[0] && !v; i++) if (str_ieq(name, map[i].name)) v = info_str(d, map[i].ip);
+    if (!v && d->info) { int k = info_cust_find(d, name); if (k >= 0) v = d->info->cust[k].value; }
+  }
   if (!v || !v[0]) return 0;
   snprintf(out, cap, "%s", v);
   return 1;
@@ -979,13 +980,14 @@ static int eval_flat(Doc *d, Paras s, const char *flat, Pos at, const FieldEnv *
   char nm[32], a0[256];
   FieldInfo *fi = d->finfo;
   FieldTime t;
+  long em;
   if (cap) out[0] = 0;
   field_name(flat, nm, sizeof nm);
   if (!nm[0]) return FE_KEEP;
   if (!strcmp(nm, "DATE")) return e ? date_result(flat, &e->now, DEF_DATE, out, cap) : FE_KEEP;
   if (!strcmp(nm, "TIME")) return e ? date_result(flat, &e->now, DEF_TIME, out, cap) : FE_KEEP;
   if (!strcmp(nm, "CREATEDATE") || !strcmp(nm, "SAVEDATE") || !strcmp(nm, "PRINTDATE")) {
-    const char *w = !fi ? NULL : nm[0] == 'C' ? fi->created : nm[1] == 'A' ? fi->modified : fi->printed;
+    const char *w = info_str(d, nm[0] == 'C' ? IP_CREATED : nm[1] == 'A' ? IP_MODIFIED : IP_LASTPRINTED);
     if (!w || !field_parse_time(w, &t)) return FE_KEEP;
     return date_result(flat, &t, DEF_DATETIME, out, cap);
   }
@@ -1043,8 +1045,8 @@ static int eval_flat(Doc *d, Paras s, const char *flat, Pos at, const FieldEnv *
     if (!field_switch(flat, 'p', 0, NULL, 0)) for (p = f; *p; p++) if (*p == '/' || *p == ':' || *p == '\\') base = p + 1;
     return text_result(flat, base, out, cap);
   }
-  if (!strcmp(nm, "EDITTIME")) return fi ? number_result(flat, fi->edittime, out, cap) : FE_KEEP;
-  if (!strcmp(nm, "REVNUM")) return fi && fi->revision[0] ? number_result(flat, atol(fi->revision), out, cap) : FE_KEEP;
+  if (!strcmp(nm, "EDITTIME")) return (em = edit_minutes(d)) >= 0 ? number_result(flat, em, out, cap) : FE_KEEP;
+  if (!strcmp(nm, "REVNUM")) return info_str(d, IP_REVISION)[0] ? number_result(flat, atol(info_str(d, IP_REVISION)), out, cap) : FE_KEEP;
   {
     /* the document's properties, by their own fields, DOCPROPERTY or INFO */
     static const char *const map[][2] = { { "AUTHOR", "Author" }, { "TITLE", "Title" }, { "SUBJECT", "Subject" }, { "KEYWORDS", "Keywords" },
@@ -1593,102 +1595,4 @@ int field_is_orphan(const char *const *o, u32 n, const char *t)
     if ((uintptr_t)o[m] < (uintptr_t)t) lo = m + 1; else hi = m;
   }
   return 0;
-}
-
-/* ------------------------------------------------------------------ */
-/* docProps */
-static void read_props(Doc *d, const char *xml, size_t n, int which)
-{
-  FieldInfo *fi = field_info(d);
-  Xml x;
-  char *dst = NULL;
-  size_t cap = 0;
-  char pname[128] = "";
-  long *num = NULL;
-  if (!fi) return;
-  xml_init(&x, xml, n);
-  while (xml_next(&x) != XT_EOF) {
-    if (x.type == XT_START) {
-      const char *e = x.name;
-      dst = NULL; num = NULL;
-      if (which == 0) {
-        fi->coreseen = 1;
-        if (!strcmp(e, "subject")) { dst = fi->subject; cap = sizeof fi->subject; }
-        else if (!strcmp(e, "keywords")) { dst = fi->keywords; cap = sizeof fi->keywords; }
-        else if (!strcmp(e, "description")) { dst = fi->description; cap = sizeof fi->description; }
-        else if (!strcmp(e, "lastModifiedBy")) { dst = fi->lastby; cap = sizeof fi->lastby; }
-        else if (!strcmp(e, "category")) { dst = fi->category; cap = sizeof fi->category; }
-        else if (!strcmp(e, "contentStatus")) { dst = fi->status; cap = sizeof fi->status; }
-        else if (!strcmp(e, "created")) { dst = fi->created; cap = sizeof fi->created; }
-        else if (!strcmp(e, "modified")) { dst = fi->modified; cap = sizeof fi->modified; }
-        else if (!strcmp(e, "lastPrinted")) { dst = fi->printed; cap = sizeof fi->printed; }
-        else if (!strcmp(e, "revision")) { dst = fi->revision; cap = sizeof fi->revision; }
-      } else if (which == 1) {
-        if (!strcmp(e, "Company")) { dst = fi->company; cap = sizeof fi->company; }
-        else if (!strcmp(e, "Manager")) { dst = fi->manager; cap = sizeof fi->manager; }
-        else if (!strcmp(e, "Template")) { dst = fi->templ; cap = sizeof fi->templ; }
-        else if (!strcmp(e, "Application")) { dst = fi->app; cap = sizeof fi->app; }
-        else if (!strcmp(e, "TotalTime")) num = &fi->edittime;
-      } else {
-        const char *nm = xml_attr(&x, "name");
-        if (!strcmp(e, "property")) snprintf(pname, sizeof pname, "%s", nm ? nm : "");
-        else if (pname[0] && x.depth >= 3) {
-          /* the value (vt:lpwstr, vt:i4, vt:bool, vt:filetime...) */
-          int dd = x.depth;
-          Buf v;
-          buf_init(&v);
-          while (xml_next(&x) != XT_EOF) {
-            if (x.type == XT_END && x.depth < dd) break;
-            if (x.type == XT_TEXT) buf_add(&v, x.text.data, x.text.len);
-          }
-          if (!(fi->ncustom & 7)) {
-            FieldProp *np = (FieldProp *)realloc(fi->custom, (size_t)(fi->ncustom + 8) * sizeof(FieldProp));
-            if (np) fi->custom = np;
-            else { buf_free(&v); continue; }
-          }
-          fi->custom[fi->ncustom].name = str_dup(pname);
-          fi->custom[fi->ncustom].value = str_dup(v.data ? v.data : "");
-          if (fi->custom[fi->ncustom].name && fi->custom[fi->ncustom].value) fi->ncustom++;
-          else { free(fi->custom[fi->ncustom].name); free(fi->custom[fi->ncustom].value); }
-          buf_free(&v);
-          pname[0] = 0;
-        }
-      }
-    } else if (x.type == XT_TEXT && (dst || num)) {
-      if (dst) { copy_n(dst, cap, x.text.data, x.text.len); dst = NULL; }
-      else { *num = atol(x.text.data); num = NULL; }
-    } else if (x.type == XT_END) { dst = NULL; num = NULL; }
-  }
-  xml_free(&x);
-}
-void field_read_core(Doc *d, const char *xml, size_t n) { read_props(d, xml, n, 0); }
-void field_read_app(Doc *d, const char *xml, size_t n) { read_props(d, xml, n, 1); }
-void field_read_custom(Doc *d, const char *xml, size_t n) { read_props(d, xml, n, 2); }
-static void elem(Buf *b, const char *tag, const char *v, const char *attrs)
-{
-  if (!v[0]) return;
-  buf_printf(b, "<%s%s>", tag, attrs ? attrs : "");
-  xml_escape(b, v, strlen(v));
-  buf_printf(b, "</%s>", tag);
-}
-void field_write_core(Doc *d, Buf *b)
-{
-  FieldInfo *fi = field_info(d);
-  FieldTime t;
-  char now[32];
-  if (!fi) return;
-  field_time_now(&t);
-  field_time_w3c(&t, now);
-  if (!fi->created[0]) snprintf(fi->created, sizeof fi->created, "%s", now);
-  snprintf(fi->modified, sizeof fi->modified, "%s", now);
-  elem(b, "dc:subject", fi->subject, NULL);
-  elem(b, "cp:keywords", fi->keywords, NULL);
-  elem(b, "dc:description", fi->description, NULL);
-  elem(b, "cp:lastModifiedBy", fi->lastby[0] ? fi->lastby : d->author, NULL);
-  elem(b, "cp:revision", fi->revision, NULL);
-  elem(b, "cp:lastPrinted", fi->printed, NULL);
-  elem(b, "dcterms:created", fi->created, " xsi:type=\"dcterms:W3CDTF\"");
-  elem(b, "dcterms:modified", fi->modified, " xsi:type=\"dcterms:W3CDTF\"");
-  elem(b, "cp:category", fi->category, NULL);
-  elem(b, "cp:contentStatus", fi->status, NULL);
 }

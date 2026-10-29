@@ -25,6 +25,7 @@
 #include "lang.h"
 #include "theme.h"
 #include "../core/field.h"
+#include "../core/info.h"
 
 #ifndef MAKE_ID
 #define MAKE_ID(a, b, c, d) ((ULONG)(a) << 24 | (ULONG)(b) << 16 | (ULONG)(c) << 8 | (ULONG)(d))
@@ -398,7 +399,7 @@ static void p_show(void)
 static void p_open(void)
 {
   int i;
-  FieldInfo *fi = doc()->finfo;
+  DocInfo *fi = doc()->info;
   if (!pwin) {
     Object *c = VGroup,
       Child, FLabel(tr("Property:")),
@@ -417,10 +418,11 @@ static void p_open(void)
     snprintf(p_names[p_n++], sizeof p_names[0], "%s", field_prop_names[i]);
     DoMethod(p_list, MUIM_List_InsertSingle, (ULONG)tr(field_prop_names[i]), MUIV_List_Insert_Bottom);
   }
-  for (i = 0; fi && i < fi->ncustom && p_n < 64; i++) {
+  for (i = 0; fi && i < fi->ncust && p_n < 64; i++) {
     char lat[64];
-    snprintf(p_names[p_n++], sizeof p_names[0], "%s", fi->custom[i].name);
-    utf8_to_latin1(fi->custom[i].name, strlen(fi->custom[i].name), lat, sizeof lat);
+    if (!fi->cust[i].name) continue;
+    snprintf(p_names[p_n++], sizeof p_names[0], "%s", fi->cust[i].name);
+    utf8_to_latin1(fi->cust[i].name, strlen(fi->cust[i].name), lat, sizeof lat);
     DoMethod(p_list, MUIM_List_InsertSingle, (ULONG)lat, MUIV_List_Insert_Bottom);
   }
   set(p_list, MUIA_List_Quiet, FALSE);
@@ -493,6 +495,11 @@ static void shading_save(void)
   sprintf(v, "%d", field_shading);
   SetVar((STRPTR)"Quill/FieldShading", (STRPTR)v, -1, GVF_GLOBAL_ONLY | GVF_SAVE_VAR);
 }
+static void dbg(const char *fmt, long a, long b, long c)     /* TEMPORARY */
+{
+  FILE *f = fopen("DH0:wp1dbg.txt", "a");
+  if (f) { fprintf(f, fmt, a, b, c); fputc('\n', f); fclose(f); }
+}
 static int fields_cmd(ULONG id)
 {
   Doc *d = doc();
@@ -500,6 +507,8 @@ static int fields_cmd(ULONG id)
   FieldEnv fe;
   int n = 0;
   sel(&lo, &hi);
+  dbg("cmd %ld nfields %ld np %ld", (long)id, (long)d->nfields, (long)d->np);
+  dbg("lo %ld.%ld hi.para %ld", (long)lo.para, (long)lo.off, (long)hi.para);
   switch (id) {
   case ID_FLD_UPDATE:
     env(&fe, 1);
@@ -639,6 +648,7 @@ static ULONG key(UWORD code, UWORD qual, const WpCtx *c)
   int shift = (qual & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) != 0, alt = (qual & (IEQUALIFIER_LALT | IEQUALIFIER_RALT)) != 0;
   int ctrl = (qual & IEQUALIFIER_CONTROL) != 0;
   (void)c;
+  if (!(code & 0x80)) dbg("key %ld qual %lx", (long)code, (long)qual, 0);
   if (code == 0x58) {
     if (ctrl && shift) return ID_FLD_UNLINK;
     if (ctrl) return ID_FLD_INSERT;

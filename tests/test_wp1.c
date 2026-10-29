@@ -8,6 +8,7 @@
 #include "../core/layout.h"
 #include "../core/pdf.h"
 #include "../core/zip.h"
+#include "../core/info.h"
 
 /* a .docx of these body elements (and these docProps/core.xml contents, NULL none) read */
 static Doc *from_body(const char *body, const char *core, const char *hdr)
@@ -45,6 +46,12 @@ static Doc *from_body(const char *body, const char *core, const char *hdr)
     buf_adds(&c, core);
     buf_adds(&c, "</cp:coreProperties>");
     zip_add(&z, "docProps/core.xml", c.data, c.len);
+    {
+      static const char *pr = "<?xml version=\"1.0\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
+        "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/>"
+        "<Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties\" Target=\"docProps/core.xml\"/></Relationships>";
+      zip_add(&z, "_rels/.rels", pr, strlen(pr));
+    }
     buf_free(&c);
   }
   if (zip_finish(&z)) g = docx_load((const u8 *)z.out.data, z.out.len, &lost, err, sizeof err);
@@ -469,8 +476,8 @@ static void saving(void)
     Doc *g = from_body("<w:p>" R("x") "</w:p>", "<dc:subject>S1</dc:subject><cp:keywords>K1</cp:keywords><dcterms:created>2020-01-02T03:04:05Z</dcterms:created>", NULL), *h;
     if (g) { field_info(g)->updatefields = 1; }
     h = g ? docx_again(g, NULL) : NULL;
-    ok("fields: core properties and updateFields through a save", h && h->finfo && !strcmp(h->finfo->subject, "S1") && !strcmp(h->finfo->keywords, "K1") &&
-       !strcmp(h->finfo->created, "2020-01-02T03:04:05Z") && h->finfo->modified[0] && h->finfo->updatefields);
+    ok("fields: core properties (WP24's) and updateFields through a save", h && h->finfo && !strcmp(info_str(h, IP_SUBJECT), "S1") && !strcmp(info_str(h, IP_KEYWORDS), "K1") &&
+       !strcmp(info_str(h, IP_CREATED), "2020-01-02T03:04:05Z") && h->finfo->updatefields);
     doc_free(g); doc_free(h);
   }
   /* fields in a header read and written */

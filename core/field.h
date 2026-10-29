@@ -28,7 +28,8 @@
  * Fields): DATE, TIME, CREATEDATE, SAVEDATE, PRINTDATE, EDITTIME, AUTHOR, TITLE, SUBJECT, KEYWORDS,
  * COMMENTS, LASTSAVEDBY, TEMPLATE, REVNUM, FILENAME, FILESIZE (kept), NUMPAGES, NUMWORDS, NUMCHARS,
  * PAGE, SECTION, SECTIONPAGES, PAGEREF, REF, SEQ, DOCPROPERTY, INFO, MERGEFIELD (through
- * FieldEnv.merge), IF, QUOTE, SYMBOL, USERNAME, USERINITIALS, with the \* \# and \@ switches. Others
+ * FieldEnv.merge), IF, QUOTE, SYMBOL, USERNAME, USERINITIALS, with the \* \# and \@ switches (the
+ * document's properties from WP24's core/info.h). Others
  * (ADDIN, TOC, INDEX, CITATION, HYPERLINK, XE, TC, ...) keep their result.
  */
 #ifndef QUILL_FIELD_H
@@ -61,20 +62,13 @@ typedef struct Field {
   u8 showcode;              /* this field shown the other way round from Doc.fieldcodes (Shift+F9) */
 } Field;
 
-/* what the file says about the document besides its text, for the fields (docProps core.xml, app.xml
-   and custom.xml, settings.xml's w:updateFields); Doc.finfo, made when first needed */
-typedef struct { char *name, *value; } FieldProp;
+/* what the fields keep of the file besides the records: the table of contents' code, the file's name,
+   settings.xml's w:updateFields; Doc.finfo, made when first needed. (The document's properties that
+   AUTHOR, SUBJECT, DOCPROPERTY... show are WP24's DocInfo, core/info.h) */
 typedef struct FieldInfo {
-  char subject[256], keywords[256], description[512], lastby[128], category[128], status[64];
-  char created[32], modified[32], printed[32];   /* W3CDTF, as in core.xml ("2026-10-29T10:00:00Z"), "" none */
-  char revision[16];
-  char company[128], manager[128], templ[128], app[64];
-  long edittime;            /* app.xml TotalTime: minutes */
-  FieldProp *custom; int ncustom;   /* custom.xml properties (read only: the part itself is kept verbatim) */
   char *toccode;            /* the table of contents' code as read ("TOC \o "1-3" \h \z \u"); NULL: Quill's own */
   char filename[256];       /* the file it was last read from or saved to (FILENAME) */
   u8 updatefields;          /* settings.xml w:updateFields: Word updates the fields when it opens it */
-  u8 coreseen;              /* core.xml was read (the dates written back are the file's) */
 } FieldInfo;
 FieldInfo *field_info(Doc *d);
 void field_set_filename(Doc *d, const char *path);   /* the file it was read from or is saved to (FILENAME) */                   /* Doc.finfo, made if it isn't there yet (NULL: out of memory) */
@@ -210,12 +204,6 @@ int  field_depth_before(Doc *d, u32 para);
    when there are none */
 const char **field_orphans(Doc *d, u32 *n);
 int  field_is_orphan(const char *const *o, u32 n, const char *t);
-/* docProps: core.xml, app.xml and custom.xml read into FieldInfo; core.xml's other properties written
-   (inside cp:coreProperties, after the title and creator; modified is now) */
-void field_read_core(Doc *d, const char *xml, size_t n);
-void field_read_app(Doc *d, const char *xml, size_t n);
-void field_read_custom(Doc *d, const char *xml, size_t n);
-void field_write_core(Doc *d, Buf *b);
 /* what kind of field a code is for Quill's reading and writing: FK_ for the page fields and PAGEREF,
    FC_ below for the others */
 enum { FC_PLAIN = 16, FC_HYPERLINK, FC_REF, FC_TOC };
