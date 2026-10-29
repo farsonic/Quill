@@ -110,10 +110,10 @@ static void open_insert(int mode)
     Object *c = HGroup,
       Child, VGroup, MUIA_HorizWeight, 40,
         Child, LLabel(tr("Chart type:")),
-        Child, ListviewObject, MUIA_Listview_List, iclist = ListObject, InputListFrame, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
+        Child, ListviewObject, MUIA_Listview_List, iclist = ListObject, InputListFrame, MUIA_List_AdjustWidth, TRUE, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
           MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, MUIA_Listview_DoubleClick, TRUE, MUIA_CycleChain, 1, End,
       End,
-      Child, icprev = primview_new(280, 180),
+      Child, icprev = primview_new(240, 180),
     End;
     if (!c || !icprev) return;
     if (!(icwin = wp_dialog("Insert Chart", MAKE_ID('W','1','5','B'), c, "_OK", ID_CH_INSGO))) return;
@@ -450,11 +450,12 @@ static void open_format(void)
   {
     Object *cont;
     tq[0] = tr("(as it is)"); trl(quicknames, 10, tq + 1);
+    trl(colnames, NCOL, tcol);        /* (filled before both cycles are made: argument order is unspecified) */
     cont = HGroup,
       Child, VGroup, GroupFrameT(tr("Format Selection")),
         Child, ColGroup(2),
           Child, Label1(tr("Element")), Child, fmelem = CycleObject, MUIA_Cycle_Entries, (ULONG)elnames, MUIA_CycleChain, 1, End,
-          Child, Label1(tr("Fill")), Child, fmfill = CycleObject, MUIA_Cycle_Entries, (ULONG)trl(colnames, NCOL, tcol), MUIA_CycleChain, 1, End,
+          Child, Label1(tr("Fill")), Child, fmfill = CycleObject, MUIA_Cycle_Entries, (ULONG)tcol, MUIA_CycleChain, 1, End,
           Child, Label1(tr("Outline")), Child, fmline = CycleObject, MUIA_Cycle_Entries, (ULONG)tcol, MUIA_CycleChain, 1, End,
         End,
         Child, ColGroup(2), GroupFrameT(tr("Vertical (Value) Axis")),

@@ -122,11 +122,11 @@ static void open_insert(int mode)
     for (k = 0; k < SAC_N; k++) catlabels[k + 1] = tr(sa_category_names[k]);
     catlabels[SAC_N + 1] = NULL;
     c = HGroup,
-      Child, ListviewObject, MUIA_HorizWeight, 25, MUIA_Listview_List, iscat = ListObject, InputListFrame, MUIA_List_SourceArray, (ULONG)catlabels, End, MUIA_CycleChain, 1, End,
-      Child, ListviewObject, MUIA_HorizWeight, 40, MUIA_Listview_List, islist = ListObject, InputListFrame, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
+      Child, ListviewObject, MUIA_HorizWeight, 25, MUIA_Listview_List, iscat = ListObject, InputListFrame, MUIA_List_AdjustWidth, TRUE, MUIA_List_SourceArray, (ULONG)catlabels, End, MUIA_CycleChain, 1, End,
+      Child, ListviewObject, MUIA_HorizWeight, 40, MUIA_Listview_List, islist = ListObject, InputListFrame, MUIA_List_AdjustWidth, TRUE, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
         MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, MUIA_Listview_DoubleClick, TRUE, MUIA_CycleChain, 1, End,
       Child, VGroup,
-        Child, isprev = primview_new(220, 140),
+        Child, isprev = primview_new(180, 130),
         Child, isdesc = TextObject, MUIA_Text_Contents, (ULONG)"", MUIA_Font, MUIV_Font_Tiny, End,
       End,
     End;
