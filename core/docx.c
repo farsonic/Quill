@@ -17,6 +17,7 @@
 #include "notes.h"   /* (WP22b) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a: equations */
+#include "review.h"
 
 /* ------------------------------------------------------------------ */
 /* reading: formatting as found (which fields a pPr or rPr sets) */
@@ -64,7 +65,12 @@ typedef struct {
   i32 *cmid; int *cmidx; u8 *cmopen; int ncm;   /* comments the same; whether their range has started */
   /* (work packages: new fields go below, at the end) */
   u16 eqsym;                        /* WP9: an enclosure's field code: the size its symbol is written in (0: none yet) */
+  /* WP5: a w:rPrChange or w:pPrChange just read, waiting for its run or paragraph; the move being read */
+  int w5r; RPr w5rold; char w5rstyle[40]; u16 w5rrid; const char *w5rraw; size_t w5rrawn;
+  int w5p; PPr w5pold; char w5pstyle[40]; u16 w5prid; const char *w5praw; size_t w5prawn;
+  char w5move[40];
 } Ctx;
+static void wp5_read_rprchange(Xml *x, Ctx *c), wp5_read_pprchange(Xml *x, Ctx *c);   /* (WP5's, further down) */
 static void rel_by_id(const char *rels, size_t n, const char *id, const char *base, char *out, size_t cap);
 static void rel_raw(const char *rels, size_t n, const char *id, char *out, size_t cap);
 /* a HYPERLINK field code's target: HYPERLINK "url", with \l "name" for a place in the document
@@ -253,6 +259,7 @@ static void parse_rpr(Xml *x, Ctx *c, RPr *r, char *rstyle)
     }
     else if (!strcmp(n, "color") && v) { r->set |= CM_COLOR; r->cf.color = hexcolor(v); }
     else if (!strcmp(n, "highlight") && v) { r->set |= CM_HL; r->cf.hl = highlight_rgb(v); }
+    else if (!strcmp(n, "rPrChange") && rstyle) { wp5_read_rprchange(x, c); continue; }   /* (WP5: a run's) */
     xml_skip(x);
   }
 }
@@ -366,6 +373,7 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
     }
     else if (!strcmp(n, "rPr") && mark) { parse_rpr(x, c, mark, NULL); continue; }
     else if (!strcmp(n, "sectPr") && mark) { parse_sect(x, c, &p->sect, 0); p->has_sect = 1; continue; }
+    else if (!strcmp(n, "pPrChange") && pstyle) { wp5_read_pprchange(x, c); continue; }    /* (WP5: a paragraph's) */
     else if (!strcmp(n, "framePr")) {
       const char *dc = xml_attr(x, "dropCap");
       if (dc && (!strcmp(dc, "drop") || !strcmp(dc, "margin"))) {
@@ -849,6 +857,10 @@ typedef struct {
 /* (the work packages' reading hooks, further down) */
 static int docx_read_block_ext(Xml *x, PCtx *pc), docx_read_elem_ext(Xml *x, PCtx *pc);
 static int wp9_enclose_field(PCtx *pc, const CharFmt *f);     /* (WP9: further down, by the hooks) */
+/* (WP5's, further down) */
+static void wp5_read_rprchange(Xml *x, Ctx *c), wp5_read_pprchange(Xml *x, Ctx *c), wp5_run_change(PCtx *pc, CharFmt *f), wp5_para_change(PCtx *pc);
+static int wp5_read_move(Xml *x, PCtx *pc);
+static void wp5_scan(Xml *x, Ctx *c, int kind, int table, int row, int col, int sect);
 
 /* add a finished paragraph to pc->out, which takes ownership; 0 if out of memory (p is freed then) */
 static int emit(PCtx *pc, Para *p)
@@ -1386,6 +1398,7 @@ static void parse_run(Xml *x, PCtx *pc)
       f.rev = pc->rev; f.rid = pc->rid;
       f.link = c->field == 2 && c->fieldlink ? c->fieldlink : pc->link;
       f.bmark = c->bmark;
+      wp5_run_change(pc, &f);                      /* (WP5: its w:rPrChange) */
       continue;
     }
     if (!strcmp(n, "fldChar")) {
@@ -1517,6 +1530,7 @@ static void parse_children(Xml *x, PCtx *pc)
       pc->pstyle[0] = 0;
       parse_ppr(x, c, &pc->ppr, pc->pstyle, &pc->mark);
       para_begin(pc);
+      wp5_para_change(pc);                         /* (WP5: its w:pPrChange) */
       if (pc->p) { pc->p->pf = pc->pf; pc->p->r[0].f = pc->markcf; }
       continue;
     }
@@ -1524,7 +1538,7 @@ static void parse_children(Xml *x, PCtx *pc)
     if (!strcmp(n, "fldSimple")) {
       const char *in = xml_attr(x, "instr");
       int k = in ? field_kind(in) : 0;
-      if (k) { Para *p = cur(pc); if (p) para_append(p, k == 1 ? FIELD_PAGE : FIELD_PAGES, 3, &p->r[p->nr - 1].f); xml_skip(x); continue; }
+      if (k) { Para *p = cur(pc); if (p) { CharFmt lf = p->r[p->nr - 1].f; para_append(p, k == 1 ? FIELD_PAGE : FIELD_PAGES, 3, &lf); } xml_skip(x); continue; }
       if (in) {
         /* a simple cross-reference: PAGEREF's placeholder, or REF's text linked to its bookmark */
         char bm[200], url[210];
@@ -1543,6 +1557,7 @@ static void parse_children(Xml *x, PCtx *pc)
         }
       }
     }
+    if ((!strcmp(n, "moveTo") || !strcmp(n, "moveFrom")) && wp5_read_move(x, pc)) continue;   /* (WP5: moves) */
     if (!strcmp(n, "ins") || !strcmp(n, "del") || !strcmp(n, "moveTo") || !strcmp(n, "moveFrom")) {
       /* tracked changes: the runs inside are inserted or deleted, by someone, at some time */
       u8 orev = pc->rev;
@@ -1597,7 +1612,7 @@ static void parse_children(Xml *x, PCtx *pc)
         char t[8];
         Para *p = cur(pc);
         cmark_utf8(t, c->cmidx[k], end);
-        if (p) para_append(p, t, 4, &p->r[p->nr - 1].f);
+        if (p) { CharFmt lf = p->r[p->nr - 1].f; para_append(p, t, 4, &lf); }   /* (a copy: appending may move the runs) */
         c->cmopen[k] = (u8)(end ? 2 : 1);
       } else if (k < 0) c->lost |= LOST_COMMENTS;
     }
@@ -1695,6 +1710,7 @@ static void parse_table_body(Xml *x, PCtx *pc)
     if (!strcmp(n, "tblPr")) {
       unsigned set = 0;
       i32 ml = t.marl, mr = t.marr;
+      wp5_scan(x, c, RK_TBL, id ? id : d->ntables + 1, 0, 0, 0);     /* (WP5: a w:tblPrChange kept) */
       parse_tblpr(x, &set, tb, &ml, &mr, &t, tstyle, &gotlook);
       if (set & 2) { t.marl = ml; t.marr = mr; }
       else {                                       /* the style's margins, if it (or one it's based on) has any */
@@ -1708,6 +1724,7 @@ static void parse_table_body(Xml *x, PCtx *pc)
     }
     if (!strcmp(n, "tblGrid")) {
       int d1 = x->depth;
+      wp5_scan(x, c, RK_GRID, id ? id : d->ntables + 1, 0, 0, 0);    /* (WP5: a w:tblGridChange kept) */
       while (xml_next(x) != XT_EOF) {
         i32 w;
         if (x->type == XT_END && x->depth < d1) break;
@@ -1735,6 +1752,7 @@ static void parse_table_body(Xml *x, PCtx *pc)
         if (x->type != XT_START) continue;
         if (!strcmp(m, "trPr")) {
           int d2 = x->depth;
+          wp5_scan(x, c, RK_TR, id, row, 0, 0);                  /* (WP5: w:trPrChange, w:ins, w:del kept) */
           while (xml_next(x) != XT_EOF) {
             i32 v;
             if (x->type == XT_END && x->depth < d2) break;
@@ -1763,6 +1781,7 @@ static void parse_table_body(Xml *x, PCtx *pc)
             if (x->type != XT_START) continue;
             if (!strcmp(e, "tcPr")) {
               int d3 = x->depth;
+              wp5_scan(x, c, RK_TC, cl.table, cl.row, cl.col, 0);   /* (WP5: w:tcPrChange, w:cellIns ... kept) */
               while (xml_next(x) != XT_EOF) {
                 i32 v;
                 const char *val;
@@ -1844,6 +1863,7 @@ static void parse_sect(Xml *x, Ctx *c, SectFmt *sf, int body)
   int d0 = x->depth;
   i32 k;
   PageSetup *pg = body ? &c->d->page : &sf->page;
+  wp5_scan(x, c, RK_SECT, 0, 0, 0, body ? 0 : c->d->nsects + 1);    /* (WP5: a w:sectPrChange kept) */
   sect_default(sf);
   if (!body) { sf->page = c->d->page; memset(c->pend, 0, sizeof c->pend); }
   while (xml_next(x) != XT_EOF) {
@@ -2278,6 +2298,287 @@ static int read_math(Xml *x, PCtx *pc)
   return 1;
 }
 /* ------------------------------------------------------------------ */
+/* WP5 reading (core/review.h): tracked formatting changes (w:rPrChange, w:pPrChange), moves, property
+   changes of tables and sections kept verbatim, comments' threads and Resolve (commentsExtended,
+   commentsIds, commentsExtensible), the people (people.xml) and w:revisionView */
+static int wp5_false(const char *v) { return v && (!strcmp(v, "0") || !strcmp(v, "false") || !strcmp(v, "off")); }
+/* a w:rPrChange in a run's w:rPr (x just past its START; read to its END): the old w:rPr is kept
+   (as written, and as read) for the run it is in */
+static void wp5_read_rprchange(Xml *x, Ctx *c)
+{
+  int d0 = x->depth;
+  char au[64] = "", dt[24] = "";
+  copy_attr(x, "author", au, sizeof au); copy_attr(x, "date", dt, sizeof dt);
+  memset(&c->w5rold, 0, sizeof c->w5rold);
+  c->w5rstyle[0] = 0; c->w5rraw = NULL; c->w5rrawn = 0;
+  while (xml_next(x) != XT_EOF) {
+    if (x->type == XT_END && x->depth < d0) break;
+    if (x->type != XT_START) continue;
+    if (!strcmp(x->name, "rPr")) {
+      Xml y;
+      c->w5rrawn = xml_raw(x, &c->w5rraw);
+      xml_init(&y, c->w5rraw, c->w5rrawn);
+      if (xml_next(&y) == XT_START) parse_rpr(&y, c, &c->w5rold, c->w5rstyle);
+      xml_free(&y);
+      continue;
+    }
+    xml_skip(x);
+  }
+  c->w5rrid = (u16)doc_add_rev(c->d, au, dt);
+  c->w5r = 1;
+}
+/* the same for a paragraph's w:pPrChange */
+static void wp5_read_pprchange(Xml *x, Ctx *c)
+{
+  int d0 = x->depth;
+  char au[64] = "", dt[24] = "";
+  copy_attr(x, "author", au, sizeof au); copy_attr(x, "date", dt, sizeof dt);
+  memset(&c->w5pold, 0, sizeof c->w5pold);
+  c->w5pstyle[0] = 0; c->w5praw = NULL; c->w5prawn = 0;
+  while (xml_next(x) != XT_EOF) {
+    if (x->type == XT_END && x->depth < d0) break;
+    if (x->type != XT_START) continue;
+    if (!strcmp(x->name, "pPr")) {
+      Xml y;
+      c->w5prawn = xml_raw(x, &c->w5praw);
+      xml_init(&y, c->w5praw, c->w5prawn);
+      if (xml_next(&y) == XT_START) parse_ppr(&y, c, &c->w5pold, c->w5pstyle, NULL);
+      xml_free(&y);
+      continue;
+    }
+    xml_skip(x);
+  }
+  c->w5prid = (u16)doc_add_rev(c->d, au, dt);
+  c->w5p = 1;
+}
+/* a run's w:rPr read (f its formatting): a w:rPrChange in it becomes the run's formatting change, the
+   old look worked out as the new one was (the paragraph style's, the old character style's, the old
+   w:rPr) */
+static void wp5_run_change(PCtx *pc, CharFmt *f)
+{
+  Ctx *c = pc->c;
+  CharFmt o;
+  int cs;
+  if (!c->w5r) return;
+  c->w5r = 0;
+  o = pc->pcf;
+  if (c->w5rstyle[0] && (cs = raw_find(c, c->w5rstyle, 1)) >= 0) {
+    int k = doc_style(c->d, c->w5rstyle);
+    cf_set(&o, &c->st[cs].er);
+    if (k > 0 && c->d->styles[k].type == ST_CHAR) o.cstyle = (u8)k;
+  }
+  cf_set(&o, &c->w5rold);
+  f->frev = (u16)rv_add_fmt(c->d, c->w5rrid, 0, &o, NULL, c->w5rraw, (u32)c->w5rrawn);
+}
+/* a paragraph's w:pPr read and its formatting worked out: a w:pPrChange in it becomes the paragraph's
+   formatting change, the old formatting worked out the same way from the old w:pPr */
+static void wp5_para_change(PCtx *pc)
+{
+  Ctx *c = pc->c;
+  PPr nppr;
+  char nstyle[40];
+  ParaFmt npf;
+  CharFmt npcf, nmark;
+  int nst;
+  u16 n;
+  if (!c->w5p) return;
+  c->w5p = 0;
+  nppr = pc->ppr; memcpy(nstyle, pc->pstyle, sizeof nstyle); npf = pc->pf; npcf = pc->pcf; nmark = pc->markcf; nst = pc->style;
+  pc->ppr = c->w5pold; memcpy(pc->pstyle, c->w5pstyle, sizeof nstyle);
+  pc->ppr.has_sect = 0;
+  para_begin(pc);
+  n = (u16)rv_add_fmt(c->d, c->w5prid, 1, NULL, &pc->pf, c->w5praw, (u32)c->w5prawn);
+  pc->ppr = nppr; memcpy(pc->pstyle, nstyle, sizeof nstyle); pc->pf = npf; pc->pcf = npcf; pc->markcf = nmark; pc->style = nst;
+  pc->pf.prev = n;
+}
+/* a w:moveFrom or w:moveTo: its runs deleted or inserted as for w:del and w:ins, and marked as the move
+   its range names (or a move of its own) */
+static int wp5_read_move(Xml *x, PCtx *pc)
+{
+  Ctx *c = pc->c;
+  u8 orev = pc->rev;
+  u16 orid = pc->rid;
+  char au[64] = "", dt[24] = "";
+  Para *p0 = pc->p;
+  u32 l0 = p0 ? p0->len : 0;
+  int id;
+  copy_attr(x, "author", au, sizeof au); copy_attr(x, "date", dt, sizeof dt);
+  pc->rev = !strcmp(x->name, "moveTo") ? REV_INS : REV_DEL;
+  pc->rid = (u16)doc_add_rev(c->d, au, dt);
+  if (!c->w5move[0]) snprintf(c->w5move, sizeof c->w5move, "move%d", c->d->nrvmoves + 1);
+  id = rv_move_id(c->d, c->w5move);
+  parse_children(x, pc);
+  pc->rev = orev; pc->rid = orid;
+  if (pc->p && id) rv_set_move(pc->p, pc->p == p0 ? l0 : 0, pc->p->len, id);
+  return 1;
+}
+/* a move's range markers: the name is the move's (the next w:moveFrom or w:moveTo is in it) */
+static int wp5_read_elem(Xml *x, PCtx *pc)
+{
+  const char *n = x->name;
+  if (!strcmp(n, "moveFromRangeStart") || !strcmp(n, "moveToRangeStart")) { copy_attr(x, "name", pc->c->w5move, sizeof pc->c->w5move); xml_skip(x); return 1; }
+  if (!strcmp(n, "moveFromRangeEnd") || !strcmp(n, "moveToRangeEnd")) { pc->c->w5move[0] = 0; xml_skip(x); return 1; }
+  return 0;
+}
+/* x just past the START of a w:tblPr, w:tblGrid, w:trPr, w:tcPr or w:sectPr (kind RK_TBL, RK_GRID, RK_TR,
+   RK_TC, RK_SECT), not moved: its tracked property changes (and a row's or cell's insertion and
+   deletion) kept verbatim for that table, row and cell, or section */
+static void wp5_scan(Xml *x, Ctx *c, int kind, int table, int row, int col, int sect)
+{
+  Xml y;
+  if (x->i >= x->n || x->pending_end) return;
+  xml_init(&y, x->s + x->i, x->n - x->i);
+  while (xml_next(&y) != XT_EOF) {
+    const char *n = y.name;
+    int k = -1;
+    if (y.type == XT_END && y.depth < 0) break;
+    if (y.type != XT_START || y.depth != 1) continue;
+    if (kind == RK_TBL && !strcmp(n, "tblPrChange")) k = RK_TBL;
+    else if (kind == RK_GRID && !strcmp(n, "tblGridChange")) k = RK_GRID;
+    else if (kind == RK_TR && !strcmp(n, "trPrChange")) k = RK_TR;
+    else if (kind == RK_TR && (!strcmp(n, "ins") || !strcmp(n, "del"))) k = RK_TRREV;
+    else if (kind == RK_TC && !strcmp(n, "tcPrChange")) k = RK_TC;
+    else if (kind == RK_TC && (!strcmp(n, "cellIns") || !strcmp(n, "cellDel") || !strcmp(n, "cellMerge"))) k = RK_TCREV;
+    else if (kind == RK_SECT && !strcmp(n, "sectPrChange")) k = RK_SECT;
+    if (k >= 0) {
+      char au[64] = "", dt[24] = "";
+      const char *raw;
+      size_t rl;
+      copy_attr(&y, "author", au, sizeof au); copy_attr(&y, "date", dt, sizeof dt);
+      rl = xml_raw(&y, &raw);
+      rv_keep_change(c->d, k, table, row, col, sect, raw, (u32)rl, doc_add_rev(c->d, au, dt));
+    }
+  }
+  xml_free(&y);
+}
+/* settings.xml: w:revisionView (which markup is shown), w:doNotTrackMoves, w:doNotTrackFormatting */
+static void wp5_read_setting(Ctx *c, Xml *x)
+{
+  if (!strcmp(x->name, "revisionView")) {
+    int hide = 0;
+    if (wp5_false(xml_attr(x, "comments"))) hide |= RVH_COMMENTS;
+    if (wp5_false(xml_attr(x, "insDel"))) hide |= RVH_INSDEL;
+    if (wp5_false(xml_attr(x, "formatting"))) hide |= RVH_FORMAT;
+    if (hide) rv_set_hide(c->d, hide);
+    if (wp5_false(xml_attr(x, "markup"))) rv_set_balloons(c->d, RVB_INLINE);
+    c->d->rvsettings |= RVS_VIEW;
+  }
+  else if (!strcmp(x->name, "doNotTrackMoves") && !wp5_false(xml_attr(x, "val"))) c->d->rvsettings |= RVS_NOMOVES;
+  else if (!strcmp(x->name, "doNotTrackFormatting") && !wp5_false(xml_attr(x, "val"))) c->d->rvsettings |= RVS_NOFMT;
+}
+/* the document's part of a relationship type (suffix): its name in path and its text (malloc'd) in *xml; 0 if none */
+static int wp5_part(ZipReader *z, const char *docrels, size_t rn, const char *base, const char *suffix, char *path, size_t cap, char **xml, size_t *n)
+{
+  path[0] = 0;
+  rel_target(docrels, rn, suffix, base, path, cap);
+  return path[0] && (*xml = part(z, path, n)) != NULL;
+}
+/* the comment (Doc.comments index) a w14:paraId is the last paragraph of, -1 if none */
+static int wp5_by_para(const u32 *pid, const int *pidx, int np, const char *v)
+{
+  u32 id;
+  int i;
+  if (!v) return -1;
+  id = (u32)strtoul(v, NULL, 16);
+  for (i = 0; i < np; i++) if (pid[i] == id) return pidx[i];
+  return -1;
+}
+static void wp5_read_parts(Ctx *c, ZipReader *z, const char *docrels, size_t rn, const char *base)
+{
+  Doc *d = c->d;
+  char path[300], *xml;
+  size_t n;
+  u32 *pid = NULL;
+  int *pidx = NULL, np = 0;
+  Xml x;
+  if (!docrels) return;
+  /* the people: each w15:person kept as it is (how they signed in), by author */
+  if (wp5_part(z, docrels, rn, base, "/people", path, sizeof path, &xml, &n)) {
+    xml_init(&x, xml, n);
+    while (xml_next(&x) != XT_EOF)
+      if (x.type == XT_START && !strcmp(x.name, "person")) {
+        char au[64] = "";
+        const char *raw;
+        size_t rl;
+        copy_attr(&x, "author", au, sizeof au);
+        rl = xml_raw(&x, &raw);
+        rv_add_person(d, au, raw, (u32)rl);
+      }
+    xml_free(&x); free(xml);
+    keep_remove(d, path);                         /* (WP0 kept it verbatim; it is read now) */
+  }
+  if (!c->ncm || !wp5_part(z, docrels, rn, base, "/comments", path, sizeof path, &xml, &n)) return;
+  /* each comment's last paragraph's w14:paraId, which the other parts name it by */
+  {
+    int cur = -1, cap = 0;
+    u32 last = 0;
+    int have = 0;
+    xml_init(&x, xml, n);
+    while (xml_next(&x) != XT_EOF) {
+      if (x.type == XT_START && !strcmp(x.name, "comment")) { i32 id; int k = attr_num(&x, "id", &id) ? comment_by_id(c, id) : -1; cur = k >= 0 ? c->cmidx[k] : -1; have = 0; }
+      else if (x.type == XT_START && !strcmp(x.name, "p") && cur >= 0) { const char *v = xml_attr(&x, "paraId"); have = v != NULL; if (v) last = (u32)strtoul(v, NULL, 16); }
+      else if (x.type == XT_END && !strcmp(x.name, "comment")) {
+        if (cur >= 0 && have) {
+          if (np >= cap) {
+            int nc = cap ? cap * 2 : 32;
+            u32 *a = (u32 *)realloc(pid, (size_t)nc * sizeof(u32));
+            int *b;
+            if (!a) break;
+            pid = a;
+            if (!(b = (int *)realloc(pidx, (size_t)nc * sizeof(int)))) break;
+            pidx = b; cap = nc;
+          }
+          pid[np] = last; pidx[np] = cur; np++;
+        }
+        cur = -1;
+      }
+    }
+    xml_free(&x); free(xml);
+  }
+  /* replies and Resolve */
+  if (np && wp5_part(z, docrels, rn, base, "/commentsExtended", path, sizeof path, &xml, &n)) {
+    xml_init(&x, xml, n);
+    while (xml_next(&x) != XT_EOF)
+      if (x.type == XT_START && !strcmp(x.name, "commentEx")) {
+        int k = wp5_by_para(pid, pidx, np, xml_attr(&x, "paraId")), p = wp5_by_para(pid, pidx, np, xml_attr(&x, "paraIdParent"));
+        const char *done = xml_attr(&x, "done");
+        if (k < 0) continue;
+        if (p >= 0 && p != k) d->comments[k].parent = p + 1;
+        d->comments[k].done = (u8)(done && (!strcmp(done, "1") || !strcmp(done, "true")));
+      }
+    xml_free(&x); free(xml);
+  }
+  /* durable ids, and the times in UTC by them */
+  if (np && wp5_part(z, docrels, rn, base, "/commentsIds", path, sizeof path, &xml, &n)) {
+    xml_init(&x, xml, n);
+    while (xml_next(&x) != XT_EOF)
+      if (x.type == XT_START && !strcmp(x.name, "commentId")) {
+        int k = wp5_by_para(pid, pidx, np, xml_attr(&x, "paraId"));
+        const char *v = xml_attr(&x, "durableId");
+        if (k >= 0 && v) d->comments[k].durable = (u32)strtoul(v, NULL, 16);
+      }
+    xml_free(&x); free(xml);
+  }
+  if (np && wp5_part(z, docrels, rn, base, "/commentsExtensible", path, sizeof path, &xml, &n)) {
+    xml_init(&x, xml, n);
+    while (xml_next(&x) != XT_EOF)
+      if (x.type == XT_START && !strcmp(x.name, "commentExtensible")) {
+        const char *v = xml_attr(&x, "durableId"), *t = xml_attr(&x, "dateUtc");
+        u32 du = v ? (u32)strtoul(v, NULL, 16) : 0;
+        int k;
+        if (!du || !t) continue;
+        for (k = 0; k < d->ncomments; k++) if (d->comments[k].durable == du) snprintf(d->comments[k].dateutc, sizeof d->comments[k].dateutc, "%s", t);
+      }
+    xml_free(&x); free(xml);
+  }
+  /* a thread whose first comment is resolved is resolved throughout */
+  {
+    int k;
+    for (k = 0; k < d->ncomments; k++) { int r = rv_thread_root(d, k); if (r >= 0 && r != k && d->comments[r].done) d->comments[k].done = 1; }
+  }
+  free(pid); free(pidx);
+}
+/* ------------------------------------------------------------------ */
 /* the work packages' reading hooks (WP0). Each package puts the call to its own function on a line
    right after its own marker line; never edit a marker line itself (so two packages' lines don't
    touch and their branches merge cleanly) */
@@ -2291,6 +2592,7 @@ static int docx_read_block_ext(Xml *x, PCtx *pc)
   /* WP3: */
   /* WP4: */
   /* WP5: */
+  if (wp5_read_elem(x, pc)) return 1;
   /* WP7: */
   /* WP9: */
   /* WP10: */
@@ -2325,6 +2627,7 @@ static int docx_read_elem_ext(Xml *x, PCtx *pc)
   /* WP3: */
   /* WP4: */
   /* WP5: */
+  if (wp5_read_elem(x, pc)) return 1;
   /* WP7: */
   /* WP9: */
   /* WP10: */
@@ -2382,6 +2685,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
   /* WP3: */
   /* WP4: */
   /* WP5: */
+  wp5_read_setting(c, x);
   /* WP7: */
   /* WP9: */
   /* WP10: */
@@ -2555,6 +2859,7 @@ static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_
   /* WP3: */
   /* WP4: */
   /* WP5: */
+  wp5_read_parts(c, z, docrels, rn, base);
   /* WP7: */
   /* WP9: */
   /* WP10: */
@@ -2848,6 +3153,100 @@ static void w_ppr_body(Buf *b, Doc *d, const ParaFmt *p, const ParaFmt *base, in
   if (full ? p->contextual : p->contextual != base->contextual) buf_adds(b, p->contextual ? "<w:contextualSpacing/>" : "<w:contextualSpacing w:val=\"0\"/>");
   if (full ? p->align != AL_LEFT : p->align != base->align) buf_printf(b, "<w:jc w:val=\"%s\"/>", jc[p->align <= AL_DISTRIBUTE ? p->align : 0]);
 }
+/* ---- WP5 writing (core/review.h): tracked formatting changes, moves, kept property changes */
+static int w5_revid = 500000;           /* ids of the change elements WP5 writes (clear of w_para_ex's) */
+static void w5_change_attrs(Buf *o, Doc *d, int rid)
+{
+  const char *au = rid >= 0 && rid < d->nrevs ? d->revs[rid].author : "", *dt = rid >= 0 && rid < d->nrevs ? d->revs[rid].date : "";
+  buf_printf(o, " w:id=\"%d\" w:author=\"", w5_revid++);
+  xml_escape(o, au, strlen(au));
+  buf_adds(o, "\"");
+  if (*dt) { buf_adds(o, " w:date=\""); xml_escape(o, dt, strlen(dt)); buf_adds(o, "\""); }
+}
+/* a run's w:rPr (all of b) gets the run's w:rPrChange, its last child: the old w:rPr as read, or written
+   from the old look against base (the paragraph style's character format) */
+static void wp5_rpr_change(Buf *b, Doc *d, const CharFmt *f, const CharFmt *base)
+{
+  const FmtRev *fr = rv_fmt(d, f->frev);
+  Buf c;
+  if (!fr) return;
+  buf_init(&c);
+  buf_adds(&c, "<w:rPrChange");
+  w5_change_attrs(&c, d, fr->rid);
+  buf_adds(&c, ">");
+  if (fr->raw) buf_add(&c, fr->raw, fr->rawlen);
+  else {
+    CharFmt ob = *base;
+    Buf r;
+    buf_init(&r);
+    if (fr->ocf.cstyle && fr->ocf.cstyle < d->nstyles && d->styles[fr->ocf.cstyle].type == ST_CHAR) {
+      cf_apply(&ob, d->styles[fr->ocf.cstyle].ecmask, &d->styles[fr->ocf.cstyle].cf);
+      w_rstyle = d->styles[fr->ocf.cstyle].id;
+    }
+    w_rpr(&r, d, &fr->ocf, &ob, 0);
+    w_rstyle = NULL;
+    if (r.len) buf_add(&c, r.data, r.len); else buf_adds(&c, "<w:rPr/>");
+    buf_free(&r);
+  }
+  buf_adds(&c, "</w:rPrChange>");
+  if (b->len >= 8 && !memcmp(b->data + b->len - 8, "</w:rPr>", 8)) { b->len -= 8; buf_add(b, c.data, c.len); buf_adds(b, "</w:rPr>"); }
+  else { buf_adds(b, "<w:rPr>"); buf_add(b, c.data, c.len); buf_adds(b, "</w:rPr>"); }
+  buf_free(&c);
+}
+/* a paragraph's w:pPrChange (the last child of its w:pPr): the old w:pPr as read, or written from the
+   old formatting against its style */
+static void wp5_ppr_change(Buf *pp, Doc *d, const Para *p)
+{
+  const FmtRev *fr = rv_fmt(d, p->pf.prev);
+  if (!fr) return;
+  buf_adds(pp, "<w:pPrChange");
+  w5_change_attrs(pp, d, fr->rid);
+  buf_adds(pp, ">");
+  if (fr->raw) buf_add(pp, fr->raw, fr->rawlen);
+  else {
+    const Style *os = &d->styles[fr->opf.style < d->nstyles ? fr->opf.style : 0];
+    buf_adds(pp, "<w:pPr>");
+    w_ppr_body(pp, d, &fr->opf, &os->pf, 0);
+    buf_adds(pp, "</w:pPr>");
+  }
+  buf_adds(pp, "</w:pPrChange>");
+}
+/* moves: a range (w:moveFromRangeStart ... End, w:moveToRangeStart ... End, by the move's name) round each
+   stretch of a paragraph's runs that belong to one move */
+static int w5_mopen, w5_mfrom, w5_mid;
+static void wp5_move_close(Buf *o)
+{
+  if (!w5_mopen) return;
+  buf_printf(o, w5_mfrom ? "<w:moveFromRangeEnd w:id=\"%d\"/>" : "<w:moveToRangeEnd w:id=\"%d\"/>", w5_mid);
+  w5_mopen = 0;
+}
+static void wp5_move_range(Buf *o, Doc *d, const CharFmt *f)
+{
+  int from = f->rev == REV_DEL;
+  if (w5_mopen && (!f->rev || f->move != w5_mopen || from != w5_mfrom)) wp5_move_close(o);
+  if (f->rev && f->move && !w5_mopen) {
+    const char *nm = rv_move_name(d, f->move);
+    w5_mopen = f->move; w5_mfrom = from; w5_mid = w5_revid;
+    buf_adds(o, from ? "<w:moveFromRangeStart" : "<w:moveToRangeStart");
+    w5_change_attrs(o, d, f->rid);
+    buf_adds(o, " w:name=\""); xml_escape(o, nm, strlen(nm)); buf_adds(o, "\"/>");
+  }
+}
+/* the element a tracked change's runs go in */
+static const char *wp5_rev_tag(const CharFmt *f) { return f->move ? (f->rev == REV_INS ? "moveTo" : "moveFrom") : f->rev == REV_INS ? "ins" : "del"; }
+/* the kept property changes of a kind (core/review.h) for a table, row, cell or section; w5_doc: the
+   document whose tables are being written (w_tr_start and w_tc_start aren't told) */
+static Doc *w5_doc;
+static void wp5_kept(Buf *o, Doc *d, int kind, int table, int row, int col, int sect)
+{
+  if (!d) return;
+  w5_doc = d;
+  if (d->nkchg) rv_write_kept(o, d, kind, table, row, col, sect);
+}
+static int wp5_tr_kept(const Cell *c)
+{
+  return w5_doc && w5_doc->nkchg && (rv_has_kept(w5_doc, RK_TR, c->table, c->row, 0, 0) || rv_has_kept(w5_doc, RK_TRREV, c->table, c->row, 0, 0));
+}
 static int w_deleted;                   /* writing a deletion's runs: w:delText */
 /* append text as w:t elements (w:delText inside a deletion), with tabs as w:tab and Quill's line
    breaks (\v) as w:br; xml:space="preserve" where leading or trailing spaces would otherwise be
@@ -3014,8 +3413,10 @@ static void w_tbl_start(Buf *o, Doc *d, const Table *t)
   buf_printf(o, "<w:tblLook w:val=\"%04X\" w:firstRow=\"%d\" w:lastRow=\"%d\" w:firstColumn=\"%d\" w:lastColumn=\"%d\" w:noHBand=\"%d\" w:noVBand=\"%d\"/>",
              (unsigned)t->look, !!(t->look & LK_FIRSTROW), !!(t->look & LK_LASTROW), !!(t->look & LK_FIRSTCOL), !!(t->look & LK_LASTCOL),
              !!(t->look & LK_NOHBAND), !!(t->look & LK_NOVBAND));
+  wp5_kept(o, d, RK_TBL, (int)(t - d->tables) + 1, 0, 0, 0);       /* (WP5: its w:tblPrChange) */
   buf_adds(o, "</w:tblPr><w:tblGrid>");
   for (k = 0; k < t->ncols; k++) buf_printf(o, "<w:gridCol w:w=\"%ld\"/>", (long)t->grid[k]);
+  wp5_kept(o, d, RK_GRID, (int)(t - d->tables) + 1, 0, 0, 0);      /* (WP5: its w:tblGridChange) */
   buf_adds(o, "</w:tblGrid>");
 }
 /* open a row, with the row properties its cells carry: height (negative means exact), heading
@@ -3023,11 +3424,12 @@ static void w_tbl_start(Buf *o, Doc *d, const Table *t)
 static void w_tr_start(Buf *o, const Cell *c)
 {
   buf_adds(o, "<w:tr>");
-  if (c->rowh || c->header || c->cantsplit) {
+  if (c->rowh || c->header || c->cantsplit || wp5_tr_kept(c)) {
     buf_adds(o, "<w:trPr>");
     if (c->cantsplit) buf_adds(o, "<w:cantSplit/>");
     if (c->rowh) buf_printf(o, "<w:trHeight w:val=\"%d\" w:hRule=\"%s\"/>", c->rowh < 0 ? -c->rowh : c->rowh, c->rowh < 0 ? "exact" : "atLeast");
     if (c->header) buf_adds(o, "<w:tblHeader/>");
+    wp5_kept(o, w5_doc, RK_TRREV, c->table, c->row, 0, 0); wp5_kept(o, w5_doc, RK_TR, c->table, c->row, 0, 0);   /* (WP5) */
     buf_adds(o, "</w:trPr>");
   }
 }
@@ -3048,6 +3450,7 @@ static void w_tc_start(Buf *o, const Table *t, const Cell *c)
   buf_adds(o, "</w:tcBorders>");
   if (c->shade != COLOR_AUTO) buf_printf(o, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"%06lX\"/>", (unsigned long)(c->shade & 0xFFFFFF));
   if (c->valign) buf_adds(o, c->valign == 1 ? "<w:vAlign w:val=\"center\"/>" : "<w:vAlign w:val=\"bottom\"/>");
+  wp5_kept(o, w5_doc, RK_TCREV, c->table, c->row, c->col, 0); wp5_kept(o, w5_doc, RK_TC, c->table, c->row, c->col, 0);   /* (WP5) */
   buf_adds(o, "</w:tcPr>");
 }
 /* the cells a paragraph is in, outermost first; how many */
@@ -3383,6 +3786,7 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
   if (w_inbody && p->pf.sect && p->pf.sect <= d->nsects && p != d->p[d->np - 1] && !in_table(&p->pf)) {
     w_sectpr(&pp, d, &d->sects[p->pf.sect - 1], p->pf.sect, 0);    /* a section ends here */
   }
+  wp5_ppr_change(&pp, d, p);                    /* (WP5: its w:pPrChange, the w:pPr's last child) */
   buf_adds(o, "<w:p>");
   if (pp.len) { buf_adds(o, "<w:pPr>"); buf_add(o, pp.data, pp.len); buf_adds(o, "</w:pPr>"); }
   buf_free(&pp);
@@ -3404,12 +3808,14 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
           w_rstyle = d->styles[f->cstyle].id;
         }
         w_rpr(&r, d, f, &rb, 0);
+        wp5_rpr_change(&r, d, f, &st->cf);       /* (WP5: its w:rPrChange) */
       }
+      wp5_move_range(o, d, f);                    /* (WP5: a move's range opened or closed) */
       if (f->rev) {
         /* a tracked change round the run */
         static int revid = 1000;
         const char *au = f->rid < d->nrevs ? d->revs[f->rid].author : "", *dt = f->rid < d->nrevs ? d->revs[f->rid].date : "";
-        buf_printf(o, f->rev == REV_INS ? "<w:ins w:id=\"%d\" w:author=\"" : "<w:del w:id=\"%d\" w:author=\"", revid++);
+        buf_printf(o, "<w:%s w:id=\"%d\" w:author=\"", wp5_rev_tag(f), revid++);      /* (WP5: w:ins, w:del, w:moveTo, w:moveFrom) */
         xml_escape(o, au, strlen(au));
         buf_adds(o, "\"");
         if (*dt) { buf_adds(o, " w:date=\""); xml_escape(o, dt, strlen(dt)); buf_adds(o, "\""); }
@@ -3418,11 +3824,12 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
       }
       if (!wp9_write_enclosed(o, f, r.data ? r.data : "", r.len, p->t + start, p->r[k].end - start))    /* (WP9: enclosed characters, as a field) */
         w_run(o, d, r.data ? r.data : "", r.len, p->t + start, p->r[k].end - start);
-      if (f->rev) { buf_adds(o, f->rev == REV_INS ? "</w:ins>" : "</w:del>"); w_deleted = 0; }
+      if (f->rev) { buf_printf(o, "</w:%s>", wp5_rev_tag(f)); w_deleted = 0; }
       buf_free(&r);
     }
     start = p->r[k].end;
   }
+  wp5_move_close(o);                            /* (WP5) */
   w_link(o, d, link, 0);
   if (tail) buf_adds(o, tail);
   buf_adds(o, "</w:p>");
@@ -3582,6 +3989,24 @@ static char *w_endnotes(Doc *d, size_t *len)
   *len = o.len;
   return buf_take(&o);
 }
+/* ---- WP5: comments' paragraph ids (w14:paraId), which commentsExtended and commentsIds name them by */
+#define WP5_NS14 " xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" mc:Ignorable=\"w14\""
+static u32 wp5_paraid(int k) { return 0x10000000UL + (u32)save_comments[k]; }
+/* the last w:p written into o since from gets comment k's w14:paraId */
+static void wp5_para_id(Buf *o, size_t from, int k)
+{
+  size_t i, at = 0, al;
+  char attr[80];
+  if (!save_comments || !o->data) return;
+  for (i = from; i + 5 <= o->len; i++)
+    if (!memcmp(o->data + i, "<w:p", 4) && (o->data[i + 4] == '>' || o->data[i + 4] == ' ' || o->data[i + 4] == '/')) at = i + 4;
+  if (!at) return;
+  al = (size_t)sprintf(attr, " w14:paraId=\"%08lX\" w14:textId=\"77777777\"", (unsigned long)wp5_paraid(k));
+  if (!buf_reserve(o, al)) return;
+  memmove(o->data + at + al, o->data + at, o->len - at + 1);
+  memcpy(o->data + at, attr, al);
+  o->len += al;
+}
 /* comments.xml: each comment whose marks are still in the text, under the id save_comments gave it
    (less one), with its author, date and initials; malloc'd, NULL if out of memory */
 static char *w_comments(Doc *d, size_t *len)
@@ -3589,9 +4014,10 @@ static char *w_comments(Doc *d, size_t *len)
   Buf o;
   int k;
   u32 i;
+  size_t from;
   buf_init(&o);
   buf_adds(&o, XMLHDR);
-  buf_adds(&o, "<w:comments "); buf_adds(&o, WNS); buf_adds(&o, ">");
+  buf_adds(&o, "<w:comments "); buf_adds(&o, WNS); buf_adds(&o, WP5_NS14); buf_adds(&o, ">");
   for (k = 0; k < d->ncomments; k++) {
     Comment *c = &d->comments[k];
     if (!save_comments[k]) continue;
@@ -3601,8 +4027,10 @@ static char *w_comments(Doc *d, size_t *len)
     if (c->date[0]) { buf_adds(&o, " w:date=\""); xml_escape(&o, c->date, strlen(c->date)); buf_adds(&o, "\""); }
     if (c->initials[0]) { buf_adds(&o, " w:initials=\""); xml_escape(&o, c->initials, strlen(c->initials)); buf_adds(&o, "\""); }
     buf_adds(&o, ">");
+    from = o.len;
     for (i = 0; i < c->text.np; i++) w_para_ex(&o, d, c->text.p[i], i ? NULL : "<w:r><w:annotationRef/></w:r>", NULL);
     if (!c->text.np) buf_adds(&o, "<w:p><w:r><w:annotationRef/></w:r></w:p>");
+    wp5_para_id(&o, from, k);                   /* (WP5: its last paragraph's w14:paraId) */
     buf_adds(&o, "</w:comment>");
   }
   buf_adds(&o, "</w:comments>");
@@ -3662,6 +4090,7 @@ static void w_sectpr(Buf *o, Doc *d, const SectFmt *s, int g, int last)
   pages_write_valign(o, s);                         /* (WP22a: and Justified) */
   if (sect_titlepg(d, s, last)) buf_adds(o, "<w:titlePg/>");
   pages_write_sect_tail(o, s);                      /* (WP22a) */
+  wp5_kept(o, d, RK_SECT, 0, 0, 0, last || !s || s < d->sects || s >= d->sects + d->nsects ? 0 : (int)(s - d->sects) + 1);   /* (WP5: its w:sectPrChange) */
   buf_adds(o, "</w:sectPr>");
 }
 /* document.xml: the body's paragraphs with the tables round them, a table of contents wrapped in a
@@ -3842,6 +4271,111 @@ static void write_info_parts(Doc *d, DocxOut *o)
     free(x);
   }
 }
+/* ---- WP5: commentsExtended.xml (replies, Resolve), commentsIds.xml (durable ids), commentsExtensible.xml
+   (times in UTC) for the comments saved, and people.xml (the authors of comments and changes; those
+   read keep their own entries) */
+#define WP5_CT "application/vnd.openxmlformats-officedocument.wordprocessingml."
+static void wp5_write_parts(Doc *d, DocxOut *o)
+{
+  Buf b;
+  int k, j, any;
+  if (save_comments) {
+    /* durable ids: each comment's own, unique and below 0x7FFFFFFF, else a new one (kept for next time) */
+    for (k = 0; k < d->ncomments; k++) {
+      u32 du = d->comments[k].durable;
+      int dup = 0;
+      if (!save_comments[k]) continue;
+      for (j = 0; j < k && du; j++) if (save_comments[j] && d->comments[j].durable == du) dup = 1;
+      if (!du || du >= 0x7FFFFFFFUL || dup) {
+        du = 0x20000000UL + (u32)k;
+        for (j = 0; j < d->ncomments; j++) if (j != k && d->comments[j].durable == du) { du += 0x10000; j = -1; }
+        d->comments[k].durable = du;
+      }
+    }
+    buf_init(&b);
+    buf_adds(&b, XMLHDR);
+    buf_adds(&b, "<w15:commentsEx xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" "
+                 "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" mc:Ignorable=\"w15\">");
+    for (k = 0; k < d->ncomments; k++) {
+      int pr = d->comments[k].parent - 1;
+      if (!save_comments[k]) continue;
+      buf_printf(&b, "<w15:commentEx w15:paraId=\"%08lX\"", (unsigned long)wp5_paraid(k));
+      if (pr >= 0 && pr < d->ncomments && save_comments[pr]) buf_printf(&b, " w15:paraIdParent=\"%08lX\"", (unsigned long)wp5_paraid(pr));
+      buf_printf(&b, " w15:done=\"%d\"/>", d->comments[k].done ? 1 : 0);
+    }
+    buf_adds(&b, "</w15:commentsEx>");
+    docx_out_part(o, "word/commentsExtended.xml", WP5_CT "commentsExtended+xml", "word/document.xml",
+                  "http://schemas.microsoft.com/office/2011/relationships/commentsExtended", "rIdW5CmEx", b.data, b.len);
+    buf_free(&b);
+    buf_init(&b);
+    buf_adds(&b, XMLHDR);
+    buf_adds(&b, "<w16cid:commentsIds xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" "
+                 "xmlns:w16cid=\"http://schemas.microsoft.com/office/word/2016/wordml/cid\" mc:Ignorable=\"w16cid\">");
+    for (k = 0, any = 0; k < d->ncomments; k++) {
+      if (!save_comments[k]) continue;
+      buf_printf(&b, "<w16cid:commentId w16cid:paraId=\"%08lX\" w16cid:durableId=\"%08lX\"/>", (unsigned long)wp5_paraid(k), (unsigned long)d->comments[k].durable);
+      if (d->comments[k].dateutc[0]) any = 1;
+    }
+    buf_adds(&b, "</w16cid:commentsIds>");
+    docx_out_part(o, "word/commentsIds.xml", WP5_CT "commentsIds+xml", "word/document.xml",
+                  "http://schemas.microsoft.com/office/2016/09/relationships/commentsIds", "rIdW5CmId", b.data, b.len);
+    buf_free(&b);
+    if (any) {
+      buf_init(&b);
+      buf_adds(&b, XMLHDR);
+      buf_adds(&b, "<w16cex:commentsExtensible xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" "
+                   "xmlns:w16cex=\"http://schemas.microsoft.com/office/word/2018/wordml/cex\" mc:Ignorable=\"w16cex\">");
+      for (k = 0; k < d->ncomments; k++) {
+        if (!save_comments[k] || !d->comments[k].dateutc[0]) continue;
+        buf_printf(&b, "<w16cex:commentExtensible w16cex:durableId=\"%08lX\" w16cex:dateUtc=\"", (unsigned long)d->comments[k].durable);
+        xml_escape(&b, d->comments[k].dateutc, strlen(d->comments[k].dateutc));
+        buf_adds(&b, "\"/>");
+      }
+      buf_adds(&b, "</w16cex:commentsExtensible>");
+      docx_out_part(o, "word/commentsExtensible.xml", WP5_CT "commentsExtensible+xml", "word/document.xml",
+                    "http://schemas.microsoft.com/office/2018/08/relationships/commentsExtensible", "rIdW5CmXt", b.data, b.len);
+      buf_free(&b);
+    }
+  }
+  /* the people: those read, then each other author of a saved comment or a change */
+  {
+    int nauth = 0;
+    const char *auth[256];
+    for (k = 0; k < d->ncomments && nauth < 256; k++) if (save_comments && save_comments[k]) auth[nauth++] = d->comments[k].author;
+    for (k = 0; k < d->nrevs && nauth < 256; k++) auth[nauth++] = d->revs[k].author;
+    if (!d->npeople && !nauth) return;
+    buf_init(&b);
+    buf_adds(&b, XMLHDR);
+    buf_adds(&b, "<w15:people xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" "
+                 "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" mc:Ignorable=\"w15\">");
+    for (k = 0; k < d->npeople; k++) if (d->people[k].raw) buf_add(&b, d->people[k].raw, d->people[k].rawlen);
+    for (k = 0; k < nauth; k++) {
+      int seen = !auth[k][0];
+      for (j = 0; j < d->npeople && !seen; j++) if (d->people[j].raw && !strcmp(d->people[j].author, auth[k])) seen = 1;
+      for (j = 0; j < k && !seen; j++) if (!strcmp(auth[j], auth[k])) seen = 1;
+      if (seen) continue;
+      buf_adds(&b, "<w15:person w15:author=\""); xml_escape(&b, auth[k], strlen(auth[k]));
+      buf_adds(&b, "\"><w15:presenceInfo w15:providerId=\"None\" w15:userId=\""); xml_escape(&b, auth[k], strlen(auth[k]));
+      buf_adds(&b, "\"/></w15:person>");
+    }
+    buf_adds(&b, "</w15:people>");
+    docx_out_part(o, "word/people.xml", WP5_CT "people+xml", "word/document.xml",
+                  "http://schemas.microsoft.com/office/2011/relationships/people", "rIdW5Ppl", b.data, b.len);
+    buf_free(&b);
+  }
+}
+/* settings.xml (where 1, before w:defaultTabStop): w:revisionView when markup is hidden, and the
+   document's Track moves and Track formatting when off */
+static void wp5_write_settings(Doc *d, Buf *b, int where)
+{
+  int hide = rv_hidden_kinds(d), inl = rv_balloons(d) == RVB_INLINE;
+  if (where != 1) return;
+  if (hide || inl)
+    buf_printf(b, "<w:revisionView%s%s%s%s/>", inl ? " w:markup=\"0\"" : "", hide & RVH_COMMENTS ? " w:comments=\"0\"" : "",
+               hide & RVH_INSDEL ? " w:insDel=\"0\"" : "", hide & RVH_FORMAT ? " w:formatting=\"0\"" : "");
+  if (d->rvsettings & RVS_NOMOVES) buf_adds(b, "<w:doNotTrackMoves/>");
+  if (d->rvsettings & RVS_NOFMT) buf_adds(b, "<w:doNotTrackFormatting/>");
+}
 /* the kept parts (core/keep.h), then each package's own */
 static void docx_write_parts_ext(Doc *d, DocxOut *o)
 {
@@ -3855,6 +4389,7 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
   /* WP3: */
   /* WP4: */
   /* WP5: */
+  wp5_write_parts(d, o);
   /* WP7: */
   /* WP9: */
   /* WP10: */
@@ -3895,6 +4430,7 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   /* WP3: */
   /* WP4: */
   /* WP5: */
+  wp5_write_settings(d, b, where);
   /* WP7: */
   /* WP9: */
   /* WP10: */
