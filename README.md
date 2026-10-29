@@ -278,7 +278,8 @@ These come from comparing Quill with WordCraft's Home, Insert, Draw, Design and 
 - **Comments:** in balloons beside the page, joined to the text they are about.
 - **Tracked changes:** insertions and deletions, with who made them and when.
 - **A table of contents:** saved as Word's TOC field, so Word can update it too.
-- **Text it keeps:** hyperlinks, content controls and field results keep their text. Field codes are left out (but page numbers and the table of contents are understood).
+- **Text it keeps:** hyperlinks and content controls keep their text.
+- **Fields:** every field keeps its code and its result (DATE, SEQ, MERGEFIELD, Zotero and Mendeley citations, IF, DOCPROPERTY, XE, REF, form fields...) and is written back, so nothing is lost when the document goes back to Word. **Insert > Field** (Ctrl-F9) puts in any of Word's fields, **Document Property** and **Date and Time** (as text or a field that updates) too. **Update Fields** (F9) works out dates, times, the document's properties, page and word counts, sections, sequence numbers (captions), cross-references, IF and more, with Word's \\@ \\* and \\# formats; **Show Field Codes** (Alt-F9), **Toggle** (Shift-F9), **Edit Field Code**, **Unlink** (Ctrl-Shift-F9), **Lock** and **Unlock** (Ctrl-3, Ctrl-4), **Next** and **Previous Field** and field shading are on the References tab.
 - **Not read yet:** VML pictures (from very old Word versions). Quill says when a document had any.
 - **What it writes:** complete .docx files with the document's styles. LibreOffice and python-docx open them; Word itself hasn't been tried yet.
 

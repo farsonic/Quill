@@ -8,7 +8,7 @@
  * and footers, are flattened); pictures, shapes, text boxes and groups (DrawingML); sections with
  * page setup, columns, line numbers and page borders; headers and footers (with a text watermark);
  * footnotes, endnotes, comments and tracked changes; title and author. Hyperlinks and content controls keep their
- * text; field codes are left out (results kept, page number fields become Quill's own).
+ * text; fields keep their codes and results (core/field.h; page number fields become Quill's own).
  * docx_load reports what it had to leave out.
  */
 #ifndef QUILL_DOCX_H
