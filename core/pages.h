@@ -103,8 +103,9 @@ void pages_write_pgborders(Buf *o, const Doc *d, const SectFmt *s, int last);
 void pages_write_cols(Buf *o, const SectFmt *s);
 void pages_write_valign(Buf *o, const SectFmt *s);
 void pages_write_sect_tail(Buf *o, const SectFmt *s);   /* after w:titlePg: w:rtlGutter */
-/* settings.xml at the places docx_write_settings_ext names (1 before w:defaultTabStop, 2 after
-   w:autoHyphenation, 4 after w:evenAndOddHeaders) */
+/* settings.xml at the places docx_write_settings_ext names (2 after w:autoHyphenation, 4 after
+   w:evenAndOddHeaders), and 10 right after w:displayBackgroundShape (docx_save calls that one itself,
+   since w:mirrorMargins... come before every other package's slot 1 element in the schema) */
 void pages_write_settings(const Doc *d, Buf *b, int where);
 /* a header's picture watermark: the run (with a w:pict) and the media part's name ("" none) and type */
 void pages_write_wm_picture(Buf *o, const Doc *d);

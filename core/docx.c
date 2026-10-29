@@ -3855,6 +3855,7 @@ u8 *docx_save(Doc *d, size_t *len)
       "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">");
     docx_write_settings_ext(d, &st, 0);
     if (d->pagecolor) buf_adds(&st, "<w:displayBackgroundShape/>");
+    pages_write_settings(d, &st, 10);             /* (WP22a: mirror margins, gutter at top...: first after it, as the schema orders them) */
     docx_write_settings_ext(d, &st, 1);
     buf_adds(&st, "<w:defaultTabStop w:val=\"720\"/>");
     if (d->hyphenate) buf_adds(&st, "<w:autoHyphenation/>");

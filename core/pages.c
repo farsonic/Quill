@@ -708,7 +708,7 @@ void pages_write_sect_tail(Buf *o, const SectFmt *s)
 }
 void pages_write_settings(const Doc *d, Buf *b, int where)
 {
-  if (where == 1) {
+  if (where == 10) {                         /* (docx.c calls this itself, before the packages' slot 1) */
     if (d->mirror) buf_adds(b, "<w:mirrorMargins/>");
     if (d->pbnohdr) buf_adds(b, "<w:bordersDoNotSurroundHeader/>");
     if (d->pbnoftr) buf_adds(b, "<w:bordersDoNotSurroundFooter/>");
