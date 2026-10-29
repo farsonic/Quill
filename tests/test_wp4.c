@@ -187,6 +187,16 @@ static void t_merge(void)
     doc_free(m);
   }
   ok("WP4 no merge errors", e.len == 0);
+  {
+    int files = 0;
+    size_t n1 = 0, n2 = 0;
+    u8 *a, *b;
+    ok("WP4 merge to one PDF", merge_to_pdf(d, 0, 1, 0, -1, "/tmp/quill_wp4_all.pdf", &fs, NULL, NULL, &files, NULL) && files == 1);
+    ok("WP4 merge to a PDF each", merge_to_pdf(d, 0, 1, 1, 1, "/tmp/quill_wp4.pdf", &fs, NULL, NULL, &files, NULL) && files == 2);
+    a = file_read("/tmp/Jones.pdf", &n1); b = file_read("/tmp/Smith.pdf", &n2);
+    ok("WP4 PDFs named by a column", a && b && n1 > 500 && !memcmp(a, "%PDF", 4));
+    free(a); free(b);
+  }
   buf_free(&e);
   /* Check for Errors finds a field not in the list */
   put(d, 2, " MERGEFIELD Nickname ");

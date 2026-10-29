@@ -168,18 +168,18 @@ void merge_write_settings(Doc *d, Buf *b, int where)
   if (mi->extra) buf_adds(b, mi->extra);
   if (mi->viewmerged) buf_adds(b, "<w:viewMergedData/>");
   if (mi->viewmerged || mi->rec) { sprintf(num, "%d", mi->rec + 1); attr(b, "activeRecord", num); }
-  if (mi->checkerrors) { sprintf(num, "%d", mi->checkerrors); attr(b, "checkErrors", num); }
+  if (mi->checkerrors) { sprintf(num, "%d", (int)mi->checkerrors); attr(b, "checkErrors", num); }
   if (mi->src[0]) {
     buf_adds(b, "<w:odso>");
     if (mi->table[0]) attr(b, "table", mi->table);
     buf_adds(b, "<w:src r:id=\"rIdMM2\"/>");
-    if (k == 0) { sprintf(num, "%d", mi->coldelim ? mi->coldelim : 44); attr(b, "colDelim", num); }
+    if (k == 0) { sprintf(num, "%d", mi->coldelim ? (int)mi->coldelim : 44); attr(b, "colDelim", num); }
     attr(b, "type", k == 1 ? "database" : k == 2 ? "document1" : "text");
     if (mi->hdr) buf_adds(b, "<w:fHdr/>");
     for (af = 0; af < AF_N; af++) {
-      int c = mi->data && mi->map[af][0] ? md_col(mi->data, mi->map[af]) : -1;
+      int set = mi->map[af][0] && mi->map[af][0] != 1, c = mi->data && set ? md_col(mi->data, mi->map[af]) : -1;
       buf_adds(b, "<w:fieldMapData>");
-      if (mi->map[af][0] && (c >= 0 || !mi->data)) {
+      if (set && (c >= 0 || !mi->data)) {
         attr(b, "type", "dbColumn");
         attr(b, "name", mi->map[af]);
         attr(b, "mappedName", af_names[af]);

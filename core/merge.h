@@ -125,7 +125,7 @@ void merge_greeting(const MergeInfo *mi, int v, const char *code, char *out, siz
 extern const char *const merge_name_pics[], *const merge_name_fmts[]; extern const int merge_nname;
 extern const char *const merge_greet_pics[], *const merge_greet_fmts[]; extern const int merge_ngreet;
 /* the codes the windows make */
-void merge_address_code(int name, int company, int country, const char *excluded, char *out, size_t cap);   /* country: 0 never, 1 always, 2 unless excluded */
+void merge_address_code(int name, int company, int postal, int country, const char *excluded, char *out, size_t cap);   /* name -1: none; country: 0 never, 1 always, 2 unless excluded */
 void merge_greeting_code(int before, int name, int after, const char *invalid, char *out, size_t cap);   /* before: "Dear", "To", none; after: ',' ':' none */
 
 /* ---- the fields */
@@ -154,6 +154,13 @@ int  merge_duplicates(const MergeData *m, u8 *dup);
 /* Validate Addresses (only checks that each checked row has a name, a street, a town and a postcode
    or country, by Match Fields): rows lacking one marked in bad; how many */
 int  merge_validate(const MergeInfo *mi, u8 *bad);
+
+/* ---- Finish & Merge to PDF (core/mergepdf.c): the records from..to merged into one PDF at path, or
+   (each) a PDF a record, named from column namecol's value in path's folder (-1: path's name with
+   _1, _2 ...). 1 if anything was written; *files how many */
+struct FontSet;
+int  merge_to_pdf(Doc *d, int from, int to, int each, int namecol, const char *path, struct FontSet *fs, MergeAsk ask, void *ctx, int *files, Buf *errs);
+void merge_pdf_name(const char *path, const MergeInfo *mi, int rec, int namecol, char *out, size_t cap);
 
 /* ---- .docx (core/docx.c's hooks): settings.xml's w:mailMerge (read at its start tag, written in
    slot 1, before w:revisionView), and word/_rels/settings.xml.rels for the data source's path */

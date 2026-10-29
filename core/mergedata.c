@@ -566,7 +566,6 @@ MergeData *md_load_file(const char *path, char *err, size_t errcap)
   size_t n;
   u8 *data = file_read(path, &n);
   MergeData *m = NULL;
-  const char *dot = strrchr(path, '.');
   if (!data) { snprintf(err, errcap, "Quill could not read the file."); return NULL; }
   if (n >= 4 && data[0] == 'P' && data[1] == 'K') {
     ZipReader z;
@@ -578,7 +577,6 @@ MergeData *md_load_file(const char *path, char *err, size_t errcap)
     m = md_load_text(data, n);
     if (!m) snprintf(err, errcap, "The file has no recipients.");
   }
-  (void)dot;
   free(data);
   return m;
 }

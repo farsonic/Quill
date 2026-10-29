@@ -288,10 +288,10 @@ int merge_parse_query(MergeInfo *mi)
     s = w;
     while (mi->nfilt < MERGE_NFILT) {
       MergeFilter *f = &mi->filt[mi->nfilt];
-      int paren = 0, op = -1;
+      int op = -1;
       memset(f, 0, sizeof *f);
       s = q_ws(s);
-      while (*s == '(') { paren++; s = q_ws(s + 1); }
+      while (*s == '(') s = q_ws(s + 1);
       if (q_kw(&s, "ORDER") || !*s) break;
       if (!q_ident(&s, f->col, sizeof f->col)) break;
       s = q_ws(s);
@@ -322,7 +322,6 @@ int merge_parse_query(MergeInfo *mi)
       if (q_kw(&s, "AND")) or_ = 0;
       else if (q_kw(&s, "OR")) or_ = 1;
       else break;
-      (void)paren;
     }
   }
   return any;
@@ -431,7 +430,7 @@ static void fill(const MergeInfo *mi, int v, const char *f, int country, const c
     if (f[0] == '<' && f[1] == '<') {
       const char *e = strstr(f + 2, ">>");
       size_t gl;
-      int i, show = 0, lit = 0;
+      int i, show = 0;
       char *tp = NULL;
       if (!e) e = f + strlen(f);
       gl = (size_t)(e - f - 2);
@@ -443,7 +442,7 @@ static void fill(const MergeInfo *mi, int v, const char *f, int country, const c
         size_t tl = tp[1] == 'B' ? 8 : 7;
         if (tp[tl] == ' ') tl++;
         memmove(tp, tp + tl, strlen(tp + tl) + 1);
-        show = lit = 1;
+        show = 1;
       } else
         for (i = 0; i < NTOKS; i++)
           if ((tp = strstr(grp, toks[i].tok))) {
@@ -468,7 +467,6 @@ static void fill(const MergeInfo *mi, int v, const char *f, int country, const c
           else PUTC(*g);
         }
       }
-      (void)lit;
       continue;
     }
     if (f[0] == '\\' && f[1] == 'n') { PUTC('\v'); f += 2; continue; }
@@ -525,7 +523,7 @@ static void put_q(Buf *b, const char *s)
   for (; *s; s++) { if (*s == '"' || (*s == '\\' && s[1] != 'n')) buf_addc(b, '\\'); buf_addc(b, *s); }
   buf_addc(b, '"');
 }
-void merge_address_code(int name, int company, int country, const char *excluded, char *out, size_t cap)
+void merge_address_code(int name, int company, int postal, int country, const char *excluded, char *out, size_t cap)
 {
   Buf b;
   buf_init(&b);
@@ -533,8 +531,10 @@ void merge_address_code(int name, int company, int country, const char *excluded
   if (name >= 0 && name < merge_nname) buf_adds(&b, merge_name_fmts[name]);
   if (name >= 0 && name < merge_nname) buf_adds(&b, "\\n");
   if (company) buf_adds(&b, "<<_COMPANY_\\n>>");
-  buf_adds(&b, "<<_STREET1_\\n>><<_STREET2_\\n>><<_CITY_>><<, _STATE_>><< _POSTAL_>>");
-  if (country) buf_adds(&b, "<<\\n_COUNTRY_>>");
+  if (postal) {
+    buf_adds(&b, "<<_STREET1_\\n>><<_STREET2_\\n>><<_CITY_>><<, _STATE_>><< _POSTAL_>>");
+    if (country) buf_adds(&b, "<<\\n_COUNTRY_>>");
+  }
   buf_adds(&b, "\" \\l 1033 \\c ");
   buf_addc(&b, '0' + (country < 0 || country > 2 ? 2 : country));
   if (excluded && excluded[0]) { buf_adds(&b, " \\e "); put_q(&b, excluded); }
