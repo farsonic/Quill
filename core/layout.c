@@ -8,6 +8,7 @@
 #include "field.h"
 #include "objtext.h"
 #include "hyph.h"
+#include "pages.h"
 #include "charfx.h"
 #include "notes.h"   /* (WP22b) */
 #include "math.h"     /* WP14a: equations */
@@ -37,6 +38,7 @@ void lay_free(Layout *L)
   if (!L) return;
   for (i = 0; i < L->npl; i++) pl_free(&L->pl[i]);
   free(L->pl); free(L->placed); free(L->page_first); free(L->page_end); free(L->cells); free(L->notenum); free(L->pn); free(L->enotenum); free(L->en); free(L->seps); free(L->psec); free(L->floats); free(L->early); free(L->pbox); free(L->pinfo);
+  pages_layout_free(L);     /* (WP22a) */
   free(L->fnn); free(L->enn); free(L->ncut); free(L->enseps);      /* (WP22b) */
   free(L);
 }
@@ -299,7 +301,7 @@ static int split_at(Layout *L, Para *p, Work *w, u32 bi, u32 off)
   w->b[bi + 1] = nb;
   return 1;
 }
-#define HYPH_ZONE 360                    /* Word's hyphenation zone: a gap narrower than this isn't worth a hyphen */
+#define HYPH_ZONE pages_hyph_zone(L->d)   /* Word's hyphenation zone (360): a gap narrower than this isn't worth a hyphen (WP22a: the document's) */
 /* automatic hyphenation: the word in box bi doesn't fit in what is left of the line (x of room, fine).
    Its longest start that fits with a hyphen: split there (the first part marked to show the hyphen,
    its width taking it in); 1 if it was split */
@@ -316,6 +318,7 @@ static int hyphenate(Layout *L, Para *p, Work *w, u32 bi, u32 x, u32 room)
   /* the rest may only be punctuation */
   for (k = core; k < b->len; k++) if (!strchr(".,;:!?\")'", t[k])) return 0;
   if (core - lead < 5 || core - lead > 32 || !hyph_word(t + lead, core - lead, brk)) return 0;
+  if (!pages_hyph_allowed(L->d, t + lead, core - lead, w->l, w->nl, w->b)) return 0;      /* (WP22a: capitals, consecutive) */
   hw = measure(L, z, "-", 1, NULL);
   for (k = core - lead; k-- > 1; ) {
     if (!brk[k]) continue;
@@ -403,6 +406,24 @@ static int sh_on;
 static const FloatBox *sh_fb; static u32 sh_nfb, sh_page;
 static i32 sh_x0, sh_y0;                /* the paragraph's text area's left edge and its first line's top, on the page */
 static const Doc *sh_doc;
+/* (WP22a) columns of different widths: while laying out a paragraph placed in them (col_on), each
+   line as wide as the column it is going to: the paragraph starts in column col_c0 at col_y0 (at its
+   top: col_attop); a column's text runs from col_top (on later pages col_ptop) down to col_bottom */
+static int col_on, col_n, col_c0, col_attop;
+static i32 col_w[MAX_SECT_COLS], col_y0, col_top, col_ptop, col_bottom;
+/* the width of the column the line after lines l[0..nl) goes in, est high */
+static i32 col_room(const Line *l, u32 nl, i32 est)
+{
+  int c = col_c0, attop = col_attop;
+  i32 y = col_y0;
+  u32 q;
+  for (q = 0; ; q++) {
+    i32 h = q < nl ? l[q].height : est;
+    if (y + h > col_bottom && !attop) { c = c + 1 < col_n ? c + 1 : 0; y = c ? col_top : col_ptop; attop = 1; }
+    if (q >= nl) return col_w[c];
+    y += h; attop = 0;
+  }
+}
 /* the part of an outline (n points round, in page twips) between y0 and y1 across: 0 if none */
 static int band_span(const i32 *xy, int n, i32 y0, i32 y1, i32 *x0, i32 *x1)
 {
@@ -587,6 +608,13 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
     Line ln;
     i32 left = pf->left + (w.nl == 0 ? pf->first : 0) + (w.nl < droplines && !pf->dropmargin ? dropw : 0), room = avail - left - pf->right, gap = 0;
     u32 x = 0, word = ls, k, lastend;
+    if (col_on) {
+      /* (WP22a) the line as wide as its column */
+      i32 est = w.nl ? w.l[w.nl - 1].height : 276;
+      if (!w.nl && ls < w.n) { FaceSize *z = lay_face(L, &w.b[ls].f); if (z) est = z->height; }
+      room = col_room(w.l, w.nl, est) - left - pf->right;
+      pl->shaped = 1;
+    }
     if (sh_on) {
       /* floating objects alongside: the line in the room they leave */
       i32 y = 0, est, st, rm;
@@ -811,6 +839,11 @@ typedef struct {
   int nofinish;                         /* the page isn't complete: don't align it */
   int last;                             /* the section is the document's last */
   u32 sfirst;                           /* the section's first page */
+  /* WP22a: */
+  const PageSetup *srcpg;               /* the section's page setup (L->pg: as this page has it, core/pages.c) */
+  i32 cx[MAX_SECT_COLS], cw[MAX_SECT_COLS];   /* each column's left edge and width */
+  int unequal;                          /* columns of different widths */
+  u32 regfirst;                         /* the first line placed in these columns on this page */
 } Flow;
 static i32 furniture_extent(Layout *L, const PageSetup *pg, const SectFmt *sec, int last, int footer);
 /* the page fl is on gets its page setup and section (as they are now) */
@@ -822,6 +855,7 @@ static int page_set(Layout *L, Flow *fl)
     if (!n) return 0;
     L->pinfo = n; L->pinfocap = nc;
   }
+  if (fl->srcpg) L->pg = pages_eff(L, fl->srcpg, fl->sec, fl->page);      /* (WP22a: mirrored, halved...) */
   L->pinfo[fl->page].pg = L->pg; L->pinfo[fl->page].sec = fl->sec; L->pinfo[fl->page].first = fl->sfirst; L->pinfo[fl->page].last = (u8)fl->last;
   return 1;
 }
@@ -842,12 +876,15 @@ static void flow_area(Layout *L, Flow *fl, const SectFmt *s, int web)
    first. Columns narrower than half an inch, and web layout, mean one column */
 static void flow_cols(Flow *fl, const SectFmt *s, i32 body, int web)
 {
+  int k;
   fl->sec = s;
-  fl->ncols = web || !s || s->cols < 1 ? 1 : s->cols;
-  fl->gap = fl->ncols > 1 ? s->colgap : 0;
-  fl->colw = (body - (fl->ncols - 1) * fl->gap) / fl->ncols;
-  if (fl->colw < 720) { fl->ncols = 1; fl->gap = 0; fl->colw = body; }
-  fl->col = 0; fl->colx = 0;
+  /* (WP22a: columns of their own widths too) */
+  fl->ncols = web ? (fl->cx[0] = 0, fl->cw[0] = body, 1) : pages_cols(s, body, fl->cx, fl->cw);
+  fl->gap = fl->ncols > 1 ? fl->cx[1] - fl->cw[0] : 0;
+  fl->unequal = 0;
+  for (k = 1; k < fl->ncols; k++) if (fl->cw[k] != fl->cw[0]) fl->unequal = 1;
+  fl->col = 0; fl->colx = 0; fl->colw = fl->cw[0];
+  fl->regfirst = 0xFFFFFFFF;
 }
 /* the columns from coltop to the lowest one got: their lines (a section with lines between columns) */
 static void end_region(Layout *L, Flow *fl)
@@ -863,11 +900,12 @@ static void end_region(Layout *L, Flow *fl)
       L->seps = ns; L->sepcap = nc;
     }
     L->seps[L->nseps].page = fl->page;
-    L->seps[L->nseps].x = c * (fl->colw + fl->gap) - fl->gap / 2;
+    L->seps[L->nseps].x = (fl->cx[c - 1] + fl->cw[c - 1] + fl->cx[c]) / 2;
     L->seps[L->nseps].y0 = fl->coltop; L->seps[L->nseps].y1 = fl->maxy;
     L->nseps++;
   }
 }
+static void justify_page(Layout *L, Flow *fl, i32 shift);    /* (WP22a) */
 /* a full page done: its section may centre it, or put it at the bottom */
 static void finish_page(Layout *L, Flow *fl)
 {
@@ -883,6 +921,7 @@ static void finish_page(Layout *L, Flow *fl)
     for (b = pl->lines[pc->line].box0; b < pl->lines[pc->line].box0 + pl->lines[pc->line].nbox; b++) if (pl->boxes[b].kind == BX_NOTE) return;
   }
   shift = fl->bottom - fl->maxy;
+  if (fl->sec->valign == VA_JUSTIFY) { justify_page(L, fl, shift); return; }     /* (WP22a) */
   if (fl->sec->valign == VA_CENTER) shift /= 2;
   for (k = fl->pagefirst; k < L->nplaced; k++) if (L->placed[k].page == fl->page) L->placed[k].y += shift;
   for (k = fl->cellfirst; k < L->ncells; k++) if (L->cells[k].page == fl->page) L->cells[k].y += shift;
@@ -900,7 +939,7 @@ static void new_page(Layout *L, Flow *fl)
   fl->page++;
   if (!page_set(L, fl)) L->oom = 1;
   fl->y = fl->coltop = fl->maxy = fl->top; fl->at_top = 1;
-  fl->col = 0; fl->colx = 0;
+  fl->col = 0; fl->colx = 0; fl->colw = fl->cw[0]; fl->regfirst = L->nplaced;
   fl->pagefirst = L->nplaced; fl->cellfirst = L->ncells; fl->sepfirst = L->nseps;
   if (fl->sec && fl->sec->linenum == LN_PAGE) fl->lnum = 0;
 }
@@ -910,9 +949,140 @@ static void flow_next(Layout *L, Flow *fl)
   if (fl->col + 1 < fl->ncols) {
     if (fl->y > fl->maxy) fl->maxy = fl->y;
     fl->col++;
-    fl->colx = fl->col * (fl->colw + fl->gap);
+    fl->colx = fl->cx[fl->col]; fl->colw = fl->cw[fl->col];
     fl->y = fl->coltop; fl->at_top = 1;
   } else new_page(L, fl);
+}
+/* (WP22a) a paragraph about to be placed in columns of different widths: laid out again (by
+   place_floats) with each line as wide as its column */
+static void col_shape(Flow *fl, ParaLay *pl)
+{
+  int k;
+  if (in_table(&pl->p->pf)) return;
+  col_on = 1; col_n = fl->ncols; col_c0 = fl->col; col_attop = fl->at_top;
+  for (k = 0; k < fl->ncols; k++) col_w[k] = fl->cw[k];
+  col_y0 = fl->y; col_top = fl->coltop; col_ptop = fl->top; col_bottom = fl->bottom;
+  pl->shaped = 1;
+}
+/* (WP22a) the columns before a continuous section break balanced, as Word does: the lines placed in
+   them on this page shared out so the columns end as level as they can (the shortest height they
+   fit in, found by halving). Only for columns of one width with nothing but lines in them (no table
+   cells, paragraph borders or floating objects anchored there) */
+static void balance_cols(Layout *L, Flow *fl)
+{
+  u32 a = fl->regfirst, n, k;
+  i32 lo, hi, maxh = 0, total = 0, *h, *g;
+  if (fl->ncols < 2 || fl->unequal || a >= L->nplaced) return;
+  n = L->nplaced - a;
+  if (n < 2) return;
+  for (k = a; k < L->nplaced; k++) if (L->placed[k].page != fl->page) return;
+  for (k = fl->cellfirst; k < L->ncells; k++) if (L->cells[k].page == fl->page) return;
+  for (k = 0; k < L->npbox; k++) if (L->pbox[k].page == fl->page && L->pbox[k].para >= L->placed[a].para) return;
+  for (k = 0; k < L->nfloats; k++) if (L->floats[k].page == fl->page && L->floats[k].para >= L->placed[a].para) return;
+  if (!(h = (i32 *)malloc(n * 2 * sizeof(i32)))) return;
+  g = h + n;
+  /* each line's height and the space above it (from where they are now; between paragraphs
+     that came at a column's top, the space their formats ask for) */
+  for (k = 0; k < n; k++) {
+    const Placed *pc = &L->placed[a + k];
+    h[k] = L->pl[pc->para].lines[pc->line].height;
+    g[k] = 0;
+    if (k) {
+      const Placed *pp = &L->placed[a + k - 1];
+      if (pp->x == pc->x) g[k] = pc->y - pp->y - h[k - 1];
+      else if (pp->para != pc->para) g[k] = L->pl[pp->para].p->pf.after + L->pl[pc->para].p->pf.before;
+      if (g[k] < 0) g[k] = 0;
+    }
+    if (h[k] > maxh) maxh = h[k];
+    total += h[k] + g[k];
+  }
+  lo = maxh; hi = total;
+  while (lo < hi) {
+    i32 mid = lo + (hi - lo) / 2, y = 0;
+    int c = 0;
+    for (k = 0; k < n && c < fl->ncols; k++) {
+      i32 gg = y ? g[k] : 0;
+      if (y && y + gg + h[k] > mid) { c++; y = 0; gg = 0; }
+      y += gg + h[k];
+    }
+    if (c < fl->ncols) hi = mid; else lo = mid + 1;
+  }
+  {
+    i32 y = 0, low = 0;
+    int c = 0;
+    for (k = 0; k < n; k++) {
+      Placed *pc = &L->placed[a + k];
+      i32 gg = y ? g[k] : 0;
+      if (y && y + gg + h[k] > lo && c + 1 < fl->ncols) { c++; y = 0; gg = 0; }
+      y += gg;
+      pc->x = fl->cx[c]; pc->w = fl->cw[c]; pc->y = fl->coltop + y;
+      y += h[k];
+      if (y > low) low = y;
+    }
+    fl->y = fl->maxy = fl->coltop + low;
+  }
+  free(h);
+}
+/* (WP22a) vertical alignment Justified: the room left at the foot of a page shared out between its
+   paragraphs (between its lines if it has only one), as Word does; a page with more than one
+   column is left at the top */
+static void justify_page(Layout *L, Flow *fl, i32 shift)
+{
+  u32 k, gaps = 0, first = 0xFFFFFFFF, seen = 0;
+  i32 x0 = 0, *at = NULL;
+  int bypara = 0;
+  for (k = fl->pagefirst; k < L->nplaced; k++) {
+    const Placed *pc = &L->placed[k];
+    if (pc->page != fl->page) continue;
+    if (first == 0xFFFFFFFF) { first = k; x0 = pc->x; }
+    else if (pc->x != x0) return;
+    else if (pc->para != L->placed[k - 1].para) bypara = 1;
+  }
+  if (first == 0xFFFFFFFF) return;
+  /* the tops of the lines that start a new paragraph (or every line after the first) */
+  for (k = first + 1; k < L->nplaced; k++) if (L->placed[k].page == fl->page && (!bypara || L->placed[k].para != L->placed[k - 1].para)) gaps++;
+  if (!gaps || !(at = (i32 *)malloc(gaps * sizeof(i32)))) return;
+  for (k = first + 1; k < L->nplaced; k++)
+    if (L->placed[k].page == fl->page && (!bypara || L->placed[k].para != L->placed[k - 1].para)) at[seen++] = L->placed[k].y;
+  /* everything at or below the i'th gap moves down by i shares */
+  {
+    u32 i;
+    for (k = fl->pagefirst; k < L->nplaced; k++) {
+      Placed *pc = &L->placed[k];
+      u32 m = 0;
+      if (pc->page != fl->page) continue;
+      for (i = 0; i < gaps && at[i] <= pc->y; i++) m = i + 1;
+      pc->y += (i32)((long long)shift * m / gaps);
+    }
+    for (k = fl->cellfirst; k < L->ncells; k++) {
+      CellBox *c = &L->cells[k];
+      u32 m = 0;
+      if (c->page != fl->page) continue;
+      for (i = 0; i < gaps && at[i] <= c->y; i++) m = i + 1;
+      c->y += (i32)((long long)shift * m / gaps);
+    }
+    for (k = 0; k < L->npbox; k++) {
+      ParaBox *b = &L->pbox[k];
+      u32 m = 0;
+      if (b->page != fl->page) continue;
+      for (i = 0; i < gaps && at[i] <= b->y0 + 1; i++) m = i + 1;
+      b->y0 += (i32)((long long)shift * m / gaps); b->y1 += (i32)((long long)shift * m / gaps); b->ybetween += (i32)((long long)shift * m / gaps);
+    }
+    for (k = 0; k < L->nen; k++) {
+      u32 m = 0;
+      if (L->en[k].page != fl->page) continue;
+      for (i = 0; i < gaps && at[i] <= L->en[k].y; i++) m = i + 1;
+      L->en[k].y += (i32)((long long)shift * m / gaps);
+    }
+    for (k = 0; k < L->nfloats; k++) {
+      FloatBox *f = &L->floats[k];
+      u32 m = 0;
+      if (f->page != fl->page || L->d->images[f->img].vrel != POS_PARA) continue;
+      for (i = 0; i < gaps && at[i] <= f->y; i++) m = i + 1;
+      f->y += (i32)((long long)shift * m / gaps);
+    }
+  }
+  free(at);
 }
 /* a row of a table ran onto later pages by itself: the page bookkeeping catches up */
 static void flow_jumped(Layout *L, Flow *fl, u32 page)
@@ -920,9 +1090,9 @@ static void flow_jumped(Layout *L, Flow *fl, u32 page)
   u32 k = L->nplaced;
   end_region(L, fl);
   while (fl->page < page) { fl->page++; if (!page_set(L, fl)) L->oom = 1; }
-  fl->col = 0; fl->colx = 0; fl->coltop = fl->maxy = fl->top;
+  fl->col = 0; fl->colx = 0; fl->colw = fl->cw[0]; fl->coltop = fl->maxy = fl->top;
   while (k > 0 && L->placed[k - 1].page == page) k--;
-  fl->pagefirst = k; fl->cellfirst = L->ncells; fl->sepfirst = L->nseps;
+  fl->pagefirst = k; fl->cellfirst = L->ncells; fl->sepfirst = L->nseps; fl->regfirst = k;
 }
 
 /* one table, from paragraph *pi: row by row. A row that doesn't fit runs on to the next page (its
@@ -2050,13 +2220,15 @@ static int paginate(Layout *L)
   memset(&fl, 0, sizeof fl);
   L->oom = 0;
   fl.last = L->lastfirst == 0;
-  L->pg = sect_page(d, L->npsec ? L->psec[0] : NULL, fl.last);
+  fl.srcpg = sect_page(d, L->npsec ? L->psec[0] : NULL, fl.last);
+  L->pg = pages_eff(L, fl.srcpg, L->npsec ? L->psec[0] : NULL, 0);
   body = web ? L->webw : page_body(L->pg);
   fl.sec = L->npsec ? L->psec[0] : NULL;
   /* a header or footer taller than its margin pushes the text in, as in Word */
   flow_area(L, &fl, fl.sec, web);
   fl.page = 0; fl.y = fl.coltop = fl.maxy = fl.top; fl.at_top = 1;
   flow_cols(&fl, fl.sec, body, web);
+  fl.regfirst = 0;
   if (!page_set(L, &fl)) return 0;
   L->nplaced = 0; L->ncells = 0; L->nseps = 0; L->npn = 0; L->complete = 1; L->nfloats = 0; L->npbox = 0;
   L->nen = 0; L->nenseps = 0; L->nncut = 0;              /* (WP22b) */
@@ -2082,7 +2254,8 @@ static int paginate(Layout *L)
       const SectFmt *s = L->psec[pi];
       int last = pi >= L->lastfirst, newpage = 0;
       const PageSetup *npg = web ? L->pg : sect_page(d, s, last);
-      int same = !memcmp(npg, L->pg, sizeof *npg);
+      int same = !memcmp(npg, fl.srcpg ? fl.srcpg : L->pg, sizeof *npg);
+      if (!web && s->start == SB_CONT && same) balance_cols(L, &fl);      /* (WP22a) */
       end_region(L, &fl);
       if (endsect) {
         /* (WP22b) the section's endnotes after its text */
@@ -2106,7 +2279,7 @@ static int paginate(Layout *L)
       fl.sec = s; fl.last = last;
       if (newpage) {
         /* the section's own page: its size, margins, headers and footers */
-        L->pg = npg;
+        fl.srcpg = npg; L->pg = web ? npg : pages_eff(L, npg, s, fl.page);
         fl.sfirst = fl.page;
         flow_area(L, &fl, s, web);
         fl.y = fl.coltop = fl.maxy = fl.top; fl.at_top = 1;
@@ -2114,7 +2287,7 @@ static int paginate(Layout *L)
       }
       body = web ? L->webw : page_body(L->pg);
       flow_cols(&fl, s, body, web);
-      fl.coltop = fl.maxy = fl.y;
+      fl.coltop = fl.maxy = fl.y; fl.regfirst = L->nplaced;
       if (s->linenum == LN_SECTION) fl.lnum = 0;
     }
     if (pf->pagebreak && !fl.at_top && !web) new_page(L, &fl);          /* starts a new page */
@@ -2132,8 +2305,11 @@ static int paginate(Layout *L)
     ctxprev = pi > 0 && pf->contextual && !in_table(&L->pl[pi - 1].p->pf) && L->pl[pi - 1].p->pf.style == pf->style;
     ctxnext = pi + 1 < L->npl && pf->contextual && !in_table(&L->pl[pi + 1].p->pf) && L->pl[pi + 1].p->pf.style == pf->style;
     if ((!fl.at_top || pi == 0 || pf->pagebreak) && !ctxprev) fl.y += pf->before;
-    /* its floating objects, and its lines round those in their way */
+    /* its floating objects, and its lines round those in their way; in columns of different widths,
+       each line as wide as the column it will go in (WP22a) */
+    if (fl.unequal && !web) col_shape(&fl, pl);
     if (!place_floats(L, pi, &fl)) return 0;
+    col_on = 0;
     /* keep with next: this paragraph and the next one's first line on one page; keep lines together:
        the whole paragraph; else no orphaned first line */
     need = para_height(pl, 0, pl->nlines);
@@ -2406,7 +2582,7 @@ int lay_update_part(Layout *L, u32 budget)
   for (i = 0; i < d->np; i++) {
     Para *p = d->p[i];
     u32 k, found = L->npl, notebase = notes, enotebase = enotes;
-    i32 body = L->webw > 0 ? L->webw : page_body(sect_page(d, L->psec[i], i >= L->lastfirst)), avail;
+    i32 body = L->webw > 0 ? L->webw : page_body(pages_eff(L, sect_page(d, L->psec[i], i >= L->lastfirst), L->psec[i], 0)), avail;
     if (body < 1440) body = 1440;
     avail = para_avail(d, &p->pf, sect_width(L->psec[i], body, L->webw > 0));
     make_label(d, cnt, &p->pf, label, sizeof label);
