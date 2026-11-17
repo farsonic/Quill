@@ -1,5 +1,7 @@
 # Quill: a word processor for the Amiga
 
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-farsonic-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/farsonic)
+
 Quill 0.15 is a native word processor for AmigaOS with a MUI interface. It reads and writes Word documents (.docx) and lays them out the way Word does. It is written in C for a 68040 or better with plenty of RAM. Its design and look follow WordCraft, an open-source word processor in Rust (see "Why C, not a port").
 
 ![Quill with the Welcome template](docs/quill-home.png)
