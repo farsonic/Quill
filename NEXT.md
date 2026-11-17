@@ -20,8 +20,8 @@ WP28c HTML and Markdown · WP29 PDF depth and page images · WP31 proofing langu
 
 ## Started but not finished (branches with work in progress)
 
-Each is a git worktree under `/home/user/quill-wt/<name>` on branch `<name>`; the last commit on each is a
-"WIP" commit of whatever was on disk when work stopped. To continue: `cd` there, `git merge master`,
+Each is a branch `<name>` on GitHub (it was a git worktree in the original session); the last commit on each is a
+"WIP" commit of whatever was on disk when work stopped. To continue: `git switch <name>`, `git merge master`,
 build, finish the package as its entry in the gap document describes, test, merge into master.
 
 | Branch | Package | Commits ahead | State |
@@ -50,7 +50,7 @@ build, finish the package as its entry in the gap document describes, test, merg
 3. **Ribbon width**: the Insert tab (and Home in German) is wider than 640 px; several packages put commands
    only in menus because of it. WP26's group collapsing (on the `custom` branch) is the fix.
 4. **WordArt scheme colours** use the default Office theme; switch to the document's (`core/doctheme.h`).
-5. **Gap document totals**: after each merge run `python3 <scratchpad>/gapcount.py docs/wordcraft-gap.md --write`
+5. **Gap document totals**: after each merge run `python3 tools/gapcount.py docs/wordcraft-gap.md --write`
    (or recount by hand); helpers only updated their own lines.
 6. Then: README "New in 0.15", version strings (amiga/main.c, tools/Install-Quill), emulator check of the
    merged binary, package with the usual certificate check (search the package for certificate text and for certificate/key files; nothing from the sandbox CA may ship).
@@ -65,7 +65,7 @@ build, finish the package as its entry in the gap document describes, test, merg
 - Private code points used as marks in the text: fields U+104000–U+10BFFF, equations U+10C000+, plus the older
   comment marks; writers for other formats must skip code points ≥ U+F0000 they don't model.
 - Mask bits taken in CharFmt: 0x80, 0x10000000–0x40000000 (WP9), 0x04000000 CM_LANG, 0x02000000 CM_NOPROOF.
-- The emulator is shared: always `flock -o` on the scratchpad's emu.lock, keep sessions short; Alt key
+- The emulator (in the original session) was shared: always took a lock file first, keep sessions short; Alt key
   combinations don't reach the Amiga in this FS-UAE setup; Execute can't make temp files (put commands in the
   startup-sequence). Running ~15 helpers at once (each compiling with ASan) is likely what restarted the
   container: keep to about 8.
