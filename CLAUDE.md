@@ -71,7 +71,7 @@ integration fixes to make before the next release.
 
 Bugs and requests come in as GitHub issues (templates in `.github/ISSUE_TEMPLATE/`). To work on them:
 
-1. `gh issue list --repo farsonic/quill` and `gh issue view N --repo farsonic/quill --comments`.
+1. `gh issue list --repo farsonic/Quill` and `gh issue view N --repo farsonic/Quill --comments`.
 2. Reproduce first. Most document bugs can be reproduced natively: load the attached file with the core
    (see `tests/qdump.c` / `tests/fmtconv.c`), write a failing test in `tests/`, then fix it in `core/`.
    Interface bugs need the Amiga build; say what you could and couldn't verify.
