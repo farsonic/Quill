@@ -59,13 +59,15 @@ MUI is the reference. Alt-key combinations may not reach an emulated Amiga throu
 - Commit identity: commits so far use `Claude <noreply@anthropic.com>` or `Quill <quill@localhost>`.
   Never put a personal email address in commits, code or docs.
 
-## Unfinished work
+## Where work stands
 
-Seven work-package branches stopped part way (`protect`, `cite`, `refs`, `custom`, `controls`, `mailings`,
-`intl`). `NEXT.md` has each one's state and how to continue: `git switch <branch>`, `git merge master`,
-finish it as its entry in `docs/wordcraft-gap.md` describes, test, merge into master. Not started: WP28d
-(.doc reader, needs `core/cfb.c` from `protect`) and WP30 (more interface languages). `NEXT.md` also lists
-integration fixes to make before the next release.
+Every work package is merged into `master` (the seven branches that were unfinished, `protect`, `cite`, `refs`,
+`custom`, `controls`, `mailings` and `intl`, plus the 2026-11 WordCraft sync and `gaps2`). Against WordCraft
+`22a73d9` (2026-11-17), `docs/wordcraft-gap.md` counts 512 of 543 ribbon commands done, 3 partly, none missing
+and 28 left out on purpose. Before the next release (0.16): an emulator and real-Amiga check of everything added
+since 0.15 (new tabs and windows, ribbon collapsing at 640 px, right-to-left text), README "New in 0.16", version
+strings, package with the certificate check. Still open: WP30 (more interface languages) and the partial items in
+the gap document. `/home/user/artcraft-sync`-style tracking: compare with WordCraft commits after `22a73d9`.
 
 ## Issues
 
