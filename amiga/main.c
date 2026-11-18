@@ -3262,7 +3262,7 @@ static void command(ULONG id)
   case ID_SELPANE: open_selpane(); break;
   case ID_BOOKMARK: open_bookmarks(); break;
   case ID_BMADD: case ID_BMDEL: case ID_BMGO: case ID_BMPICK: bm_command(id); break;
-  case ID_XREF: open_xref(); break;
+  case ID_XREF: wp_focus_kept = wp_run(ID_WP2_FIRST, WPV_NONE) == WPR_KEEPFOCUS; break;   /* (WP2's Cross-reference window, its first id) */
   case ID_XRINS: xr_insert(); break;
   case ID_XRTYPE: xr_fill(); break;
   case ID_SELPANEPICK: selpane_pick(); break;
@@ -3652,7 +3652,9 @@ static void ribbon_pick(ULONG id, LONG v)
   case ID_PASTESPECDD: case ID_PASTEDD: if (v >= 0 && v < 3) DoMethod(view, MUIM_Quill_Command, CMD_PASTEAS, (ULONG)v); else if (v >= 3) wp10_list_extra(id, v - 3); break;
   case ID_FINDDD: if (v >= 1) wp_focus_kept = wp_run(v == 1 ? ID_FX_GOTO : ID_FX_ADVFIND, WPV_NONE) == WPR_KEEPFOCUS; else open_find(); break;   /* (WP12) */
   case ID_HEADERDD: case ID_FOOTERDD: if (v == 1) remove_headfoot(id == ID_FOOTERDD); else edit_headfoot(id == ID_FOOTERDD, -1); break;
-  case ID_TOCDD: DoMethod(view, MUIM_Quill_Command, v == 1 ? CMD_TOCREMOVE : CMD_TOC, 0); break;
+  case ID_TOCDD:
+    if (v == 2) { wp_focus_kept = wp_run(ID_WP2_FIRST + 1, WPV_NONE) == WPR_KEEPFOCUS; break; }   /* (WP2: Custom Table of Contents) */
+    DoMethod(view, MUIM_Quill_Command, v == 1 ? CMD_TOCREMOVE : CMD_TOC, 0); break;
   case ID_ADDTEXTDD: add_text((int)v); break;
   case ID_FORWARDDD: DoMethod(view, MUIM_Quill_Command, CMD_RESTACK, (ULONG)(v == 1 ? 2 : 1)); selpane_fill(); break;
   case ID_BACKWARDDD: DoMethod(view, MUIM_Quill_Command, CMD_RESTACK, (ULONG)(LONG)(v == 1 ? -2 : -1)); selpane_fill(); break;

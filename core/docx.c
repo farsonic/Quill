@@ -21,11 +21,13 @@
 #include "charfx.h"
 #include "wordart.h"   /* (WP19) */
 #include "notes.h"   /* (WP22b) */
+#include "refs.h"    /* (WP2) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a: equations */
 #include "ink.h"      /* WP20: freeforms, ink, drawing canvases */
 #include "docx_lang.h"   /* WP31: languages, do not check */
 #include "review.h"
+#include "cite.h"     /* WP3: the bibliography sources part */
 
 /* ------------------------------------------------------------------ */
 /* reading: formatting as found (which fields a pPr or rPr sets) */
@@ -1601,6 +1603,8 @@ typedef struct {
   int skip;                         /* its result is left out (a placeholder stands for it) */
   u16 link;                         /* its result's link (HYPERLINK, REF, PAGEREF), 0 none */
   u8 locked, dirty;
+  u8 deferred;                      /* (WP2) a PAGEREF whose marks wait for its end: 1 its result is being read */
+  CharFmt dmf;                      /* and the formatting it began with */
   char *ffdata;
 } FldOpen;
 #define FLD_DEPTH 16
@@ -1629,11 +1633,17 @@ static void fld_decide(PCtx *pc, FldOpen *o, const CharFmt *f)
   CharFmt mf = *f;
   mf.link = c->fieldlink ? c->fieldlink : pc->link;
   o->k = -1;
-  if (kind == FC_TOC && !field_switch(code, 'c', 0, NULL, 0) && !field_switch(code, 'a', 0, NULL, 0) && !field_switch(code, 'f', 0, NULL, 0)) {
-    /* Quill's table of contents: its paragraphs are the result; the code is kept for writing it back */
-    FieldInfo *fi = field_info(c->d);
-    if (fi && !fi->toccode) fi->toccode = str_dup(code);
+  if (kind == FK_PAGEREF && o->state == 2 && !o->deferred) {
+    /* (WP2) its result is read first: LibreOffice puts a table of contents entry's text in it, before
+       the tab and the number (fld_char writes that text, then the field, at its end) */
+    o->deferred = 1; o->skip = 1; o->dmf = *f;
     return;
+  }
+  if (kind == FC_TOC) {
+    /* (WP2: a table of contents is a field like any other, its entries its result; its code is also
+       noted as the one a new table takes) */
+    FieldInfo *fi = field_info(c->d);
+    if (fi && !fi->toccode && !field_switch(code, 'c', 0, NULL, 0) && !field_switch(code, 'a', 0, NULL, 0)) fi->toccode = str_dup(code);
   }
   if (kind == FC_HYPERLINK) {
     if (hyperlink_field(code, url, sizeof url)) o->link = (u16)doc_link(c->d, url);
@@ -1719,6 +1729,15 @@ static void fld_char(Xml *x, PCtx *pc, CharFmt *f)
       buf_addc(&par->code, FLD_CLOSE);
     } else {
       if (nosep) { fld_state(c); fld_decide(pc, o, f); }
+      if (o->deferred == 1) {
+        /* (WP2) a PAGEREF's result read: the text before its last tab stays in the text */
+        const char *t = o->res.data ? o->res.data : "", *tab = strrchr(t, '\t');
+        CharFmt pf = o->dmf;
+        pf.link = pc->link;
+        if (tab) run_text(pc, t, (size_t)(tab + 1 - t), &pf);
+        o->deferred = 2; o->skip = 0;
+        fld_state(c); fld_decide(pc, o, &o->dmf);
+      }
       if (o->k >= 0) {
         char m[8];
         CharFmt mf = *f;
@@ -1835,8 +1854,20 @@ static void parse_run(Xml *x, PCtx *pc)
     }
     if (!strcmp(n, "fldChar")) { fld_char(x, pc, &f); continue; }      /* WP1: fields */
     else if (fld_text(x, c, n, &f)) continue;
+    else if (c->field == 1 && !strcmp(n, "tab") && c->fr && c->fr->n && c->fr->f[c->fr->n - 1].state == 1) buf_addc(&c->fr->f[c->fr->n - 1].code, '\t');   /* (WP2: a tab in a code, as LibreOffice writes INDEX \e) */
     else if (c->field == 1) ;                                  /* field code: left out */
-    else if (c->field == 2 && c->fieldkind) ;                  /* a page number's result: the placeholder stands for it */
+    else if (c->field == 2 && c->fieldkind) {                  /* a page number's result: the placeholder stands for it */
+      FldOpen *o = &c->fr->f[c->fr->n - 1];
+      if (o->deferred == 1 && !strcmp(n, "tab")) buf_addc(&o->res, '\t');
+      else if (o->deferred == 1 && !strcmp(n, "t")) {
+        int d1 = x->depth;
+        while (xml_next(x) != XT_EOF) {
+          if (x->type == XT_END && x->depth < d1) break;
+          if (x->type == XT_TEXT) buf_add(&o->res, x->text.data, x->text.len);
+        }
+        continue;
+      }
+    }
     else if (!strcmp(n, "t") || (!strcmp(n, "delText") && pc->rev == REV_DEL)) {
       int d1 = x->depth;
       while (xml_next(x) != XT_EOF) {
@@ -3252,6 +3283,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
   /* WP1: */
   read_field_setting(c, x);
   /* WP2: */
+  refs_read_setting(c->d, x);
   /* WP3: */
   /* WP4: */
   merge_read_setting(c->d, x);
@@ -3452,6 +3484,7 @@ static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_
   read_field_parts(c, z);
   /* WP2: */
   /* WP3: */
+  cite_docx_read(c->d);
   /* WP4: */
   merge_read_parts(c->d, z);
   /* WP5: */
@@ -4914,7 +4947,7 @@ static char *w_document(Doc *d, size_t *len)
   w_inbody = 1; w_bmark = 0;
   for (i = 0; i < d->np; i++) {
     /* a table of contents: Word's TOC field round its entries, so Word can update it */
-    int toc = toc_para(d, d->p[i]), first = toc && !(i > 0 && toc_para(d, d->p[i - 1])), last = toc && !(i + 1 < d->np && toc_para(d, d->p[i + 1]));
+    int toc = toc_para(d, d->p[i]) && !field_depth_before(d, i) && !(d->p[i]->len >= 4 && IS_FSTART(d->p[i]->t)), first = toc && !(i > 0 && toc_para(d, d->p[i - 1])), last = toc && !(i + 1 < d->np && toc_para(d, d->p[i + 1]));   /* (WP2: not one that is a TOC field's result) */
     w_table_open(&o, d, i);
     w_para_ex(&o, d, d->p[i], first ? w_toc_lead(d) : NULL,
               last ? "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>" : NULL);
@@ -5418,6 +5451,8 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   /* WP24: */
   /* WP27: */
   /* WP31: */
+  /* WP2 (after the others: w:captions comes late in CT_Settings, after m:mathPr): */
+  if (where == 3) refs_write_settings(d, b);
 }
 
 u8 *docx_save(Doc *d, size_t *len)

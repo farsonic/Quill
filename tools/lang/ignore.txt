@@ -18,6 +18,13 @@ United Kingdom
 Dear
 To
 Dear Sir or Madam,
+# (WP2: field codes and a Word object name written into documents, not words for people)
+Microsoft Word Table
+ TOC %s\z \t "%s,1" 
+ TOC %s\z \%c "%s" 
+ TOC 
+ INDEX 
+ TOA \h \c "%d" %s%s
 # (WP13, WP23) language codes, file names, formats and defaults that aren't words
 en-US
 en-GB
@@ -53,3 +60,6 @@ DOCPROPERTY Status
 DOCPROPERTY Company
 DOCPROPERTY Manager
 SAVEDATE \@ "yyyy-MM-dd"
+%s   %ld KB%s
+ÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝàáâãäåçèéêëìíîïñòóôõöùúûüýÿ
+AAAAAACEEEEIIIINOOOOOUUUUYaaaaaaceeeeiiiinooooouuuuyy

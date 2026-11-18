@@ -11,12 +11,14 @@
 #include "image.h"
 #include "chart.h"                 /* (WP15a) Image.pack */
 #include "notes.h"   /* (WP22b) */
+#include "refs.h"    /* (WP2) */
 #include "info.h"    /* (WP24) */
 #include "wordart.h" /* (WP19) */
 #include "math.h"     /* WP14a */
 #include "ink.h"      /* WP20 */
 #include "review.h"
 #include "outline.h"                  /* (WP11) heading_style_level */
+#include "cite.h"                     /* (WP3) cite_free */
 
 /* ------------------------------------------------------------------ */
 /* undo: a step replaces paragraphs [p0, p0 + nnew) with copies of what was there before the edit
@@ -2757,6 +2759,7 @@ void doc_free(Doc *d)
   undo_free(d->undo);
   keep_free(d);
   field_free_all(d);
+  refs_free(d);                  /* (WP2) */
   free(d->wm.pic);          /* (WP22a) */
   notes_free(d);                 /* (WP22b) */
   info_free(d);                  /* (WP24) */
@@ -2765,6 +2768,7 @@ void doc_free(Doc *d)
   math_doc_free(d);     /* WP14a: equations */
   rv_free(d);                                   /* (WP5) */
   { extern void merge_free(Doc *); merge_free(d); }   /* (WP4) */
+  cite_free(d);                                 /* (WP3) */
   free(d);
 }
 

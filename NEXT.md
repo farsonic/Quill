@@ -27,11 +27,11 @@ build, finish the package as its entry in the gap document describes, test, merg
 | Branch | Package | Commits ahead | State |
 |---|---|---|---|
 | protect | WP6 Compare/Combine, WP7 Restrict Editing + encryption (core/cfb.c, core/crypt.c) | 15 | furthest along; needs finishing checks (LibreOffice/msoffcrypto opening encrypted files) |
-| cite | WP3 citations and bibliography | 9 | partly built |
-| refs | WP2 captions, table of figures, index, authorities, TOC as a field | 6 | partly built |
+| cite | WP3 citations and bibliography | 9 | merged into master (WP3 done: 16 citation styles, Source Manager, bibliography field) |
+| refs | WP2 captions, table of figures, index, authorities, TOC as a field | 6 | merged into master (WP2 done: captions, table of figures, index, authorities, TOC field) |
 | custom | WP26 Options panes, Customize Ribbon/QAT/Keyboard, command search, KeyTips, ribbon group collapsing at 640 px | 5 | partly built |
 | controls | WP16 content controls, Developer tab, legacy form fields | 3 | early |
-| mailings | WP4 mail merge, envelopes, labels | 5 | finished (all 22 Mailings commands ✅, master merged in, native tests and the vbcc build pass); ready to merge into master, then an emulator check of the tab and its windows |
+| mailings | WP4 mail merge, envelopes, labels | 5 | merged into master |
 | intl | WP27 right-to-left (bidi) and East Asian | 2 | early |
 
 ## Not started

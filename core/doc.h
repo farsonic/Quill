@@ -638,6 +638,10 @@ typedef struct Doc {
   struct FieldInfo *finfo;
   /* WP4 mail merge (core/merge.h): the main document's settings and its recipients, NULL: not one */
   struct MergeInfo *merge;
+  /* WP3 citations (core/cite.h): the document's sources (its current list) and their customXml part */
+  struct CiteDoc *cite;
+  /* WP2 (core/refs.h): the caption labels, AutoCaption and the authorities' categories (settings.xml w:captions) */
+  struct RefsInfo *refs;
 } Doc;
 /* (WP13) styles (and the document's defaults, Doc.defpf and defcf) changed by edit(d, arg) as one undo
    step: every style's effective formatting worked out again and the text that had a style's look
