@@ -470,11 +470,11 @@ static u8 clamp8(i32 v) { return (u8)(v < 0 ? 0 : v > 255 ? 255 : v); }
 static void jpeg_rgb(const Jpeg *j, u32 y, u8 *rgb)
 {
   const u8 *pl[4];
+  i32 v[4] = { 0, 0, 0, 0 };        /* (set once: a two-component image leaves v[2] as it is) */
   u32 x;
   int i, k;
   for (i = 0; i < j->nc; i++) pl[i] = j->c[i].plane + (size_t)(y * j->c[i].v / j->vmax) * j->c[i].bw;
   for (x = 0; x < j->w; x++) {
-    i32 v[4];
     u8 *o = rgb + x * 3;
     for (i = 0; i < j->nc; i++) v[i] = pl[i][x * j->c[i].h / j->hmax];
     if (j->nc == 1) { o[0] = o[1] = o[2] = (u8)v[0]; continue; }

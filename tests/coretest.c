@@ -2893,6 +2893,7 @@ int main(void)
   test_wp15c(); test_wp16(); test_wp17(); test_wp18(); test_wp19(); test_wp20(); test_wp21a(); test_wp21b();
   test_wp22a(); test_wp22b(); test_wp23(); test_wp24(); test_wp25(); test_wp26(); test_wp27(); test_wp28a();
   test_wp28b(); test_wp28c(); test_wp28d(); test_wp28e(); test_wp29(); test_wp30(); test_wp31();
+  test_wpmac();
   fonts_free(&fs);
   printf("%d tests, %d failed\n", total, fails);
   return fails != 0;
