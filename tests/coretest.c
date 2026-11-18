@@ -455,10 +455,13 @@ static void contents(void)
   u8 *data;
   at.para = 2; at.off = 0;                        /* after the title and subtitle */
   L = lay_new(d, &fs); lay_update(L);
-  ok("contents: made", doc_toc(d, L, &at, &again) && again && !strcmp(d->p[2]->t, "Contents") && toc_para(d, d->p[3]) &&
-     !strncmp(d->p[3]->t, "Summary\t", 8));
+  /* (WP2: the table is a TOC field, its first entry starting with the field's mark; the page numbers
+     are placeholders for the pages of hidden _Toc bookmarks on the headings) */
+  ok("contents: made", doc_toc(d, L, &at, &again) && !again && !strcmp(d->p[2]->t, "Contents") && toc_para(d, d->p[3]) &&
+     (unsigned char)d->p[3]->t[0] == 0xF4 && !strncmp(d->p[3]->t + 4, "Summary\t", 8));
   lay_update(L);
-  ok("contents: updated with the pages", doc_toc(d, L, NULL, &again) >= 0 && !again && !strcmp(d->p[3]->t, "Summary\t1"));
+  ok("contents: updated with the pages", doc_toc(d, L, NULL, &again) >= 0 && !again && !strcmp(d->p[3]->t + 4, "Summary\t" FIELD_PAGEREF) &&
+     lay_bmark_page(L, doc_link_url(d, para_fmt_at(d->p[3], 12)->link) + 1) == 1);
   for (i = 0; i < d->np; i++) ntoc += toc_para(d, d->p[i]);
   ok("contents: an entry per heading (levels 1-3), indented by level", ntoc == 6 && d->p[6]->pf.left == 220 && d->p[3]->pf.left == 0 &&
      d->p[3]->pf.tabkind[0] == TAB_RIGHT && d->p[3]->pf.tablead[0] == LEAD_DOT);

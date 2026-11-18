@@ -3,10 +3,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "toc.h"
+#include "refsi.h"
 
-/* (WP11) a paragraph's outline level (1-9, 0 body text), as Word's \o "1-3" \u table takes them: the
-   Heading styles' and those of paragraphs given an outline level of their own */
-static int heading_level(const Para *p) { return p->pf.outlvl <= 9 ? p->pf.outlvl : 0; }
 /* 1 if p's style is named "toc N" or "TOC N" (N a digit); an out-of-range style index counts
    as style 0, as elsewhere in the core */
 int toc_para(Doc *d, const Para *p)
@@ -14,141 +12,72 @@ int toc_para(Doc *d, const Para *p)
   const Style *st = &d->styles[p->pf.style < d->nstyles ? p->pf.style : 0];
   return !strncmp(st->name, "toc ", 4) || !strncmp(st->name, "TOC ", 4) ? (st->name[4] >= '1' && st->name[4] <= '9') : 0;
 }
-/* the "toc N" style (made if the document has none): Normal, indented by level, a right tab with dots
-   at the right margin */
-static int toc_style(Doc *d, int level)
+/* (WP2) the table of contents is a TOC field whose result is its entries (core/refs.h): updating
+   builds them afresh. Quill's older table, a run of "toc N" paragraphs with no field round it (as
+   documents made before WP2 hold in memory), is taken over: the run becomes the field's result. */
+static const char *const def_code = " TOC \\o \"1-3\" \\h \\z \\u ";
+/* the old kind of table: a run of toc paragraphs outside any block field; its first and last */
+static int old_table(Doc *d, u32 *a, u32 *b)
 {
-  char id[8], name[8];
-  int k;
-  Style s;
-  sprintf(id, "TOC%d", level); sprintf(name, "toc %d", level);
-  if ((k = doc_style_by_name(d, name)) >= 0 || (k = doc_style(d, id)) >= 0) return k;
-  s = d->styles[0];
-  strcpy(s.id, id); strcpy(s.name, name);
-  s.builtin = 0;
-  s.pf.left = (level - 1) * 220; s.pf.first = 0; s.pf.before = 0; s.pf.after = 100;
-  memset(s.pf.tabs, 0, sizeof s.pf.tabs); memset(s.pf.tabkind, 0, sizeof s.pf.tabkind); memset(s.pf.tablead, 0, sizeof s.pf.tablead);
-  s.pf.tabs[0] = d->page.width - d->page.left - d->page.right - s.pf.left;
-  s.pf.tabkind[0] = TAB_RIGHT; s.pf.tablead[0] = LEAD_DOT;
-  s.pf.style = (u8)d->nstyles;
-  s.next = 0;
-  s.pf.keepnext = 0;
-  s.quick = 0;
-  return doc_add_style_from(d, &s, 0);
+  u32 i;
+  u8 *mask = ri_block_mask(d);
+  for (i = 0; i < d->np; i++) if (toc_para(d, d->p[i]) && !(mask && mask[i])) break;
+  free(mask);
+  if (i == d->np) return 0;
+  *a = *b = i;
+  while (*b + 1 < d->np && toc_para(d, d->p[*b + 1])) (*b)++;
+  return 1;
 }
-/* the "TOC Heading" style for the table's title, made as a copy of Heading 1 (or Normal) if
-   the document lacks it; its index, or -1 when out of memory */
-static int toc_heading_style(Doc *d)
-{
-  int k = doc_style_by_name(d, "TOC Heading");
-  Style s;
-  if (k >= 0) return k;
-  if ((k = doc_style(d, "Heading1")) < 0 && (k = doc_style_by_name(d, "heading 1")) < 0) k = 0;
-  s = d->styles[k];
-  strcpy(s.id, "TOCHeading"); strcpy(s.name, "TOC Heading");
-  s.builtin = 0; s.pf.style = (u8)d->nstyles; s.next = 0; s.quick = 0;
-  s.pf.outlvl = 0;                       /* (WP11) body text, as Word's: not a heading itself */
-  return doc_add_style_from(d, &s, k);
-}
-/* a heading's text for the table: tabs and breaks as spaces, pictures, notes and fields left out */
-static void entry_text(Buf *b, const Para *p)
-{
-  u32 i = 0;
-  while (i < p->len) {
-    int used;
-    u32 cp = utf8_get(p->t + i, p->len - i, &used);
-    if (cp == '\t' || cp == '\v') buf_addc(b, ' ');
-    else if (!(cp >= 0xE000 && cp <= 0xE0FF) && cp < 0xF0000) buf_add(b, p->t + i, (u32)used);
-    i += (u32)used;
-  }
-}
-/* finds the existing table (the run of toc paragraphs, plus a TOC Heading just above it) or,
-   for a new one, the start of the paragraph at *at, moved out of any table. Builds the title
-   and entries afresh and swaps them in with one doc_replace; if the text is unchanged nothing
-   is touched and no undo step is pushed. *at ends up on the paragraph after the table */
 int doc_toc(Doc *d, Layout *L, Pos *at, int *again)
 {
-  u32 i, a = 0, n = 0, nh = 0, k;
-  Para **nw;
-  int found = 0, hs, changed = 0;
-  Pos where;
+  Pos st, en, w;
+  u32 a, b;
+  int r;
   if (again) *again = 0;
-  /* the existing table: its heading and its run of entries */
-  for (i = 0; i < d->np; i++) if (toc_para(d, d->p[i])) { found = 1; break; }
-  if (found) {
-    a = i;
-    while (i < d->np && toc_para(d, d->p[i])) i++;
-    n = i - a;
-    if (a > 0 && !strcmp(d->styles[d->p[a - 1]->pf.style < d->nstyles ? d->p[a - 1]->pf.style : 0].name, "TOC Heading")) { a--; n++; }
-  } else {
-    a = at ? at->para : 0;
-    if (a > d->np) a = d->np;
-    while (a > 0 && a < d->np && d->p[a]->pf.cell.table && d->p[a - 1]->pf.cell.table == d->p[a]->pf.cell.table) a--;   /* not inside a table */
+  if (refs_block_find(d, BK_TOC, 0, &st, &en) >= 0) {
+    r = refs_block_update(d, st, &en, L, -1);
+    if (at && r) { at->para = en.para + 1 < d->np ? en.para + 1 : en.para; at->off = 0; }
+    return r;
   }
-  for (i = 0; i < d->np; i++) {
-    int lv = heading_level(d->p[i]);
-    if (lv >= 1 && lv <= 3 && (i < a || i >= a + n)) nh++;
+  if (old_table(d, &a, &b)) {
+    /* the old table's paragraphs give way to the field (its code as read, else Word's usual one) */
+    const char *code = d->finfo && d->finfo->toccode ? d->finfo->toccode : def_code;
+    int k = field_new(d, code, 0);
+    Para *p;
+    char m[8];
+    if (k < 0 || !(p = para_new(&d->p[a]->pf, &d->p[a]->r[0].f))) return 0;
+    fmark_utf8(m, k, 0); para_append(p, m, 4, &d->p[a]->r[0].f);
+    fmark_utf8(m, k, 1); para_append(p, m, 4, &d->p[a]->r[0].f);
+    p->pf.sect = d->p[b]->pf.sect;
+    w.para = a; w.off = 0;
+    doc_begin(d, w);
+    if (!doc_replace(d, a, b - a + 1, &p, 1, w)) { doc_end(d, w); return 0; }
+    st.para = a; st.off = 0; en = st; en.off = 4;
+    r = refs_block_update(d, st, &en, L, -1);
+    doc_end(d, w);
+    if (at && r) { at->para = en.para + 1 < d->np ? en.para + 1 : en.para; at->off = 0; }
+    return r;
   }
-  if (!nh) return 0;
-  if (!(nw = (Para **)calloc(nh + 1, sizeof(Para *)))) return 0;
-  /* the title, then an entry for each heading */
-  hs = toc_heading_style(d);
-  if (hs < 0) hs = 0;
-  if ((nw[0] = para_new(&d->styles[hs].pf, &d->styles[hs].cf))) { nw[0]->pf.style = (u8)hs; para_append(nw[0], "Contents", 8, &d->styles[hs].cf); }
-  k = 1;
-  for (i = 0; i < d->np && k <= nh; i++) {
-    Para *p = d->p[i];
-    int lv = heading_level(p), st;
-    Buf b;
-    char num[16];
-    u32 page = 0;
-    if (lv < 1 || lv > 3 || (i >= a && i < a + n)) continue;
-    if ((st = toc_style(d, lv)) < 0) st = 0;
-    if (L && i < L->npl) {
-      Pos pp;
-      i32 x, y, h;
-      pp.para = i; pp.off = 0;
-      lay_caret(L, pp, &page, &x, &y, &h);
-      page++;
-    }
-    buf_init(&b);
-    entry_text(&b, p);
-    sprintf(num, "\t%lu", (unsigned long)page);
-    buf_adds(&b, num);
-    if ((nw[k] = para_new(&d->styles[st].pf, &d->styles[st].cf))) {
-      nw[k]->pf.style = (u8)st;
-      para_append(nw[k], b.data ? b.data : "", (u32)b.len, &d->styles[st].cf);
-    }
-    buf_free(&b);
-    k++;
-  }
-  for (i = 0; i < k; i++) if (!nw[i]) { for (i = 0; i < k; i++) if (nw[i]) para_free(nw[i]); free(nw); return 0; }
-  /* the same as before? then nothing to do */
-  if (found && n == k) {
-    for (i = 0; i < k && !strcmp(nw[i]->t, d->p[a + i]->t); i++) ;
-    if (i == k) { for (i = 0; i < k; i++) para_free(nw[i]); free(nw); return 1; }
-  }
-  changed = 1;
-  /* page numbers move when the table first goes in or changes length */
-  if (again) *again = !found || n != k;
-  where.para = a; where.off = 0;
-  if (!doc_replace(d, a, n, nw, k, where)) { free(nw); return 0; }
-  free(nw);
-  if (at) { at->para = a + k < d->np ? a + k : d->np - 1; at->off = 0; }
-  return changed;
+  w = at ? *at : doc_start(d);
+  r = refs_block_insert(d, &w, d->finfo && d->finfo->toccode ? d->finfo->toccode : def_code, refs_word(refs_lang, RW_CONTENTS), L, -1) >= 0;
+  if (at && r) { at->para = w.para + 1 < d->np ? w.para + 1 : w.para; at->off = 0; }
+  return r;
 }
-/* see toc.h. The run of "toc N" paragraphs goes, with the "TOC Heading" title just before it; a
-   table that is the whole document leaves one empty paragraph behind (a document is never empty) */
+/* see toc.h: the TOC field with its paragraphs and title, or the old run of "toc N" paragraphs */
 int doc_toc_remove(Doc *d, Pos *at)
 {
-  u32 i, a, n;
-  Pos where;
+  u32 a, b, n;
+  Pos st, en, where;
   Para *blank[1];
-  for (i = 0; i < d->np && !toc_para(d, d->p[i]); i++) ;
-  if (i == d->np) return 0;
-  a = i;
-  while (i < d->np && toc_para(d, d->p[i])) i++;
-  n = i - a;
+  if (refs_block_find(d, BK_TOC, 0, &st, &en) >= 0) {
+    u32 p0 = st.para;
+    if (st.off == 0 && p0 > 0 && !strcmp(d->styles[d->p[p0 - 1]->pf.style < d->nstyles ? d->p[p0 - 1]->pf.style : 0].name, "TOC Heading")) p0--;   /* (its title goes too) */
+    if (!refs_block_remove(d, st)) return 0;
+    if (at) { at->para = p0 < d->np ? p0 : d->np - 1; at->off = 0; }
+    return 1;
+  }
+  if (!old_table(d, &a, &b)) return 0;
+  n = b - a + 1;
   if (a > 0 && !strcmp(d->styles[d->p[a - 1]->pf.style < d->nstyles ? d->p[a - 1]->pf.style : 0].name, "TOC Heading")) { a--; n++; }
   where.para = a; where.off = 0;
   if (n == d->np) {
