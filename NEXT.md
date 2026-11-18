@@ -41,7 +41,7 @@ build, finish the package as its entry in the gap document describes, test, merg
 | cite | WP3 citations and bibliography | 9 | merged into master (WP3 done: 16 citation styles, Source Manager, bibliography field) |
 | refs | WP2 captions, table of figures, index, authorities, TOC as a field | 6 | merged into master (WP2 done: captions, table of figures, index, authorities, TOC field) |
 | custom | WP26 Options panes, Customize Ribbon/QAT/Keyboard, command search, KeyTips, ribbon group collapsing at 640 px | 5 | partly built |
-| controls | WP16 content controls, Developer tab, legacy form fields | 3 | early |
+| controls | WP16 content controls, Developer tab, legacy form fields | 7 | merged into master |
 | mailings | WP4 mail merge, envelopes, labels | 5 | merged into master |
 | intl | WP27 right-to-left (bidi) and East Asian | 2 | early |
 

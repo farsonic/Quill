@@ -636,6 +636,7 @@ typedef struct Doc {
   struct Field *fields; int nfields;
   u8 fieldcodes;
   struct FieldInfo *finfo;
+  struct SdtSet *sdt;       /* (WP16) content controls (core/sdt.h): their records, Design Mode; NULL: none */
   /* WP4 mail merge (core/merge.h): the main document's settings and its recipients, NULL: not one */
   struct MergeInfo *merge;
   /* WP3 citations (core/cite.h): the document's sources (its current list) and their customXml part */
