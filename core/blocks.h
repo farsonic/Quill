@@ -19,7 +19,9 @@
 #include "doc.h"
 #include "xml.h"
 
-enum { TK_DOC, TK_DOTX, TK_DOTM };
+enum { TK_DOC, TK_DOTX, TK_DOTM, TK_DOCM };   /* (TK_DOCM, WP28e: a macro-enabled document, not a template) */
+#define TK_IS_TEMPLATE(k) ((k) == TK_DOTX || (k) == TK_DOTM)
+#define TK_MACROS(k) ((k) == TK_DOTM || (k) == TK_DOCM)
 enum { BB_CONTENT, BB_PARA, BB_PAGE };          /* how a block goes in: in the text, as paragraphs, on a page of its own */
 typedef struct {
   char name[64];                    /* UTF-8 */

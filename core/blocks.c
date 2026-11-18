@@ -21,6 +21,7 @@ static const char HDR[] = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\
 const char *blocks_main_ctype(const Doc *d)
 {
   if (d->tplkind == TK_DOTM) return "application/vnd.ms-word.template.macroEnabledTemplate.main+xml";
+  if (d->tplkind == TK_DOCM) return "application/vnd.ms-word.document.macroEnabled.main+xml";
   if (d->tplkind == TK_DOTX) return "application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml";
   return "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml";
 }
@@ -209,6 +210,7 @@ void blocks_read_parts(Doc *d, const char *ct, size_t ctn, const char *setrels, 
     const char *t = strstr(ct, "macroEnabledTemplate.main+xml"), *e = ct + ctn;
     if (t && t < e) d->tplkind = TK_DOTM;
     else if ((t = strstr(ct, "wordprocessingml.template.main+xml")) && t < e) d->tplkind = TK_DOTX;
+    else if ((t = strstr(ct, "document.macroEnabled.main+xml")) && t < e) d->tplkind = TK_DOCM;
   }
   if (tpl_rid[0] && setrels) {
     Xml x;
@@ -661,5 +663,7 @@ static u8 *save_as(Doc *d, size_t *len, int kind)
 }
 static u8 *save_dotx(Doc *d, size_t *len) { return save_as(d, len, TK_DOTX); }
 static u8 *save_dotm(Doc *d, size_t *len) { return save_as(d, len, TK_DOTM); }
+static u8 *save_docm(Doc *d, size_t *len) { return save_as(d, len, TK_DOCM); }      /* (WP28e: its macros kept, docx.c keep_type) */
 const DocFormat fmt_dotx = { "Word Template", "dotx", NULL, load_tpl, save_dotx, DF_NATIVE };
 const DocFormat fmt_dotm = { "Word Macro-Enabled Template", "dotm", NULL, load_tpl, save_dotm, 0 };
+const DocFormat fmt_docm = { "Word Macro-Enabled Document", "docm", NULL, load_tpl, save_docm, DF_NATIVE };

@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "docx.h"
+#include "blocks.h"
 #include "fmtio.h"
 #include "image.h"
 #include "xml.h"
@@ -808,7 +809,10 @@ static Doc *load_wordxml(const u8 *b, size_t n, unsigned *lost, char *err, size_
 static u8 *save_wordxml(Doc *d, size_t *len)
 {
   size_t zn = 0;
-  u8 *z = docx_save(d, &zn), *f;
+  u8 old = d->tplkind, *z, *f;
+  if (old == TK_DOCM) d->tplkind = TK_DOC;       /* (macros aren't written to a Word XML file) */
+  z = docx_save(d, &zn);
+  d->tplkind = old;
   if (!z) return NULL;
   f = zip_to_flat(z, zn, len);
   free(z);

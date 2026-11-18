@@ -3630,7 +3630,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
 static int keep_type(const char *type, int pkglevel)
 {
   static const char *const pkg[] = { "/extended-properties", "/custom-properties" };
-  static const char *const doc[] = { "/customXml", "/glossaryDocument", "/people" };
+  static const char *const doc[] = { "/customXml", "/glossaryDocument", "/people", "/vbaProject" };   /* (macros: written only to .docm/.dotm, docx_write_parts_ext) */
   const char *const *l = pkglevel ? pkg : doc;
   size_t i, n = pkglevel ? sizeof pkg / sizeof pkg[0] : sizeof doc / sizeof doc[0], lt = strlen(type);
   for (i = 0; i < n; i++) if (lt >= strlen(l[i]) && !strcmp(type + lt - strlen(l[i]), l[i])) return 1;
@@ -5976,6 +5976,9 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
   int i;
   for (i = 0; i < d->nkept; i++) {
     const KeptPart *k = &d->kept[i];
+    /* (WP28e) a macro project only goes into a macro-enabled file: Word refuses a .docx or .dotx with one */
+    if (!TK_MACROS(d->tplkind) && ((k->reltype && strstr(k->reltype, "/vbaProject")) || !strncmp(k->name, "word/vbaData", 12) || !strncmp(k->name, "word/vbaProject", 15) ||
+                                   (k->owner && !strncmp(k->owner, "word/vbaProject", 15)))) continue;
     docx_out_part(o, k->name, k->ctype, k->owner, k->reltype, k->relid, k->data, k->len);
   }
   /* WP1: */
@@ -6523,12 +6526,21 @@ static Doc *load_txt(const u8 *b, size_t n, unsigned *lost, char *err, size_t er
 }
 static u8 *save_txt(Doc *d, size_t *len) { return txt_save_enc(d, d->txtenc, len); }      /* (in the encoding it was read in; a new one UTF-8) */
 static Doc *load_docx(const u8 *b, size_t n, unsigned *lost, char *err, size_t errcap) { return docx_load(b, n, lost, err, errcap); }
-static const DocFormat fmt_docx = { "Word Document", "docx", sniff_zip, load_docx, docx_save, DF_NATIVE };
+/* (WP28e) a macro-enabled document opened is written as a plain .docx (its macros left out) */
+static u8 *save_docx(Doc *d, size_t *len)
+{
+  u8 old = d->tplkind, *r;
+  if (old == TK_DOCM) d->tplkind = TK_DOC;
+  r = docx_save(d, len);
+  d->tplkind = old;
+  return r;
+}
+static const DocFormat fmt_docx = { "Word Document", "docx", sniff_zip, load_docx, save_docx, DF_NATIVE };
 static const DocFormat fmt_txt = { "Plain Text", "txt|text|asc", NULL, load_txt, save_txt, DF_TEXT };
 extern const DocFormat fmt_odt, fmt_fodt, fmt_doc, fmt_rtf, fmt_html, fmt_markdown;     /* (fmt_fodt: WP28b's Flat ODT) */
-extern const DocFormat fmt_dotx, fmt_dotm;      /* (WP23, core/blocks.c) */
+extern const DocFormat fmt_dotx, fmt_dotm, fmt_docm;      /* (WP23, core/blocks.c; fmt_docm WP28e) */
 extern const DocFormat fmt_wordxml;             /* (WP28e, core/wordxml.c: Flat OPC and Word 2003 XML) */
-const DocFormat *const doc_formats[] = { &fmt_odt, &fmt_fodt, &fmt_docx, &fmt_doc, &fmt_dotx, &fmt_dotm, &fmt_wordxml, &fmt_rtf, &fmt_html, &fmt_markdown, &fmt_txt };
+const DocFormat *const doc_formats[] = { &fmt_odt, &fmt_fodt, &fmt_docx, &fmt_doc, &fmt_dotx, &fmt_dotm, &fmt_docm, &fmt_wordxml, &fmt_rtf, &fmt_html, &fmt_markdown, &fmt_txt };
 const int doc_nformats = (int)(sizeof doc_formats / sizeof doc_formats[0]);
 /* whether path ends in "." and one of exts (ext|ext|...), ignoring case (Amiga names are case-insensitive) */
 static int ext_in(const char *path, const char *exts)

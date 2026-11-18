@@ -179,7 +179,7 @@ static void new_from_personal(int i)
    whose styles follow its template's gets them. The path the window is to have */
 const char *wp23_opened(Doc *d, const char *path)
 {
-  if (d->tplkind) { template_to_new(d, path); return ""; }
+  if (TK_IS_TEMPLATE(d->tplkind)) { template_to_new(d, path); return ""; }
   if (d->linkstyles && d->attached && d->attached[0]) {
     unsigned lost;
     char err[200];

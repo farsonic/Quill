@@ -13,6 +13,8 @@
 #include "../core/fmtio.h"
 #include "../core/zip.h"
 #include "../core/review.h"
+#include "../core/blocks.h"
+#include "../core/keep.h"
 
 extern const DocFormat fmt_wordxml, fmt_markdown;
 int  wordxml_kind(const u8 *b, size_t n);
@@ -369,8 +371,82 @@ static void strict(void)
   }
 }
 
+/* ---- .docm: a macro-enabled document read, its macros kept for .docm and left out of .docx */
+extern const DocFormat fmt_docm;
+static u8 *repack(const u8 *z, size_t zn, size_t *outn)
+{
+  /* word.docx made a .docm: the macro-enabled main content type, a vbaProject.bin and its relationship */
+  ZipReader r;
+  ZipWriter w;
+  int i;
+  u8 *out = NULL;
+  if (!zip_open(&r, z, zn)) return NULL;
+  zip_begin(&w);
+  for (i = 0; i < r.n; i++) {
+    size_t n;
+    char *t = (char *)zip_read(&r, i, &n);
+    Buf b;
+    char *at;
+    buf_init(&b);
+    if (!t) continue;
+    if (!strcmp(r.e[i].name, "[Content_Types].xml") && (at = strstr(t, "wordprocessingml.document.main+xml"))) {
+      char *close = strstr(t, "</Types>");
+      buf_add(&b, t, (size_t)(at - t)); buf_adds(&b, "MACRO"); buf_add(&b, at, (size_t)(close - at));
+      buf_adds(&b, "<Override PartName=\"/word/vbaProject.bin\" ContentType=\"application/vnd.ms-office.vbaProject\"/></Types>");
+      {
+        /* "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" -> Word's macro-enabled one */
+        char *m = strstr(b.data, "application/vnd.openxmlformats-officedocument.MACROwordprocessingml.document.main+xml");
+        if (m) { const char *mm = "application/vnd.ms-word.document.macroEnabled.main+xml"; size_t ol = strlen("application/vnd.openxmlformats-officedocument.MACROwordprocessingml.document.main+xml");
+                 memmove(m + strlen(mm), m + ol, b.len - (size_t)(m - b.data) - ol + 1); memcpy(m, mm, strlen(mm)); b.len -= ol - strlen(mm); }
+      }
+    } else if (!strcmp(r.e[i].name, "word/_rels/document.xml.rels")) {
+      char *close = strstr(t, "</Relationships>");
+      buf_add(&b, t, (size_t)(close - t));
+      buf_adds(&b, "<Relationship Id=\"rIdVba\" Type=\"http://schemas.microsoft.com/office/2006/relationships/vbaProject\" Target=\"vbaProject.bin\"/></Relationships>");
+    } else buf_add(&b, t, n);
+    zip_add(&w, r.e[i].name, b.data, b.len);
+    buf_free(&b); free(t);
+  }
+  { static const char vba[] = "\xD0\xCF\x11\xE0 not really VBA"; zip_add(&w, "word/vbaProject.bin", vba, sizeof vba - 1); }
+  if (zip_finish(&w)) { out = (u8 *)w.out.data; *outn = w.out.len; w.out.data = NULL; }
+  zip_free(&w); zip_close(&r);
+  return out;
+}
+static int has_part(const u8 *z, size_t n, const char *name, const char *ctype)
+{
+  ZipReader r;
+  int k = 0;
+  if (!z || !zip_open(&r, z, n)) return 0;
+  if (zip_find(&r, name) >= 0) k = 1;
+  if (k && ctype) {
+    size_t cn;
+    char *ct = (char *)zip_read(&r, zip_find(&r, "[Content_Types].xml"), &cn);
+    k = ct && strstr(ct, ctype) != NULL;
+    free(ct);
+  }
+  zip_close(&r);
+  return k;
+}
+static void docm(void)
+{
+  size_t n, mn = 0, o1 = 0, o2 = 0;
+  u8 *z = file_read("tests/data/word.docx", &n), *m = z ? repack(z, n, &mn) : NULL, *s1, *s2;
+  char err[200];
+  unsigned lost;
+  Doc *d = m ? docx_load(m, mn, &lost, err, sizeof err) : NULL, *a = z ? docx_load(z, n, &lost, err, sizeof err) : NULL;
+  ok(".docm: read as a macro-enabled document, the same text", d && d->tplkind == TK_DOCM && a && same_doc(a, d) && keep_find(d, "word/vbaProject.bin") >= 0);
+  s1 = d ? fmt_docm.save(d, &o1) : NULL;
+  s2 = d ? doc_format_for_name("x.docx", 1)->save(d, &o2) : NULL;
+  ok(".docm: saved as .docm with its macros and content type", has_part(s1, o1, "word/vbaProject.bin", "application/vnd.ms-word.document.macroEnabled.main+xml"));
+  ok(".docm: saved as .docx without them, as a document", s2 && !has_part(s2, o2, "word/vbaProject.bin", NULL) && has_part(s2, o2, "word/document.xml", "wordprocessingml.document.main+xml") &&
+     !has_part(s2, o2, "word/document.xml", "macroEnabled"));
+  ok(".docm: known by its name, and Save keeps it", doc_format_for_name("x.docm", 1) == &fmt_docm && (fmt_docm.flags & DF_NATIVE));
+  free(z); free(m); free(s1); free(s2); doc_free(d); doc_free(a);
+}
+
 void test_wp28e(void)
 {
+  docm();
   strict();
   markdown_source();
   text_encodings();
