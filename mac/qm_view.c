@@ -1601,3 +1601,14 @@ void qv_strip_changed(Object *view)
 	if (show_strip && d->shown && mm_win_of(view) && mm_win_of(view)->macwin)
 		qs_update(mm_win_of(view)->macwin);
 }
+
+void qv_strip_switched(Object *view)
+{
+	struct qv_data *d = INST_DATA(qv_mcc->mcc_Class, view);
+	Rect s;
+	if (!show_strip || !d->shown || !mm_win_of(view) || !mm_win_of(view)->macwin)
+		return;
+	chrome(view, &s, NULL, NULL, NULL, NULL, NULL);
+	SetPort(mm_win_of(view)->macwin);
+	InvalRect(&s);                  /* the update event draws the new strip */
+}

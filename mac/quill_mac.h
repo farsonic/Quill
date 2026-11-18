@@ -39,11 +39,14 @@ enum {
 	ID_ZOOMFIT, ID_ZOOM50, ID_ZOOM75, ID_ZOOM100, ID_ZOOM150, ID_ZOOM200,
 	ID_CLOSEWIN,
 	ID_BULLETS, ID_NUMBERS, ID_OUTDENT, ID_INDENT, ID_RIBBON, ID_RULER, ID_REVERT,
-	ID_SIZE0 = 100,             /* + the Size menu's row */
-	ID_FONT0 = 200,             /* + the Font menu's family */
-	ID_STYLE0 = 300,            /* + the Paragraph Style submenu's row */
-	ID_LAST = 320
+	ID_SIZE0 = 200,             /* + the Size menu's row */
+	ID_FONT0 = 220,             /* + the Font menu's family (24) */
+	ID_STYLE0 = 250,            /* + the Paragraph Style submenu's row */
+	ID_STRIP0 = 270,            /* + View > Tool Strip's row: the strip shown (QS_) */
+	ID_LAST = 400
 };
+/* the tool strips, one per tab of the Amiga's ribbon that the Mac has commands for */
+enum { QS_HOME, QS_INSERT, QS_LAYOUT, QS_REFERENCES, QS_REVIEW, QS_NSTRIPS };
 
 /* qm_main.c: the one answer to "can it be chosen now, is it on" that the menus' check marks and
    dimming and the strip's items all take, so they never disagree */
@@ -53,7 +56,7 @@ unsigned qm_state(unsigned long id);
 void qm_command(unsigned long id);                     /* a menu item's command, from the strip */
 /* the strip's pop-up menus show the Paragraph Style, Font and Size menus' items: their first command
    and how many, and what the box shows now (the caret's style, font or size, even one not listed) */
-enum { QP_STYLE, QP_FONT, QP_SIZE };
+enum { QP_STYLE, QP_FONT, QP_SIZE, QP_STRIP };
 int  qm_popup(int which, unsigned long *first, char *now, int cap);
 const char *qm_label(unsigned long id);                /* a menu item's words as the menu shows them (Mac Roman) */
 
@@ -70,6 +73,7 @@ void qv_redraw_all(Object *view);                     /* everything again, by an
 void qv_chrome(Object *view, int ribbon, int ruler);   /* the tool strip and the rulers shown or not */
 int  qm_port_depth(void *port);                       /* the bits per pixel a window is drawn in */
 void qv_strip_changed(Object *view);                  /* the commands' states changed: the strip follows */
+void qv_strip_switched(Object *view);                 /* another strip chosen: drawn afresh */
 #endif
 
 /* qm_strip.c: the tool strip (View > Ribbon), drawn and clicked inside the page view's box */
@@ -78,6 +82,7 @@ void qs_layout(short left, short top, short right);    /* its items placed in th
 void qs_draw(void *port, const void *area);            /* the items in area (a Rect) */
 void qs_update(void *port);                            /* the items whose state changed drawn again */
 int  qs_click(void *port, int x, int y);               /* a click on it: tracked, the command run; 1 if taken */
+void qs_select(int strip);                             /* the strip shown (QS_): laid out again when next drawn */
 
 /* qm_ruler.c: the horizontal and vertical rulers (View > Ruler) and the tab kind box between them */
 #define QR_HEIGHT 20                                   /* the horizontal ruler, with its line */

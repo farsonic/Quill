@@ -34,7 +34,9 @@
 #include "mui/mm.h"
 #include "quill_mac.h"
 
-enum { SK_POPUP, SK_TOGGLE, SK_BUTTON };
+/* item kinds: a pop-up menu with its value in a box; an icon button that is on or off (a menu item
+   with a check mark); an icon button; an icon button that opens a pop-up menu of a submenu's items */
+enum { SK_POPUP, SK_TOGGLE, SK_BUTTON, SK_MENU };
 #define BW        22            /* an icon button's width (Cornerstone ch. 4: an icon-only item, 22) */
 #define BH        20            /* its height, the band's less two above and one with the line below */
 #define GAP       8             /* between groups */
@@ -54,33 +56,61 @@ typedef struct {
 	const char *icon;                   /* the Amiga's icon (amiga/theme.c, the same names) */
 } SItem;
 
-static const SItem items[] = {
-	{ SK_POPUP, 0, QP_STYLE, 96, 0, NULL },
-	{ SK_POPUP, 0, QP_FONT, 112, 0, NULL },
-	{ SK_POPUP, 0, QP_SIZE, 40, 0, NULL },
+/* the pop-up at the left end of every strip that chooses the strip (View > Tool Strip's items) */
+static const SItem switcher = { SK_POPUP, 0, QP_STRIP, 84, 0, NULL };
+
+/* Home: what the Amiga's Home tab is used for most (its Font and Paragraph groups) */
+static const SItem home[] = {
+	{ SK_POPUP, 1, QP_STYLE, 88, 0, NULL },
+	{ SK_POPUP, 1, QP_FONT, 104, 0, NULL },
+	{ SK_POPUP, 1, QP_SIZE, 40, 0, NULL },
 	/* BOLD, ITALIC, UNDERLINE: the letter in the interface font, bold, slanted, underlined */
-	{ SK_TOGGLE, 1, 0, BW, ID_BOLD, "B B" },
-	{ SK_TOGGLE, 1, 0, BW, ID_ITALIC, "I I" },
-	{ SK_TOGGLE, 1, 0, BW, ID_UNDERLINE, "U U" },
+	{ SK_TOGGLE, 2, 0, BW, ID_BOLD, "B B" },
+	{ SK_TOGGLE, 2, 0, BW, ID_ITALIC, "I I" },
+	{ SK_TOGGLE, 2, 0, BW, ID_UNDERLINE, "U U" },
 	/* LEFT, CENTER, RIGHT, JUSTIFY: lines flush left, centred, flush right, flush both */
-	{ SK_TOGGLE, 2, 0, BW, ID_LEFT, "ci L 1 2 14 2 L 1 5 10 5 L 1 8 14 8 L 1 11 10 11 L 1 14 12 14" },
-	{ SK_TOGGLE, 2, 0, BW, ID_CENTER, "ci L 1 2 14 2 L 3 5 12 5 L 1 8 14 8 L 3 11 12 11 L 2 14 13 14" },
-	{ SK_TOGGLE, 2, 0, BW, ID_RIGHT, "ci L 1 2 14 2 L 5 5 14 5 L 1 8 14 8 L 5 11 14 11 L 3 14 14 14" },
-	{ SK_TOGGLE, 2, 0, BW, ID_JUSTIFY, "ci L 1 2 14 2 L 1 5 14 5 L 1 8 14 8 L 1 11 14 11 L 1 14 9 14" },
+	{ SK_TOGGLE, 3, 0, BW, ID_LEFT, "ci L 1 2 14 2 L 1 5 10 5 L 1 8 14 8 L 1 11 10 11 L 1 14 12 14" },
+	{ SK_TOGGLE, 3, 0, BW, ID_CENTER, "ci L 1 2 14 2 L 3 5 12 5 L 1 8 14 8 L 3 11 12 11 L 2 14 13 14" },
+	{ SK_TOGGLE, 3, 0, BW, ID_RIGHT, "ci L 1 2 14 2 L 5 5 14 5 L 1 8 14 8 L 5 11 14 11 L 3 14 14 14" },
+	{ SK_TOGGLE, 3, 0, BW, ID_JUSTIFY, "ci L 1 2 14 2 L 1 5 14 5 L 1 8 14 8 L 1 11 14 11 L 1 14 9 14" },
 	/* BULLETS: three dots and their lines; NUMBERS: 1, 2, 3 in the accent and their lines */
-	{ SK_TOGGLE, 3, 0, BW, ID_BULLETS, "ci E 2 3 1 E 2 8 1 E 2 13 1 L 5 3 14 3 L 5 8 14 8 L 5 13 14 13" },
-	{ SK_TOGGLE, 3, 0, BW, ID_NUMBERS, "ca L 2 1 2 5 L 1 8 3 8 L 3 8 1 11 L 1 11 3 11 ci L 6 3 14 3 L 6 8 14 8 L 6 13 14 13" },
+	{ SK_TOGGLE, 4, 0, BW, ID_BULLETS, "ci E 2 3 1 E 2 8 1 E 2 13 1 L 5 3 14 3 L 5 8 14 8 L 5 13 14 13" },
+	{ SK_TOGGLE, 4, 0, BW, ID_NUMBERS, "ca L 2 1 2 5 L 1 8 3 8 L 3 8 1 11 L 1 11 3 11 ci L 6 3 14 3 L 6 8 14 8 L 6 13 14 13" },
 	/* OUTDENT, INDENT: lines moved out or in, an arrow pointing that way */
-	{ SK_BUTTON, 4, 0, BW, ID_OUTDENT, "ci L 1 2 14 2 L 7 6 14 6 L 7 10 14 10 L 1 14 14 14 ca P 3 4 5 1 8 4 11" },
-	{ SK_BUTTON, 4, 0, BW, ID_INDENT, "ci L 1 2 14 2 L 7 6 14 6 L 7 10 14 10 L 1 14 14 14 ca P 3 1 5 4 8 1 11" },
+	{ SK_BUTTON, 5, 0, BW, ID_OUTDENT, "ci L 1 2 14 2 L 7 6 14 6 L 7 10 14 10 L 1 14 14 14 ca P 3 4 5 1 8 4 11" },
+	{ SK_BUTTON, 5, 0, BW, ID_INDENT, "ci L 1 2 14 2 L 7 6 14 6 L 7 10 14 10 L 1 14 14 14 ca P 3 1 5 4 8 1 11" },
 };
-#define NITEMS ((int)(sizeof items / sizeof items[0]))
+
+/* Insert, Layout, References, Review: the Amiga's tabs of those names, as far as the Mac has their
+   commands (docs/mac.md counts them against the Amiga's ribbon) */
+static const SItem insert[] = {
+	/* PAGEBREAK: two pages and a dashed line between */
+	{ SK_BUTTON, 1, 0, BW, ID_PAGEBREAK, "ci R 3 1 12 6 R 3 10 12 15 cd L 1 8 3 8 L 5 8 7 8 L 9 8 11 8 L 13 8 15 8" },
+};
+static const SItem layout[] = {
+	/* SPACING: lines and a double arrow; then single, 1.5 and double as lines closer and wider apart */
+	{ SK_TOGGLE, 1, 0, BW, ID_SINGLE, "ci L 2 3 13 3 L 2 6 13 6 L 2 9 13 9 L 2 12 10 12" },
+	{ SK_TOGGLE, 1, 0, BW, ID_ONEHALF, "ci L 2 2 13 2 L 2 6 13 6 L 2 10 13 10 L 2 14 10 14" },
+	{ SK_TOGGLE, 1, 0, BW, ID_DOUBLE, "ci L 2 2 13 2 L 2 7 13 7 L 2 12 10 12" },
+	{ SK_BUTTON, 2, 0, BW, ID_OUTDENT, "ci L 1 2 14 2 L 7 6 14 6 L 7 10 14 10 L 1 14 14 14 ca P 3 4 5 1 8 4 11" },
+	{ SK_BUTTON, 2, 0, BW, ID_INDENT, "ci L 1 2 14 2 L 7 6 14 6 L 7 10 14 10 L 1 14 14 14 ca P 3 1 5 4 8 1 11" },
+};
+#define N(a) ((int)(sizeof a / sizeof a[0]))
+static const struct { const SItem *items; int n; } strips[QS_NSTRIPS] = {
+	{ home, N(home) }, { insert, N(insert) }, { layout, N(layout) }, { NULL, 0 }, { NULL, 0 },
+};
+static int cur;                             /* the strip shown (QS_) */
+
+/* item k of the strip shown: 0 the switcher, then the strip's own */
+#define MAXITEMS 32
+static const SItem *IT(int k) { return k ? &strips[cur].items[k - 1] : &switcher; }
+static int nitems(void) { return strips[cur].n + 1; }
 
 static Rect band;                           /* the strip's box; empty before qs_layout */
-static Rect box[NITEMS];
-static unsigned char shown[NITEMS];
-static unsigned drawn_state[NITEMS];        /* what each item was drawn as, + 1 (0: not yet) */
-static char drawn_text[NITEMS][48];
+static Rect box[MAXITEMS];
+static unsigned char shown[MAXITEMS];
+static unsigned drawn_state[MAXITEMS];      /* what each item was drawn as, + 1 (0: not yet) */
+static char drawn_text[MAXITEMS][48];
 
 /* ---- the icon language (Cornerstone chapter 12; amiga/theme.c draws the same strings) ---- */
 
@@ -221,10 +251,16 @@ static void text9(void)
 	TextMode(1);
 }
 
+/* an item's state: a menu command's, or for a pop-up button always usable */
+static unsigned state_of(const SItem *it)
+{
+	return it->kind == SK_MENU ? QS_ENABLED : qm_state(it->id);
+}
+
 /* item k as it is now; pressed: held down under the pointer */
 static void draw_item(void *port, int k, int pressed)
 {
-	const SItem *it = &items[k];
+	const SItem *it = IT(k);
 	Rect r = box[k];
 	int colour = depth_of(port) >= 4;
 	SetPort(port);
@@ -263,7 +299,7 @@ static void draw_item(void *port, int k, int pressed)
 		return;
 	}
 	{
-		unsigned st = qm_state(it->id);
+		unsigned st = state_of(it);
 		int on = (st & QS_CHECKED) != 0;
 		Rect in = r;
 		InsetRect(&in, 1, 1);
@@ -277,7 +313,16 @@ static void draw_item(void *port, int k, int pressed)
 				PaintRect(&in);
 			}
 		}
-		icon(it->icon, r.left + (r.right - r.left - 16) / 2, r.top + (r.bottom - r.top - 16) / 2, colour, on);
+		icon(it->icon, r.left + (r.right - r.left - 16) / 2 - (it->kind == SK_MENU ? 2 : 0), r.top + (r.bottom - r.top - 16) / 2, colour, on);
+		if (it->kind == SK_MENU) {
+			/* a small triangle: it opens a menu (p. 85) */
+			int w;
+			ForeColor(33);
+			for (w = 0; w < 3; w++) {
+				MoveTo(r.right - 6 + w, r.bottom - 7 + w);
+				LineTo(r.right - 2 - w, r.bottom - 7 + w);
+			}
+		}
 		if (!(st & QS_ENABLED)) {
 			/* dimmed: a quarter of the ink taken away, as the Mac MUI dims (patBic) */
 			static const unsigned char grey[8] = { 0x88, 0x22, 0x88, 0x22, 0x88, 0x22, 0x88, 0x22 };
@@ -300,13 +345,13 @@ void qs_layout(short left, short top, short right)
 	band.top = top;
 	band.right = right;
 	band.bottom = (short)(top + QS_HEIGHT);
-	for (k = 0; k < NITEMS; k++) {
-		const SItem *it = &items[k];
+	for (k = 0; k < nitems(); k++) {
+		const SItem *it = IT(k);
 		if (it->group != g) {
 			/* a new group: all of it fits, or it and the ones after it go */
 			int j, w = 0;
-			for (j = k; j < NITEMS && items[j].group == it->group; j++)
-				w += items[j].width - (items[j].kind == SK_POPUP ? -POPGAP : 1);
+			for (j = k; j < nitems() && IT(j)->group == it->group; j++)
+				w += IT(j)->width - (IT(j)->kind == SK_POPUP ? -POPGAP : 1);
 			x += GAP;
 			if (x + w > right - MARGIN)
 				drop = 1;
@@ -344,10 +389,10 @@ void qs_draw(void *port, const void *area)
 	r.bottom--;
 	mm_fill(port, &r, colour ? BG_COLOUR : MM_RGB(0xFF, 0xFF, 0xFF));
 	mm_line(port, band.left, band.bottom - 1, band.right, band.bottom - 1, 0);
-	for (k = 0; k < NITEMS; k++)
+	for (k = 0; k < nitems(); k++)
 		if (shown[k] && meets(&box[k], ar)) {
 			draw_item(port, k, 0);
-			drawn_state[k] = items[k].kind == SK_POPUP ? 1 : qm_state(items[k].id) + 1;
+			drawn_state[k] = IT(k)->kind == SK_POPUP ? 1 : state_of(IT(k)) + 1;
 		}
 }
 
@@ -356,19 +401,19 @@ void qs_update(void *port)
 	int k;
 	if (band.right <= band.left)
 		return;
-	for (k = 0; k < NITEMS; k++) {
+	for (k = 0; k < nitems(); k++) {
 		if (!shown[k] || !drawn_state[k])
 			continue;
-		if (items[k].kind == SK_POPUP) {
+		if (IT(k)->kind == SK_POPUP) {
 			unsigned long first;
 			char t[48];
-			qm_popup(items[k].which, &first, t, sizeof t);
+			qm_popup(IT(k)->which, &first, t, sizeof t);
 			if (!strcmp(t, drawn_text[k]))
 				continue;
-		} else if (qm_state(items[k].id) + 1 == drawn_state[k])
+		} else if (state_of(IT(k)) + 1 == drawn_state[k])
 			continue;
 		draw_item(port, k, 0);
-		drawn_state[k] = items[k].kind == SK_POPUP ? 1 : qm_state(items[k].id) + 1;
+		drawn_state[k] = IT(k)->kind == SK_POPUP ? 1 : state_of(IT(k)) + 1;
 	}
 }
 
@@ -382,7 +427,7 @@ static void popup(void *port, int k)
 	Point p;
 	long r;
 	int i, n, cur = 1;
-	n = qm_popup(items[k].which, &first, t, sizeof t);
+	n = qm_popup(IT(k)->which, &first, t, sizeof t);
 	if (n <= 0 || !(m = NewMenu(MENU_ID, mac_pstr(pb, ""))))
 		return;
 	for (i = 0; i < n; i++) {
@@ -416,16 +461,16 @@ int qs_click(void *port, int x, int y)
 	Point m;
 	if (x < band.left || x >= band.right || y < band.top || y >= band.bottom)
 		return 0;
-	for (k = 0; k < NITEMS; k++)
+	for (k = 0; k < nitems(); k++)
 		if (shown[k] && x >= box[k].left && x < box[k].right && y >= box[k].top && y < box[k].bottom)
 			break;
-	if (k == NITEMS)
+	if (k == nitems())
 		return 1;                   /* the band itself: nothing */
-	if (items[k].kind == SK_POPUP) {
+	if (IT(k)->kind == SK_POPUP || IT(k)->kind == SK_MENU) {
 		popup(port, k);
 		return 1;
 	}
-	if (!(qm_state(items[k].id) & QS_ENABLED))
+	if (!(qm_state(IT(k)->id) & QS_ENABLED))
 		return 1;
 	/* a button: inverted while held with the pointer on it, its command if let go there (p. 207) */
 	SetPort(port);
@@ -438,8 +483,16 @@ int qs_click(void *port, int x, int y)
 			draw_item(port, k, in);
 	}
 	draw_item(port, k, 0);
-	drawn_state[k] = qm_state(items[k].id) + 1;
+	drawn_state[k] = state_of(IT(k)) + 1;
 	if (in)
-		qm_command(items[k].id);
+		qm_command(IT(k)->id);
 	return 1;
+}
+
+void qs_select(int strip)
+{
+	if (strip < 0 || strip >= QS_NSTRIPS || strip == cur)
+		return;
+	cur = strip;
+	band.right = band.left;         /* laid out again when next drawn */
 }

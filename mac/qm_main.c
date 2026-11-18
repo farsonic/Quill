@@ -69,12 +69,15 @@ static int pstyle_at[NPSTYLES];          /* each one's index in the document's s
 static char fam[MAXFAM][48];
 static int nfam;
 
-static struct NewMenu menu[128];
+static struct NewMenu menu[320];       /* (Riptide's Mac MUI takes up to 320 rows) */
 static int nmenu;
 static char size_label[NSIZES][8];
 
+/* the tool strips by the Amiga's tab names (View > Tool Strip and the switcher at the strip's left end) */
+static const char *const strip_names[QS_NSTRIPS] = { "Home", "Insert", "Layout", "References", "Review" };
+
 /* the preferences: what View shows, kept between sessions (Guidelines p. 37) */
-static struct { int ribbon, ruler; } prefs = { 1, 1 };
+static struct { int ribbon, ruler, strip; } prefs = { 1, 1, QS_HOME };
 
 static void nm_add(UBYTE type, const char *label, const char *key, UWORD flags, ULONG id)
 {
@@ -152,6 +155,9 @@ static void menus_build(void)
 	nm_add(NM_TITLE, "View", NULL, 0, 0);
 	/* toggles with a check mark (p. 75); Ribbon is what Word for the Mac called its formatting bar */
 	nm_add(NM_ITEM, "Ribbon", NULL, CHECKIT | (prefs.ribbon ? CHECKED : 0), ID_RIBBON);
+	nm_add(NM_ITEM, "Tool Strip", NULL, 0, 0);                   /* which strip: as the strip's own pop-up */
+	for (i = 0; i < QS_NSTRIPS; i++)
+		nm_add(NM_SUB, strip_names[i], NULL, CHECKIT | (prefs.strip == i ? CHECKED : 0), (ULONG)(ID_STRIP0 + i));
 	nm_add(NM_ITEM, "Ruler", NULL, CHECKIT | (prefs.ruler ? CHECKED : 0), ID_RULER);
 	BAR();
 	nm_add(NM_ITEM, "Fit Page Width", "0", CHECKIT, ID_ZOOMFIT);
@@ -178,6 +184,8 @@ const char *qm_label(unsigned long id)
 		return size_label[id - ID_SIZE0];
 	if (id >= ID_STYLE0 && id < ID_STYLE0 + NPSTYLES)
 		return tr(pstyles[id - ID_STYLE0].name);
+	if (id >= ID_STRIP0 && id < ID_STRIP0 + QS_NSTRIPS)
+		return tr(strip_names[id - ID_STRIP0]);
 	return "";
 }
 
@@ -207,6 +215,8 @@ static void prefs_load(void)
 			prefs.ribbon = v != 0;
 		else if (sscanf(line, "ruler %d", &v) == 1)
 			prefs.ruler = v != 0;
+		else if (sscanf(line, "strip %d", &v) == 1 && v >= 0 && v < QS_NSTRIPS)
+			prefs.strip = v;
 	}
 	fclose(f);
 }
@@ -216,7 +226,7 @@ static void prefs_save(void)
 	FILE *f;
 	if (!prefs_path[0] || !(f = fopen(prefs_path, "w")))
 		return;
-	fprintf(f, "ribbon %d\nruler %d\n", prefs.ribbon, prefs.ruler);
+	fprintf(f, "ribbon %d\nruler %d\nstrip %d\n", prefs.ribbon, prefs.ruler, prefs.strip);
 	fclose(f);
 	qm_flush(prefs_path);
 }
@@ -290,6 +300,8 @@ unsigned qm_state(unsigned long id)
 		on = here.font == (int)(id - ID_FONT0);
 	else if (id >= ID_SIZE0 && id < ID_SIZE0 + NSIZES)
 		on = here.size == (int)(id - ID_SIZE0);
+	else if (id >= ID_STRIP0 && id < ID_STRIP0 + QS_NSTRIPS)
+		on = prefs.strip == (int)(id - ID_STRIP0);
 	else if (id >= ID_STYLE0 && id < ID_STYLE0 + NPSTYLES) {
 		if (pstyle_at[id - ID_STYLE0] < 0)
 			return 0;               /* the document has no such style: dimmed */
@@ -348,6 +360,10 @@ int qm_popup(int which, unsigned long *first, char *now, int cap)
 		if (here.f.font < qd.doc->nfonts)
 			utf8_to_macroman(qd.doc->fonts[here.f.font], now, cap);
 		return nfam;
+	case QP_STRIP:
+		*first = ID_STRIP0;
+		snprintf(now, (size_t)cap, "%s", tr(strip_names[prefs.strip]));
+		return QS_NSTRIPS;
 	case QP_SIZE:
 		*first = ID_SIZE0;
 		/* half points: 11, or 10.5 */
@@ -847,6 +863,19 @@ static void command(ULONG id)
 		char_format(CM_SIZE, &cf);
 		return;
 	}
+	if (id >= ID_STRIP0 && id < ID_STRIP0 + QS_NSTRIPS) {
+		/* another strip: shown (with the strip itself, if View > Ribbon had hidden it), remembered */
+		prefs.strip = (int)(id - ID_STRIP0);
+		qs_select(prefs.strip);
+		if (!prefs.ribbon) {
+			prefs.ribbon = 1;
+			qv_chrome(view, prefs.ribbon, prefs.ruler);
+		} else
+			qv_strip_switched(view);
+		prefs_save();
+		qm_status();
+		return;
+	}
 	if (id >= ID_STYLE0 && id < ID_STYLE0 + NPSTYLES) {
 		u32 a, b;
 		if (pstyle_at[id - ID_STYLE0] < 0)
@@ -1064,6 +1093,7 @@ int main(void)
 	doc_take(doc_new(), NULL);
 	strip = mui_make(MUIO_MenustripNM, (ULONG)menu, 0);
 	view = mui_newc(qv_class(), MUIA_Frame, MUIV_Frame_None, TAG_DONE);
+	qs_select(prefs.strip);
 	if (view)
 		qv_chrome(view, prefs.ribbon, prefs.ruler);
 	win = mui_new(MUIC_Window, MUIA_Window_Title, (ULONG)tr("Untitled"), MUIA_Window_RootObject, (ULONG)view,

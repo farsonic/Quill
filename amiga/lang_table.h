@@ -4416,4 +4416,5 @@
   { { "Revert", "Alte Version", "Version pr\351c\351dente", "Recuperar", "Ripristina" } },
   { { "Revert|*Cancel", "Alte Version|*Abbrechen", "Version pr\351c\351dente|*Annuler", "Recuperar|*Cancelar", "Ripristina|*Annulla" } },
   { { "Revert to the saved version of %s? The changes made since are lost.", "Zur gesicherten Version von %s zur\374ckkehren? Die \304nderungen seither gehen verloren.", "Revenir \340 la version enregistr\351e de %s ? Les modifications faites depuis seront perdues.", "\277Volver a la versi\363n guardada de %s? Se perder\341n los cambios hechos desde entonces.", "Tornare alla versione salvata di %s? Le modifiche fatte da allora andranno perse." } },
+  { { "Tool Strip", "Symbolleiste", "Barre d'outils", "Barra de herramientas", "Barra degli strumenti" } },
 /* ---- end the Mac front end */

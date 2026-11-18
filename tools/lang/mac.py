@@ -22,4 +22,6 @@ W = [
  "Revenir à la version enregistrée de %s ? Les modifications faites depuis seront perdues.",
  "¿Volver a la versión guardada de %s? Se perderán los cambios hechos desde entonces.",
  "Tornare alla versione salvata di %s? Le modifiche fatte da allora andranno perse."),
+# View > Tool Strip: which of the strips (Home, Insert, Layout, References, Review) the window shows
+("Tool Strip", "Symbolleiste", "Barre d'outils", "Barra de herramientas", "Barra degli strumenti"),
 ]
