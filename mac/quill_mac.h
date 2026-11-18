@@ -34,7 +34,6 @@ struct MUI_CustomClass *qv_class(void);
 void qv_changed(Object *view, int scroll_to_caret);   /* the document or the selection changed: lay out, redraw */
 void qv_zoom(Object *view, int percent);
 void qv_reset(Object *view);                          /* a new document: back to the top, caches dropped */
-int  qv_page_of_caret(Object *view, u32 *pages);      /* for the status line: the caret's page from 1, *pages */
 
 /* the page view's own method: its timer (MUIM_Application_AddInputHandler), ten times a second */
 #define MUIM_QV_Tick 0xFECA0001UL

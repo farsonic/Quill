@@ -86,6 +86,7 @@ struct qv_data {
 	int follow;                 /* bring the caret into view once laid out */
 	long want_x;                /* up and down arrows keep to this x (twips), -1 none */
 	int shown;
+	u32 status_page, status_of;  /* what the page box says now (0: not drawn yet) */
 };
 
 static struct MUI_CustomClass *qv_mcc;
@@ -540,20 +541,52 @@ static void draw_area(struct qv_data *d, Object *obj, const Rect *area)
 	}
 }
 
-/* the page box: "Page 2 of 5" (Guidelines p. 160: status beside the horizontal scroll bar) */
+/* the page box: "Page 2 of 5" (Guidelines p. 160: status beside the horizontal scroll bar). As in
+   Word for the Mac, the page is the one at the top of the window, so it follows the scroll bar. */
+static u32 page_in_view(struct qv_data *d, Object *obj)
+{
+	u32 k;
+	long x, y;
+	for (k = 0; k + 1 < qd.lay->npages; k++) {
+		page_at(d, obj, k, &x, &y);
+		if (y + page_h(k, d->dpi) + GAP / 2 > d->sy)
+			break;
+	}
+	return k + 1;
+}
+
 static void draw_status(struct qv_data *d, Object *obj)
 {
 	void *port = mm_win_of(obj)->macwin;
 	Rect st;
 	char t[64];
-	u32 n;
-	int k = qv_page_of_caret(obj, &n);
+	u32 n = qd.lay->npages ? qd.lay->npages : 1;
+	u32 k = page_in_view(d, obj);
 	parts(obj, NULL, NULL, NULL, &st);
 	mm_fill(port, &st, MM_RGB(0xFF, 0xFF, 0xFF));
 	mm_line(port, st.left, st.top - 1, st.right, st.top - 1, 0);            /* the line above it */
 	mm_line(port, st.right, st.top - 1, st.right, st.bottom, 0);            /* and the bar's left edge */
 	snprintf(t, sizeof t, tr("Page %lu of %lu%s"), (unsigned long)k, (unsigned long)n, "");
 	mm_text(port, st.left + 6, st.bottom - 3, t, (int)strlen(t), 0, 0);
+	d->status_page = k;
+	d->status_of = n;
+}
+
+/* after a scroll or a new layout: the page box again if what it says has changed. Called while an
+   update is being drawn, drawing outside the updated area would be clipped away; the box is then
+   marked for the next update instead. */
+static void status_check(struct qv_data *d, Object *obj, int in_update)
+{
+	Rect st;
+	u32 n = qd.lay->npages ? qd.lay->npages : 1;
+	if (page_in_view(d, obj) == d->status_page && n == d->status_of)
+		return;
+	if (!in_update) {
+		draw_status(d, obj);
+		return;
+	}
+	parts(obj, NULL, NULL, NULL, &st);
+	InvalRect(&st);
 }
 
 /* ---- scroll bars ---- */
@@ -637,6 +670,7 @@ static void scroll_to(struct qv_data *d, Object *obj, long nx, long ny)
 	clip_end(save);
 	SetCtlValue(d->vbar, (int)(d->sy / d->bar_scale));
 	SetCtlValue(d->hbar, (int)(d->sx / d->bar_scale));
+	status_check(d, obj, 0);
 }
 
 /* TrackControl's action (mm_ctl_action): the arrows and the grey parts scroll while held */
@@ -764,7 +798,7 @@ static void refresh(struct qv_data *d, Object *obj)
 		}
 	}
 	clip_end(save);
-	draw_status(d, obj);
+	status_check(d, obj, 0);
 	d->stale = 0;
 }
 
@@ -840,7 +874,7 @@ static void move_to(struct qv_data *d, Object *obj, Pos p, int extend)
 	d->blink_at = qm_ticks() + LM_CARETTIME;
 	follow_caret(d, obj);
 	caret_show(d, obj, 1);
-	draw_status(d, obj);
+	status_check(d, obj, 0);
 	qm_status();
 }
 
@@ -1204,7 +1238,13 @@ DISPATCHER(qv_dispatch)
 		clip_end(save);
 		Draw1Control(d->vbar);
 		Draw1Control(d->hbar);
-		draw_status(d, obj);
+		{
+			Rect st;
+			parts(obj, NULL, NULL, NULL, &st);
+			if (st.left < area.right && area.left < st.right && st.top < area.bottom && area.top < st.bottom)
+				draw_status(d, obj);
+		}
+		status_check(d, obj, 1);
 		return 0;
 	}
 	case MUIM_HandleEvent: {
@@ -1271,7 +1311,8 @@ void qv_reset(Object *view)
 		parts(view, &r, NULL, NULL, NULL);
 		SetPort(port);
 		InvalRect(&r);          /* the update event draws it */
-		draw_status(d, view);
+		d->status_page = 0;     /* a new document: the page box again */
+		status_check(d, view, 0);
 		bars_set(d, view);
 	}
 }
@@ -1285,13 +1326,4 @@ void qv_redraw_all(Object *view)
 		SetPort(mm_win_of(view)->macwin);
 		InvalRect(&r);
 	}
-}
-
-int qv_page_of_caret(Object *view, u32 *pages)
-{
-	u32 k;
-	i32 x, y, h;
-	*pages = qd.lay->npages ? qd.lay->npages : 1;
-	lay_caret(qd.lay, qd.caret, &k, &x, &y, &h);
-	return (int)k + 1;
 }
