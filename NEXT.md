@@ -29,7 +29,7 @@ build, finish the package as its entry in the gap document describes, test, merg
 | protect | WP6 Compare/Combine, WP7 Restrict Editing + encryption (core/cfb.c, core/crypt.c) | 15 | furthest along; needs finishing checks (LibreOffice/msoffcrypto opening encrypted files) |
 | cite | WP3 citations and bibliography | 9 | merged into master (WP3 done: 16 citation styles, Source Manager, bibliography field) |
 | refs | WP2 captions, table of figures, index, authorities, TOC as a field | 6 | merged into master (WP2 done: captions, table of figures, index, authorities, TOC field) |
-| custom | WP26 Options panes, Customize Ribbon/QAT/Keyboard, command search, KeyTips, ribbon group collapsing at 640 px | 5 | partly built |
+| custom | WP26 Options panes, Customize Ribbon/QAT/Keyboard, command search, KeyTips, ribbon group collapsing at 640 px | 9 | finished on the branch (merged with master after WP2/3/4; native tests and the vbcc build pass); not yet tried on an emulator: check the Options window's size at 640x480, KeyTips, the mini toolbar and Quill.fit (SetEnv QUILLFIT 1) before merging |
 | controls | WP16 content controls, Developer tab, legacy form fields | 3 | early |
 | mailings | WP4 mail merge, envelopes, labels | 5 | merged into master |
 | intl | WP27 right-to-left (bidi) and East Asian | 2 | early |
@@ -49,8 +49,9 @@ build, finish the package as its entry in the gap document describes, test, merg
    `docx_out_settings_rel` (core/docx.h) and docx_save writes the part once (WP23's attached template and WP4's
    data source both kept). That branch also writes WP23's slot-1 settings before WP4's and WP5's (schema order);
    WP7's documentProtection still needs checking when `protect` is merged.
-3. **Ribbon width**: the Insert tab (and Home in German) is wider than 640 px; several packages put commands
-   only in menus because of it. WP26's group collapsing (on the `custom` branch) is the fix.
+3. **Ribbon width**: fixed by WP26 (`custom` branch): groups collapse to one button from the right, so every tab
+   fits 618 px (a 640 window) in all five languages; `python3 tools/ribbonfit.py` checks it after a package adds
+   groups. Commands that packages put only in menus for lack of room can now go on the ribbon.
 4. **WordArt scheme colours** use the default Office theme; switch to the document's (`core/doctheme.h`).
 5. **Gap document totals**: after each merge run `python3 tools/gapcount.py docs/wordcraft-gap.md --write`
    (or recount by hand); helpers only updated their own lines.
