@@ -233,20 +233,6 @@ void blocks_write_settings(Doc *d, Buf *b)
   if (d->spfilter) buf_printf(b, "<w:stylePaneFormatFilter w:val=\"%04X\"/>", (unsigned)d->spfilter);
   if (d->spsort > SPS_NONE && d->spsort < SPS_N) buf_printf(b, "<w:stylePaneSortMethod w:val=\"%04X\"/>", (unsigned)(d->spsort - SPS_NAME));
 }
-char *blocks_settings_rels(const Doc *d, size_t *len)
-{
-  Buf b;
-  if (!d->attached || !d->attached[0]) return NULL;
-  buf_init(&b);
-  buf_adds(&b, HDR);
-  buf_adds(&b, "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rIdStTpl\" "
-               "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate\" Target=\"");
-  xml_escape(&b, d->attached, strlen(d->attached));
-  buf_adds(&b, "\" TargetMode=\"External\"/></Relationships>");
-  if (b.oom) { buf_free(&b); return NULL; }
-  *len = b.len;
-  return buf_take(&b);
-}
 
 /* ---- building blocks */
 int blocks_find(const Doc *d, const char *name, int gallery)

@@ -200,15 +200,10 @@ void merge_write_parts(Doc *d, DocxOut *o)
   int r;
   if (!mi || mi->type == MT_NONE || !mi->src[0]) return;
   buf_init(&b);
-  buf_adds(&b, "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
-               "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">");
-  for (r = 1; r <= 2; r++) {
-    buf_printf(&b, "<Relationship Id=\"rIdMM%d\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource\" Target=\"", r);
-    if (mi->src[0] && strchr(mi->src, ':') && mi->src[1] == ':') buf_adds(&b, "file:///");    /* (a Windows path, as Word writes it) */
-    xml_escape(&b, mi->src, strlen(mi->src));
-    buf_adds(&b, "\" TargetMode=\"External\"/>");
-  }
-  buf_adds(&b, "</Relationships>");
-  if (!b.oom) docx_out_part(o, "word/_rels/settings.xml.rels", NULL, NULL, NULL, NULL, b.data, b.len);
+  if (strchr(mi->src, ':') && mi->src[1] == ':') buf_adds(&b, "file:///");    /* (a Windows path, as Word writes it) */
+  { const char *p; for (p = mi->src; *p; p++) { if (*p == '%') buf_adds(&b, "%25"); else buf_addc(&b, *p); } }   /* (read back decoded) */
+  if (b.oom) { buf_free(&b); return; }
+  for (r = 1; r <= 2; r++)                     /* (shared with WP23's attached template: core/docx.h) */
+    docx_out_settings_rel(o, r == 1 ? "rIdMM1" : "rIdMM2", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource", b.data, 1);
   buf_free(&b);
 }

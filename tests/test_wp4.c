@@ -263,6 +263,30 @@ static void t_rules(void)
   /* NEXTIF moves on: a record over 100 takes the next one's last name */
   doc_free(d);
 }
+/* IF...THEN...ELSE, MERGESEQ against MERGEREC after a skipped record */
+static void t_rules2(void)
+{
+  Doc *d = doc_new(), *m;
+  int n = 0;
+  char *t, *c;
+  merge_set_data(d, md_load_text((const u8 *)csv, sizeof csv - 1));
+  d->merge->type = MT_DIRECTORY;
+  c = field_code_parse(" SKIPIF { MERGEFIELD City } = \"London\" ");
+  { Pos at = doc_start(d); field_insert(d, &at, c, NULL, NULL); }
+  free(c);
+  c = field_code_parse(" IF { MERGEFIELD Amount } > 100 \"big\" \"small\" ");
+  { Pos at = { 0, d->p[0]->len }; field_insert(d, &at, c, NULL, NULL); }
+  free(c);
+  text_end(d, 0, "/");
+  put(d, 0, " MERGESEQ ");
+  text_end(d, 0, "/");
+  put(d, 0, " MERGEREC ");
+  m = merge_build(d, 0, 3, NULL, NULL, &n, NULL);
+  t = m ? all(m) : NULL;
+  ok("WP4 IF, MERGESEQ, MERGEREC", m && n == 3 && t && !strcmp(t, "big/1/2\nsmall/2/3\nbig/3/4"));
+  if (!t || strcmp(t, "big/1/2\nsmall/2/3\nbig/3/4")) printf("  got [%s] n=%d\n", t ? t : "(none)", n);
+  free(t); doc_free(m); doc_free(d);
+}
 static void t_docx(void)
 {
   Doc *d = main_doc(), *r;
@@ -296,6 +320,37 @@ static void t_docx(void)
   }
   r = b ? docx_load(b, n, &lost, NULL, 0) : NULL;
   free(b);
+  /* an attached template as well (WP23): one settings.xml.rels with both, settings in schema order */
+  if (r) {
+    u8 *b2;
+    size_t n2;
+    r->attached = str_dup("Work:Templates/Letter.dotx");
+    b2 = docx_save(r, &n2);
+    {
+      ZipReader z;
+      char *s = NULL, *rl = NULL;
+      size_t sn;
+      int i;
+      if (b2 && zip_open(&z, b2, n2)) {
+        if ((i = zip_find(&z, "word/settings.xml")) >= 0) s = (char *)zip_read(&z, i, &sn);
+        if ((i = zip_find(&z, "word/_rels/settings.xml.rels")) >= 0) rl = (char *)zip_read(&z, i, &sn);
+        zip_close(&z);
+      }
+      ok("WP4 settings rels shared with the attached template", has(rl, "Id=\"rIdStTpl\"") && has(rl, "Target=\"Work:Templates/Letter.dotx\"") &&
+         has(rl, "Id=\"rIdMM1\"") && has(rl, "Id=\"rIdMM2\"") && has(rl, "Target=\"Work:Lists/people.csv\""));
+      ok("WP4 attachedTemplate before mailMerge", s && strstr(s, "<w:attachedTemplate") && strstr(s, "<w:mailMerge") &&
+         strstr(s, "<w:attachedTemplate") < strstr(s, "<w:mailMerge"));
+      free(s); free(rl);
+    }
+    {
+      Doc *r3 = b2 ? docx_load(b2, n2, &lost, NULL, 0) : NULL;
+      ok("WP4 both read back", r3 && r3->attached && !strcmp(r3->attached, "Work:Templates/Letter.dotx") && r3->merge &&
+         !strcmp(r3->merge->src, "Work:Lists/people.csv"));
+      doc_free(r3);
+    }
+    free(b2);
+    free(r->attached); r->attached = NULL;
+  }
   ok("WP4 mailMerge read back", r && r->merge && r->merge->type == MT_LABELS && !strcmp(r->merge->src, "Work:Lists/people.csv") &&
      r->merge->nfilt == 1 && r->merge->filt[0].op == MF_NE && !strcmp(r->merge->sortcol[0], "Last Name") && r->merge->viewmerged &&
      r->merge->rec == 1 && !strcmp(r->merge->map[AF_COMPANY], "Company") && !strcmp(r->merge->map[AF_FIRST], "First Name"));
@@ -385,6 +440,7 @@ void test_wp4(void)
   t_data();
   t_merge();
   t_rules();
+  t_rules2();
   t_docx();
   t_envlabels();
 }

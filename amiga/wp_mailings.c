@@ -1512,12 +1512,12 @@ static const char *const fin_en[2] = { "Edit Individual Documents...", "Merge to
 static const char *fin_l[2];
 static const RibbonList fin_rl = { fin_l, 2, PL_TEXT, NULL };
 static const Item create_items[] = {
-  { K_BUTTON, S_LARGE, 0, 0, "Envelopes", ID_ML_ENVELOPES, 0, 0, 0, 0, "An envelope with a delivery and return address", NULL, ICON_ENV },
-  { K_BUTTON, S_LARGE, 0, 0, "Labels", ID_ML_LABELS, 0, 0, 0, 0, "A page of address labels (Avery and others)", NULL, ICON_LAB } };
+  { K_BUTTON, S_SMALL, 0, 0, "Envelopes", ID_ML_ENVELOPES, 0, 0, 0, 0, "An envelope with a delivery and return address", NULL, ICON_ENV },
+  { K_BUTTON, S_SMALL, 0, 0, "Labels", ID_ML_LABELS, 0, 0, 0, 0, "A page of address labels (Avery and others)", NULL, ICON_LAB } };
 static const Item start_items[] = {
   { K_DROP, S_LARGE, 0, 0, "Start Mail Merge", ID_ML_START, 0, 0, 0, 0, "Letters, envelopes, labels or a directory for many recipients", &start_rl, ICON_START },
-  { K_DROP, S_LARGE, 0, 0, "Select Recipients", ID_ML_RECIP, 0, 0, 0, 0, "The list of people to merge: a new one, or a CSV, spreadsheet or document file", &recip_rl, ICON_RECIP },
-  { K_BUTTON, S_LARGE, 0, 0, "Edit Recipient List", ID_ML_EDITLIST, 0, RB_WP(WPI_4, ST_DATA), 0, 0, "Check, sort, filter and find recipients", NULL, ICON_EDITREC } };
+  { K_DROP, S_SMALL, 0, 0, "Select Recipients", ID_ML_RECIP, 0, 0, 0, 0, "The list of people to merge: a new one, or a CSV, spreadsheet or document file", &recip_rl, ICON_RECIP },
+  { K_BUTTON, S_SMALL, 0, 0, "Edit Recipient List", ID_ML_EDITLIST, 0, RB_WP(WPI_4, ST_DATA), 0, 0, "Check, sort, filter and find recipients", NULL, ICON_EDITREC } };
 static const Item write_items[] = {
   { K_BUTTON, S_LARGE, 0, 0, "Highlight Merge Fields", ID_ML_HIGHLIGHT, RB_WP(WPI_4, ST_HIGHLIGHT), 0, 0, 0, "The merge fields on grey", NULL, ICON_HIGHLIGHT },
   { K_BUTTON, S_SMALL, 0, 0, "Address Block", ID_ML_ADDRESS, 0, 0, F_NEWCOL, 0, "The recipient's name and address", NULL, ICON_ADDR },
@@ -1568,7 +1568,8 @@ static const WpMenu menus[] = {
   { WM_FILE, { NM_SUB, (STRPTR)"Rules...", 0, 0, 0, (APTR)ID_ML_RULESWIN } },
   { WM_FILE, { NM_SUB, (STRPTR)"Match Fields...", 0, 0, 0, (APTR)ID_ML_MATCH } },
   { WM_FILE, { NM_SUB, (STRPTR)"Update Labels", 0, 0, 0, (APTR)ID_ML_UPDLABELS } },
-  { WM_FILE, { NM_SUB, NM_BARLABEL, 0, 0, 0, 0 } },
+  /* (Intuition takes at most 31 items in a submenu: the rest in a second one) */
+  { WM_FILE, { NM_ITEM, (STRPTR)"Mailings: Preview and Finish", 0, 0, 0, 0 } },
   { WM_FILE, { NM_SUB, (STRPTR)"Preview Results", 0, 0, 0, (APTR)ID_ML_PREVIEW } },
   { WM_FILE, { NM_SUB, (STRPTR)"First Record", 0, 0, 0, (APTR)ID_ML_FIRST } },
   { WM_FILE, { NM_SUB, (STRPTR)"Previous Record", 0, 0, 0, (APTR)ID_ML_PREV } },

@@ -31,7 +31,7 @@ build, finish the package as its entry in the gap document describes, test, merg
 | refs | WP2 captions, table of figures, index, authorities, TOC as a field | 6 | partly built |
 | custom | WP26 Options panes, Customize Ribbon/QAT/Keyboard, command search, KeyTips, ribbon group collapsing at 640 px | 5 | partly built |
 | controls | WP16 content controls, Developer tab, legacy form fields | 3 | early |
-| mailings | WP4 mail merge, envelopes, labels | 3 | early |
+| mailings | WP4 mail merge, envelopes, labels | 5 | finished (all 22 Mailings commands ✅, master merged in, native tests and the vbcc build pass); ready to merge into master, then an emulator check of the tab and its windows |
 | intl | WP27 right-to-left (bidi) and East Asian | 2 | early |
 
 ## Not started
@@ -45,8 +45,10 @@ build, finish the package as its entry in the gap document describes, test, merg
 1. **settings.xml element order**: WP5, WP7 and WP23 all write at hook position 1, so trackRevisions /
    documentProtection / attachedTemplate can come out of schema order; WP0's comment listing attachedTemplate
    at position 3 is itself against the schema. Write settings in one schema-ordered place.
-2. **settings.xml.rels**: WP23 (attached template) and WP4 (mail-merge data source) may both write it; one
-   would be dropped. Make it shared.
+2. **settings.xml.rels**: done on the `mailings` branch: packages add settings.xml's relationships with
+   `docx_out_settings_rel` (core/docx.h) and docx_save writes the part once (WP23's attached template and WP4's
+   data source both kept). That branch also writes WP23's slot-1 settings before WP4's and WP5's (schema order);
+   WP7's documentProtection still needs checking when `protect` is merged.
 3. **Ribbon width**: the Insert tab (and Home in German) is wider than 640 px; several packages put commands
    only in menus because of it. WP26's group collapsing (on the `custom` branch) is the fix.
 4. **WordArt scheme colours** use the default Office theme; switch to the document's (`core/doctheme.h`).

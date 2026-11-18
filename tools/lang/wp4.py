@@ -6,6 +6,7 @@
 W = [
 # ---- the Mailings tab and the File menu's Mailings submenu
 ("Mailings", "Sendungen", "Publipostage", "Correspondencia", "Lettere"),
+("Mailings: Preview and Finish", "Sendungen: Vorschau und Fertig stellen", "Publipostage : aperçu et fin", "Correspondencia: vista previa y finalizar", "Lettere: anteprima e fine"),
 ("Create", "Erstellen", "Créer", "Crear", "Crea"),
 ("Envelopes", "Umschläge", "Enveloppes", "Sobres", "Buste"),
 ("Envelopes...", "Umschläge...", "Enveloppes...", "Sobres...", "Buste..."),

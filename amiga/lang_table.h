@@ -1361,6 +1361,7 @@
 /* ---- begin WP3 (tools/lang/wp3.py) */
 /* ---- end WP3 */
 /* ---- begin WP4 (tools/lang/wp4.py) */
+  { { "Mailings: Preview and Finish", "Sendungen: Vorschau und Fertig stellen", "Publipostage : aper\347u et fin", "Correspondencia: vista previa y finalizar", "Lettere: anteprima e fine" } },
   { { "Create", "Erstellen", "Cr\351er", "Crear", "Crea" } },
   { { "Envelopes", "Umschl\344ge", "Enveloppes", "Sobres", "Buste" } },
   { { "Envelopes...", "Umschl\344ge...", "Enveloppes...", "Sobres...", "Buste..." } },
