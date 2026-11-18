@@ -54,7 +54,7 @@
 #include "../core/table.h"
 #include "../core/tstyle.h"
 
-const char verstag[] = "$VER: Quill 0.14 (26.10.2026) a word processor for the Amiga (MUI)";
+const char verstag[] = "$VER: Quill 0.15 (29.10.2026) a word processor for the Amiga (MUI)";
 
 struct IntuitionBase *IntuitionBase;
 struct GfxBase *GfxBase;
@@ -344,6 +344,17 @@ static void add_recent(const char *path)
     if (f) { for (i = 0; i < nrecent; i++) fprintf(f, "%s\n", recent[i]); fclose(f); }
   }
 }
+/* recent document k taken off the list (-1: every one), and the file written again (WordCraft #2716) */
+static void remove_recent(int k)
+{
+  int i;
+  if (k < 0) nrecent = 0;
+  else if (k < nrecent) { for (i = k; i + 1 < nrecent; i++) strcpy(recent[i], recent[i + 1]); nrecent--; }
+  {
+    FILE *f = fopen("PROGDIR:Quill.recent", "w");
+    if (f) { for (i = 0; i < nrecent; i++) fprintf(f, "%s\n", recent[i]); fclose(f); }
+  }
+}
 /* PROGDIR:Quill.prefs, one key=value a line; unknown lines are skipped and a missing file leaves the
    defaults (tb.units -1: inches or centimetres guessed from the paper, see units_metric). Runs
    before the first window exists, so it fills the first slot's Toolbar */
@@ -371,6 +382,7 @@ static void load_prefs(void)
       if (sscanf(line + 5, "%d,%d,%d,%d", &a[0], &a[1], &a[2], &a[3]) == 4)
         { pref_look[0] = (signed char)a[0]; pref_look[1] = (signed char)a[1]; pref_look[2] = (signed char)a[2]; pref_look[3] = (signed char)a[3]; }
     }
+    else if (!strncmp(line, "paper=", 6)) { wp25_paper = atoi(line + 6); if (wp25_paper < 0 || wp25_paper > 3) wp25_paper = 0; }   /* (WP25) */
     else if (!strncmp(line, "windowbox=", 10)) {
       long b[4] = { 0, 0, 0, 0 };
       if (sscanf(line + 10, "%ld,%ld,%ld,%ld", &b[0], &b[1], &b[2], &b[3]) == 4 && b[2] >= 100 && b[3] >= 60)
@@ -387,6 +399,7 @@ static void save_prefs(void)
   fprintf(f, "units=%d\nname=%s\ngrid=%d\ndarkpage=%d\ntheme=%s\n", tb.units, username, pref_grid, pref_darkpage, pref_dark ? "dark" : "light");
   if (pref_lang >= 0) fprintf(f, "language=%s\n", lang_code(pref_lang));
   fprintf(f, "textsize=%s\n", pref_large ? "large" : "normal");
+  if (wp25_paper) fprintf(f, "paper=%d\n", wp25_paper);         /* (WP25: the screen paper colour) */
   fprintf(f, "screen=%s\nwindow=%s\n", pub_screen, pref_win == WIN_LAST ? "last" : pref_win == WIN_FIXED ? "fixed" : "fill");
   if (pref_noaa) fprintf(f, "aatext=off\n");
   if (pref_nohint) fprintf(f, "hinting=off\n");
@@ -591,6 +604,8 @@ static LONG ticks(void)
   return ds.ds_Minute * 3000 + ds.ds_Tick;
 }
 static int win_find(const char *path);
+const char *wp23_opened(Doc *d, const char *path);    /* (WP23, wp_templates.c) */
+int wp13_style_dialog(int k, int newtype);             /* (WP13, wp_styles.c) */
 /* a document opened from a file: brought to the front if it is open already, else loaded into the
    untouched blank window or a new window of its own. Load errors are shown to the user */
 static void open_path(const char *path)
@@ -605,12 +620,17 @@ static void open_path(const char *path)
   t1 = ticks();
   set(app, MUIA_Application_Sleep, FALSE);
   if (!d) { char e2[400]; utf8_to_latin1(err, strlen(err), e2, sizeof e2); ask("OK", "%s", e2); return; }
-  if (doc_untouched()) {
-    /* the blank document Quill started with (or New made) and nobody typed in: the file takes its
-       window, as in Word */
-    strncpy(docpath, path, sizeof docpath - 1);
-    show_doc(d);
-  } else if (!win_new(d, path)) return;
+  {
+    /* (WP23) a template opens as a new, untitled document based on it; a document attached to one
+       whose styles it follows gets them */
+    const char *own = wp23_opened(d, path);
+    if (doc_untouched()) {
+      /* the blank document Quill started with (or New made) and nobody typed in: the file takes its
+         window, as in Word */
+      strncpy(docpath, own, sizeof docpath - 1);
+      show_doc(d);
+    } else if (!win_new(d, own)) return;
+  }
   add_recent(path);
   if (qlog) { fprintf(qlog, "opened %s: %lu paragraphs; read in %ld ticks, laid out and drawn in %ld (1/50 s)\n", path,
                       (unsigned long)d->np, (long)(t1 - t0), (long)(ticks() - t1)); fflush(qlog); }
@@ -1502,6 +1522,7 @@ void wp_latin1_utf8(const char *latin1, char *utf8, size_t cap) { latin1_utf8(la
 void wp_story_close(void) { if (doc->edit.kind) story_close(1); }
 void wp_refresh(void) { DoMethod(view, MUIM_Quill_Command, CMD_REFRESH, 0); }
 const char *wp_docpath(void) { return docpath; }     /* (WP29: the document's file, "" untitled) */
+Object *wp_workarea(void) { return workarea; }       /* (WP13: the docked Styles pane goes in here) */
 void wp_len_text(i32 tw, char *out) { tab_text(tw, out); }      /* (WP22a: lengths in the dialogs) */
 i32 wp_len_parse(const char *s) { return parse_len(s); }
 static Object *splitwin, *splitcols, *splitrows;
@@ -3228,11 +3249,12 @@ static void command(ULONG id)
   case ID_BORDERSDLG: open_borders(); break;
   case ID_BORDERSGO: borders_done(); break;
   case ID_STYLESPANE: open_styles(); break;
-  case ID_NEWSTYLE: open_style(-1, ST_PARA); break;
-  case ID_STYLELIST: open_style(-1, ST_CHAR); break;
+  /* (WP13: Word's Modify Style window, wp_styles.c; this file's own if it can't be made) */
+  case ID_NEWSTYLE: if (!wp13_style_dialog(-1, ST_PARA)) open_style(-1, ST_PARA); else wp_focus_kept = 1; break;
+  case ID_STYLELIST: if (!wp13_style_dialog(-1, ST_CHAR)) open_style(-1, ST_CHAR); else wp_focus_kept = 1; break;
   case ID_MODSTYLE: {
     int k = styleswin && styles_sel() >= 0 && (LONG)xget_open(styleswin) ? styles_sel() : (caret_pf() ? caret_pf()->style : 0);
-    open_style(k, 0);
+    if (!wp13_style_dialog(k, 0)) open_style(k, 0); else wp_focus_kept = 1;
     break; }
   case ID_STYLEGO: style_done(); break;
   case ID_STYLEAPPLY: { int k = styles_sel(); if (k >= 0) DoMethod(view, MUIM_Quill_Command, CMD_STYLE, (ULONG)k); break; }
@@ -3253,7 +3275,7 @@ static void command(ULONG id)
   case ID_SELPANE: open_selpane(); break;
   case ID_BOOKMARK: open_bookmarks(); break;
   case ID_BMADD: case ID_BMDEL: case ID_BMGO: case ID_BMPICK: bm_command(id); break;
-  case ID_XREF: open_xref(); break;
+  case ID_XREF: wp_focus_kept = wp_run(ID_WP2_FIRST, WPV_NONE) == WPR_KEEPFOCUS; break;   /* (WP2's Cross-reference window, its first id) */
   case ID_XRINS: xr_insert(); break;
   case ID_XRTYPE: xr_fill(); break;
   case ID_SELPANEPICK: selpane_pick(); break;
@@ -3319,7 +3341,7 @@ static void command(ULONG id)
   case ID_SAVEAS: save_as(0); break;
   case ID_SAVETXT: save_as(1); break;
   case ID_ABOUT:
-    ask("OK", "\33cQuill 0.14\n\n%s", tr("A word processor for the Amiga.\nReads and writes Word documents (.docx).\n\n"
+    ask("OK", "\33cQuill 0.15\n\n%s", tr("A word processor for the Amiga.\nReads and writes Word documents (.docx).\n\n"
               "Text is measured with the Liberation and Carlito/Caladea fonts\n(SIL Open Font License), so documents break\n"
               "their lines as they do in Word."));
     break;
@@ -3643,7 +3665,9 @@ static void ribbon_pick(ULONG id, LONG v)
   case ID_PASTESPECDD: case ID_PASTEDD: if (v >= 0 && v < 3) DoMethod(view, MUIM_Quill_Command, CMD_PASTEAS, (ULONG)v); else if (v >= 3) wp10_list_extra(id, v - 3); break;
   case ID_FINDDD: if (v >= 1) wp_focus_kept = wp_run(v == 1 ? ID_FX_GOTO : ID_FX_ADVFIND, WPV_NONE) == WPR_KEEPFOCUS; else open_find(); break;   /* (WP12) */
   case ID_HEADERDD: case ID_FOOTERDD: if (v == 1) remove_headfoot(id == ID_FOOTERDD); else edit_headfoot(id == ID_FOOTERDD, -1); break;
-  case ID_TOCDD: DoMethod(view, MUIM_Quill_Command, v == 1 ? CMD_TOCREMOVE : CMD_TOC, 0); break;
+  case ID_TOCDD:
+    if (v == 2) { wp_focus_kept = wp_run(ID_WP2_FIRST + 1, WPV_NONE) == WPR_KEEPFOCUS; break; }   /* (WP2: Custom Table of Contents) */
+    DoMethod(view, MUIM_Quill_Command, v == 1 ? CMD_TOCREMOVE : CMD_TOC, 0); break;
   case ID_ADDTEXTDD: add_text((int)v); break;
   case ID_FORWARDDD: DoMethod(view, MUIM_Quill_Command, CMD_RESTACK, (ULONG)(v == 1 ? 2 : 1)); selpane_fill(); break;
   case ID_BACKWARDDD: DoMethod(view, MUIM_Quill_Command, CMD_RESTACK, (ULONG)(LONG)(v == 1 ? -2 : -1)); selpane_fill(); break;
@@ -4343,6 +4367,7 @@ static void backstage_command(ULONG id)
     win_new(doc_template((int)v), "");
     break;
   case ID_RECENT:
+    if (v >= 0x1000) { remove_recent(v >= 0x2000 ? -1 : (int)(v - 0x1000)); break; }   /* (off the list: that one, or all) */
     backstage_show(0, 0);
     if (v >= 0 && v < nrecent) { char path[256]; strcpy(path, recent[v]); open_path(path); }
     break;
@@ -4691,6 +4716,7 @@ static void win_title_doc(Doc *d)
   for (i = 0; i < MAXWIN; i++) if (wins[i].used && wins[i].doc == d && i != curwin) win_title_slot(i);
 }
 /* (wp_windows.h) */
+void wp25_paper_save(void) { save_prefs(); }
 int wp_win_get(int slot, WpWin *o)
 {
   if (slot < 0 || slot >= MAXWIN || !wins[slot].used) return 0;
@@ -4867,6 +4893,8 @@ void wp_replace_doc(Doc *d, int changed)
   if (changed) { set(view, MUIA_Quill_Changed, TRUE); set_title(); }
 }
 const char *wp_username(void) { return username; }
+Object *wp_window_obj(int i) { return i < 0 || i >= MAXWIN || !wins[i].used ? NULL : i == curwin ? win : wins[i].win; }   /* (WP13) */
+void wp_backstage_hide(void) { if (back_shown) backstage_show(0, 0); }       /* (WP23: the File page put away) */
 int main(int argc, char **argv)
 {
   ULONG sigs = 0;
@@ -4911,7 +4939,7 @@ int main(int argc, char **argv)
   theme_set_dark(pref_dark);
   theme_set_large(pref_large);
   /* what Quill is doing, while it starts */
-  splash_open(pub_screen, "Quill 0.14");
+  splash_open(pub_screen, "Quill 0.15");
   splash_step(2, tr("Adding Quill's fonts drawer"));
   DiskfontBase = OpenLibrary((STRPTR)"diskfont.library", 39);
   add_fonts();
@@ -4996,7 +5024,7 @@ int main(int argc, char **argv)
              id == ID_TSTYLEDD || id == ID_PENSTYLE || id == ID_PENWIDTH || id == ID_PENCOLOR || id == ID_TBORDERSDD || id == ID_TSELECTDD ||
              id == ID_AUTOFITDD || id == ID_ROWH || id == ID_COLW || (id >= ID_SHAPESDD && id <= ID_OBJROTDD && id != ID_TEXTBOX) ||
              (id >= ID_PASTESPECDD && id <= ID_PSPACINGDD) || (id >= ID_PASTEDD && id <= ID_FINDDD) || (id >= ID_FORWARDDD && id <= ID_COVERDD) || (id >= ID_THEMEDD && id <= ID_PAGECOLORDD) || id == ID_UNDERLINEDD || wp_is_list(id) ||
-             id == ID_C_EFFECTS || id == ID_C_ULCOLOR || id == ID_C_SHADE || id == ID_P_BULLETLIB || id == ID_P_NUMLIB) ribbon_choice(id);   /* (WP9/WP10's lists in Quill's own groups) */
+             id == ID_C_EFFECTS || id == ID_C_ULCOLOR || id == ID_C_SHADE || id == ID_P_BULLETLIB || id == ID_P_NUMLIB || id == ID_P_PTOOLS) ribbon_choice(id);   /* (WP9/WP10's lists in Quill's own groups) */
     else if (id == ID_TITLE) set_title();
     else if (id == ID_OUTLINECHG) rebuild_nav(0);
     else if (id) {

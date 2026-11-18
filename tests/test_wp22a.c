@@ -7,6 +7,8 @@
 #include "../core/pages.h"
 #include "../core/hyph.h"
 #include "../core/pdf.h"
+#include "../core/fitpage.h"
+#include "../core/layout.h"
 
 /* a document of n paragraphs of words */
 static Doc *words_doc(int n, int words)
@@ -316,8 +318,134 @@ static void docx_tests(void)
   doc_free(e); doc_free(d);
 }
 
+/* Fit One Page (WordCraft #6433, core/fitpage.c) */
+static void fit_tests(void)
+{
+  Doc *d;
+  Pos c;
+  u32 b = 0, a = 0, n = 1, base;
+  int r;
+  /* one-line paragraphs until the text runs two lines onto a second page */
+  d = words_doc(1, 3);
+  c = doc_end_pos(d);
+  while (fit_pages(d, &fs) < 2 && n < 200) { doc_insert(d, &c, "\nlorem ipsum dolor", 18, NULL); n++; }
+  doc_insert(d, &c, "\nlorem ipsum dolor", 18, NULL);
+  base = d->p[0]->r[0].f.size;
+  r = fit_one_page(d, &fs, &b, &a);
+  ok("fit one page: two pages brought onto one", r == FIT_OK && b == 2 && a == 1 && fit_pages(d, &fs) == 1 && runs_sane(d));
+  ok("fit one page: text not under 8.5 points", d->p[0]->r[0].f.size >= 17 && d->p[0]->r[0].f.size <= base);
+  ok("fit one page: one undo step", doc_undo(d, &c) && fit_pages(d, &fs) == 2 && d->p[0]->r[0].f.size == base);
+  ok("fit one page: already one page", fit_one_page(d, &fs, NULL, NULL) == FIT_OK && fit_one_page(d, &fs, NULL, NULL) == FIT_ONEPAGE);
+  doc_undo(d, &c);
+  d->p[d->np - 1]->pf.pagebreak = 1; d->p[d->np - 1]->ver++;
+  ok("fit one page: a page break refuses", fit_one_page(d, &fs, NULL, NULL) == FIT_BREAKS);
+  d->p[d->np - 1]->pf.pagebreak = 0; d->p[d->np - 1]->ver++;
+  d->rvtrack = 1;
+  ok("fit one page: not while formatting is tracked", fit_one_page(d, &fs, NULL, NULL) == FIT_TRACKED);
+  d->rvtrack = 0;
+  doc_free(d);
+  /* a second page half full is too much to take back */
+  d = words_doc(1, 3);
+  c = doc_end_pos(d);
+  n = 1;
+  while (fit_pages(d, &fs) < 2 && n < 400) { doc_insert(d, &c, "\nlorem ipsum dolor", 18, NULL); n++; }
+  for (n = 0; n < 25; n++) doc_insert(d, &c, "\nlorem ipsum dolor", 18, NULL);
+  ok("fit one page: a full last page refuses", fit_one_page(d, &fs, NULL, NULL) == FIT_TOOFULL);
+  doc_free(d);
+}
+
+/* line numbers beside every column, in the Line Number style (WordCraft #6018) */
+static void linenum_col_tests(void)
+{
+  SectFmt s;
+  Doc *d = words_doc(30, 40);
+  Layout *L;
+  Style st;
+  CharFmt f;
+  u32 k, in1 = 0, in2 = 0;
+  i32 x2 = -1;
+  sect_default(&s);
+  s.cols = 2; s.linenum = LN_PAGE; s.lnby = 1;
+  last_sect(d, &s);
+  L = lay_new(d, &fs); lay_update(L);
+  for (k = 0; k < L->nplaced; k++) {
+    const Placed *pc = &L->placed[k];
+    if (pc->page) continue;
+    if (pc->x == 0 && pc->lnum) in1++;
+    else if (pc->x > 0 && pc->lnum) { in2++; x2 = pc->x; }
+  }
+  ok("line numbers: beside both columns, each left of its own column", in1 > 5 && in2 > 5 && x2 > 2000);
+  lay_free(L);
+  lay_lnum_fmt(d, &f);
+  ok("line numbers: Normal's look without a Line Number style", f.size == d->styles[0].cf.size);
+  memset(&st, 0, sizeof st);
+  st = d->styles[0];
+  strcpy(st.id, "Zeilennummer"); strcpy(st.name, "line number");
+  st.type = ST_CHAR; st.cf.size = 16; st.cf.color = 0x808080; st.cf.flags |= CF_BOLD;
+  doc_add_style(d, &st);
+  lay_lnum_fmt(d, &f);
+  ok("line numbers: a Line Number style saved under a localised id", f.size == 16 && f.color == 0x808080 && !(f.flags & CF_BOLD));
+  doc_free(d);
+}
+
+/* continuous sections one after another go onto new pages instead of running off the page; empty
+   section marks in a row stay on the page (WordCraft #3907) */
+static int on_pages(Layout *L)
+{
+  u32 k;
+  for (k = 0; k < L->nplaced; k++) {
+    const Placed *pc = &L->placed[k];
+    const PageSetup *pg = lay_page(L, pc->page);
+    if (pc->para < L->npl && pc->line < L->pl[pc->para].nlines && pc->y + L->pl[pc->para].lines[pc->line].height > pg->height - pg->bottom + 20) {
+      printf("  para %lu line %lu: y %ld past the bottom of page %lu\n", (unsigned long)pc->para, (unsigned long)pc->line, (long)pc->y, (unsigned long)pc->page);
+      return 0;
+    }
+  }
+  return 1;
+}
+static void contsect_tests(void)
+{
+  SectFmt s;
+  Doc *d = words_doc(80, 12);
+  Layout *L;
+  u32 i;
+  sect_default(&s);
+  s.start = SB_CONT;
+  for (i = 0; i + 1 < d->np; i++) end_sect(d, i, &s);
+  L = lay_new(d, &fs); lay_update(L);
+  ok("continuous sections: a run of them goes on to new pages, none off the page", L->npages >= 2 && on_pages(L));
+  lay_free(L);
+  doc_free(d);
+  /* two columns, continuous, many in a row */
+  d = words_doc(60, 30);
+  sect_default(&s);
+  s.start = SB_CONT; s.cols = 2;
+  for (i = 0; i + 1 < d->np; i += 3) end_sect(d, i, &s);
+  L = lay_new(d, &fs); lay_update(L);
+  ok("continuous sections: balanced two-column sections stay on their pages", L->npages >= 2 && on_pages(L));
+  lay_free(L);
+  doc_free(d);
+  /* empty marks in a row */
+  {
+    Doc *e = words_doc(1, 3);
+    Pos c = doc_end_pos(e);
+    for (i = 0; i < 120; i++) doc_insert(e, &c, "\n", 1, NULL);
+    doc_insert(e, &c, "after", 5, NULL);
+    sect_default(&s);
+    s.start = SB_CONT;
+    for (i = 1; i + 1 < e->np; i++) end_sect(e, i, &s);
+    L = lay_new(e, &fs); lay_update(L);
+    ok("continuous sections: empty marks in a row stay on the page", on_pages(L));
+    lay_free(L);
+    doc_free(e);
+  }
+}
+
 void test_wp22a(void)
 {
+  contsect_tests();
+  linenum_col_tests();
+  fit_tests();
   page_setup_tests();
   column_tests();
   valign_tests();

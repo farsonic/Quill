@@ -19,7 +19,11 @@ enum {
   ID_WW_RCOLOR0 = ID_WW_RCOL0 + 3,   /* .. + 2: page colours (none, sepia, inverse) */
   ID_WW_RSIZE0 = ID_WW_RCOLOR0 + 3,  /* .. + 3: text sizes (smaller, default, larger, largest) */
   ID_WW_RSPACE0 = ID_WW_RSIZE0 + 4,  /* .. + 1: line spacing (default, wider) */
-  ID_WW_LAST_ = ID_WW_RSPACE0 + 2
+  ID_WW_PAPER = ID_WW_RSPACE0 + 2,   /* the screen paper colour list (WordCraft #3398) */
+  ID_WW_PAPER0,                      /* .. + 3: document (white), soft green, warm cream, soft grey */
+  ID_WW_SBS = ID_WW_PAPER0 + 4,      /* View Side by Side (WordCraft #322) */
+  ID_WW_SYNC,                        /* Synchronous Scrolling */
+  ID_WW_LAST_
 };
 
 #define CMD_WW_BASE 0x57250000UL
@@ -30,6 +34,9 @@ enum {
   CMD_WW_INFO,                  /* arg: struct WwInfo *: filled in */
   CMD_WW_TWIN,                  /* arg: the other view in the same window (Split), NULL none */
   CMD_WW_PASSIVE,               /* arg 1: not the window's working pane (no keys, the tools left to the other), 0 it is */
+  CMD_WW_PAPER,                 /* the screen paper colour (wp25_paper) changed: the page's pens again */
+  CMD_WW_SYNC,                  /* arg: the view to scroll along with this one (Synchronous Scrolling), NULL none */
+  CMD_WW_SYNCBY,                /* arg: pixels the view it scrolls along with moved: this one moves as far */
   CMD_WW_END
 };
 #define IS_WW_CMD(c) ((c) >= CMD_WW_BASE && (c) < CMD_WW_END)
@@ -37,6 +44,11 @@ enum {
    2 inverse), text size (-1 smaller, 0 default, 1 larger, 2 largest), line spacing (0 default, 1 wider) */
 struct WwRead { int col, color, size, space; };
 struct WwInfo { int side, many, rows; struct WwRead rd; int passive; };
+/* the screen paper colour, on screen only, for every document without a page colour of its own: 0 white
+   (the document's), 1 soft green, 2 warm cream, 3 soft grey (WordCraft #3398; main.c keeps it in
+   Quill.prefs as paper=) */
+extern int wp25_paper;
+void wp25_paper_save(void);                 /* (main.c) Quill.prefs written again */
 /* (view.c, wp_windows_view.h) the state of the view the last WpCtx was made for; the view last
    clicked into of a window split in two */
 void wp25_view_info(struct WwInfo *wi);

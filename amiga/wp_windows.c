@@ -9,7 +9,9 @@
  * into is worked in), and the list of open windows (in the View menu and as Switch Windows on the
  * ribbon). Page movement Vertical or Side to Side, Multiple Pages with how many, a Zoom window, and
  * Read Mode's options (column width, page colour, text size, line spacing): wp_windows_view.h does
- * them in the page view.
+ * them in the page view. View Side by Side and Synchronous Scrolling (WordCraft #322), and the screen
+ * paper colour (WordCraft #3398: white, soft green, warm cream or soft grey behind the text on screen,
+ * kept in Quill.prefs).
  */
 #include <string.h>
 #include <stdio.h>
@@ -24,7 +26,7 @@
 #include "lang.h"
 
 /* state bits (wpon[WPI_25]): Vertical, Side to Side, the window split */
-enum { WS_VERTICAL = 1, WS_SIDE = 2, WS_SPLIT = 3 };
+enum { WS_VERTICAL = 1, WS_SIDE = 2, WS_SPLIT = 3, WS_SBS = 4, WS_SYNC = 5, WS_TWO = 6 };   /* (WS_TWO: two windows or more are open) */
 
 /* ---- lists */
 static char wtitles[WP_MAXWIN][72];               /* the open windows' names, for the menu and the ribbon */
@@ -41,6 +43,9 @@ static const char *const rsize_names[] = { "Smaller", "Default", "Larger", "Larg
 static const RibbonList rsize_list = { rsize_names, 4, PL_TEXT, NULL };
 static const char *const rspace_names[] = { "Default", "Wider" };
 static const RibbonList rspace_list = { rspace_names, 2, PL_TEXT, NULL };
+static const char *const paper_names[] = { "Document (White)", "Soft Green", "Warm Cream", "Soft Gray" };
+static const ULONG paper_cols[] = { 0xFFFFFF, 0xCCE8CF, 0xFAF0DC, 0xE8EAED };
+static const RibbonList paper_list = { paper_names, 4, PL_COLOR, paper_cols };
 
 /* icons (theme.c's icon language) */
 #define I_NEWWIN  "ci R 1 3 10 12 cw F 2 4 9 11 ca R 5 1 14 10 cw F 6 2 13 9 ca F 5 1 14 2"
@@ -55,6 +60,9 @@ static const RibbonList rspace_list = { rspace_names, 2, PL_TEXT, NULL };
 #define I_RCOLOR  "co F 2 2 13 13 ci R 2 2 13 13 L 4 5 11 5 L 4 8 11 8"
 #define I_RSIZE   "ci L 1 13 5 3 L 5 3 9 13 L 3 9 7 9 ca L 10 7 15 7 L 12 5 12 9"
 #define I_RSPACE  "ci L 4 3 13 3 L 4 8 13 8 L 4 13 13 13 ca L 1 4 1 12"
+#define I_SBS     "ci R 1 2 7 13 R 9 2 14 13 ca F 1 2 7 3 F 9 2 14 3"
+#define I_SYNC    "ci R 1 2 7 13 R 9 2 14 13 ca L 4 5 4 10 L 11 5 11 10 L 3 9 4 10 L 5 9 4 10 L 10 9 11 10 L 12 9 11 10"
+#define I_PAPER   "co F 3 1 12 14 ci R 3 1 12 14 L 5 4 10 4 L 5 7 10 7"
 
 static const Item movement[] = {
   { K_BUTTON, S_SMALL, 0, 0, "Vertical", ID_WW_VERTICAL, RB_WP(WPI_25, WS_VERTICAL), 0, 0, 0, "The pages run down the window", NULL, I_VERT },
@@ -67,17 +75,20 @@ static const Item window_items[] = {
   { K_BUTTON, S_SMALL, 0, 0, "Split", ID_WW_SPLIT, RB_WP(WPI_25, WS_SPLIT), 0, 0, 0, "Two panes on the document, to see two parts of it at once (again: one)", NULL, I_SPLIT },
   { K_DROP, S_SMALL, 0, 0, "Switch Windows", ID_WW_SWITCH, 0, 0, 0, 0, "Another open window to the front (Amiga-` cycles)", &wlist, I_SWITCH },
   { K_BUTTON, S_SMALL, 0, 0, "Zoom...", ID_WW_ZOOMDLG, 0, 0, F_NEWCOL, 0, "The Zoom window: a zoom, the page width, whole or many pages", NULL, I_ZOOM },
+  { K_BUTTON, S_SMALL, 0, 0, "Side by Side", ID_WW_SBS, RB_WP(WPI_25, WS_SBS), RB_WP(WPI_25, WS_TWO), 0, 0, "This window and the next side by side on the screen (again: back as they were)", NULL, I_SBS },
+  { K_BUTTON, S_SMALL, 0, 0, "Sync Scrolling", ID_WW_SYNC, RB_WP(WPI_25, WS_SYNC), RB_WP(WPI_25, WS_SBS), 0, 0, "The two windows side by side scroll together", NULL, I_SYNC },
 };
 static const Item read_items[] = {
   { K_DROP, S_SMALL, 0, 0, "Column Width", ID_WW_RCOL, 0, 0, 0, 0, "Read Mode's text in a narrow or wide column (Default: the pages)", &rcol_list, I_RCOL },
   { K_DROP, S_SMALL, 0, 0, "Page Color", ID_WW_RCOLOR, 0, 0, 0, 0, "Read Mode's page: white, sepia or inverse", &rcolor_list, I_RCOLOR },
   { K_DROP, S_SMALL, 0, 0, "Text Size", ID_WW_RSIZE, 0, 0, 0, 0, "Read Mode's text size in a column", &rsize_list, I_RSIZE },
   { K_DROP, S_SMALL, 0, 0, "Line Spacing", ID_WW_RSPACE, 0, 0, F_NEWCOL, 0, "Read Mode's lines further apart", &rspace_list, I_RSPACE },
+  { K_DROP, S_SMALL, 0, 0, "Screen Paper", ID_WW_PAPER, 0, 0, 0, 0, "The paper's colour on screen only, for every document (kept for next time)", &paper_list, I_PAPER },
 };
 static const WpGroup groups[] = {
   { TAB_VIEW, 1, { "Page Movement", G_COLS, movement, 3 } },
-  { TAB_VIEW, -1, { "Window", G_COLS, window_items, 5 } },
-  { TAB_VIEW, -1, { "Read Mode", G_COLS, read_items, 4 } },
+  { TAB_VIEW, -1, { "Window", G_COLS, window_items, 7 } },
+  { TAB_VIEW, -1, { "Read Mode", G_COLS, read_items, 5 } },
 };
 
 static const WpMenu menus[] = {
@@ -86,6 +97,8 @@ static const WpMenu menus[] = {
   { WM_VIEW, { NM_SUB, (STRPTR)"New Window", 0, 0, 0, (APTR)ID_WW_NEWWIN } },
   { WM_VIEW, { NM_SUB, (STRPTR)"Arrange All", 0, 0, 0, (APTR)ID_WW_ARRANGE } },
   { WM_VIEW, { NM_SUB, (STRPTR)"Split", 0, 0, 0, (APTR)ID_WW_SPLIT } },
+  { WM_VIEW, { NM_SUB, (STRPTR)"View Side by Side", 0, 0, 0, (APTR)ID_WW_SBS } },
+  { WM_VIEW, { NM_SUB, (STRPTR)"Synchronous Scrolling", 0, 0, 0, (APTR)ID_WW_SYNC } },
   { WM_VIEW, { NM_SUB, NM_BARLABEL, 0, 0, 0, 0 } },
   { WM_VIEW, { NM_SUB, (STRPTR)"1", 0, CHECKIT, 0, (APTR)(ID_WW_WIN0 + 0) } },
   { WM_VIEW, { NM_SUB, (STRPTR)"2", 0, CHECKIT, 0, (APTR)(ID_WW_WIN0 + 1) } },
@@ -123,6 +136,11 @@ static const WpMenu menus[] = {
   { WM_VIEW, { NM_SUB, NM_BARLABEL, 0, 0, 0, 0 } },
   { WM_VIEW, { NM_SUB, (STRPTR)"Line Spacing: Default", 0, 0, 0, (APTR)(ID_WW_RSPACE0 + 0) } },
   { WM_VIEW, { NM_SUB, (STRPTR)"Line Spacing: Wider", 0, 0, 0, (APTR)(ID_WW_RSPACE0 + 1) } },
+  { WM_VIEW, { NM_ITEM, (STRPTR)"Screen Paper Color", 0, 0, 0, 0 } },
+  { WM_VIEW, { NM_SUB, (STRPTR)"Document (White)", 0, 0, 0, (APTR)(ID_WW_PAPER0 + 0) } },
+  { WM_VIEW, { NM_SUB, (STRPTR)"Soft Green", 0, 0, 0, (APTR)(ID_WW_PAPER0 + 1) } },
+  { WM_VIEW, { NM_SUB, (STRPTR)"Warm Cream", 0, 0, 0, (APTR)(ID_WW_PAPER0 + 2) } },
+  { WM_VIEW, { NM_SUB, (STRPTR)"Soft Gray", 0, 0, 0, (APTR)(ID_WW_PAPER0 + 3) } },
 };
 
 static void vcmd(ULONG c, LONG arg) { if (wp_view()) DoMethod(wp_view(), MUIM_Quill_Command, c, (ULONG)arg); }
@@ -203,6 +221,61 @@ static void arrange_all(void)
   }
 }
 
+/* ---- View Side by Side and Synchronous Scrolling (WordCraft #322): the window worked in and the next one
+   open, each half the screen; again, both go back where they were */
+static Object *sbs_win[2], *sbs_view[2];
+static LONG sbs_box[2][4];
+static int sbs_sync;
+static void sync_set(int on)
+{
+  sbs_sync = on && sbs_win[0];
+  if (sbs_view[0]) DoMethod(sbs_view[0], MUIM_Quill_Command, CMD_WW_SYNC, (ULONG)(sbs_sync ? sbs_view[1] : NULL));
+  if (sbs_view[1]) DoMethod(sbs_view[1], MUIM_Quill_Command, CMD_WW_SYNC, (ULONG)(sbs_sync ? sbs_view[0] : NULL));
+}
+static void sbs_toggle(void)
+{
+  WpWin w[WP_MAXWIN];
+  int slot, n = 0, k, cur = -1;
+  struct Window *x[2] = { NULL, NULL };
+  struct Screen *scr;
+  LONG top, sw, sh;
+  if (sbs_win[0]) {
+    sync_set(0);
+    for (k = 0; k < 2; k++) {
+      struct Window *iw = NULL;
+      get(sbs_win[k], MUIA_Window_Window, &iw);
+      if (iw) ChangeWindowBox(iw, sbs_box[k][0], sbs_box[k][1], sbs_box[k][2], sbs_box[k][3]);
+    }
+    sbs_win[0] = sbs_win[1] = sbs_view[0] = sbs_view[1] = NULL;
+    return;
+  }
+  for (slot = 0; slot < WP_MAXWIN; slot++) if (wp_win_get(slot, &w[n])) { if (w[n].current) cur = n; n++; }
+  if (n < 2) { wp_ask("OK", "Open another window first (View > New Window, or another document).", NULL); return; }
+  if (cur < 0) cur = 0;
+  sbs_win[0] = w[cur].win; sbs_view[0] = w[cur].view;
+  sbs_win[1] = w[(cur + 1) % n].win; sbs_view[1] = w[(cur + 1) % n].view;
+  for (k = 0; k < 2; k++) get(sbs_win[k], MUIA_Window_Window, &x[k]);
+  if (!x[0] || !x[1] || !(scr = x[0]->WScreen)) { sbs_win[0] = sbs_win[1] = sbs_view[0] = sbs_view[1] = NULL; return; }
+  top = scr->BarHeight + 1;
+  sw = scr->Width; sh = scr->Height - top;
+  for (k = 0; k < 2; k++) {
+    LONG cw = sw / 2, l = k * (sw / 2);
+    sbs_box[k][0] = x[k]->LeftEdge; sbs_box[k][1] = x[k]->TopEdge; sbs_box[k][2] = x[k]->Width; sbs_box[k][3] = x[k]->Height;
+    if (cw < x[k]->MinWidth) cw = x[k]->MinWidth;
+    if (l + cw > sw) l = sw - cw;
+    if (l < 0) l = 0;
+    ChangeWindowBox(x[k], l, top, cw, sh < x[k]->MinHeight ? x[k]->MinHeight : sh);
+  }
+}
+/* (from wp25_window_gone) a window side by side closed: the other stays where it is, scrolling alone */
+static void sbs_gone(Object *win)
+{
+  if (!sbs_win[0] || (win != sbs_win[0] && win != sbs_win[1])) return;
+  if (win == sbs_win[0]) sbs_view[0] = NULL; else sbs_view[1] = NULL;
+  sync_set(0);
+  sbs_win[0] = sbs_win[1] = sbs_view[0] = sbs_view[1] = NULL;
+}
+
 /* ---- Split: a second pane (its own view and scroll bar) over the window's own, a balance between */
 typedef struct {
   Object *win, *mainview, *grp, *bal, *view2, *sc2;
@@ -218,6 +291,7 @@ static Split *split_of(Object *win)
 void wp25_window_gone(Object *win)
 {
   Split *s = split_of(win);
+  sbs_gone(win);
   if (s) memset(s, 0, sizeof *s);
 }
 /* the children of group g in order (at most max), how many */
@@ -376,6 +450,19 @@ static void read_option(int which, int v)
   wp_view_mode_changed();
 }
 
+/* the screen paper colour for every view (each window's, and a split window's other pane) */
+static void paper_set(int k)
+{
+  WpWin w;
+  int slot, i;
+  wp25_paper = k;
+  for (slot = 0; slot < WP_MAXWIN; slot++) if (wp_win_get(slot, &w) && w.view) DoMethod(w.view, MUIM_Quill_Command, CMD_WW_PAPER, 0);
+  for (i = 0; i < WP_MAXWIN; i++) {
+    if (splits[i].win && splits[i].view2) DoMethod(splits[i].view2, MUIM_Quill_Command, CMD_WW_PAPER, 0);
+    if (splits[i].win && splits[i].mainview) DoMethod(splits[i].mainview, MUIM_Quill_Command, CMD_WW_PAPER, 0);
+  }
+  wp25_paper_save();
+}
 /* every command of the package's id block, from a menu, the ribbon, a key or a dialog (value: the
    list entry chosen, or WPV_NONE) */
 int wp25_command(ULONG id, LONG value)
@@ -405,6 +492,12 @@ int wp25_command(ULONG id, LONG value)
   case ID_WW_RCOLOR: if (value >= 0 && value < 3) read_option(1, (int)value); break;
   case ID_WW_RSIZE: if (value >= 0 && value < 4) read_option(2, (int)value); break;
   case ID_WW_RSPACE: if (value >= 0 && value < 2) read_option(3, (int)value); break;
+  case ID_WW_PAPER: if (value >= 0 && value < 4) paper_set((int)value); break;
+  case ID_WW_SBS: sbs_toggle(); break;
+  case ID_WW_SYNC:
+    if (!sbs_win[0]) { wp_ask("OK", "Turn on View Side by Side first.", NULL); break; }
+    sync_set(!sbs_sync);
+    break;
   default:
     if (id >= ID_WW_WIN0 && id < ID_WW_WIN0 + WP_MAXWIN) switch_to((int)(id - ID_WW_WIN0));
     else if (id >= ID_WW_MANY0 && id < ID_WW_MANY0 + 6) return wp25_command(ID_WW_MANY, (LONG)(id - ID_WW_MANY0));
@@ -412,6 +505,7 @@ int wp25_command(ULONG id, LONG value)
     else if (id >= ID_WW_RCOLOR0 && id < ID_WW_RCOLOR0 + 3) read_option(1, (int)(id - ID_WW_RCOLOR0));
     else if (id >= ID_WW_RSIZE0 && id < ID_WW_RSIZE0 + 4) read_option(2, (int)(id - ID_WW_RSIZE0));
     else if (id >= ID_WW_RSPACE0 && id < ID_WW_RSPACE0 + 2) read_option(3, (int)(id - ID_WW_RSPACE0));
+    else if (id >= ID_WW_PAPER0 && id < ID_WW_PAPER0 + 4) paper_set((int)(id - ID_WW_PAPER0));
     break;
   }
   wp_refresh();
@@ -426,6 +520,9 @@ static void state(ULONG *on, const WpCtx *c)
   wp25_view_info(&wi);
   *on |= RBIT(wi.side ? WS_SIDE : WS_VERTICAL);
   if (split_of(wp_win())) *on |= RBIT(WS_SPLIT);
+  if (sbs_win[0]) *on |= RBIT(WS_SBS);
+  if (sbs_sync) *on |= RBIT(WS_SYNC);
+  if (wlist.n > 1) *on |= RBIT(WS_TWO);
   (void)c;
 }
 /* the right-button menu in Read Mode: its options */

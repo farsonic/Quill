@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "objfx.h"
+#include "wordart.h"   /* (WP19) */
 #include "xml.h"
 #include "image.h"
 
@@ -321,9 +322,11 @@ void objfx_write_bodypr(Buf *o, const Image *im)
 {
   static const char *const verts[3] = { "horz", "vert", "vert270" }, *const anchors[3] = { "t", "ctr", "b" };
   const ObjFx *f = &im->fx;
-  buf_printf(o, "<wps:bodyPr rot=\"0\" vert=\"%s\" wrap=\"square\" lIns=\"%ld\" tIns=\"%ld\" rIns=\"%ld\" bIns=\"%ld\" anchor=\"%s\" anchorCtr=\"0\"><a:noAutofit/></wps:bodyPr>",
+  buf_printf(o, "<wps:bodyPr rot=\"0\" vert=\"%s\" wrap=\"square\" lIns=\"%ld\" tIns=\"%ld\" rIns=\"%ld\" bIns=\"%ld\" anchor=\"%s\" anchorCtr=\"0\">",
              verts[f->vert < 3 ? f->vert : 0], (long)tb_inset(im, 0) * 635, (long)tb_inset(im, 1) * 635, (long)tb_inset(im, 2) * 635, (long)tb_inset(im, 3) * 635,
              anchors[f->anchor < 3 ? f->anchor : 0]);
+  wa_write_warp(o, im);     /* (WP19) WordArt's Transform */
+  buf_adds(o, "<a:noAutofit/></wps:bodyPr>");
 }
 int objfx_linked_follower(const Image *im) { return im->fx.link && im->fx.seq; }
 void objfx_write_linked(Buf *o, const Image *im) { buf_printf(o, "<wps:linkedTxbx id=\"%u\" seq=\"%u\"/>", (unsigned)im->fx.link, (unsigned)im->fx.seq); }

@@ -1,0 +1,16 @@
+name: Feature request
+description: Something Quill should do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you would like
+      description: What you want to do, and how you would expect it to work (Word or WordCraft equivalents help).
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: What it would let you do that you can't now.

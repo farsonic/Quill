@@ -204,6 +204,10 @@ void lay_roman(u32 n, char *out);    /* lower case: i, ii, iii, iv...; out at le
    a field showing its code (WP1, core/field.h): the code. out: LAY_FIELD_TEXT bytes */
 #define LAY_FIELD_TEXT 160
 void lay_field_text(Layout *L, const Para *p, const Box *b, u32 page, char *out);    /* page from 0 */
+/* the look of the line numbers beside the lines: the document's "Line Number" character style (by its
+   id LineNumber, or its built-in name "line number" as Word in other languages saves it under a
+   localised id), else the Normal style's; never bold, italic, underlined or struck, never a change */
+void lay_lnum_fmt(const Doc *d, CharFmt *f);
 void lay_free(Layout *L);           /* L and everything it holds (not its Doc or FontSet) */
 /* bring the layout up to date with the document; 0 if out of memory (the layout then stays usable,
    complete as far as there was room) */

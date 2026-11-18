@@ -30,6 +30,9 @@ typedef struct {
   i16 position;             /* raised (lowered if negative), half-points */
   u16 link;                 /* a hyperlink: Doc.links index + 1 (0: not a link) */
   u16 bmark;                /* in a bookmark: Doc.bmarks index + 1 (0: none) */
+  /* (work packages: new fields at the end) */
+  u8  thfont;               /* (WP13) font is the theme's (THF_MAJOR, THF_MINOR; core/doctheme.h), 0 not */
+  u32 thcolor;              /* (WP13) color is a theme colour (a THR_ reference, core/doctheme.h), 0 not */
   /* (work packages: new fields go below, at the end) */
   /* WP9 character formatting: */
   u16 fx2;                  /* FX2_ effects and the enclosure (FX2_ENCLOSE bits) */
@@ -110,6 +113,7 @@ typedef struct {
   i16 rowh;                 /* row height: > 0 at least, < 0 exactly, 0 automatic */
   u32 shade;                /* fill 0xRRGGBB, or COLOR_AUTO */
   u32 bcolor[4];            /* 0xRRGGBB or COLOR_AUTO; 0 (black) is also what a zeroed cell has */
+  u32 thshade;              /* (WP13) shade is a theme colour (THR_ reference, core/doctheme.h), 0 not */
   /* WP21b: */
   u8  tdir;                 /* which way its text runs: TD_ (w:textDirection) */
   u8  marset;               /* which of its own margins it has (1 << E_ edge; else the table's) */
@@ -200,6 +204,9 @@ typedef struct {
   u32 shade;                /* the paragraph's fill: 0 none, else HL_ON | 0xRRGGBB */
   Cell cell;                /* the (innermost) table cell it is in */
   Cell outer;               /* a table inside a table cell: the outer table's cell (table 0: not nested) */
+  /* (work packages: new fields at the end) */
+  u32 thshade;              /* (WP13) shade is a theme colour (THR_ reference, core/doctheme.h), 0 not */
+  u32 thbcolor[5];          /* (WP13) and each border's colour */
   u16 prev;                 /* WP5: a tracked paragraph formatting change (w:pPrChange): Doc.frevs index + 1, 0 none */
   u8 outlvl;                /* (WP11) its outline level: 1-9, 0 body text (w:outlineLvl 0-8, 9); "heading N" styles have N */
   u8 bidi;                  /* (WP27) a right-to-left paragraph (w:bidi): its indents and alignment from the right */
@@ -252,6 +259,29 @@ typedef struct Para {
   u32 ver;                  /* bumped by every change: layout caches key on (pointer, ver) */
 } Para;
 
+/* (WP13) what else a style says in Word's files: its linked style (a paragraph style and a character
+   style shown as one), where it comes in the recommended order, whether it is hidden, its aliases,
+   its language, a frame round its paragraphs and the keys that apply it */
+enum { SXF_SEMIHIDDEN = 1, SXF_UNHIDE = 2, SXF_LOCKED = 4, SXF_AUTOREDEFINE = 8, SXF_HIDDEN = 16, SXF_PERSONAL = 32 };
+typedef struct {
+  u8  set;                  /* the frame is given (w:framePr in the style) */
+  u8  wrap;                 /* 0 auto, 1 around, 2 none (top and bottom), 3 tight, 4 through, 5 not beside */
+  u8  hanchor, vanchor;     /* 0 text (margin for horizontal), 1 margin, 2 page */
+  u8  xalign, yalign;       /* 0 none (x, y count), 1 left/top, 2 centre, 3 right/bottom, 4 inside, 5 outside */
+  i32 w, h;                 /* twips (0 auto); h < 0 exactly -h */
+  i32 x, y;                 /* twips from the anchor */
+  i32 hspace, vspace;       /* distance from the text round it */
+} StyleFrame;
+typedef struct {
+  u8  link;                 /* the linked style: Doc.styles index + 1, 0 none */
+  u8  priority;             /* w:uiPriority + 1 (0: not given) */
+  u8  flags;                /* SXF_ */
+  u16 key;                  /* the shortcut key as Word's wne:kcmPrimary (modifiers << 8 | key code), 0 none */
+  char lang[12];            /* (unused: a style's language is WP31's CharFmt.lang in its formatting) */
+  char aliases[48];         /* other names (w:aliases, UTF-8), "" none */
+  StyleFrame frame;
+} StyleX;
+
 /* styles: paragraph styles (a paragraph's formatting and its text's) and character styles (some of
    the text's formatting). A style is based on another and sets some things itself (pmask, cmask);
    pf and cf are what it comes to. A deleted style keeps its place (ST_GONE): paragraphs and undo
@@ -272,6 +302,8 @@ typedef struct {
   ParaFmt pf;               /* effective formatting (inheritance resolved) */
   CharFmt cf;
   unsigned ecmask;          /* a character style: everything it and those it is based on set */
+  /* (work packages: new fields at the end) */
+  StyleX x;                 /* (WP13) Word's other style settings (doc_set_style copies them whole) */
 } Style;
 
 typedef struct {
@@ -453,6 +485,7 @@ typedef struct {
   u16 icon;                 /* SHX_ICON: which icon of objicons.c, from 1 */
   char *raw;                /* a picture's a14:imgProps kept as read (effects drawn into the picture already), or NULL */
 } ObjFx;
+struct SigLine;
 typedef struct DocImage {
   u8 *data; u32 len;        /* the file as it came (PNG or JPEG); shapes and text boxes: none */
   u8 shared;                /* data belongs to an earlier entry (a copy made by changing the object) */
@@ -490,7 +523,11 @@ typedef struct DocImage {
   struct Freeform *ff;      /* a freeform shape's or ink stroke's paths (Image.shape SH_FREEFORM), shared between copies (counted); NULL none */
   u8 canvas;                /* CANVAS_GROUP: a drawing canvas (a group, wpc:wpc); CANVAS_BG: its background, its first object */
   u8 decorative;            /* (WP24) marked decorative: a screen reader passes over it (Word's adec:decorative) */
+  u32 thfill, thline;       /* (WP13) fill and outline are theme colours (THR_ references, core/doctheme.h), 0 not */
   ObjFx fx;                 /* WP17/WP18: adjustments, fills, effects, text settings */
+  /* WP19: */
+  u8 warp;                  /* WordArt's Transform: the text bent (core/wordart.h's table of a:prstTxWarp names), 0 none */
+  struct SigLine *sig;      /* a signature line's setup (core/wordart.h), its picture Quill's drawing of it; NULL for others */
 } Image;
 /* an object copied (dst a new entry): its text, objects and outline copied; its picture shared (it
    stays with the entry that brought it), or with own, copied too. 0 if out of memory (dst then holds
@@ -594,6 +631,13 @@ typedef struct Doc {
   NotePr fnpr, enpr;        /* (WP22b) the document's footnote and endnote options (settings.xml) */
   struct NoteSeps *nseps;   /* (WP22b) the document's own note separators (core/notes.h), NULL: Word's */
   struct DocInfo *info;     /* (WP24) the document's properties (core/info.h), NULL: none read or set */
+  struct DocTheme *theme;   /* (WP13) the document's Office theme (core/doctheme.h), NULL: Office's own */
+  u16 spfilter;             /* (WP13) the Styles pane's choices kept in the file (w:stylePaneFormatFilter), 0 none */
+  u8 spsort;                /* (WP13) and its order (w:stylePaneSortMethod: SPS_, core/doctheme.h), 0 none */
+  u8 tplkind;               /* (WP23) a template: 1 .dotx, 2 .dotm (core/blocks.h), 0 a document */
+  u8 linkstyles;            /* (WP23) styles brought up to date from the attached template on opening (w:linkStyles) */
+  char *attached;           /* (WP23) the attached template's file (w:attachedTemplate), malloc'd UTF-8, NULL none */
+  struct Glossary *gloss;   /* (WP23) its building blocks (the glossary document, core/blocks.h), NULL none */
   /* WP14a: equations (core/math.h): the entries the text's references name (only ever added to), and
      settings.xml's m:mathPr kept verbatim */
   struct MathEq **maths; int nmaths, mathcap;
@@ -612,11 +656,25 @@ typedef struct Doc {
   struct Field *fields; int nfields;
   u8 fieldcodes;
   struct FieldInfo *finfo;
+  /* WP4 mail merge (core/merge.h): the main document's settings and its recipients, NULL: not one */
+  struct MergeInfo *merge;
+  /* WP3 citations (core/cite.h): the document's sources (its current list) and their customXml part */
+  struct CiteDoc *cite;
+  /* WP2 (core/refs.h): the caption labels, AutoCaption and the authorities' categories (settings.xml w:captions) */
+  struct RefsInfo *refs;
   /* WP27 (core/intl.h): phonetic guides (only added to), the last section's own grid and direction are
      in its SectFmt as the others; East Asian line breaking settings of settings.xml */
   struct Ruby *rubies; int nrubies;
   struct IntlSettings *intl;
 } Doc;
+/* (WP13) styles (and the document's defaults, Doc.defpf and defcf) changed by edit(d, arg) as one undo
+   step: every style's effective formatting worked out again and the text that had a style's look
+   given its new one, as doc_set_style does (the defaults themselves are not in the undo history).
+   0 if out of memory */
+int  doc_restyle(Doc *d, void (*edit)(Doc *, void *), void *arg);
+/* (WP13, WP23) what their Doc fields hold freed (doc_free calls them) */
+void theme_free(Doc *d);
+void blocks_free(Doc *d);
 
 /* a new document with Quill's built-in styles and one empty paragraph; NULL if out of memory */
 Doc  *doc_new(void);
@@ -761,6 +819,7 @@ int   para_append(Para *p, const char *s, u32 n, const CharFmt *f);   /* 0 if ou
 CharFmt *para_fmt_at(Para *p, u32 off);          /* the formatting a character at off has */
 CharFmt *para_fmt_before(Para *p, u32 off);      /* what typing at off continues (the run before it) */
 void  para_normalise(Para *p);                   /* merge equal neighbouring runs, drop empty ones */
+void  para_touch(Para *p);                       /* (WP13) changed behind the editing functions' back: a fresh version for the layout */
 void  cf_apply(CharFmt *c, unsigned mask, const CharFmt *v);   /* the fields mask names, from v */
 void  pf_apply(ParaFmt *p, unsigned mask, const ParaFmt *v);   /* the groups mask names (PM_), from v */
 int   doc_insert_para(Doc *d, u32 at, Para *p);  /* takes ownership; 0 if out of memory */
