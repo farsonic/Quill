@@ -9,7 +9,8 @@ cd "$(dirname "$0")"
 # every core/*.c and every package's tests/test_wp*.c (a work package's new files need no line here)
 CORE=$(echo core/*.c)
 cc -std=c99 -O1 -g -Wall -Wextra -Wno-unused-parameter -fsanitize=address,undefined $CORE tests/coretest.c tests/test_wp*.c -o /tmp/quill_coretest_$(basename "$(pwd)")
-/tmp/quill_coretest_$(basename "$(pwd)") | tail -3
+/tmp/quill_coretest_$(basename "$(pwd)") > /tmp/quill_coretest_$(basename "$(pwd)").txt || { cat /tmp/quill_coretest_$(basename "$(pwd)").txt; echo "native tests failed"; exit 1; }
+tail -3 /tmp/quill_coretest_$(basename "$(pwd)").txt
 if [ -f amiga/main.c ]; then
   vc +aos68k -c99 -O2 -cpu=68040 -I. -I"$MUI" -I"$NDK" amiga/*.c amiga/hook.s $CORE -o Quill -lamiga
 fi

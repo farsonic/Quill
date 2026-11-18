@@ -12,4 +12,5 @@ jobs:
       - name: Build the native tests
         run: cc -std=c99 -O1 -g -Wall -Wextra -Wno-unused-parameter -fsanitize=address,undefined core/*.c tests/coretest.c tests/test_wp*.c -o quill_coretest
       - name: Run them
+        shell: bash   # bash -eo pipefail: a failing test fails the step (a plain pipe into tail hid it)
         run: ./quill_coretest | tail -5
