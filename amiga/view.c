@@ -42,6 +42,7 @@
 #include "wp_math.h"     /* WP14a: equations */
 #include "../core/math.h"
 #include "../core/spell.h"
+#include "../core/merge.h"     /* (WP4) */
 #include "../core/field.h"
 #include "../core/pages.h"
 #include "../core/review.h"
@@ -1330,6 +1331,22 @@ static void field_shade(struct Data *d, Object *obj, struct RastPort *rp, ParaLa
     if (in) RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1);
   }
 }
+/* WP4: Highlight Merge Fields: the merge fields' results on grey (core/merge.h) */
+static void merge_shade(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Line *ln, LONG lx, LONG top)
+{
+  int stack[16], n = 0, i, in;
+  u32 k;
+  for (k = pl->lines[0].box0; k < ln->box0 + ln->nbox && k < pl->nboxes; k++) {
+    Box *b = &pl->boxes[k];
+    if ((b->kind == BX_MARK || b->kind == BX_FIELD) && b->off + 4 <= pl->p->len && IS_FMARK(pl->p->t + b->off)) {
+      if (IS_FSTART(pl->p->t + b->off)) { if (n < 16) stack[n] = fmark_index(pl->p->t + b->off); n++; } else if (n > 0) n--;
+      continue;
+    }
+    if (k < ln->box0 || b->w <= 0 || b->kind == BX_FIELD) continue;
+    for (i = 0, in = 0; i < n && i < 16 && !in; i++) in = merge_is_field_k(d->doc, stack[i]);
+    if (in) { SetAPen(rp, pen_bg(d, obj, 0xC8C8C8)); RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1); }
+  }
+}
 /* WP14a: equations' colours as pens (for wp14a_draw) */
 static struct Data *mpen_d; static Object *mpen_obj;
 static LONG math_pen(ULONG rgb) { return pen_for(mpen_d, mpen_obj, rgb); }
@@ -1418,6 +1435,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     }
   }
   if (doc->nfields && field_shading != FS_NEVER) field_shade(d, obj, rp, pl, pc, ln, lx, top);     /* fields on grey (WP1) */
+  if (doc->nfields && doc->merge && doc->merge->highlight) merge_shade(d, obj, rp, pl, ln, lx, top);   /* (WP4) */
   /* highlighting behind the text (not trailing spaces); page fields on grey, as Word shades fields */
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *b = &pl->boxes[k];

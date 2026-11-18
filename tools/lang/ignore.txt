@@ -1,6 +1,23 @@
 # tools/lang/ignore.txt - string literals in the Amiga source that are not interface words (one a line,
 # as the C source means them), for tools/langcheck.py
 Quill
+ ASK 
+ FILLIN 
+ IF "{ MERGEFIELD 
+ MERGEFIELD %s 
+ MERGEREC 
+ MERGESEQ 
+ NEXT 
+ NEXTIF "{ MERGEFIELD 
+ SET 
+ SKIPIF "{ MERGEFIELD 
+,BAR
+Sheet1$
+ci R 1 2 14 13 ca B ABC
+United Kingdom
+Dear
+To
+Dear Sir or Madam,
 # (WP13, WP23) language codes, file names, formats and defaults that aren't words
 en-US
 en-GB

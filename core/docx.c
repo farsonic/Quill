@@ -12,6 +12,7 @@
 #include "image.h"
 #include "tstyle.h"
 #include "keep.h"
+#include "merge.h"           /* (WP4) */
 #include "doctheme.h"   /* (WP13) */
 #include "blocks.h"     /* (WP23) */
 #include "field.h"
@@ -3253,6 +3254,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
   /* WP2: */
   /* WP3: */
   /* WP4: */
+  merge_read_setting(c->d, x);
   /* WP5: */
   wp5_read_setting(c, x);
   /* WP7: */
@@ -3451,6 +3453,7 @@ static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_
   /* WP2: */
   /* WP3: */
   /* WP4: */
+  merge_read_parts(c->d, z);
   /* WP5: */
   wp5_read_parts(c, z, docrels, rn, base);
   /* WP7: */
@@ -5047,6 +5050,7 @@ static void mark_media(Doc *d, Para **pp, u32 np)
 /* the parts, content types and relationships the hooks add, written by docx_save */
 struct DocxOut {
   Buf ct, pkgrels, docrels;             /* <Override .../> and <Relationship .../> entries */
+  Buf setrels;                          /* word/_rels/settings.xml.rels' entries (WP23 and WP4 share it) */
   struct { char *name; u8 *data; size_t len; } *parts;
   int nparts, oom;
 };
@@ -5077,6 +5081,30 @@ int docx_out_part(DocxOut *o, const char *name, const char *ctype, const char *o
     buf_adds(r, owner[0] && tg == name ? "\" Target=\"/" : "\" Target=\""); xml_escape(r, tg, strlen(tg)); buf_adds(r, "\"/>");
   }
   return 1;
+}
+int docx_out_settings_rel(DocxOut *o, const char *relid, const char *reltype, const char *target, int external)
+{
+  Buf *r = &o->setrels;
+  buf_adds(r, "<Relationship Id=\""); xml_escape(r, relid, strlen(relid));
+  buf_adds(r, "\" Type=\""); xml_escape(r, reltype, strlen(reltype));
+  buf_adds(r, "\" Target=\""); xml_escape(r, target, strlen(target));
+  buf_adds(r, external ? "\" TargetMode=\"External\"/>" : "\"/>");
+  if (r->oom) o->oom = 1;
+  return !r->oom;
+}
+/* word/_rels/settings.xml.rels from what the hooks gave docx_out_settings_rel */
+static void write_settings_rels(DocxOut *o)
+{
+  Buf b;
+  if (!o->setrels.len) return;
+  buf_init(&b);
+  buf_adds(&b, "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n"
+               "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">");
+  buf_add(&b, o->setrels.data, o->setrels.len);
+  buf_adds(&b, "</Relationships>");
+  if (b.oom) o->oom = 1;
+  else docx_out_part(o, "word/_rels/settings.xml.rels", NULL, NULL, NULL, NULL, b.data, b.len);
+  buf_free(&b);
 }
 /* (WP24) docProps/app.xml and (with custom properties) docProps/custom.xml */
 static void write_info_parts(Doc *d, DocxOut *o)
@@ -5113,9 +5141,8 @@ static void write_theme_parts(Doc *d, DocxOut *o)
 /* (WP23) settings.xml's relationship to the attached template */
 static void write_template_parts(Doc *d, DocxOut *o)
 {
-  size_t n;
-  char *x = blocks_settings_rels(d, &n);
-  if (x) { docx_out_part(o, "word/_rels/settings.xml.rels", NULL, NULL, NULL, NULL, x, n); free(x); }
+  if (d->attached && d->attached[0])
+    docx_out_settings_rel(o, "rIdStTpl", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate", d->attached, 1);
 }
 /* ---- WP5: commentsExtended.xml (replies, Resolve), commentsIds.xml (durable ids), commentsExtensible.xml
    (times in UTC) for the comments saved, and people.xml (the authors of comments and changes; those
@@ -5316,6 +5343,7 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
   /* WP2: */
   /* WP3: */
   /* WP4: */
+  merge_write_parts(d, o);
   /* WP5: */
   wp5_write_parts(d, o);
   /* WP7: */
@@ -5355,10 +5383,15 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
 static void docx_write_settings_ext(Doc *d, Buf *b, int where)
 {
   (void)d; (void)b; (void)where;
+  /* (WP23, WP4, then WP5 and WP7: in slot 1 the schema has w:attachedTemplate ... w:stylePaneSortMethod,
+     w:mailMerge, w:revisionView, w:trackRevisions, w:documentProtection in that order) */
+  /* WP23: */
+  if (where == 1) blocks_write_settings(d, b);
   /* WP1: */
   /* WP2: */
   /* WP3: */
   /* WP4: */
+  merge_write_settings(d, b, where);
   /* WP5: */
   wp5_write_settings(d, b, where);
   /* WP7: */
@@ -5381,8 +5414,7 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   /* WP22a: */
   pages_write_settings(d, b, where);
   /* WP22b: */
-  /* WP23: */
-  if (where == 1) blocks_write_settings(d, b);
+  /* WP23: (first, above) */
   /* WP24: */
   /* WP27: */
   /* WP31: */
@@ -5459,8 +5491,9 @@ u8 *docx_save(Doc *d, size_t *len)
   if (d->nlists && !(numxml = w_numbering(d, &nl))) { free(docxml); free(stxml); return NULL; }
   /* the parts kept from the file read and the work packages' own (docx_write_parts_ext) */
   memset(&ext, 0, sizeof ext);
-  buf_init(&ext.ct); buf_init(&ext.pkgrels); buf_init(&ext.docrels);
+  buf_init(&ext.ct); buf_init(&ext.pkgrels); buf_init(&ext.docrels); buf_init(&ext.setrels);
   docx_write_parts_ext(d, &ext);
+  write_settings_rels(&ext);
   buf_init(&ct); buf_init(&core);
   buf_adds(&ct, XMLHDR);
   buf_adds(&ct, "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
@@ -5630,7 +5663,7 @@ u8 *docx_save(Doc *d, size_t *len)
     for (k = 0; k < ext.nparts; k++) { if (ok) ok = zip_add(&z, ext.parts[k].name, ext.parts[k].data, ext.parts[k].len); free(ext.parts[k].name); free(ext.parts[k].data); }
     free(ext.parts);
     ok = ok && !ext.oom && !ext.ct.oom && !ext.pkgrels.oom && !ext.docrels.oom;
-    buf_free(&ext.ct); buf_free(&ext.pkgrels); buf_free(&ext.docrels);
+    buf_free(&ext.ct); buf_free(&ext.pkgrels); buf_free(&ext.docrels); buf_free(&ext.setrels);
   }
   ok = ok && zip_finish(&z) && !ct.oom && !core.oom;
   free(docxml); free(stxml); free(numxml); buf_free(&ct); buf_free(&core);

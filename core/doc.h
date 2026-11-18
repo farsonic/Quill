@@ -636,6 +636,8 @@ typedef struct Doc {
   struct Field *fields; int nfields;
   u8 fieldcodes;
   struct FieldInfo *finfo;
+  /* WP4 mail merge (core/merge.h): the main document's settings and its recipients, NULL: not one */
+  struct MergeInfo *merge;
 } Doc;
 /* (WP13) styles (and the document's defaults, Doc.defpf and defcf) changed by edit(d, arg) as one undo
    step: every style's effective formatting worked out again and the text that had a style's look

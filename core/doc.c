@@ -2764,6 +2764,7 @@ void doc_free(Doc *d)
   blocks_free(d);                /* (WP23) */
   math_doc_free(d);     /* WP14a: equations */
   rv_free(d);                                   /* (WP5) */
+  { extern void merge_free(Doc *); merge_free(d); }   /* (WP4) */
   free(d);
 }
 
