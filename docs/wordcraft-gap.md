@@ -11,9 +11,9 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 - **Ribbon commands:** 543 in WordCraft (its catalogue, the Zotero and Help tabs plus the Paragraph Tools and Markdown Source of its ribbon), 515 of them applicable to Quill. Quill has **510** (✅), **3** partly (🟨) and lacks **2** (⬜); 28 are ➖. So Quill covers 99% of the applicable commands fully and 100% at least in part.
 - **Beyond the ribbon (section 2):** 162 features: ✅ 78, 🟨 45, ⬜ 20, ➖ 19 (2026-11: nine added from WordCraft's new work).
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
-- **Missing whole:** Draw/ink (10), SmartArt (8) and charts (6) (References, Mailings and Developer are complete since WP2, WP3, WP4 and WP16).
-- **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; charts, SmartArt, equations, OLE objects and VML pictures are dropped (formatting revisions are kept since WP5); no AutoSave or recovery (WP24 adds them). These are in priority 1 below.
-- **Other formats:** Quill reads and writes .docx and plain text and exports PDF; WordCraft also reads .doc and reads/writes .rtf, .odt, .html, .md, .tex and Word XML (WP28a-d).
+- **Missing whole:** nothing: every ribbon tab is covered (References, Mailings and Developer since WP2, WP3, WP4 and WP16). Missing commands left: Drawing Canvas and Markdown Source.
+- **Biggest risks for documents people send:** OLE objects and VML-only pictures; .doc files' pictures, text boxes and comments (WP28d reads text, formatting, tables, notes, headers and fields); Word XML (Flat OPC / Word 2003) is not read.
+- **Other formats:** Quill reads and writes .docx (also encrypted), .rtf, .odt, .html, .md and plain text, reads .doc (Word 97-2003), and exports PDF; WordCraft also reads/writes .tex and Word XML.
 
 | Tab | Commands | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|---|
