@@ -8,3 +8,38 @@ Microsoft Word Table
  TOC 
  INDEX 
  TOA \h \c "%d" %s%s
+# (WP13, WP23) language codes, file names, formats and defaults that aren't words
+en-US
+en-GB
+de-DE
+de-AT
+de-CH
+fr-FR
+fr-CH
+es-ES
+it-IT
+nl-NL
+sv-SE
+da-DK
+nb-NO
+fi-FI
+pt-BR
+pt-PT
+pl-PL
+cs-CZ
+hu-HU
+%.40s Char
+%s %d pt
+Style1
+Times New Roman
+Building Blocks.dotx
+PROGDIR:Templates/Building Blocks.dotx
+½ pt
+¾ pt
+1½ pt
+2½ pt
+DOCPROPERTY Category
+DOCPROPERTY Status
+DOCPROPERTY Company
+DOCPROPERTY Manager
+SAVEDATE \@ "yyyy-MM-dd"
