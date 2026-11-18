@@ -67,7 +67,7 @@ Every work package is merged into `master` (the seven branches that were unfinis
 and 28 left out on purpose. Before the next release (0.16): an emulator and real-Amiga check of everything added
 since 0.15 (new tabs and windows, ribbon collapsing at 640 px, right-to-left text), README "New in 0.16", version
 strings, package with the certificate check. Still open: WP30 (more interface languages) and the partial items in
-the gap document. `/home/user/artcraft-sync`-style tracking: compare with WordCraft commits after `22a73d9`.
+the gap document. Next upstream review: WordCraft commits after `22a73d9`.
 
 ## Issues
 
