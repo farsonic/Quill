@@ -237,6 +237,8 @@ static void insert_canvas(void)
   img_release(&c);
   if (k >= 0) DoMethod(wp_view(), MUIM_Quill_Command, CMD_PICTURE, (ULONG)k);
 }
+/* (main.c: Insert › Shapes › New Drawing Canvas, the Shapes list's last entry) */
+void wp20_new_canvas(void) { insert_canvas(); }
 /* a shape (canvas_sh) added in the middle of the canvas selected */
 static void canvas_add_shape(int which)
 {

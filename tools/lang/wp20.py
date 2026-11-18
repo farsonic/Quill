@@ -29,6 +29,7 @@ W = [
 ("Ink to Shape", "Freihand in Form", "Entrée manuscrite en forme", "Entrada de lápiz a forma", "Input penna in forma"),
 ("Convert Ink to Shape", "Freihand in Form konvertieren", "Convertir l'entrée manuscrite en forme", "Convertir entrada de lápiz en forma", "Converti input penna in forma"),
 ("Drawing Canvas", "Zeichenbereich", "Zone de dessin", "Lienzo de dibujo", "Area di disegno"),
+("New Drawing Canvas", "Neuer Zeichenbereich", "Nouvelle zone de dessin", "Nuevo lienzo de dibujo", "Nuova area di disegno"),
 ("Ink Replay", "Freihandwiedergabe", "Relecture de l'entrée manuscrite", "Reproducción de entrada de lápiz", "Riproduzione input penna"),
 ("Hide Ink", "Freihand ausblenden", "Masquer l'entrée manuscrite", "Ocultar entrada de lápiz", "Nascondi input penna"),
 ("Delete All Ink", "Alle Freihandeingaben löschen", "Supprimer toutes les entrées manuscrites", "Eliminar toda la entrada de lápiz", "Elimina tutto l'input penna"),

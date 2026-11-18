@@ -141,7 +141,7 @@ const i32 ribbon_colwidths[] = { 567, 850, 1134, 1417, 1701, 2268, 2835, 3402, 4
 /* objects: in SH_ order (core/doc.h), WRAP_ order and so on */
 static const char *const shapenames[] = { "Rectangle", "Rounded Rectangle", "Oval", "Line", "Arrow", "Triangle", "Diamond", "Right Arrow", "Star",
   "Pentagon", "Hexagon", "Octagon", "Parallelogram", "Trapezoid", "Right Triangle", "Left Arrow", "Up Arrow", "Down Arrow",
-  "Plus", "Heart", "Speech Bubble", "Chevron", "Pentagon Arrow", "Four-Point Star" };
+  "Plus", "Heart", "Speech Bubble", "Chevron", "Pentagon Arrow", "Four-Point Star", "New Drawing Canvas" };   /* (the last: WP20's canvas, main.c's obj_choice) */
 static const char *const fillnames[] = { "No Fill", "Blue", "Light Blue", "Dark Blue", "Orange", "Gold", "Light Yellow", "Green", "Red", "Grey",
                                          "White", "Black", "More Colours..." };
 static const ULONG fillvals[] = { 0xFF000000, 0x4472C4, 0x5B9BD5, 0x203864, 0xED7D31, 0xFFC000, 0xFFF2CC, 0x70AD47, 0xC00000, 0xA5A5A5,

@@ -1907,7 +1907,11 @@ static void obj_choice(ULONG id, LONG v)
 {
   Image m;
   int k = sel_obj();
-  if (id == ID_SHAPESDD) { if (v >= 0 && v < SH_N) DoMethod(view, MUIM_Quill_Command, CMD_SHAPE, (ULONG)v); return; }
+  if (id == ID_SHAPESDD) {
+    if (v >= 0 && v < SH_N) DoMethod(view, MUIM_Quill_Command, CMD_SHAPE, (ULONG)v);
+    else if (v == SH_N) { void wp20_new_canvas(void); wp20_new_canvas(); }   /* New Drawing Canvas (WP20, wp_draw.c) */
+    return;
+  }
   if (k < 0) { DisplayBeep(NULL); return; }
   m = doc->images[k];
   switch (id) {

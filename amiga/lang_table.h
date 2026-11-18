@@ -3626,6 +3626,7 @@
   { { "Ink to Shape", "Freihand in Form", "Entr\351e manuscrite en forme", "Entrada de l\341piz a forma", "Input penna in forma" } },
   { { "Convert Ink to Shape", "Freihand in Form konvertieren", "Convertir l'entr\351e manuscrite en forme", "Convertir entrada de l\341piz en forma", "Converti input penna in forma" } },
   { { "Drawing Canvas", "Zeichenbereich", "Zone de dessin", "Lienzo de dibujo", "Area di disegno" } },
+  { { "New Drawing Canvas", "Neuer Zeichenbereich", "Nouvelle zone de dessin", "Nuevo lienzo de dibujo", "Nuova area di disegno" } },
   { { "Ink Replay", "Freihandwiedergabe", "Relecture de l'entr\351e manuscrite", "Reproducci\363n de entrada de l\341piz", "Riproduzione input penna" } },
   { { "Hide Ink", "Freihand ausblenden", "Masquer l'entr\351e manuscrite", "Ocultar entrada de l\341piz", "Nascondi input penna" } },
   { { "Delete All Ink", "Alle Freihandeingaben l\366schen", "Supprimer toutes les entr\351es manuscrites", "Eliminar toda la entrada de l\341piz", "Elimina tutto l'input penna" } },
