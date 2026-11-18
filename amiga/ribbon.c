@@ -685,9 +685,31 @@ static void qa_build(void);
    (or after the last), in wphooks.c's package order. Called from ribbon_class(), and again by
    ribbon_rebuild() when the user customizes the ribbon (WP26): tabs and groups the user hid are left
    out, and the user's own tab gets its groups */
+#define MAXMERGED 512
+static Item mergeditems[MAXMERGED];       /* the items of groups put together (put_group) */
+static int nmerged;
+/* group gr added at the end of a tab's groups (arr[start .. *n - 1]); when it has the same caption
+   as the last one there (a package's tools beside the tab's own, as Review's Comments and Tracking),
+   it joins that group rather than standing beside it with the same name */
+static void put_group(Group *arr, int *n, int start, const Group *gr)
+{
+  if (*n > start) {
+    Group *last = &arr[*n - 1];
+    if (!strcmp(last->name, gr->name) && last->mode == G_COLS && gr->mode == G_COLS && nmerged + last->n + gr->n <= MAXMERGED) {
+      Item *m = &mergeditems[nmerged];
+      memcpy(m, last->items, (size_t)last->n * sizeof *m);
+      memcpy(m + last->n, gr->items, (size_t)gr->n * sizeof *m);
+      nmerged += last->n + gr->n;
+      last->items = m; last->n += gr->n;
+      return;
+    }
+  }
+  if (*n < MAXTABGROUPS) arr[(*n)++] = *gr;
+}
 static void build_tabs(void)
 {
   int t, used = 0, all = 0;
+  nmerged = 0;
   for (t = 0; t < NTABS; t++) {
     const Tab *b = &basetabs[t];
     int g, start = used, astart = all, p, k;
@@ -698,10 +720,10 @@ static void build_tabs(void)
         for (k = 0; pk && k < pk->ngroups; k++) {
           const WpGroup *wg = &pk->groups[k];
           int at = wg->before < 0 || wg->before > b->n ? b->n : wg->before;
-          if (wg->tab == t && at == g && all < MAXTABGROUPS) allgroups[all++] = wg->g;
+          if (wg->tab == t && at == g) put_group(allgroups, &all, astart, &wg->g);
         }
       }
-      if (g < b->n && all < MAXTABGROUPS) allgroups[all++] = b->groups[g];
+      if (g < b->n) put_group(allgroups, &all, astart, &b->groups[g]);
     }
     if (all > astart) { alltabs[t].groups = &allgroups[astart]; alltabs[t].n = all - astart; }
     if (t == TAB_CUSTOM) {
@@ -1039,6 +1061,20 @@ static void layout_ribbon(struct RData *d, Object *obj)
       }
       total = 0;
       for (g = 0; g < ng; g++) { if (gw[g] > lo) { gw[g] = lo; d->collapsed[g] = 1; } total += gw[g]; }
+    }
+  }
+  /* squeezed, with room left over once groups have collapsed: groups narrower than their caption
+     widened, from the left, so that it shows whole (a gallery keeps its least) */
+  if (squeeze) {
+    LONG slack = _mwidth(obj) - 4 - total;
+    for (g = 0; g < tab->n && g < MAXG; g++) if (tab->groups[g].mode == G_GALLERY && !d->collapsed[g]) slack -= 56 - gw[g];
+    for (g = 0; g < tab->n && g < MAXG && slack > 0; g++) {
+      LONG cap, add;
+      if (d->collapsed[g] || tab->groups[g].mode == G_GALLERY) continue;
+      cap = theme_textlen(rp, theme_font(), tab->groups[g].name) + 12;
+      if (gw[g] >= cap) continue;
+      add = cap - gw[g] < slack ? cap - gw[g] : slack;
+      gw[g] += add; total += add; slack -= add;
     }
   }
   extra = _mwidth(obj) - total;

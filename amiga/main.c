@@ -1522,7 +1522,7 @@ static Object *dialog(const char *title, ULONG wid, Object *contents, const char
       Child, contents,
       Child, HGroup, Child, ok = QButton(tr(oklabel)), Child, HSpace(0), Child, cancel = QButton(tr("_Cancel")), End,
     End, End;
-  if (!w) return NULL;
+  if (!w) { if (qlog) { fprintf(qlog, "dialog %s: not made (contents %s)\n", title, contents ? "made" : "NULL"); fflush(qlog); } return NULL; }
   DoMethod(app, OM_ADDMEMBER, (ULONG)w);
   DoMethod(w, MUIM_Notify, MUIA_Window_CloseRequest, TRUE, (ULONG)w, 3, MUIM_Set, MUIA_Window_Open, FALSE);
   DoMethod(cancel, MUIM_Notify, MUIA_Pressed, FALSE, (ULONG)w, 3, MUIM_Set, MUIA_Window_Open, FALSE);
@@ -5049,7 +5049,7 @@ int main(int argc, char **argv)
     ask("OK", "%s", smsg);
   }
   set(win, MUIA_Window_ActiveObject, (ULONG)view);
-  if (start_cmd) command(start_cmd);
+  if (start_cmd) { if (qlog) { fprintf(qlog, "start command %lu\n", (unsigned long)start_cmd); fflush(qlog); } command(start_cmd); }
   /* the input loop. NewInput lets MUI deal with whatever Intuition sent (redraws, typing in the page,
      gadgets) and returns an ID when a menu item or a ReturnID notify fired; sigs gets the signals to
      Wait() for once there is nothing more to do. A window's activation and close gadget carry its slot

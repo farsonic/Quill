@@ -210,14 +210,19 @@ for p in order:
     for e in wg[:ng]:
         t = cexpr(e[0]); before = cexpr(e[1])
         extra[t].append((before, group_of(U(e[2]), its), p))
+def put_group(gl, grp):
+    # (ribbon.c's put_group) a group with the same caption as the one before joins it
+    if gl and gl[-1][0] == grp[0] and gl[-1][1] == G_COLS and grp[1] == G_COLS:
+        gl[-1] = (grp[0], G_COLS, list(gl[-1][2]) + list(grp[2]))
+    else: gl.append(grp)
 tabs = []
 for t, (nm, own, ctx) in enumerate(basetabs):
     gl = []
     for g in range(len(own) + 1):
         for before, grp, p in extra[t]:
             at = len(own) if before < 0 or before > len(own) else before
-            if at == g: gl.append(grp)
-        if g < len(own): gl.append(own[g])
+            if at == g: put_group(gl, grp)
+        if g < len(own): put_group(gl, own[g])
     tabs.append((nm, gl, ctx))
 
 # ---- the layout (ribbon.c)
@@ -289,6 +294,15 @@ def layout(gs, W):
         for g in range(len(gw)):
             if gw[g] > lo: gw[g] = lo; col[g] = 1
         allbtn = lo
+    # squeezed with room left: groups narrower than their caption widened from the left
+    if squeeze:
+        slack = W - 4 - sum(gw) - gal()
+        for g in range(len(gw)):
+            if slack <= 0: break
+            if col[g] or gs[g][1] == G_GALLERY: continue
+            cap = tl(T(gs[g][0])) + 12
+            if gw[g] < cap: add = min(cap - gw[g], slack); gw[g] += add; slack -= add
+    cut = [gs[g][0].decode('latin-1') for g in range(len(gw)) if not col[g] and gs[g][1] != G_GALLERY and gw[g] < tl(T(gs[g][0])) + 4]
     # placing: the gallery takes the room left (or is its 56-pixel button)
     total = sum(gw); extra = W - total; x = 2
     for g in range(len(gw)):
@@ -300,7 +314,7 @@ def layout(gs, W):
         x += w
     nitems = sum(1 if col[g] else len(gs[g][2]) for g in range(len(gw)))
     return dict(natural=natural, squeezed=squeezed if squeeze else None, right=x - 1, ncol=sum(col), ngroups=len(gs), allbtn=allbtn,
-                nitems=nitems, colnames=[gs[g][0].decode('latin-1') for g in range(len(gw)) if col[g]])
+                nitems=nitems, cut=cut, colnames=[gs[g][0].decode('latin-1') for g in range(len(gw)) if col[g]])
 
 def strip(extra_ctx):
     # File and the main tabs (and contextual ones given), in what the Quick Access Toolbar (4) and the
@@ -343,6 +357,7 @@ for LANG in range(5):
             nm.decode('latin-1'), r['ngroups'], r['natural'], r['squeezed'] if r['squeezed'] is not None else '-', r['right'] + 1,
             'fits' if ok else 'OVERFLOW', r['ncol'], (' (cut to %d)' % r['allbtn']) if r['allbtn'] else '',
             (' [' + ', '.join(r['colnames']) + ']') if r['colnames'] else ''))
+        if r['cut']: print('   captions cut short:', ', '.join(r['cut']))
         if r['nitems'] > 128: print('   MAXI exceeded', r['nitems'])
         if r['ngroups'] > MAXG: print('   MAXG exceeded')
     print('tab strip:', strip_width())
