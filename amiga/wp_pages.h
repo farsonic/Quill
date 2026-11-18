@@ -23,8 +23,10 @@ enum {
   ID_PG_LINENUMGO,
   ID_PG_HYPHLIST,                   /* the ribbon's Hyphenation list: value 2 Manual, 3 Options */
   ID_PG_JUSTIFY,                    /* vertical alignment Justified for the caret's section */
+  ID_PG_FITPAGE,                    /* Fit One Page (WordCraft #6433, core/fitpage.c) */
   ID_PG_LAST
 };
 int wp22a_command(ULONG id, LONG value);
+#define WP22A_ICON_FITPAGE "ci R 3 1 12 14 L 5 4 10 4 L 5 6 10 6 L 5 8 10 8 ca L 7 10 7 13 L 5 11 7 13 L 9 11 7 13"
 
 #endif

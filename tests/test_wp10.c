@@ -7,6 +7,7 @@
 #include "../core/charfx.h"
 #include "../core/layout.h"
 #include "../core/pdf.h"
+#include "../core/paratools.h"
 
 Doc *wp9_mini_docx(const char *body, const char *styles);      /* (test_wp9.c) */
 char *wp9_saved_xml(Doc *d, const char *part);
@@ -182,8 +183,68 @@ static void numbering(void)
   doc_free(e); doc_free(d);
 }
 
+/* Paragraph Tools (WordCraft #5043, core/paratools.c) */
+static void paratools(void)
+{
+  static const char *const t1[] = { "one\vtwo\vthree", "", "  four  five ", "", "six" };
+  Doc *d = paras(t1, 5);
+  Pos c = P(0, 0);
+  int rid;
+  u32 np;
+  ok("paragraph tools: split lines into paragraphs", para_tool(d, PT_SPLITLINES, 0, 0, -1, &c) == 2 && d->np == 7 &&
+     !strcmp(d->p[0]->t, "one") && !strcmp(d->p[2]->t, "three") && runs_sane(d));
+  ok("paragraph tools: one undo step", doc_undo(d, &c) && d->np == 5 && !strcmp(d->p[0]->t, "one\vtwo\vthree"));
+  ok("paragraph tools: join lines", para_tool(d, PT_JOINLINES, 0, 4, -1, &c) == 2 && !strcmp(d->p[0]->t, "onetwothree"));
+  doc_undo(d, &c);
+  ok("paragraph tools: delete blank paragraphs", para_tool(d, PT_REMOVEBLANK, 0, 4, -1, &c) == 2 && d->np == 3 && !strcmp(d->p[1]->t, "  four  five "));
+  ok("paragraph tools: remove extra spaces (leading ones stay)", para_tool(d, PT_EXTRASPACES, 1, 1, -1, &c) && !strcmp(d->p[1]->t, "  four five "));
+  ok("paragraph tools: remove leading spaces", para_tool(d, PT_TRIMLEADING, 0, 2, -1, &c) == 1 && !strcmp(d->p[1]->t, "four five "));
+  np = d->np;
+  ok("paragraph tools: blank paragraphs between", para_tool(d, PT_BLANKBETWEEN, 0, 2, -1, &c) == 2 && d->np == np + 2 && d->p[1]->len == 0 &&
+     d->p[3]->len == 0 && !strcmp(d->p[4]->t, "six"));
+  doc_undo(d, &c);
+  ok("paragraph tools: separate paragraphs (one after the last too)", para_tool(d, PT_SEPARATE, 0, 2, -1, &c) == 3 && d->np == np + 3 && d->p[5]->len == 0);
+  ok("paragraph tools: nothing to do changes nothing", para_tool(d, PT_EXTRASPACES, 0, 0, -1, &c) == 0);
+  doc_free(d);
+  /* indents and spaces: 4 spaces at 12 pt make a 240-twip first-line indent and back */
+  {
+    static const char *const t2[] = { "    Indented", "Plain" };
+    d = paras(t2, 2);
+    ok("paragraph tools: leading spaces become an indent", para_tool(d, PT_SPACESTOINDENT, 0, 1, -1, &c) == 1 && !strcmp(d->p[0]->t, "Indented") &&
+       d->p[0]->pf.first == 4 * (i32)para_fmt_at(d->p[0], 0)->size * 5 / 2);
+    ok("paragraph tools: and the indent spaces again", para_tool(d, PT_INDENTTOSPACES, 0, 1, -1, &c) == 1 && !strcmp(d->p[0]->t, "    Indented") &&
+       d->p[0]->pf.first == 0 && d->p[0]->pf.left == 0 && runs_sane(d));
+    doc_free(d);
+  }
+  /* tracked: deletions marked, not made; text already deleted is passed over */
+  {
+    static const char *const t3[] = { "a  b\vc" };
+    d = paras(t3, 1);
+    rid = doc_add_rev(d, "Tester", "2026-11-18T00:00:00Z");
+    ok("paragraph tools: tracked, the extra space is marked deleted", para_tool(d, PT_EXTRASPACES, 0, 0, rid, &c) == 1 && !strcmp(d->p[0]->t, "a  b\vc") &&
+       para_fmt_at(d->p[0], 1)->rev == REV_DEL && para_fmt_at(d->p[0], 2)->rev != REV_DEL);
+    ok("paragraph tools: tracked, a deleted space no longer counts", para_tool(d, PT_EXTRASPACES, 0, 0, rid, &c) == 0);
+    ok("paragraph tools: tracked split keeps the break, marked deleted", para_tool(d, PT_SPLITLINES, 0, 0, rid, &c) == 1 && d->np == 2 &&
+       !strcmp(d->p[0]->t, "a  b\v") && para_fmt_at(d->p[0], 4)->rev == REV_DEL && !strcmp(d->p[1]->t, "c"));
+    doc_free(d);
+  }
+  /* a table cell's only paragraph stays; a section's last paragraph stays */
+  {
+    static const char *const t4[] = { "x", "", "", "y" };
+    SectFmt s;
+    ParaFmt pf;
+    d = paras(t4, 4);
+    sect_default(&s);
+    pf = d->p[1]->pf; pf.sect = (u16)doc_add_sect(d, &s);
+    doc_para_format(d, 1, 1, PM_SECT, &pf);
+    ok("paragraph tools: an empty paragraph ending a section stays", para_tool(d, PT_REMOVEBLANK, 0, 3, -1, &c) == 1 && d->np == 3 && d->p[1]->pf.sect);
+    doc_free(d);
+  }
+}
+
 void test_wp10(void)
 {
+  paratools();
   sorting();
   distributed();
   hyphens();

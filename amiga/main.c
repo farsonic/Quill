@@ -5007,7 +5007,7 @@ int main(int argc, char **argv)
              id == ID_TSTYLEDD || id == ID_PENSTYLE || id == ID_PENWIDTH || id == ID_PENCOLOR || id == ID_TBORDERSDD || id == ID_TSELECTDD ||
              id == ID_AUTOFITDD || id == ID_ROWH || id == ID_COLW || (id >= ID_SHAPESDD && id <= ID_OBJROTDD && id != ID_TEXTBOX) ||
              (id >= ID_PASTESPECDD && id <= ID_PSPACINGDD) || (id >= ID_PASTEDD && id <= ID_FINDDD) || (id >= ID_FORWARDDD && id <= ID_COVERDD) || (id >= ID_THEMEDD && id <= ID_PAGECOLORDD) || id == ID_UNDERLINEDD || wp_is_list(id) ||
-             id == ID_C_EFFECTS || id == ID_C_ULCOLOR || id == ID_C_SHADE || id == ID_P_BULLETLIB || id == ID_P_NUMLIB) ribbon_choice(id);   /* (WP9/WP10's lists in Quill's own groups) */
+             id == ID_C_EFFECTS || id == ID_C_ULCOLOR || id == ID_C_SHADE || id == ID_P_BULLETLIB || id == ID_P_NUMLIB || id == ID_P_PTOOLS) ribbon_choice(id);   /* (WP9/WP10's lists in Quill's own groups) */
     else if (id == ID_TITLE) set_title();
     else if (id == ID_OUTLINECHG) rebuild_nav(0);
     else if (id) {

@@ -29,6 +29,7 @@
 #include "wphooks.h"
 #include "wp_tables.h"                 /* WP21a/WP21b: Insert > Tables' Draw Table, Quick Tables, Spreadsheet */
 #include "wp_outline.h"                /* WP11: View > Outline (ID_OL_VIEW) */
+#include "wp_pages.h"                  /* WP22a: Layout > Fit One Page */
 
 /* ------------------------------------------------------------------ */
 /* the lists */
@@ -254,6 +255,7 @@ static const Item g_para[] = {
   { K_BUTTON, S_ICON, IC_OUTDENT, 0, NULL, ID_OUTDENT, 0, 0, 0, 0, "Decrease indent (Amiga-K)" },
   { K_BUTTON, S_ICON, IC_INDENT, 0, NULL, ID_INDENT, 0, 0, 0, 0, "Increase indent (Amiga-M)" },
   { K_BUTTON, S_ICON, IC_SORT, 0, NULL, ID_SORT, 0, 0, 0, 0, "Sort" },
+  { K_DROP, S_ICON, 0, 0, NULL, ID_P_PTOOLS, 0, 0, 0, 0, "Paragraph Tools: split, join and clean up paragraphs", &wp10_ptools_list, WP10_ICON_PTOOLS },   /* (WP10) */
   { K_BUTTON, S_ICON, IC_MARKS, 0, NULL, ID_MARKS, RB_MARKS, 0, 0, 0, "Show paragraph marks and other formatting symbols" },
   { K_BUTTON, S_ICON, IC_LEFT, 0, NULL, ID_LEFT, RB_ALIGN0, 0, F_ROW1, 0, "Align left (Amiga-[)" },
   { K_BUTTON, S_ICON, IC_CENTER, 0, NULL, ID_CENTER, RB_ALIGN1, 0, F_ROW1, 0, "Centre (Amiga-E)" },
@@ -429,7 +431,8 @@ static const Item l_setup[] = {
   { K_DROP, S_SMALL, IC_LINENUM, L_LINENUM, "Line Numbers", ID_LINENUMDD, 0, 0, 0, 0, "Numbers beside the lines" },
   { K_DROP, S_SMALL, IC_HYPHEN, L_HYPHEN, "Hyphenation", ID_HYPHENDD, 0, 0, 0, 0, "Words broken with a hyphen at the ends of lines" },
   { K_DROP, S_SMALL, IC_PAGEALIGN, L_PAGEALIGN, "Vertical Align", ID_PAGEALIGNDD, 0, 0, F_NEWCOL, 0, "The text at the top, middle or bottom of the page" },
-  { K_BUTTON, S_SMALL, IC_MARGINS, 0, "Page Setup", ID_PAGESETUPDLG, 0, 0, 0, 0, "The page's size and margins exactly, for the whole document or the caret's section" } };
+  { K_BUTTON, S_SMALL, IC_MARGINS, 0, "Page Setup", ID_PAGESETUPDLG, 0, 0, 0, 0, "The page's size and margins exactly, for the whole document or the caret's section" },
+  { K_BUTTON, S_SMALL, 0, 0, "Fit One Page", ID_PG_FITPAGE, 0, 0, 0, 0, "A page less: the spacing and text tightened a little (WP22a)", NULL, WP22A_ICON_FITPAGE } };
 static const Item l_para[] = {
   { K_LABEL, S_SMALL, 0, 0, "Indent", 0, 0, 0, 0, 0, NULL },
   { K_FIELD, S_SMALL, 0, L_INDENT, "Left:", ID_INDENTL, 0, 0, 0, 54, "Left indent" },

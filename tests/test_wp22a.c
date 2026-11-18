@@ -7,6 +7,8 @@
 #include "../core/pages.h"
 #include "../core/hyph.h"
 #include "../core/pdf.h"
+#include "../core/fitpage.h"
+#include "../core/layout.h"
 
 /* a document of n paragraphs of words */
 static Doc *words_doc(int n, int words)
@@ -316,8 +318,45 @@ static void docx_tests(void)
   doc_free(e); doc_free(d);
 }
 
+/* Fit One Page (WordCraft #6433, core/fitpage.c) */
+static void fit_tests(void)
+{
+  Doc *d;
+  Pos c;
+  u32 b = 0, a = 0, n = 1, base;
+  int r;
+  /* one-line paragraphs until the text runs two lines onto a second page */
+  d = words_doc(1, 3);
+  c = doc_end_pos(d);
+  while (fit_pages(d, &fs) < 2 && n < 200) { doc_insert(d, &c, "\nlorem ipsum dolor", 18, NULL); n++; }
+  doc_insert(d, &c, "\nlorem ipsum dolor", 18, NULL);
+  base = d->p[0]->r[0].f.size;
+  r = fit_one_page(d, &fs, &b, &a);
+  ok("fit one page: two pages brought onto one", r == FIT_OK && b == 2 && a == 1 && fit_pages(d, &fs) == 1 && runs_sane(d));
+  ok("fit one page: text not under 8.5 points", d->p[0]->r[0].f.size >= 17 && d->p[0]->r[0].f.size <= base);
+  ok("fit one page: one undo step", doc_undo(d, &c) && fit_pages(d, &fs) == 2 && d->p[0]->r[0].f.size == base);
+  ok("fit one page: already one page", fit_one_page(d, &fs, NULL, NULL) == FIT_OK && fit_one_page(d, &fs, NULL, NULL) == FIT_ONEPAGE);
+  doc_undo(d, &c);
+  d->p[d->np - 1]->pf.pagebreak = 1; d->p[d->np - 1]->ver++;
+  ok("fit one page: a page break refuses", fit_one_page(d, &fs, NULL, NULL) == FIT_BREAKS);
+  d->p[d->np - 1]->pf.pagebreak = 0; d->p[d->np - 1]->ver++;
+  d->rvtrack = 1;
+  ok("fit one page: not while formatting is tracked", fit_one_page(d, &fs, NULL, NULL) == FIT_TRACKED);
+  d->rvtrack = 0;
+  doc_free(d);
+  /* a second page half full is too much to take back */
+  d = words_doc(1, 3);
+  c = doc_end_pos(d);
+  n = 1;
+  while (fit_pages(d, &fs) < 2 && n < 400) { doc_insert(d, &c, "\nlorem ipsum dolor", 18, NULL); n++; }
+  for (n = 0; n < 25; n++) doc_insert(d, &c, "\nlorem ipsum dolor", 18, NULL);
+  ok("fit one page: a full last page refuses", fit_one_page(d, &fs, NULL, NULL) == FIT_TOOFULL);
+  doc_free(d);
+}
+
 void test_wp22a(void)
 {
+  fit_tests();
   page_setup_tests();
   column_tests();
   valign_tests();
