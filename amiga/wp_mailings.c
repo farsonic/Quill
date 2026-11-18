@@ -98,6 +98,20 @@ static void u8of(Object *str, char *out, size_t cap)
   wp_latin1_utf8(s ? s : "", out, cap);
 }
 static LONG cyc(Object *o) { ULONG v = 0; if (o) get(o, MUIA_Cycle_Active, &v); return (LONG)v; }
+/* a choice of a few (MUI's radio buttons; a cycle gadget where the Radio class can't be had, as with
+   the Zune in AROS's ROM, where every window holding one failed to open); which is read and set with
+   rad() and rad_set() */
+static int radio_cyc;
+static Object *radio(const char **entries)
+{
+  Object *o = radio_cyc ? NULL : MUI_NewObject((STRPTR)MUIC_Radio, MUIA_Radio_Entries, (ULONG)entries, MUIA_CycleChain, 1, TAG_DONE);
+  if (o) return o;
+  radio_cyc = 1;
+  return CycleObject, MUIA_Cycle_Entries, (ULONG)entries, MUIA_CycleChain, 1, End;
+}
+#define RADIO_ACTIVE (radio_cyc ? MUIA_Cycle_Active : MUIA_Radio_Active)
+static LONG rad(Object *o) { ULONG v = 0; if (o) get(o, RADIO_ACTIVE, &v); return (LONG)v; }
+static void rad_set(Object *o, LONG v) { if (o) set(o, RADIO_ACTIVE, v); }
 static LONG sel(Object *o) { ULONG v = 0; if (o) get(o, MUIA_Selected, &v); return (LONG)v; }
 /* a button that returns ID_ML_BTN with code */
 static Object *btn(const char *label, LONG code)
@@ -399,7 +413,7 @@ static void lab_open(int merge)
     c = VGroup,
       Child, ag,
       Child, HGroup,
-        Child, l_full = RadioObject, GroupFrameT(tr("Print")), MUIA_Radio_Entries, (ULONG)mode, MUIA_CycleChain, 1, End,
+        Child, VGroup, GroupFrameT(tr("Print")), Child, l_full = radio(mode), End,
         Child, ColGroup(2), Child, FLabel(tr("Row:")), Child, l_row = StringObject, StringFrame, MUIA_String_Accept, (ULONG)"0123456789", MUIA_String_MaxLen, 4, MUIA_String_Contents, (ULONG)"1", MUIA_CycleChain, 1, End,
           Child, FLabel(tr("Column:")), Child, l_col = StringObject, StringFrame, MUIA_String_Accept, (ULONG)"0123456789", MUIA_String_MaxLen, 4, MUIA_String_Contents, (ULONG)"1", MUIA_CycleChain, 1, End, End,
       End,
@@ -431,7 +445,7 @@ static void lab_done(void)
   get(l_row, MUIA_String_Contents, &rs); get(l_col, MUIA_String_Contents, &cs);
   i = rs ? atoi(rs) : 1;
   close_win(labwin);
-  d = label_doc(&label_defs[k], text, (int)cyc(l_full) == 1 && !l_merge, (i > 0 ? i : 1) - 1, (cs && atoi(cs) > 0 ? atoi(cs) : 1) - 1, l_merge);
+  d = label_doc(&label_defs[k], text, (int)rad(l_full) == 1 && !l_merge, (i > 0 ? i : 1) - 1, (cs && atoi(cs) > 0 ? atoi(cs) : 1) - 1, l_merge);
   if (!d) return;
   if (l_merge) {
     MergeInfo *m = doc()->merge;
@@ -707,16 +721,16 @@ static void ins_open(void)
     Object *c;
     kind_l[0] = tr("Database Fields"); kind_l[1] = tr("Address Fields"); kind_l[2] = NULL;
     c = VGroup,
-      Child, HGroup, Child, FLabel(tr("Insert:")), Child, i_kind = RadioObject, MUIA_Radio_Entries, (ULONG)kind_l, MUIA_Group_Horiz, TRUE, MUIA_CycleChain, 1, End, Child, HSpace(0), End,
+      Child, HGroup, Child, FLabel(tr("Insert:")), Child, i_kind = radio(kind_l), Child, HSpace(0), End,
       Child, FLabel(tr("Fields:")),
       Child, i_list = ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
         MUIA_List_DestructHook, MUIV_List_DestructHook_String, End, MUIA_CycleChain, 1, End,
     End;
     if (!(inswin = wp_dialog("Insert Merge Field", MAKE_ID('M','L','I','F'), c, "_Insert", ID_ML_OK_INS))) return;
-    notify_ev(i_kind, MUIA_Radio_Active, BT_I_KIND);
+    notify_ev(i_kind, RADIO_ACTIVE, BT_I_KIND);
     DoMethod(i_list, MUIM_Notify, MUIA_Listview_DoubleClick, TRUE, (ULONG)wp_app(), 2, MUIM_Application_ReturnID, ID_ML_OK_INS);
   }
-  set(i_kind, MUIA_Radio_Active, doc()->merge && doc()->merge->data ? 0 : 1);
+  rad_set(i_kind, doc()->merge && doc()->merge->data ? 0 : 1);
   ins_fill();
   set(inswin, MUIA_Window_Open, TRUE);
 }
@@ -866,19 +880,19 @@ static void match_open(void)
   m = doc()->merge;
   drop_win(&matchwin);
   make_cols("(not matched)");
-  g = ColGroup(2), End;
+  g = ColGroup(4), End;            /* (two pairs to a row: the 29 fields fit a 480-line screen) */
   for (i = 0; i < AF_N; i++) {
     int col = merge_af_col(m, i);
     DoMethod(g, OM_ADDMEMBER, (ULONG)FLabel(tr(af_names[i])));
     DoMethod(g, OM_ADDMEMBER, (ULONG)(m_cyc[i] = cycle(colent)));
     set(m_cyc[i], MUIA_Cycle_Active, col + 1);
   }
+  if (AF_N & 1) { DoMethod(g, OM_ADDMEMBER, (ULONG)HSpace(0)); DoMethod(g, OM_ADDMEMBER, (ULONG)HSpace(0)); }   /* (rows made whole) */
   c = VGroup,
     Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Choose the column of your list that holds each of these:"), End,
-    Child, ScrollgroupObject, MUIA_Scrollgroup_FreeHoriz, FALSE, MUIA_Scrollgroup_Contents, VirtgroupObject, Child, g, End, End,
+    Child, g,
   End;
   if (!(matchwin = wp_dialog("Match Fields", MAKE_ID('M','L','M','F'), c, "_OK", ID_ML_OK_MATCH))) return;
-  set(matchwin, MUIA_Window_Height, MUIV_Window_Height_Visible(70));
   set(matchwin, MUIA_Window_Open, TRUE);
 }
 static void match_ok(void)
@@ -1088,7 +1102,7 @@ static void check_open(void)
     how_l[1] = tr("Complete the merge, pausing to report each error as it occurs");
     how_l[2] = tr("Complete the merge without pausing. Report errors in a new document");
     how_l[3] = NULL;
-    c = VGroup, Child, c_how = RadioObject, MUIA_Radio_Entries, (ULONG)how_l, MUIA_CycleChain, 1, End, End;
+    c = VGroup, Child, c_how = radio(how_l), End;
     if (!(checkwin = wp_dialog("Checking and Reporting Errors", MAKE_ID('M','L','C','E'), c, "_OK", ID_ML_OK_CHECK))) return;
   }
   set(checkwin, MUIA_Window_Open, TRUE);
@@ -1099,7 +1113,7 @@ static void check_ok(void)
   LONG how = 0;
   Buf e;
   int n;
-  get(c_how, MUIA_Radio_Active, &how);
+  how = rad(c_how);
   close_win(checkwin);
   have_data(1);
   if (d->merge) d->merge->checkerrors = (u8)(how + 1);
@@ -1131,14 +1145,14 @@ static void fin_open(int topdf)
   pdf_l[0] = tr("One PDF file"); pdf_l[1] = tr("A PDF file for each record"); pdf_l[2] = NULL;
   c = VGroup,
     Child, HGroup, GroupFrameT(tr("Merge records")),
-      Child, fin_range = RadioObject, MUIA_Radio_Entries, (ULONG)range_l, MUIA_CycleChain, 1, End,
+      Child, fin_range = radio(range_l),
       Child, VGroup, Child, VSpace(0), Child, HGroup,
         Child, fin_from = StringObject, StringFrame, MUIA_String_Accept, (ULONG)"0123456789", MUIA_String_MaxLen, 7, MUIA_CycleChain, 1, End,
         Child, FLabel(tr("To:")),
         Child, fin_to = StringObject, StringFrame, MUIA_String_Accept, (ULONG)"0123456789", MUIA_String_MaxLen, 7, MUIA_CycleChain, 1, End, End, End,
     End,
     Child, fin_group = VGroup, GroupFrameT(tr("PDF")),
-      Child, fin_pdf = RadioObject, MUIA_Radio_Entries, (ULONG)pdf_l, MUIA_CycleChain, 1, End,
+      Child, fin_pdf = radio(pdf_l),
       Child, HGroup, Child, FLabel(tr("File names from:")), Child, fin_name = cycle(colent), End,
     End,
   End;
@@ -1154,7 +1168,7 @@ static void fin_ok(void)
   LONG r = 0;
   int from = 0, to, n = merge_count(m);
   char *s = NULL;
-  get(fin_range, MUIA_Radio_Active, &r);
+  r = rad(fin_range);
   to = n - 1;
   if (r == 1) from = to = cur_active();
   else if (r == 2) {
@@ -1169,7 +1183,7 @@ static void fin_ok(void)
     LONG each = 0;
     int files = 0;
     Buf e;
-    get(fin_pdf, MUIA_Radio_Active, &each);
+    each = rad(fin_pdf);
     snprintf(path, sizeof path, "%s", dp && dp[0] ? dp : "Merged.docx");
     if ((dot = strrchr(path, '.'))) strcpy(path + (dot - path), ".pdf");
     if (!wp_file_request(1, "Merge to PDF", path, sizeof path, "#?.pdf")) return;
@@ -1213,7 +1227,7 @@ static void wiz_open(void)
     c = VGroup,
       Child, w_step = TextObject, MUIA_Text_Contents, (ULONG)"", End,
       Child, w_pages = VGroup, MUIA_Group_PageMode, TRUE,
-        Child, VGroup, Child, FLabel(tr("Select document type")), Child, w_type = RadioObject, MUIA_Radio_Entries, (ULONG)w_type_l, MUIA_CycleChain, 1, End, Child, VSpace(0), End,
+        Child, VGroup, Child, FLabel(tr("Select document type")), Child, w_type = radio(w_type_l), Child, VSpace(0), End,
         Child, VGroup, Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Use the current document as the starting document."), End,
           Child, HGroup, Child, wbtn("Envelope _Options...", ID_ML_ST_ENV), Child, wbtn("_Label Options...", ID_ML_ST_LAB), End, Child, VSpace(0), End,
         Child, VGroup, Child, FLabel(tr("Select recipients")),
@@ -1233,7 +1247,7 @@ static void wiz_open(void)
     if (!(wizwin = wp_dialog("Mail Merge", MAKE_ID('M','L','W','Z'), c, "_Close", ID_ML_OK_WIZ))) return;
   }
   w_page = 0;
-  { MergeInfo *m = doc()->merge; int t = m ? m->type : MT_LETTERS; set(w_type, MUIA_Radio_Active, t == MT_ENVELOPES ? 1 : t == MT_LABELS ? 2 : t == MT_DIRECTORY ? 3 : 0); }
+  { MergeInfo *m = doc()->merge; int t = m ? m->type : MT_LETTERS; rad_set(w_type, t == MT_ENVELOPES ? 1 : t == MT_LABELS ? 2 : t == MT_DIRECTORY ? 3 : 0); }
   wiz_show();
   set(wizwin, MUIA_Window_Open, TRUE);
 }
@@ -1242,7 +1256,7 @@ static void wiz_step(int dir)
   MergeInfo *m;
   if (w_page == 0 && dir > 0) {
     LONG t = 0;
-    get(w_type, MUIA_Radio_Active, &t);
+    t = rad(w_type);
     if ((m = mi())) m->type = (u8)(t == 1 ? MT_ENVELOPES : t == 2 ? MT_LABELS : t == 3 ? MT_DIRECTORY : MT_LETTERS);
     wp_refresh();
   }

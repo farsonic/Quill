@@ -202,8 +202,8 @@ static void put_block(int kind, const char *code, const char *title, int leader,
 static Object *cwin, *c_prev, *c_text, *c_labgrp, *c_lab, *c_pos, *c_excl, *c_fmt, *c_chap, *c_head, *c_sep;
 static int c_busy;
 static const char *pos_ent[3], *cfmt_ent[CN_N + 1], *head_ent[10], *sep_ent[CSEP_N + 1];
-static const char *const cfmt_names[CN_N] = { "1, 2, 3, ...", "a, b, c, ...", "A, B, C, ...", "i, ii, iii, ...", "I, II, III, ..." };
-static const char *const sep_names[CSEP_N] = { "- (hyphen)", ". (period)", ": (colon)", "(em dash)", "(en dash)" };
+static const char *const cfmt_names[CN_N + 1] = { "1, 2, 3, ...", "a, b, c, ...", "A, B, C, ...", "i, ii, iii, ...", "I, II, III, ...", NULL };   /* (NULL-ended for tr_list: without it the Caption window read and wrote past the lists and crashed) */
+static const char *const sep_names[CSEP_N + 1] = { "- (hyphen)", ". (period)", ": (colon)", "(em dash)", "(en dash)", NULL };
 static char head_txt[9][16];
 static int c_label(void) { return (int)getv(c_lab, MUIA_Cycle_Active); }
 /* the gadgets show the label's settings */
