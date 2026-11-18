@@ -366,6 +366,7 @@ typedef struct {
   PageBorder pb;            /* (pbown) its own page border (style PB_NONE and no sides: none) */
   u8 rtlgutter;             /* w:rtlGutter: the gutter on the right */
   NotePr fnpr, enpr;        /* (WP22b) its own footnote and endnote options (w:footnotePr, w:endnotePr) */
+  u8 formfree;              /* (WP7) w:formProt off: free to edit while "filling in forms" is enforced */
 } SectFmt;
 /* s set to a section with no settings of its own: one column from a new page, 720 twips between
    columns, no line numbers */
@@ -638,6 +639,13 @@ typedef struct Doc {
   u8 fieldcodes;
   struct FieldInfo *finfo;
   struct DocProtect *prot;  /* (WP7) Restrict Editing and the encryption password (core/protect.h), NULL: none */
+  struct SdtSet *sdt;       /* (WP16) content controls (core/sdt.h): their records, Design Mode; NULL: none */
+  /* WP4 mail merge (core/merge.h): the main document's settings and its recipients, NULL: not one */
+  struct MergeInfo *merge;
+  /* WP3 citations (core/cite.h): the document's sources (its current list) and their customXml part */
+  struct CiteDoc *cite;
+  /* WP2 (core/refs.h): the caption labels, AutoCaption and the authorities' categories (settings.xml w:captions) */
+  struct RefsInfo *refs;
 } Doc;
 /* (WP13) styles (and the document's defaults, Doc.defpf and defcf) changed by edit(d, arg) as one undo
    step: every style's effective formatting worked out again and the text that had a style's look

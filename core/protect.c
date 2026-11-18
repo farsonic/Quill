@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include "protect.h"
 #include "crypt.h"
+#include "sdt.h"
 
 char prot_user[64];
 void (*prot_on_denied)(Doc *d);
@@ -39,7 +40,7 @@ int prot_enforced(const Doc *d)
 }
 int prot_forces_tracking(const Doc *d) { return prot_enforced(d) == PR_TRACKED; }
 int prot_forms_only(const Doc *d) { return prot_enforced(d) == PR_FORMS; }
-int (*prot_form_at)(const Doc *d, Pos p);
+int (*prot_form_at)(const Doc *d, Pos p) = sdt_form_at;      /* (WP16's content controls and form fields) */
 static int ieq(const char *a, const char *b)
 {
   for (; *a && *b; a++, b++) {
@@ -67,9 +68,14 @@ int prot_perm_mine(const Doc *d, int k)
 static int free_run(const Doc *d, Para *p, u32 off)
 {
   if (prot_perm_mine(d, para_fmt_at(p, off)->perm)) return 1;
-  if (prot_form_at && prot_forms_only(d)) {
+  if (prot_forms_only(d)) {
     u32 pi;
-    for (pi = 0; pi < d->np; pi++) if (d->p[pi] == p) { Pos q; q.para = pi; q.off = off; return prot_form_at(d, q); }
+    for (pi = 0; pi < d->np; pi++) if (d->p[pi] == p) {
+      Pos q;
+      if (!d->edit.kind && doc_sect((Doc *)d, pi)->formfree) return 1;     /* (a section with w:formProt off) */
+      q.para = pi; q.off = off;
+      return prot_form_at ? prot_form_at(d, q) : 0;
+    }
   }
   return 0;
 }
@@ -102,8 +108,11 @@ static int allow(Doc *d)
 static int unchecked(const Doc *d)
 {
   int k = prot_enforced(d);
-  return k == PR_NONE || k == PR_TRACKED || (k == PR_COMMENTS && d->edit.kind == SK_COMMENT);
+  return k == PR_NONE || k == PR_TRACKED || (k == PR_COMMENTS && d->edit.kind == SK_COMMENT) ||
+         (k == PR_FORMS && sdt_bypass > 0);     /* (WP16's own changes: a check box ticked, an entry chosen) */
 }
+/* "filling in forms": a..b inside a form's fillable part (WP16) */
+static int form_range(Doc *d, Pos a, Pos b) { return prot_forms_only(d) && sdt_forms_ok(d, a, b); }
 static int only_marks(const char *s, u32 n)
 {
   u32 i;
@@ -119,6 +128,7 @@ int prot_insert_ok(Doc *d, Pos at, const char *s, u32 n)
   if (at.para >= d->np) return deny(d);
   p = d->p[at.para];
   if (at.off > p->len) at.off = p->len;
+  if (form_range(d, at, at)) return allow(d);
   /* typing at the edge of a free stretch continues it: the character before, or the one after */
   if ((at.off > 0 && free_run(d, p, at.off - 1)) || (at.off < p->len && free_run(d, p, at.off)) || (!p->len && free_run(d, p, 0)))
     return allow(d);
@@ -132,6 +142,7 @@ int prot_range_ok(Doc *d, Pos a, Pos b, int format)
   if (prot_enforced(d) == PR_COMMENTS && a.para == b.para && b.off == a.off + 4 && a.para < d->np && a.off + 4 <= d->p[a.para]->len &&
       IS_MARK(d->p[a.para]->t + a.off))
     return allow(d);                          /* a comment's mark taken out */
+  if (form_range(d, a, b)) return allow(d);
   for (pi = a.para; pi <= b.para && pi < d->np; pi++) {
     Para *p = d->p[pi];
     u32 s = pi == a.para ? a.off : 0, e = pi == b.para ? b.off : p->len, i, start = 0;

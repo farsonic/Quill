@@ -67,10 +67,10 @@ extern char prot_user[64];
 /* ---- what is enforced */
 int  prot_enforced(const Doc *d);                /* the kind enforced, PR_NONE if none */
 int  prot_forces_tracking(const Doc *d);         /* changes must be tracked */
-/* (WP16, content controls and form fields) "Filling in forms" is enforced: only form fields may be
-   changed. A forms package sets prot_form_at to say whether the text at p (the character after it) is
-   in a form field or content control that may be filled in; such text is then free to edit (with
-   NULL, forms protection leaves only Restrict Editing's exceptions free) */
+/* (WP16, content controls and form fields) "Filling in forms" is enforced: only form fields, content
+   controls that aren't locked, Restrict Editing's exceptions and sections with w:formProt off may be
+   changed. prot_form_at (WP16's sdt_form_at, core/sdt.h) says whether the text at p (the character
+   after it) is such a form's fillable part; WP16's sdt_forms_protected is prot_forms_only */
 int  prot_forms_only(const Doc *d);
 extern int (*prot_form_at)(const Doc *d, Pos p);
 /* the text at p (the character after it) may be edited by prot_user: inside an exception for them */

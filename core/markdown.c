@@ -135,7 +135,9 @@ static void md_runs(MW *w, const Para *p, int intable, int notes)
       u32 j;
       for (j = i; j < end; j++) {
         u8 c = (u8)p->t[j];
-        if ((c == 0xF3 || c == 0xF4) && j + 4 <= end && (IS_PIC(p->t + j) || IS_NOTE(p->t + j) || IS_ENOTE(p->t + j) || IS_MARK(p->t + j))) break;
+        /* every character of planes 15 and 16 is a mark (pictures, notes, comments, fields, content controls
+           (WP16), equations): those not written below are left out */
+        if ((c == 0xF3 || c == 0xF4) && j + 4 <= end) break;
         if (c == 0xEE && j + 3 <= end && IS_FIELD(p->t + j)) break;
       }
       if (j > i) {
@@ -205,7 +207,7 @@ static void md_blocks(MW *w, Para **p, u32 a, u32 b)
       for (j = i; j < e; j++) {
         u32 c;
         for (c = 0; c < p[j]->len; c++) {
-          if (IS_PIC(p[j]->t + c) || IS_NOTE(p[j]->t + c) || IS_ENOTE(p[j]->t + c) || IS_MARK(p[j]->t + c)) { c += 3; continue; }
+          if (((u8)p[j]->t[c] == 0xF3 || (u8)p[j]->t[c] == 0xF4) && c + 4 <= p[j]->len) { c += 3; continue; }   /* (marks: planes 15, 16) */
           if (IS_FIELD(p[j]->t + c)) { c += 2; continue; }
           buf_addc(o, p[j]->t[c] == '\v' ? '\n' : p[j]->t[c]);
         }

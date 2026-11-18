@@ -7,7 +7,8 @@
  * Distributed alignment, Add Space Before and Remove Space After, Horizontal Line, Hanging Indent,
  * the Bullet and Numbering libraries with Define New Bullet and Define New Number Format, Sort Text,
  * nonbreaking spaces and hyphens and optional hyphens, the Symbol window, Paste Special, Copy and
- * Paste Formatting and the Clipboard pane.
+ * Paste Formatting and the Clipboard pane. Paragraph Tools (WordCraft #5043): core/paratools.c's nine
+ * conversions and cleanups on the selected paragraphs, three of them on the whole document too.
  */
 #include <string.h>
 #include <stdio.h>
@@ -22,6 +23,8 @@
 #include "wp_charpara.h"
 #include "lang.h"
 #include "../core/charfx.h"
+#include "../core/paratools.h"
+#include "wp_windows.h"
 
 #undef Label1
 #undef LLabel1
@@ -699,6 +702,34 @@ static void clip_remove(int k)
 }
 static LONG clip_active(void) { LONG a = -1; if (cl_list) get(cl_list, MUIA_List_Active, &a); return a; }
 
+/* ---- Paragraph Tools (the list beside Sort, and Format > Paragraph Tools) */
+static const char *const ptools[P_PT_N] = {
+  "Split Lines into Paragraphs", "Add Blank Paragraphs Between", "Separate Paragraphs", "Delete Blank Paragraphs",
+  "Remove Leading Spaces", "Remove Extra Spaces", "Indent Leading Spaces", "Indents to Leading Spaces", "Join Lines",
+  "Delete Blank Paragraphs in the Whole Document", "Remove Leading Spaces in the Whole Document", "Remove Extra Spaces in the Whole Document"
+};
+static const u8 ptool_of[P_PT_N] = { PT_SPLITLINES, PT_BLANKBETWEEN, PT_SEPARATE, PT_REMOVEBLANK, PT_TRIMLEADING, PT_EXTRASPACES,
+                                     PT_SPACESTOINDENT, PT_INDENTTOSPACES, PT_JOINLINES, PT_REMOVEBLANK, PT_TRIMLEADING, PT_EXTRASPACES };
+const RibbonList wp10_ptools_list = { ptools, P_PT_N, PL_TEXT, NULL };
+/* entry k of the list on the selected paragraphs (the last three: the whole document), tracked while
+   Review > Track Changes is on; one undo step */
+static void para_tools(int k)
+{
+  Doc *d = wp_doc();
+  struct Toolbar *tb = wp_toolbar();
+  Pos a, b, c;
+  int rid = -1;
+  if (!d || k < 0 || k >= P_PT_N) return;
+  sel_range(&a, &b);
+  if (k >= 9) { a = doc_start(d); b = doc_end_pos(d); }
+  if (b.para - a.para >= PT_MAXPARAS) { wp_ask("OK", "Select fewer paragraphs: at most %s at once.", "10000"); return; }
+  if (tb && (tb->uibits & RBIT(RB_TRACK))) rid = doc_add_rev(d, tb->author ? tb->author : "", tb->revdate ? tb->revdate : "");
+  d->rvtrack = (u16)(rid >= 0 ? rid + 1 : 0);          /* (indents tracked as formatting changes) */
+  c = a;
+  if (!para_tool(d, ptool_of[k], a.para, b.para, rid, &c)) { DisplayBeep(NULL); return; }
+  changed(c);
+}
+
 /* ---- the Home lists' extra entries (main.c) */
 void wp10_list_extra(ULONG id, LONG extra)
 {
@@ -774,6 +805,8 @@ int wp10_command(ULONG id, LONG value)
     break; }
   case ID_P_CLIPCLEAR: while (nclips) clip_remove(nclips - 1); break;
   case ID_P_CLIPDEL: clip_remove((int)clip_active()); return WPR_KEEPFOCUS;
+  case ID_P_PTOOLS: para_tools((int)value); break;
+  default: if (id >= ID_P_PT0 && id < ID_P_PT0 + P_PT_N) para_tools((int)(id - ID_P_PT0));
   }
   return WPR_DONE;
 }
@@ -831,6 +864,19 @@ static const WpMenu menus[] = {
   { WM_FORMAT, { NM_SUB, (STRPTR)"Define New Bullet...", 0, 0, 0, (APTR)ID_P_BULLETDEF } },
   { WM_FORMAT, { NM_SUB, (STRPTR)"Define New Number Format...", 0, 0, 0, (APTR)ID_P_NUMDEF } },
   { WM_FORMAT, { NM_SUB, (STRPTR)"Sort Text...", 0, 0, 0, (APTR)ID_P_SORT } },
+  { WM_FORMAT, { NM_SUB, NM_BARLABEL, 0, 0, 0, 0 } },
+  { WM_FORMAT, { NM_SUB, (STRPTR)"Split Lines into Paragraphs", 0, 0, 0, (APTR)(ID_P_PT0 + 0) } },
+  { WM_FORMAT, { NM_SUB, (STRPTR)"Add Blank Paragraphs Between", 0, 0, 0, (APTR)(ID_P_PT0 + 1) } },
+  { WM_FORMAT, { NM_SUB, (STRPTR)"Separate Paragraphs", 0, 0, 0, (APTR)(ID_P_PT0 + 2) } },
+  { WM_FORMAT, { NM_SUB, (STRPTR)"Delete Blank Paragraphs", 0, 0, 0, (APTR)(ID_P_PT0 + 3) } },
+  { WM_FORMAT, { NM_SUB, (STRPTR)"Remove Leading Spaces", 0, 0, 0, (APTR)(ID_P_PT0 + 4) } },
+  { WM_FORMAT, { NM_SUB, (STRPTR)"Remove Extra Spaces", 0, 0, 0, (APTR)(ID_P_PT0 + 5) } },
+  { WM_FORMAT, { NM_SUB, (STRPTR)"Indent Leading Spaces", 0, 0, 0, (APTR)(ID_P_PT0 + 6) } },
+  { WM_FORMAT, { NM_SUB, (STRPTR)"Indents to Leading Spaces", 0, 0, 0, (APTR)(ID_P_PT0 + 7) } },
+  { WM_FORMAT, { NM_SUB, (STRPTR)"Join Lines", 0, 0, 0, (APTR)(ID_P_PT0 + 8) } },
+  { WM_FORMAT, { NM_SUB, (STRPTR)"Delete Blank Paragraphs in the Whole Document", 0, 0, 0, (APTR)(ID_P_PT0 + 9) } },
+  { WM_FORMAT, { NM_SUB, (STRPTR)"Remove Leading Spaces in the Whole Document", 0, 0, 0, (APTR)(ID_P_PT0 + 10) } },
+  { WM_FORMAT, { NM_SUB, (STRPTR)"Remove Extra Spaces in the Whole Document", 0, 0, 0, (APTR)(ID_P_PT0 + 11) } },
 };
 
 /* the package: its tag, id block, hooks (command, state, field, ctxmenu, key, init, cleanup), ribbon

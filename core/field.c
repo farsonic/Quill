@@ -12,6 +12,16 @@
 #include "layout.h"
 #include "xml.h"
 #include "info.h"
+#include "cite.h"                   /* (WP3) CITATION and BIBLIOGRAPHY */
+#include "refs.h"                 /* (WP2) */
+#include "sdt.h"
+/* (WP16) content controls' marks share the top of the field marks' range (core/sdt.h): not fields here */
+#undef IS_FSTART
+#undef IS_FEND
+#undef IS_FMARK
+#define IS_FSTART(t) ((u8)(t)[0] == 0xF4 && ((u8)(t)[1] & 0xFC) == 0x84 && (u8)(t)[1] != 0x87)
+#define IS_FEND(t)   ((u8)(t)[0] == 0xF4 && ((u8)(t)[1] & 0xFC) == 0x88 && (u8)(t)[1] != 0x8B)
+#define IS_FMARK(t)  (IS_FSTART(t) || IS_FEND(t))
 
 /* ------------------------------------------------------------------ */
 /* the marks and the records */
@@ -981,6 +991,8 @@ static int eval_flat(Doc *d, Paras s, const char *flat, Pos at, const FieldEnv *
   if (cap) out[0] = 0;
   field_name(flat, nm, sizeof nm);
   if (!nm[0]) return FE_KEEP;
+  /* (WP2: REF \n \r \w \p, NOTEREF, STYLEREF, PAGEREF \p; a STYLEREF outside the body shows the page's: kept) */
+  if ((s.p == d->p && !d->edit.kind) || strcmp(nm, "STYLEREF")) { int r = refs_eval(d, nm, flat, at, e, out, cap); if (r >= 0) return r; }
   if (!strcmp(nm, "DATE")) return e ? date_result(flat, &e->now, DEF_DATE, out, cap) : FE_KEEP;
   if (!strcmp(nm, "TIME")) return e ? date_result(flat, &e->now, DEF_TIME, out, cap) : FE_KEEP;
   if (!strcmp(nm, "CREATEDATE") || !strcmp(nm, "SAVEDATE") || !strcmp(nm, "PRINTDATE")) {
@@ -988,6 +1000,7 @@ static int eval_flat(Doc *d, Paras s, const char *flat, Pos at, const FieldEnv *
     if (!w || !field_parse_time(w, &t)) return FE_KEEP;
     return date_result(flat, &t, DEF_DATETIME, out, cap);
   }
+  if (!strcmp(nm, "CITATION")) return cite_eval(d, flat, at, out, cap);     /* (WP3, core/cite.h) */
   if (!strcmp(nm, "PAGE")) { snprintf(out, cap, "%s", FIELD_PAGE); return FE_PLACE; }
   if (!strcmp(nm, "SECTION")) { snprintf(out, cap, "%s", FIELD_PAGE); return FE_PLACE; }
   if (!strcmp(nm, "NUMPAGES") || !strcmp(nm, "SECTIONPAGES")) { snprintf(out, cap, "%s", FIELD_PAGES); return FE_PLACE; }
@@ -1199,7 +1212,14 @@ static int update_in(Doc *d, Paras *s, int undo, Pos a, Pos b, const FieldEnv *e
     CharFmt f;
     if (at[i].off + 4 > q->len || !IS_FSTART(q->t + at[i].off)) continue;
     k = fmark_index(q->t + at[i].off);
-    if (k >= d->nfields || d->fields[k].locked || !find_end(*s, at[i], &en) || en.para != at[i].para) continue;
+    if (k >= d->nfields || d->fields[k].locked || !find_end(*s, at[i], &en)) continue;
+    if (undo && refs_block_kind(d->fields[k].code)) {
+      /* (WP2) a table of contents, figures or authorities, or an index: its paragraphs made afresh */
+      if (refs_field_update(d, at[i], en, e)) done++;
+      s->p = d->p; s->np = d->np;
+      continue;
+    }
+    if (en.para != at[i].para) continue;
     r = new_result(d, *s, k, at[i], e, seq[i], res, sizeof res, &link);
     if (r == FE_KEEP) continue;
     if (en.off - at[i].off - 4 == strlen(res) && !memcmp(q->t + at[i].off + 4, res, strlen(res))) continue;
@@ -1217,6 +1237,7 @@ int field_update(Doc *d, Pos a, Pos b, const FieldEnv *e)
   int n;
   doc_begin(d, a);
   n = update_in(d, &s, 1, a, b, e);
+  n += cite_update_bibs(d, a, b);                  /* (WP3) bibliographies, whose results run over paragraphs */
   doc_end(d, a);
   return n;
 }
@@ -1442,7 +1463,9 @@ int field_codes_any(const Doc *d)
 }
 int field_code_shown(const Doc *d, int k)
 {
+  char box[64];
   if (k < 0 || k >= d->nfields) return 0;
+  if ((d->fieldcodes != 0) == (d->fields[k].showcode != 0) && ff_box(d, k, box, sizeof box)) return 1;   /* (WP16: a form field's box) */
   return (d->fieldcodes != 0) != (d->fields[k].showcode != 0);
 }
 void field_code_display(const Doc *d, int k, char *out, size_t cap)
@@ -1451,6 +1474,7 @@ void field_code_display(const Doc *d, int k, char *out, size_t cap)
   const char *s = c, *e;
   size_t n;
   if (cap < 8) { if (cap) out[0] = 0; return; }
+  if (k >= 0 && k < d->nfields && (d->fieldcodes != 0) == (d->fields[k].showcode != 0) && ff_box(d, k, out, cap)) return;   /* (WP16) */
   field_code_text(k >= 0 && k < d->nfields ? d->fields[k].code : "", c, sizeof c);
   while (*s == ' ') s++;
   e = s + strlen(s);

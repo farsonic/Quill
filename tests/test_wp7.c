@@ -10,6 +10,9 @@
 #include "../core/protect.h"
 #include "../core/zip.h"
 #include "../core/review.h"
+#include "../core/merge.h"
+#include "../core/sdt.h"
+#include "../core/field.h"
 
 static int hexis(const u8 *b, int n, const char *hex)
 {
@@ -281,7 +284,7 @@ static void restrict_editing(void)
   ok("restrict: forms only, a form field filled in", prot_forms_only(d) && doc_insert(d, &p, "x", 1, NULL));
   p = P(0, 2);
   ok("restrict: forms only, other text locked", !doc_insert(d, &p, "x", 1, NULL));
-  prot_form_at = NULL;
+  prot_form_at = sdt_form_at;
   doc_free(d);
 
   /* exceptions for a named person */
@@ -327,16 +330,17 @@ static void restrict_editing(void)
 }
 
 /* settings.xml: the packages' elements in CT_Settings' order (NEXT.md's integration item 1): the attached
-   template (WP23) before w:doNotTrackMoves (WP5) before w:documentProtection (WP7), all before w:defaultTabStop */
+   template (WP23), w:mailMerge (WP4), w:doNotTrackMoves (WP5), w:documentProtection (WP7), then w:defaultTabStop */
 static void settings_order(void)
 {
   Doc *d = three();
   size_t n;
   u8 *z;
   char *st = NULL;
-  const char *a, *b, *c, *t;
+  const char *a, *b, *c, *t, *m;
   d->attached = str_dup("Normal.dotm");
   d->rvsettings |= RVS_NOMOVES;
+  { MergeInfo *mi = merge_info(d); if (mi) mi->type = MT_LETTERS; }      /* (WP4's w:mailMerge) */
   prot_set_kind(d, PR_COMMENTS, 0);
   prot_start(d, "x");
   z = docx_save(d, &n);
@@ -347,7 +351,8 @@ static void settings_order(void)
   }
   a = st ? strstr(st, "<w:attachedTemplate") : NULL; b = st ? strstr(st, "<w:doNotTrackMoves") : NULL;
   c = st ? strstr(st, "<w:documentProtection") : NULL; t = st ? strstr(st, "<w:defaultTabStop") : NULL;
-  ok("settings: in the schema's order", a && b && c && t && a < b && b < c && c < t);
+  m = st ? strstr(st, "<w:mailMerge") : NULL;
+  ok("settings: in the schema's order", a && b && c && t && m && a < m && m < b && b < c && c < t);
   free(st); free(z);
   doc_free(d);
 }
@@ -386,6 +391,48 @@ static void formatting_limits(void)
   free(z); doc_free(e); doc_free(d);
 }
 
+/* "Filling in forms": WP16's form fields and content controls free, the rest locked; a section with
+   w:formProt off free; WP16 told it is on */
+static void forms(void)
+{
+  Doc *d = three(), *e;
+  Pos at = P(0, 6), q;
+  int tk, ck, k;
+  SectFmt sf;
+  u8 *z;
+  size_t n;
+  char err[200];
+  unsigned lost;
+  tk = ff_insert(d, &at, FF_TEXT);
+  q = P(2, d->p[2]->len);
+  ck = ff_insert(d, &q, FF_CHECK);
+  sect_default(&sf);
+  sf.formfree = 1;
+  k = doc_add_sect(d, &sf);
+  ok("forms: fields made", tk >= 0 && ck >= 0 && k > 0);
+  prot_set_kind(d, PR_FORMS, 0);
+  ok("forms: enforced, WP16 told", prot_start(d, NULL) && prot_forms_only(d) && sdt_forms_protected && sdt_forms_protected(d));
+  q = P(0, 2);
+  ok("forms: typing outside a form refused", !doc_insert(d, &q, "x", 1, NULL));
+  q = P(0, 13);
+  ok("forms: typing in a text form field", doc_insert(d, &q, "Jo", 2, NULL) && strstr(d->p[0]->t, "Jo"));
+  ok("forms: deleting outside refused", !doc_delete(d, P(2, 0), P(2, 4)));
+  {
+    Pos s = P(2, 0);
+    u32 i;
+    for (i = 0; i + 4 <= d->p[2]->len; i++) if (IS_FSTART(d->p[2]->t + i)) { s.off = i; break; }
+    ok("forms: a check box ticked", ff_toggle(d, s) && ff_checked(d, fmark_index(d->p[2]->t + s.off)));
+  }
+  q = P(1, 0);
+  ok("forms: a protected section refused", !doc_insert(d, &q, "y", 1, NULL));
+  d->p[1]->pf.sect = (u16)k;           /* (the first section, paragraphs 0 and 1, is free) */
+  ok("forms: a section with formProt off is free", doc_insert(d, &q, "y", 1, NULL) && d->p[1]->t[0] == 'y' && !doc_insert(d, (q = P(2, 0), &q), "z", 1, NULL));
+  z = docx_save(d, &n);
+  e = z ? docx_load(z, n, &lost, err, sizeof err) : NULL;
+  ok("forms: read back", e && prot_forms_only(e) && e->nsects >= 1 && e->p[1]->pf.sect && e->sects[e->p[1]->pf.sect - 1].formfree);
+  free(z); doc_free(e); doc_free(d);
+}
+
 void test_wp7(void)
 {
   vectors();
@@ -394,4 +441,5 @@ void test_wp7(void)
   restrict_editing();
   settings_order();
   formatting_limits();
+  forms();
 }

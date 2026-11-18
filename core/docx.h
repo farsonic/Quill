@@ -80,5 +80,9 @@ typedef struct DocxOut DocxOut;
    (copied). 0 if out of memory */
 int docx_out_part(DocxOut *o, const char *name, const char *ctype, const char *owner, const char *reltype, const char *relid,
                   const void *data, size_t len);
+/* a relationship of word/settings.xml (word/_rels/settings.xml.rels, written once with every package's
+   entries: WP23's attached template, WP4's mail-merge data source). external: TargetMode="External".
+   0 if out of memory */
+int docx_out_settings_rel(DocxOut *o, const char *relid, const char *reltype, const char *target, int external);
 
 #endif

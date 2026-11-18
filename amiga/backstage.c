@@ -24,6 +24,7 @@
 #include "ids.h"
 #include "wp_info.h"   /* (WP24) */
 #include "wp_protect.h"   /* (WP7) */
+#include "wp_controls.h"     /* (WP16) */
 #include "wp_templates.h"   /* (WP23) */
 #include "lang.h"
 #include "../core/template.h"
@@ -43,7 +44,8 @@ static const Side side[] = {
 #define MAXHOT 40
 typedef struct { WORD x0, y0, x1, y1; } BBox;
 enum { H_NONE, H_BACK, H_SIDE, H_TEMPLATE, H_RECENT, H_BROWSE, H_PDF, H_TEXT, H_CM, H_IN, H_NAME, H_THEME, H_LANG, H_SIZE, H_WINDOW,
-       H_AUTOSAVE, H_INFO0 };   /* (WP24: AutoSave in Options; H_INFO0 + n: the Info page's buttons) */
+        H_AUTOSAVE, H_DEVTAB, H_INFO0,
+        H_RECENTDEL = 180, H_RECENTCLR };   /* (a recent document's x: off the list; Clear the list) */   /* (WP24: AutoSave in Options; H_INFO0 + n: the Info page's buttons) */
 /* (WP24) the Info page's commands: Properties, Check for Issues, Version History, Manage Document */
 static const struct { int icon; const char *title, *sub; ULONG id; } infobtn[] = {
   { IC_TRACK, "Protect Document", "Encrypt it, or restrict editing", ID_PROT_DOC },   /* (WP7) */
@@ -188,6 +190,18 @@ static LONG recent_list(struct BData *d, struct RastPort *rp, LONG x, LONG y, LO
 {
   int i;
   if (!d->nrecent) { text_fit(rp, theme_font(), x, y, tr("Documents you open or save appear here."), maxx - x, tpen(T_DIM)); return y + fh() + 6; }
+  {
+    /* Clear the list, at the right above it (on the heading's line) */
+    const char *cl = tr("Clear the list");
+    struct TextFont *tf = theme_font();
+    LONG cw, cy = y - fh() - 9;
+    struct TextExtent te;
+    SetFont(rp, tf);
+    TextExtent(rp, (STRPTR)cl, (ULONG)strlen(cl), &te);
+    cw = te.te_Width;
+    text_fit(rp, tf, maxx - cw, cy, cl, cw + 2, tpen(is_over(d, H_RECENTCLR, 0) ? T_TEXT : T_DIM));
+    add_hot(d, maxx - cw - 2, cy - 1, maxx, cy + fh() + 1, H_RECENTCLR, 0);
+  }
   for (i = 0; i < d->nrecent && y + 2 * fh() + 6 < maxy; i++) {
     const char *full = d->recent[i], *name = (const char *)FilePart((STRPTR)full);
     char dir[256];
@@ -195,10 +209,14 @@ static LONG recent_list(struct BData *d, struct RastPort *rp, LONG x, LONG y, LO
     size_t n = (size_t)((const char *)name - full);
     if (n >= sizeof dir) n = sizeof dir - 1;
     memcpy(dir, full, n); dir[n] = 0;
-    if (is_over(d, H_RECENT, i)) theme_fill(rp, x - 4, y - 2, maxx, y + rh - 4, tpen(T_HOVER));
+    LONG xx = maxx - 14, xy = y + (rh - 12) / 2;      /* the x that takes it off the list */
+    if (is_over(d, H_RECENT, i) || is_over(d, H_RECENTDEL, i)) theme_fill(rp, x - 4, y - 2, maxx, y + rh - 4, tpen(T_HOVER));
     theme_icon(rp, IC_NEW, x, y + (rh - 22) / 2, 16, 0);
-    text_fit(rp, theme_bold(), x + 24, y + 1, name, maxx - x - 28, tpen(T_TEXT));
-    text_fit(rp, theme_font(), x + 24, y + fh() + 2, dir[0] ? dir : full, maxx - x - 28, tpen(T_DIM));
+    text_fit(rp, theme_bold(), x + 24, y + 1, name, maxx - x - 46, tpen(T_TEXT));
+    text_fit(rp, theme_font(), x + 24, y + fh() + 2, dir[0] ? dir : full, maxx - x - 46, tpen(T_DIM));
+    SetAPen(rp, tpen(is_over(d, H_RECENTDEL, i) ? T_TEXT : T_DIM));
+    Move(rp, xx + 2, xy + 2); Draw(rp, xx + 9, xy + 9); Move(rp, xx + 9, xy + 2); Draw(rp, xx + 2, xy + 9);
+    add_hot(d, xx - 2, xy - 2, xx + 12, xy + 12, H_RECENTDEL, i);
     add_hot(d, x - 4, y - 2, maxx, y + rh - 4, H_RECENT, i);
     y += rh;
   }
@@ -354,7 +372,12 @@ static void back_draw(struct BData *d, Object *obj)
     y = choices(d, rp, x, y, "Theme", themes, 2, d->dark, H_THEME);
     y = choices(d, rp, x, y, "Text size", sizes, 2, d->large, H_SIZE);
     y = choices(d, rp, x, y, "Language", ui_languages, UI_NLANG, d->lang, H_LANG);
-    { static const char *const onoff[] = { "Off", "On" };      /* (WP24) */
+    { static const char *const onoff[] = { "Off", "On" };      /* (WP24; WP16: the Developer tab beside it) */
+      LONG x2 = x + theme_textlen(rp, theme_font(), tr("Off")) + theme_textlen(rp, theme_font(), tr("On")) + 46, w1;
+      w1 = theme_textlen(rp, theme_bold(), tr("AutoSave")) + 24;
+      if (x2 < x + w1) x2 = x + w1;
+      if (x2 < x + 140) x2 = x + 140;
+      choices(d, rp, x2, y, "Developer Tab", onoff, 2, wp16_devtab_on(), H_DEVTAB);
       y = choices(d, rp, x, y, "AutoSave", onoff, 2, wp24_autosave_on(), H_AUTOSAVE); }
     y -= 14;
     y += fh() + 20;
@@ -426,6 +449,16 @@ static ULONG back_events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent
       break;
     case H_TEMPLATE: d->value = ht->n; DoMethod(_app(obj), MUIM_Application_ReturnID, ID_TEMPLATE); break;
     case H_RECENT: d->value = ht->n; DoMethod(_app(obj), MUIM_Application_ReturnID, ID_RECENT); break;
+    case H_RECENTDEL: case H_RECENTCLR:
+      /* off the list here at once; main.c takes it off its own list and the file (value 0x1000 + n: that
+         one, 0x2000: all) */
+      if (ht->kind == H_RECENTCLR) d->nrecent = 0;
+      else if (ht->n < d->nrecent) { memmove(d->recent[ht->n], d->recent[ht->n + 1], (size_t)(d->nrecent - ht->n - 1) * sizeof d->recent[0]); d->nrecent--; }
+      d->value = ht->kind == H_RECENTCLR ? 0x2000 : 0x1000 + ht->n;
+      d->over = -1;
+      DoMethod(_app(obj), MUIM_Application_ReturnID, ID_RECENT);
+      MUI_Redraw(obj, MADF_DRAWOBJECT);
+      break;
     case H_BROWSE: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_OPEN); break;
     case H_PDF: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_PDF); break;
     case H_TEXT: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_SAVETXT); break;
@@ -433,6 +466,7 @@ static ULONG back_events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent
     case H_WINDOW: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_WINPREFS); break;
     case H_WP23_SAVETPL: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_TP_SAVEAS); break;   /* (WP23) */
     case H_AUTOSAVE: wp24_autosave_set(ht->n); MUI_Redraw(obj, MADF_DRAWOBJECT); break;   /* (WP24) */
+    case H_DEVTAB: wp16_devtab_set(ht->n); MUI_Redraw(obj, MADF_DRAWOBJECT); break;       /* (WP16) */
     case H_CM: case H_THEME: case H_LANG: case H_SIZE:
       if (ht->kind == H_CM) d->metric = ht->n == 0;
       else if (ht->kind == H_THEME) d->dark = ht->n;

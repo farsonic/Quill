@@ -6,11 +6,13 @@
 #include <stdio.h>
 #include "doc.h"
 #include "field.h"
+#include "sdt.h"    /* (WP16) */
 #include "objfx.h"
 #include "keep.h"
 #include "image.h"
 #include "chart.h"                 /* (WP15a) Image.pack */
 #include "notes.h"   /* (WP22b) */
+#include "refs.h"    /* (WP2) */
 #include "info.h"    /* (WP24) */
 #include "wordart.h" /* (WP19) */
 #include "math.h"     /* WP14a */
@@ -18,6 +20,7 @@
 #include "review.h"
 #include "outline.h"                  /* (WP11) heading_style_level */
 #include "protect.h"  /* WP7 */
+#include "cite.h"                     /* (WP3) cite_free */
 
 /* ------------------------------------------------------------------ */
 /* undo: a step replaces paragraphs [p0, p0 + nnew) with copies of what was there before the edit
@@ -576,6 +579,7 @@ int doc_insert(Doc *d, Pos *at, const char *s, u32 n, const CharFmt *f)
   if (at->off > p->len) at->off = p->len;
   if (!prot_insert_ok(d, *at, s, n)) return 0;    /* (WP7) */
   fmt = f ? *f : *para_fmt_before(p, at->off);
+  if (!sdt_insert_ok(d, *at)) return 0;          /* (WP16: content controls' locks) */
   /* typing one character in a run of typing: no new undo step, the paragraph's copy is saved */
   single = n > 0 && n <= 4 && memchr(s, '\n', n) == NULL && memchr(s, '\r', n) == NULL;
   {
@@ -631,6 +635,7 @@ int doc_delete(Doc *d, Pos a, Pos b)
   Step *st;
   if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
   a = pos_clamp(d, a); b = pos_clamp(d, b);
+  if (!sdt_delete_ok(d, a, b)) return 0;          /* (WP16: content controls' locks) */
   if (!pos_cmp(a, b)) return 0;
   if (!prot_range_ok(d, a, b, 0)) return 0;      /* (WP7) */
   if (!(st = rec(d, a.para, b.para - a.para + 1, b))) { close_auto(d); return 0; }
@@ -2147,6 +2152,7 @@ int doc_paste(Doc *d, Pos *at, const Fragment *f, int mode)
   where = *at = pos_clamp(d, *at);
   if (!prot_insert_ok(d, *at, "", 0)) return 0;   /* (WP7) */
   dp = d->p[at->para];
+  if (!sdt_insert_ok(d, *at)) return 0;         /* (WP16: content controls' locks) */
   off = at->off;
   dst = *para_fmt_before(dp, off);
   if (!(nw = (Para **)calloc(n, sizeof(Para *)))) return 0;
@@ -2774,6 +2780,8 @@ void doc_free(Doc *d)
   undo_free(d->undo);
   keep_free(d);
   field_free_all(d);
+  refs_free(d);                  /* (WP2) */
+  sdt_free_all(d);               /* (WP16) */
   free(d->wm.pic);          /* (WP22a) */
   notes_free(d);                 /* (WP22b) */
   info_free(d);                  /* (WP24) */
@@ -2782,6 +2790,8 @@ void doc_free(Doc *d)
   math_doc_free(d);     /* WP14a: equations */
   rv_free(d);                                   /* (WP5) */
   prot_free(d);         /* WP7 */
+  { extern void merge_free(Doc *); merge_free(d); }   /* (WP4) */
+  cite_free(d);                                 /* (WP3) */
   free(d);
 }
 

@@ -18,6 +18,17 @@ WP21a/b tables · WP22a pages and columns · WP22b note options · WP23 template
 WP24 AutoSave/recovery/properties/accessibility · WP25 views and windows · WP28a RTF · WP28b ODT ·
 WP28c HTML and Markdown · WP29 PDF depth and page images · WP31 proofing languages.
 
+## WordCraft sync of 2026-11-18 (branch `wcsync`)
+
+`docs/wordcraft-gap.md` was compared again with WordCraft's `main` at `22a73d9` (2026-11-17): twelve new ribbon
+commands (Emphasis Mark, Fit One Page, the nine Paragraph Tools, Markdown Source) and View Side by Side /
+Synchronous Scrolling, which WordCraft now has, plus nine section-2 features. Done on the branch: Paragraph Tools
+(core/paratools.c, WP10), Fit One Page (core/fitpage.c, WP22a), Side by Side, Synchronous Scrolling and the
+screen paper colours (WP25), removing recent documents (backstage.c), RTF comments (WP28a), line numbers in the
+Line Number style. Still open from that report: Emphasis Mark (WP27), Markdown Source view, tracking style
+changes (styles carry no tracked change in WP5's model), Delete Previous Sentence. Not checked on an Amiga yet:
+the new ribbon items' fit at 640 px (Home's Paragraph group gained a list, View's Window group two buttons).
+
 ## Started but not finished (branches with work in progress)
 
 Each is a branch `<name>` on GitHub (it was a git worktree in the original session); the last commit on each is a
@@ -26,12 +37,12 @@ build, finish the package as its entry in the gap document describes, test, merg
 
 | Branch | Package | Commits ahead | State |
 |---|---|---|---|
-| protect | WP6 Compare/Combine, WP7 Restrict Editing + encryption, WP28d .doc reader | 20 | finished, ready to merge: encryption checked both ways with LibreOffice 24.2 and msoffcrypto-tool; Restrict Editing 🟨 only for forms (waits for WP16's `prot_form_at`); .doc read 🟨 (no pictures, comments, bookmarks) |
-| cite | WP3 citations and bibliography | 9 | partly built |
-| refs | WP2 captions, table of figures, index, authorities, TOC as a field | 6 | partly built |
+| protect | WP6 Compare/Combine, WP7 Restrict Editing + encryption, WP28d .doc reader | 22 | finished, master merged in, ready to merge: encryption checked both ways with LibreOffice 24.2 and msoffcrypto-tool; Restrict Editing ✅ with WP16's forms (`sdt_form_at`, `sdt_forms_protected`) and sections' `w:formProt`; .doc read 🟨 (no pictures, comments, bookmarks) |
+| cite | WP3 citations and bibliography | 9 | merged into master (WP3 done: 16 citation styles, Source Manager, bibliography field) |
+| refs | WP2 captions, table of figures, index, authorities, TOC as a field | 6 | merged into master (WP2 done: captions, table of figures, index, authorities, TOC field) |
 | custom | WP26 Options panes, Customize Ribbon/QAT/Keyboard, command search, KeyTips, ribbon group collapsing at 640 px | 5 | partly built |
-| controls | WP16 content controls, Developer tab, legacy form fields | 3 | early |
-| mailings | WP4 mail merge, envelopes, labels | 3 | early |
+| controls | WP16 content controls, Developer tab, legacy form fields | 7 | merged into master |
+| mailings | WP4 mail merge, envelopes, labels | 5 | merged into master |
 | intl | WP27 right-to-left (bidi) and East Asian | 2 | early |
 
 ## Not started
@@ -41,9 +52,10 @@ build, finish the package as its entry in the gap document describes, test, merg
 
 ## Integration fixes to make before a release
 
-1. **settings.xml element order**: fixed on `protect` for slot 1 (WP23's attachedTemplate group first, then WP4's mailMerge, WP5's revisionView/doNotTrack*, WP7's documentProtection, as CT_Settings orders them; tests/test_wp7.c `settings_order`). The `mailings` branch puts its call in the same place; when merging, keep that order (WP23, WP4, WP5, WP7).
-2. **settings.xml.rels**: WP23 (attached template) and WP4 (mail-merge data source) may both write it; one
-   would be dropped. Make it shared.
+1. **settings.xml element order**: done. docx.c's `docx_write_settings_ext` is the one place; in slot 1 it writes WP23's attachedTemplate group, WP4's mailMerge, WP5's revisionView/doNotTrack*, then WP7's documentProtection, as CT_Settings orders them (tests/test_wp7.c `settings_order`).
+2. **settings.xml.rels**: done on the `mailings` branch: packages add settings.xml's relationships with
+   `docx_out_settings_rel` (core/docx.h) and docx_save writes the part once (WP23's attached template and WP4's
+   data source both kept).
 3. **Ribbon width**: the Insert tab (and Home in German) is wider than 640 px; several packages put commands
    only in menus because of it. WP26's group collapsing (on the `custom` branch) is the fix.
 4. **WordArt scheme colours** use the default Office theme; switch to the document's (`core/doctheme.h`).

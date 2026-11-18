@@ -328,8 +328,40 @@ static int wp19_pdf_warped(Pdf *p, Buf *b, const Image *im, const Furn *f, i32 x
   wa_pieces_free(pc, n);
   return 1;
 }
-/* one run of text (a box or a label) at x, baseline y (twips, PDF's y upwards) */
+/* one run of text (a box or a label) at x, baseline y (twips, PDF's y upwards): text1 below, with
+   ballot boxes (U+2610-2612: content controls' and form fields' check boxes, WP16) the font lacks
+   drawn as boxes, as the screen draws them, rather than as question marks */
+static void text1(Pdf *p, Buf *b, const CharFmt *f, const char *s, u32 n, i32 x, i32 y, i32 w);
 static void text(Pdf *p, Buf *b, const CharFmt *f, const char *s, u32 n, i32 x, i32 y, i32 w)
+{
+  FaceSize *z = lay_face(p->L, f);
+  u32 i = 0, st = 0;
+  while (z && i < n) {
+    int used;
+    u32 cp = utf8_get(s + i, n - i, &used);
+    if (cp >= 0x2610 && cp <= 0x2612 && !ttf_glyph(z->face, cp)) {
+      i32 sw = st < i ? (i32)(fonts_text(z, s + st, i - st) / QFINE) : 0, cw = (i32)(fonts_text(z, s + i, (u32)used) / QFINE);
+      i32 size = f->size * 10, side = cw * 9 / 10, bx, by;      /* (in the width the layout gave it) */
+      if (side > size * 6 / 10) side = size * 6 / 10;
+      if (side < size * 3 / 10) side = size * 3 / 10;
+      if (st < i) text1(p, b, f, s + st, i - st, x, y, sw);
+      x += sw; w -= sw;
+      bx = x + (cw - side) / 2; by = y - size / 20;
+      colour(b, f->color, "RG");
+      buf_printf(b, "%ld w %ld %ld %ld %ld re S\n", (long)(size / 16 + 1), (long)bx, (long)by, (long)side, (long)side);
+      if (cp == 0x2612)        /* checked: a cross */
+        buf_printf(b, "%ld %ld m %ld %ld l %ld %ld m %ld %ld l S\n", (long)(bx + side / 5), (long)(by + side / 5), (long)(bx + side - side / 5), (long)(by + side - side / 5),
+                   (long)(bx + side / 5), (long)(by + side - side / 5), (long)(bx + side - side / 5), (long)(by + side / 5));
+      else if (cp == 0x2611)   /* a tick */
+        buf_printf(b, "%ld %ld m %ld %ld l %ld %ld l S\n", (long)(bx + side / 5), (long)(by + side / 2), (long)(bx + side * 2 / 5), (long)(by + side / 5), (long)(bx + side - side / 6), (long)(by + side - side / 6));
+      x += cw; w -= cw;
+      st = i + (u32)used;
+    }
+    i += (u32)used;
+  }
+  if (st < n) text1(p, b, f, s + st, n - st, x, y, w);
+}
+static void text1(Pdf *p, Buf *b, const CharFmt *f, const char *s, u32 n, i32 x, i32 y, i32 w)
 {
   FaceSize *z = lay_face(p->L, f), *zs = NULL;
   u32 cps[512];
@@ -1025,13 +1057,14 @@ static void page_content(Pdf *p, u32 page, Buf *b)
       link_area(p, LK_PARA, (u32)p->tocto[pc->para], lx, H - pc->y - ln->height, lx + ln->width, H - pc->y);
     if (pc->lnum) {
       /* its line number, its right edge lnd left of the column */
-      CharFmt f = d->styles[0].cf;
-      FaceSize *z = lay_face(L, &f);
+      CharFmt f;
+      FaceSize *z;
       char num[16];
       i32 nw;
+      lay_lnum_fmt(d, &f);                                 /* (the Line Number style's look) */
+      z = lay_face(L, &f);
       sprintf(num, "%lu", (unsigned long)pc->lnum);
       nw = z ? (i32)(fonts_text(z, num, (u32)strlen(num)) / QFINE) : 0;
-      f.flags = 0; f.color = COLOR_AUTO; f.rev = 0; f.hl = 0;
       text(p, b, &f, num, (u32)strlen(num), pg->left + pc->x - pc->lnd - nw, base, nw);
     }
   }

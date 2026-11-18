@@ -30,6 +30,8 @@
 #include "../core/pages.h"
 #include "../core/hyph.h"
 #include "../core/docx.h"
+#include "../core/fitpage.h"
+#include "wp_windows.h"
 
 /* the dialogs' labels in Quill's theme, as main.c makes them */
 #undef Label
@@ -423,7 +425,7 @@ static void setup_done(void)
   v[0] = get_len(p_w); v[1] = get_len(p_h); v[2] = get_len(p_top); v[3] = get_len(p_bot); v[4] = get_len(p_left); v[5] = get_len(p_right);
   v[6] = get_len(p_hdr); v[7] = get_len(p_ftr); v[8] = get_len(p_gut);
   if (v[0] < 1440 || v[1] < 1440 || v[0] > 31680 || v[1] > 31680 || v[8] < 0 || v[4] + v[5] + v[8] > v[0] - 720 || v[2] + v[3] > v[1] - 720) {
-    wp_ask("OK", "%s", tr("The page must be 1 to 22 inches (2.5 to 55 cm) each way, with room between the margins."));
+    wp_ask("OK", "The page must be 1 to 22 inches (2.5 to 55 cm) each way, with room between the margins.", NULL);
     return;
   }
   set(pswin, MUIA_Window_Open, FALSE);
@@ -657,7 +659,7 @@ static void wm_done(void)
     if (wm_path[0]) {
       size_t n = 0;
       u8 *data = file_read(wm_path, &n);
-      if (!data || !pages_wm_picture(d, data, (u32)n)) { free(data); wp_ask("OK", "%s", tr("That picture can't be read (PNG or JPEG only).")); return; }
+      if (!data || !pages_wm_picture(d, data, (u32)n)) { free(data); wp_ask("OK", "That picture can't be read (PNG or JPEG only).", NULL); return; }
       free(data);
     } else if (!d->wm.pic) { DisplayBeep(NULL); return; }
     d->wm.scale = scales[geti(w_scale, MUIA_Cycle_Active) % NSCALES];
@@ -799,7 +801,7 @@ static void manual_next(Pos p)
   get(wp_view(), MUIA_Quill_Layout, &L);
   if (!L || !pages_next_manual(L, p, &mh_at, &mh_len, mh_brk, &mh_sug)) {
     if (mhwin) set(mhwin, MUIA_Window_Open, FALSE);
-    wp_ask("OK", "%s", tr("Hyphenation is complete."));
+    wp_ask("OK", "Hyphenation is complete.", NULL);
     return;
   }
   for (k = 1; k < mh_len && n < 40; k++) {
@@ -855,7 +857,7 @@ static void manual_answer(int yes)
 }
 static void open_manual(void)
 {
-  if (!hyph_patterns()) { wp_ask("OK", "%s", tr("The hyphenation patterns (Dict/hyph_en_GB.dic) can't be read.")); return; }
+  if (!hyph_patterns()) { wp_ask("OK", "The hyphenation patterns (Dict/hyph_en_GB.dic) can't be read.", NULL); return; }
   if (hywin) set(hywin, MUIA_Window_Open, FALSE);
   wp_story_close();
   manual_next(caret());
@@ -863,6 +865,7 @@ static void open_manual(void)
 
 /* ------------------------------------------------------------------ */
 /* the package */
+static void fit_page(void);
 int wp22a_command(ULONG id, LONG value)
 {
   switch (id) {
@@ -893,9 +896,32 @@ int wp22a_command(ULONG id, LONG value)
   case ID_PG_MUPD: manual_show(); return WPR_KEEPFOCUS;
   case ID_PG_LINENUM: open_linenum(); return WPR_KEEPFOCUS;
   case ID_PG_LINENUMGO: linenum_done(); break;
+  case ID_PG_FITPAGE: fit_page(); break;
   case ID_PG_JUSTIFY: psnew.start = caret_sect(NULL)->start; psnew.valign = VA_JUSTIFY; psnew.first = caret_sect(NULL)->titlepg; apply_sect(AP_SECTION, SB_NEXT, ps_fn, NULL); break;
   }
   return WPR_DONE;
+}
+/* Fit One Page: the document a page shorter, or why not */
+static void fit_page(void)
+{
+  Doc *d = wp_doc();
+  u32 before = 0, after = 0;
+  char n[16];
+  int r;
+  if (!d) return;
+  wp_story_close();
+  d = wp_doc();
+  d->rvtrack = 0;
+  { struct Toolbar *tb = wp_toolbar(); if (tb && (tb->uibits & RBIT(RB_TRACK))) d->rvtrack = 1; }
+  r = fit_one_page(d, wp_fonts(), &before, &after);
+  switch (r) {
+  case FIT_OK: { Pos c = doc_start(d); DoMethod(wp_view(), MUIM_Quill_Relayout); set(wp_view(), MUIA_Quill_Caret, (ULONG)&c); break; }
+  case FIT_ONEPAGE: wp_ask("OK", "The document already fits on one page.", NULL); break;
+  case FIT_BREAKS: wp_ask("OK", "Page, column or section breaks make the pages: Fit One Page can't take one away.", NULL); break;
+  case FIT_TOOFULL: sprintf(n, "%lu", (unsigned long)before); wp_ask("OK", "The last of the %s pages holds too much to fit onto the pages before it.", n); break;
+  case FIT_TRACKED: wp_ask("OK", "Fit One Page can't be tracked: turn Track Changes off first.", NULL); break;
+  default: wp_ask("OK", "The document can't be brought onto a page less without making its text too small.", NULL); break;
+  }
 }
 /* the caret and selection, kept for Apply to's choices */
 static void wp22a_state(ULONG *on, const WpCtx *c)
@@ -907,6 +933,7 @@ static const WpMenu wp22a_menus[] = {
   { WM_LAYOUT, { NM_ITEM, NM_BARLABEL, 0, 0, 0, 0 } },
   { WM_LAYOUT, { NM_ITEM, (STRPTR)"Columns...", 0, 0, 0, (APTR)ID_PG_COLUMNS } },
   { WM_LAYOUT, { NM_ITEM, (STRPTR)"Line Numbering Options...", 0, 0, 0, (APTR)ID_PG_LINENUM } },
+  { WM_LAYOUT, { NM_ITEM, (STRPTR)"Fit One Page", 0, 0, 0, (APTR)ID_PG_FITPAGE } },
   { WM_LAYOUT, { NM_ITEM, (STRPTR)"Hyphenation", 0, 0, 0, 0 } },
   { WM_LAYOUT, { NM_SUB, (STRPTR)"Hyphenation Options...", 0, 0, 0, (APTR)ID_PG_HYPHOPTS } },
   { WM_LAYOUT, { NM_SUB, (STRPTR)"Manual...", 0, 0, 0, (APTR)ID_PG_MANUAL } },

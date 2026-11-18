@@ -42,13 +42,19 @@ enum {
   ID_P_PASTESPECIAL, ID_P_PSGO,                    /* Paste Special window, its OK */
   ID_P_COPYFMT, ID_P_PASTEFMT,                     /* Copy Formatting (Ctrl-Shift-C), Paste Formatting (Ctrl-Shift-V) */
   ID_P_CLIPPANE, ID_P_CLIPPASTE, ID_P_CLIPALL, ID_P_CLIPCLEAR, ID_P_CLIPDEL,   /* the Clipboard pane and its buttons */
-  ID_P_LAST
+  ID_P_PTOOLS,               /* the Paragraph Tools list (WordCraft #5043; P_PT_ entries) */
+  ID_P_PT0,                  /* .. + P_PT_N - 1: its entries as menu items */
+  ID_P_LAST = ID_P_PT0 + 12
 };
 /* WP10's state bits (RB_WP(WPI_10, n)) */
 enum { P_ST_DISTRIBUTE = 1, P_ST_CLIPPANE = 2 };
 
+/* the Paragraph Tools list's entries: core/paratools.h's nine tools on the selected paragraphs, then three
+   of them on the whole document */
+enum { P_PT_N = 12 };
 /* the lists Quill's Home tab takes from WP9/WP10 (ribbon.c's g_font and g_para) */
-extern const RibbonList wp9_effects_list, wp9_ulcolor_list, wp9_shade_list, wp10_bullet_list, wp10_number_list;
+extern const RibbonList wp9_effects_list, wp9_ulcolor_list, wp9_shade_list, wp10_bullet_list, wp10_number_list, wp10_ptools_list;
+#define WP10_ICON_PTOOLS "ci F 3 2 6 7 L 7 2 7 14 L 10 2 10 14 L 7 2 13 2 ca L 1 14 4 14"
 #define WP9_ICON_ENCLOSE "ci O 8 8 7 B A"
 #define WP9_ICON_EFFECTS "ca B A ci L 2 14 6 14 L 10 14 14 14 ca O 3 3 1 O 13 4 1"
 #define WP9_ICON_ULCOLOR "ci U U cr F 2 13 13 15"

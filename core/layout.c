@@ -11,6 +11,7 @@
 #include "pages.h"
 #include "charfx.h"
 #include "notes.h"   /* (WP22b) */
+#include "refs.h"    /* (WP2) */
 #include "math.h"     /* WP14a: equations */
 #include "mathedit.h" /* WP14b: numbered equations */
 #include "review.h"
@@ -177,7 +178,7 @@ static int make_boxes(Layout *L, Para *p, Work *w, u32 note, u32 enote)
         /* a field's mark has no width; one showing its code shows it at its start mark instead of
            its result */
         j = i + 4; b.kind = BX_MARK;
-        if (IS_FSTART(p->t + i) && field_code_shown(L->d, fmark_index(p->t + i))) { b.kind = BX_FIELD; hide = field_end_in_para(p, i); }
+        if (IS_FSTART(p->t + i) && (field_code_shown(L->d, fmark_index(p->t + i)) || (L->showhidden && refs_mark_field(L->d, fmark_index(p->t + i))))) { b.kind = BX_FIELD; hide = field_end_in_para(p, i); }   /* (WP2: XE, TC, TA show with the marks) */
       } else if (p->t[i] == ' ') {
         while (j < end && p->t[j] == ' ' && j - i < 255) j++;
         b.kind = BX_SPACE; b.nspace = (u8)(j - i);
@@ -2831,6 +2832,20 @@ int lay_bmark_page(Layout *L, const char *name)
       L->pl[a.para].placed0 >= L->nplaced) return 0;
   lay_caret(L, a, &pg, &x, &y, &h);
   return (int)pg + 1;
+}
+/* see layout.h */
+void lay_lnum_fmt(const Doc *d, CharFmt *f)
+{
+  int k, found = -1;
+  for (k = 0; k < d->nstyles; k++) {
+    const Style *s = &d->styles[k];
+    if (s->type != ST_CHAR) continue;
+    if (!strcmp(s->id, "LineNumber")) { found = k; break; }
+    if (found < 0 && str_ieq(s->name, "line number")) found = k;
+  }
+  *f = found >= 0 ? d->styles[found].cf : d->styles[0].cf;
+  f->flags &= (u8)~(CF_BOLD | CF_ITALIC | CF_UNDERLINE | CF_STRIKE | CF_SUPER | CF_SUB);
+  f->rev = REV_NONE; f->rid = 0; f->frev = 0; f->move = 0; f->hl = 0; f->link = 0; f->bmark = 0; f->cstyle = 0;
 }
 /* see layout.h: everything, no budget */
 int lay_update(Layout *L) { return lay_update_part(L, 0); }

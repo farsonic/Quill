@@ -12,6 +12,7 @@
 #include "image.h"
 #include "tstyle.h"
 #include "keep.h"
+#include "merge.h"           /* (WP4) */
 #include "doctheme.h"   /* (WP13) */
 #include "blocks.h"     /* (WP23) */
 #include "field.h"
@@ -20,12 +21,15 @@
 #include "charfx.h"
 #include "wordart.h"   /* (WP19) */
 #include "notes.h"   /* (WP22b) */
+#include "refs.h"    /* (WP2) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a: equations */
 #include "ink.h"      /* WP20: freeforms, ink, drawing canvases */
 #include "docx_lang.h"   /* WP31: languages, do not check */
 #include "review.h"
 #include "protect.h"  /* WP7: Restrict Editing, encryption */
+#include "cite.h"     /* WP3: the bibliography sources part */
+#include "sdt.h"   /* (WP16) */
 
 /* ------------------------------------------------------------------ */
 /* reading: formatting as found (which fields a pPr or rPr sets) */
@@ -1079,6 +1083,170 @@ static void run_text(PCtx *pc, const char *s, size_t n, const CharFmt *f)
 }
 static void parse_children(Xml *x, PCtx *pc);
 static int comment_by_id(Ctx *c, i32 id);
+/* ---- WP16: content controls (core/sdt.h). A w:sdt in a paragraph (inline) gets its marks round the
+   runs of its w:sdtContent; one round paragraphs, tables, rows or cells gets its start mark at the
+   start of the first paragraph it holds and its end mark at the end of the last, once its end is
+   read (w16_start pushes it, w16_end places the marks). Its w:sdtPr and w:sdtEndPr are read by
+   looking ahead (the loops reading the content skip them) */
+typedef struct { const PCtx *pc; int depth, k; u32 first; } W16Open;
+static W16Open w16_open[32];
+static int w16_nopen;
+static int w16_prefix_known(const char *p, size_t n)
+{
+  return (n == 1 && (p[0] == 'w' || p[0] == 'r')) || (n == 3 && (!strncmp(p, "w14", 3) || !strncmp(p, "w15", 3) || !strncmp(p, "xml", 3)));
+}
+/* the declarations the record's verbatim parts need, from the part's root element */
+static void w16_ns(Doc *d, Sdt *s, const char *xml, size_t n)
+{
+  SdtSet *set = sdt_set(d);
+  const char *parts[4];
+  int i;
+  Buf b;
+  if (!set) return;
+  parts[0] = s->rpr; parts[1] = s->binding; parts[2] = s->other; parts[3] = s->endpr;
+  buf_init(&b);
+  for (i = 0; i < 4; i++) {
+    const char *p = parts[i];
+    if (!p) continue;
+    while ((p = strchr(p, ':'))) {
+      const char *a = p;
+      char decl[48];
+      size_t l;
+      while (a > parts[i] && ((a[-1] >= 'a' && a[-1] <= 'z') || (a[-1] >= 'A' && a[-1] <= 'Z') || (a[-1] >= '0' && a[-1] <= '9'))) a--;
+      l = (size_t)(p - a);
+      p++;
+      if (!l || l > 30 || a == parts[i] || (a[-1] != '<' && a[-1] != ' ' && a[-1] != '/') || w16_prefix_known(a, l)) continue;
+      snprintf(decl, sizeof decl, " xmlns:%.*s=\"", (int)l, a);
+      if (b.data && strstr(b.data, decl)) continue;
+      {
+        /* declared on the part's root, or on the control's own elements (the part's text is NUL-terminated) */
+        const char *f = strstr(xml, decl), *q;
+        if (f && f < xml + n && (q = strchr(f + strlen(decl), '"'))) buf_add(&b, f, (size_t)(q + 1 - f));
+      }
+    }
+  }
+  free(s->nsdecl);
+  s->nsdecl = b.data ? buf_take(&b) : NULL;
+}
+/* a w:sdt's properties (x just past its START, not moved): a new record; -1 if full */
+static int w16_record(Xml *x, PCtx *pc, int level, int depth)
+{
+  Xml y;
+  int k = sdt_add(pc->c->d);
+  Sdt *s;
+  if (k < 0) return -1;
+  s = sdt_get(pc->c->d, k);
+  s->type = SDT_RICH; s->level = (u8)level; s->depth = (u8)depth;
+  xml_init(&y, x->s + x->i, x->n - x->i);
+  while (xml_next(&y) != XT_EOF) {
+    const char *raw;
+    size_t rn;
+    if (y.type == XT_END && y.depth < 0) break;
+    if (y.type != XT_START || y.depth != 1) continue;
+    if (!strcmp(y.name, "sdtContent")) break;
+    if (!strcmp(y.name, "sdtPr")) {
+      u8 lv = s->level, dp = s->depth;
+      rn = xml_raw(&y, &raw);
+      sdt_parse_pr(s, raw, rn);
+      s->level = lv; s->depth = dp;
+    } else if (!strcmp(y.name, "sdtEndPr")) {
+      rn = xml_raw(&y, &raw);
+      {
+        const char *in = memchr(raw, '>', rn), *cl = raw + rn - 1;
+        while (cl > raw && *cl != '<') cl--;
+        if (in && in[-1] != '/' && cl > in + 1) { free(s->endpr); s->endpr = str_ndup(in + 1, (size_t)(cl - in - 1)); }
+      }
+    } else xml_skip(&y);
+  }
+  xml_free(&y);
+  if (s->showplc) s->plctext = NULL;         /* (set from the content once read) */
+  w16_ns(pc->c->d, s, x->s, x->n);
+  return k;
+}
+/* a block, row or cell w:sdt begins (x at its START): 1 if it was one */
+static int w16_start(Xml *x, PCtx *pc, int level, int depth)
+{
+  int k;
+  if (x->type != XT_START || strcmp(x->name, "sdt") || x->pending_end || w16_nopen >= 32) return 0;
+  if ((k = w16_record(x, pc, level, depth)) < 0) return 0;
+  w16_open[w16_nopen].pc = pc; w16_open[w16_nopen].depth = x->depth; w16_open[w16_nopen].k = k; w16_open[w16_nopen].first = pc->nout;
+  w16_nopen++;
+  return 1;
+}
+/* paragraph *pp with UTF-8 s put in front (its first run's formatting) */
+static void w16_prepend(Para **pp, const char *s, u32 n)
+{
+  Para *p = *pp, *q;
+  u32 r, start = 0;
+  if (!(q = para_new(&p->pf, &p->r[0].f))) return;
+  para_append(q, s, n, &p->r[0].f);
+  for (r = 0; r < p->nr; r++) { if (p->r[r].end > start) para_append(q, p->t + start, p->r[r].end - start, &p->r[r].f); start = p->r[r].end; }
+  q->ver = p->ver;
+  para_free(p);
+  *pp = q;
+}
+/* the placeholder text of a control read showing it: its content */
+static void w16_plc(Doc *d, int k, Para *const *pp, u32 np, Pos s, Pos e)
+{
+  Sdt *r = sdt_get(d, k);
+  char t[512];
+  if (!r || !r->showplc || r->plctext) return;
+  sdt_text_paras(pp, np, s, e, t, sizeof t);
+  r->plctext = str_dup(t);
+}
+/* an END: the block, row or cell control it ends gets its marks; 1 if it was one */
+static int w16_end(Xml *x, PCtx *pc)
+{
+  W16Open *o;
+  char m[8];
+  if (x->type != XT_END || !w16_nopen) return 0;
+  o = &w16_open[w16_nopen - 1];
+  if (o->pc != pc || strcmp(x->name, "sdt") || x->depth != o->depth - 1) return 0;
+  w16_nopen--;
+  if (o->first < pc->nout) {
+    Para *lp;
+    Pos s, e;
+    smark_utf8(m, o->k, 0);
+    w16_prepend(&pc->out[o->first], m, 4);
+    lp = pc->out[pc->nout - 1];
+    smark_utf8(m, o->k, 1);
+    { CharFmt f = lp->r[lp->nr - 1].f; para_append(lp, m, 4, &f); }
+    s.para = o->first; s.off = 0; e.para = pc->nout - 1; e.off = lp->len - 4;
+    w16_plc(pc->c->d, o->k, pc->out, pc->nout, s, e);
+  }
+  return 1;
+}
+/* a w:sdt inside a paragraph (x at its START; read to its END) */
+static void w16_inline(Xml *x, PCtx *pc)
+{
+  int d0 = x->depth, k = w16_record(x, pc, SL_INLINE, pc->outer.table ? 2 : pc->cell.table ? 1 : 0);
+  char m[8];
+  Para *p;
+  CharFmt f;
+  u32 at = 0;
+  if (k >= 0 && (p = cur(pc))) {
+    f = p->r[p->nr - 1].f; f.rev = 0; f.rid = 0;
+    smark_utf8(m, k, 0);
+    para_append(p, m, 4, &f);
+    at = p->len;
+  }
+  if (x->pending_end) { (void)xml_next(x); }
+  else while (xml_next(x) != XT_EOF) {
+    if (x->type == XT_END && x->depth < d0) break;
+    if (x->type != XT_START) continue;
+    if (!strcmp(x->name, "sdtContent")) parse_children(x, pc);
+    else xml_skip(x);
+  }
+  if (k >= 0 && (p = cur(pc))) {
+    Pos s, e;
+    f = p->r[p->nr - 1].f; f.rev = 0; f.rid = 0;
+    smark_utf8(m, k, 1);
+    s.para = 0; s.off = at >= 4 ? at - 4 : 0; e.para = 0; e.off = p->len;
+    w16_plc(pc->c->d, k, &p, 1, s, e);
+    para_append(p, m, 4, &f);
+  }
+}
+
 /* a header's w:pict: Word's text watermark (a VML text path shape named PowerPlusWaterMarkObject)
    becomes the document's; 1 if it was one (the pict read to its end) */
 static int parse_watermark(Xml *x, Ctx *c)
@@ -1217,6 +1385,7 @@ static Story *parse_txbx(Xml *x, Ctx *c)
   c->story = 0;
   while (xml_next(x) != XT_EOF) {
     if (x->type == XT_END && x->depth < d0) break;
+    if (w16_end(x, &pc) || w16_start(x, &pc, SL_BLOCK, 0)) continue;    /* (WP16) */
     if (x->type != XT_START) continue;
     if (!strcmp(x->name, "p")) { Para *q = parse_para(x, &pc); if (q) emit(&pc, q); }
     else if (!strcmp(x->name, "tbl")) parse_nested(x, &pc);
@@ -1601,6 +1770,8 @@ typedef struct {
   int skip;                         /* its result is left out (a placeholder stands for it) */
   u16 link;                         /* its result's link (HYPERLINK, REF, PAGEREF), 0 none */
   u8 locked, dirty;
+  u8 deferred;                      /* (WP2) a PAGEREF whose marks wait for its end: 1 its result is being read */
+  CharFmt dmf;                      /* and the formatting it began with */
   char *ffdata;
 } FldOpen;
 #define FLD_DEPTH 16
@@ -1629,11 +1800,17 @@ static void fld_decide(PCtx *pc, FldOpen *o, const CharFmt *f)
   CharFmt mf = *f;
   mf.link = c->fieldlink ? c->fieldlink : pc->link;
   o->k = -1;
-  if (kind == FC_TOC && !field_switch(code, 'c', 0, NULL, 0) && !field_switch(code, 'a', 0, NULL, 0) && !field_switch(code, 'f', 0, NULL, 0)) {
-    /* Quill's table of contents: its paragraphs are the result; the code is kept for writing it back */
-    FieldInfo *fi = field_info(c->d);
-    if (fi && !fi->toccode) fi->toccode = str_dup(code);
+  if (kind == FK_PAGEREF && o->state == 2 && !o->deferred) {
+    /* (WP2) its result is read first: LibreOffice puts a table of contents entry's text in it, before
+       the tab and the number (fld_char writes that text, then the field, at its end) */
+    o->deferred = 1; o->skip = 1; o->dmf = *f;
     return;
+  }
+  if (kind == FC_TOC) {
+    /* (WP2: a table of contents is a field like any other, its entries its result; its code is also
+       noted as the one a new table takes) */
+    FieldInfo *fi = field_info(c->d);
+    if (fi && !fi->toccode && !field_switch(code, 'c', 0, NULL, 0) && !field_switch(code, 'a', 0, NULL, 0)) fi->toccode = str_dup(code);
   }
   if (kind == FC_HYPERLINK) {
     if (hyperlink_field(code, url, sizeof url)) o->link = (u16)doc_link(c->d, url);
@@ -1719,6 +1896,15 @@ static void fld_char(Xml *x, PCtx *pc, CharFmt *f)
       buf_addc(&par->code, FLD_CLOSE);
     } else {
       if (nosep) { fld_state(c); fld_decide(pc, o, f); }
+      if (o->deferred == 1) {
+        /* (WP2) a PAGEREF's result read: the text before its last tab stays in the text */
+        const char *t = o->res.data ? o->res.data : "", *tab = strrchr(t, '\t');
+        CharFmt pf = o->dmf;
+        pf.link = pc->link;
+        if (tab) run_text(pc, t, (size_t)(tab + 1 - t), &pf);
+        o->deferred = 2; o->skip = 0;
+        fld_state(c); fld_decide(pc, o, &o->dmf);
+      }
       if (o->k >= 0) {
         char m[8];
         CharFmt mf = *f;
@@ -1835,8 +2021,20 @@ static void parse_run(Xml *x, PCtx *pc)
     }
     if (!strcmp(n, "fldChar")) { fld_char(x, pc, &f); continue; }      /* WP1: fields */
     else if (fld_text(x, c, n, &f)) continue;
+    else if (c->field == 1 && !strcmp(n, "tab") && c->fr && c->fr->n && c->fr->f[c->fr->n - 1].state == 1) buf_addc(&c->fr->f[c->fr->n - 1].code, '\t');   /* (WP2: a tab in a code, as LibreOffice writes INDEX \e) */
     else if (c->field == 1) ;                                  /* field code: left out */
-    else if (c->field == 2 && c->fieldkind) ;                  /* a page number's result: the placeholder stands for it */
+    else if (c->field == 2 && c->fieldkind) {                  /* a page number's result: the placeholder stands for it */
+      FldOpen *o = &c->fr->f[c->fr->n - 1];
+      if (o->deferred == 1 && !strcmp(n, "tab")) buf_addc(&o->res, '\t');
+      else if (o->deferred == 1 && !strcmp(n, "t")) {
+        int d1 = x->depth;
+        while (xml_next(x) != XT_EOF) {
+          if (x->type == XT_END && x->depth < d1) break;
+          if (x->type == XT_TEXT) buf_add(&o->res, x->text.data, x->text.len);
+        }
+        continue;
+      }
+    }
     else if (!strcmp(n, "t") || (!strcmp(n, "delText") && pc->rev == REV_DEL)) {
       int d1 = x->depth;
       while (xml_next(x) != XT_EOF) {
@@ -1977,6 +2175,7 @@ static void parse_children(Xml *x, PCtx *pc)
       if (c->bmark && (!id || !strcmp(id, c->bmid))) c->bmark = 0;
       continue;
     }
+    if (!strcmp(n, "sdt")) { w16_inline(x, pc); continue; }     /* (WP16: a content control) */
     if (!strcmp(n, "smartTag") || !strcmp(n, "sdt") || !strcmp(n, "sdtContent") ||
         !strcmp(n, "fldSimple") || !strcmp(n, "customXml") || !strcmp(n, "bdo") || !strcmp(n, "dir")) {
       parse_children(x, pc);
@@ -2020,6 +2219,7 @@ static void parse_nested(Xml *x, PCtx *pc)
   if (++pc->c->depth > 8) { xml_skip(x); pc->c->depth--; return; }
   while (xml_next(x) != XT_EOF) {
     if (x->type == XT_END && x->depth < d0) break;
+    if (w16_end(x, pc) || w16_start(x, pc, SL_BLOCK, pc->outer.table ? 2 : pc->cell.table ? 1 : 0)) continue;    /* (WP16) */
     if (x->type != XT_START) continue;
     if (!strcmp(x->name, "p")) { Para *q = parse_para(x, pc); if (q) emit(pc, q); }
     else if (!strcmp(x->name, "tbl")) parse_nested(x, pc);
@@ -2031,11 +2231,12 @@ static void parse_nested(Xml *x, PCtx *pc)
 static int count_rows(Xml *x)
 {
   Xml y;
-  int n = 0;
+  int n = 0, insdt = 0;
   xml_init(&y, x->s + x->i, x->n - x->i);
   while (xml_next(&y) != XT_EOF) {
     if (y.type == XT_END && y.depth < 0) break;
-    if (y.type == XT_START && y.depth == 1 && !strcmp(y.name, "tr")) n++;
+    if (y.type == XT_START && (y.depth == 1 || (y.depth == 3 && insdt)) && !strcmp(y.name, "tr")) n++;
+    if (!strcmp(y.name, "sdt") && ((y.type == XT_START && y.depth == 1) || (y.type == XT_END && y.depth == 0))) insdt = y.type == XT_START;     /* (WP16: rows in a content control) */
   }
   xml_free(&y);
   return n;
@@ -2083,7 +2284,9 @@ static void parse_table_body(Xml *x, PCtx *pc)
   while (xml_next(x) != XT_EOF) {
     const char *n = x->name;
     if (x->type == XT_END && x->depth < d0) break;
+    if (w16_end(x, pc) || w16_start(x, pc, SL_ROW, pc->outer.table ? 1 : 0)) continue;    /* (WP16: rows in a control) */
     if (x->type != XT_START) continue;
+    if (!strcmp(n, "sdtContent")) continue;
     if (!strcmp(n, "tblPr")) {
       unsigned set = 0;
       i32 ml = t.marl, mr = t.marr;
@@ -2126,7 +2329,9 @@ static void parse_table_body(Xml *x, PCtx *pc)
       while (xml_next(x) != XT_EOF) {
         const char *m = x->name;
         if (x->type == XT_END && x->depth < d1) break;
+        if (w16_end(x, pc) || w16_start(x, pc, SL_CELL, pc->outer.table ? 1 : 0)) continue;    /* (WP16: cells in a control) */
         if (x->type != XT_START) continue;
+        if (!strcmp(m, "sdtContent")) continue;
         if (!strcmp(m, "trPr")) {
           int d2 = x->depth;
           wp5_scan(x, c, RK_TR, id, row, 0, 0);                  /* (WP5: w:trPrChange, w:ins, w:del kept) */
@@ -2155,6 +2360,7 @@ static void parse_table_body(Xml *x, PCtx *pc)
           while (xml_next(x) != XT_EOF) {
             const char *e = x->name;
             if (x->type == XT_END && x->depth < d2) break;
+            if (w16_end(x, pc) || w16_start(x, pc, SL_BLOCK, pc->outer.table ? 2 : 1)) continue;    /* (WP16) */
             if (x->type != XT_START) continue;
             if (!strcmp(e, "tcPr")) {
               int d3 = x->depth;
@@ -2254,7 +2460,10 @@ static void parse_sect(Xml *x, Ctx *c, SectFmt *sf, int body)
     if (x->type != XT_START) continue;
     v = xml_attr(x, "val");
     if (pages_read_sect(x, c->d, sf, pg, body)) continue;        /* (WP22a: columns, borders, margins with the gutter, vAlign) */
-    if (!strcmp(x->name, "type") && v)
+    if (!strcmp(x->name, "formProt"))           /* (WP7: a section left free under forms protection; LibreOffice
+                                                   writes it off everywhere, so only kept when forms are protected) */
+      sf->formfree = (u8)(v && (!strcmp(v, "0") || !strcmp(v, "false") || !strcmp(v, "off")) && c->d->prot && c->d->prot->kind == PR_FORMS);
+    else if (!strcmp(x->name, "type") && v)
       sf->start = (u8)(!strcmp(v, "continuous") ? SB_CONT : !strcmp(v, "evenPage") ? SB_EVEN : !strcmp(v, "oddPage") ? SB_ODD : SB_NEXT);
     else if (!strcmp(x->name, "cols")) {
       const char *sep = xml_attr(x, "sep");
@@ -2339,6 +2548,7 @@ static void parse_story(Ctx *c, const char *xml, size_t n, Story *st)
   c->story = 1;
   xml_init(&x, xml, n);
   while (xml_next(&x) != XT_EOF) {
+    if (w16_end(&x, &pc) || w16_start(&x, &pc, SL_BLOCK, 0)) continue;    /* (WP16) */
     if (x.type != XT_START) continue;
     if (!strcmp(x.name, "hdr") || !strcmp(x.name, "ftr") || !strcmp(x.name, "sdt") || !strcmp(x.name, "sdtContent") || !strcmp(x.name, "customXml")) continue;
     if (!strcmp(x.name, "p")) { Para *p = parse_para(&x, &pc); if (p) emit(&pc, p); }
@@ -2569,6 +2779,7 @@ static int parse_document(Ctx *c, const char *xml, size_t n)
   pc.c = c;
   xml_init(&x, xml, n);
   while (xml_next(&x) != XT_EOF) {
+    if (inbody && (w16_end(&x, &pc) || w16_start(&x, &pc, SL_BLOCK, 0))) continue;    /* (WP16) */
     if (x.type != XT_START) continue;
     if (!strcmp(x.name, "body")) { inbody = 1; continue; }
     if (!inbody && !strcmp(x.name, "background")) {
@@ -3254,8 +3465,10 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
   /* WP1: */
   read_field_setting(c, x);
   /* WP2: */
+  refs_read_setting(c->d, x);
   /* WP3: */
   /* WP4: */
+  merge_read_setting(c->d, x);
   /* WP5: */
   wp5_read_setting(c, x);
   /* WP7: */
@@ -3454,7 +3667,9 @@ static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_
   read_field_parts(c, z);
   /* WP2: */
   /* WP3: */
+  cite_docx_read(c->d);
   /* WP4: */
+  merge_read_parts(c->d, z);
   /* WP5: */
   wp5_read_parts(c, z, docrels, rn, base);
   /* WP7: */
@@ -4143,6 +4358,266 @@ static void row_grid_wp21(Doc *d, u32 i, const Cell *c, const Table *t, int *bef
   }
   if (end < t->ncols) *after = t->ncols - end;
 }
+/* ---- WP16: content controls written (core/sdt.h). Before saving, w16_prepare pairs the marks of every
+   story and works out where each block, row or cell control's w:sdt goes: before (after) the w:p,
+   w:tbl, w:tr or w:tc its first (last) paragraph starts (ends); one whose place isn't there (its text
+   was edited apart) is left out, its content kept. Inline controls are written by the paragraph
+   writer, its marks each a run of their own (w16_wrap) */
+static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tail);
+enum { W16_TBL, W16_TR, W16_TC, W16_P };
+typedef struct { const Para *p; u32 off; u8 l, kind, open, done; int k; char *text; } W16Ev;
+static W16Ev *w16_ev;
+static int w16_nev, w16_evcap;
+static i32 *w16_ids;
+static int w16_nids, w16_idcap;
+static const Para *w16_in;               /* the paragraph w16_wrap is writing (not wrapped again) */
+static void w16_clear(void)
+{
+  int i;
+  for (i = 0; i < w16_nev; i++) free(w16_ev[i].text);
+  free(w16_ev); w16_ev = NULL; w16_nev = w16_evcap = 0;
+  free(w16_ids); w16_ids = NULL; w16_nids = w16_idcap = 0;
+}
+static void w16_add(const Para *p, u32 off, int l, int kind, int open, int k, const char *text)
+{
+  if (w16_nev >= w16_evcap) {
+    int nc = w16_evcap ? w16_evcap * 2 : 32;
+    W16Ev *ne = (W16Ev *)realloc(w16_ev, (size_t)nc * sizeof(W16Ev));
+    if (!ne) return;
+    w16_ev = ne; w16_evcap = nc;
+  }
+  w16_ev[w16_nev].p = p; w16_ev[w16_nev].off = off; w16_ev[w16_nev].l = (u8)l; w16_ev[w16_nev].kind = (u8)kind;
+  w16_ev[w16_nev].open = (u8)open; w16_ev[w16_nev].done = 0; w16_ev[w16_nev].k = k; w16_ev[w16_nev].text = text ? str_dup(text) : NULL;
+  w16_nev++;
+}
+/* the cells paragraph i of a story is in (tables: the body's, else none) */
+static int w16_path(Doc *d, Para *const *pp, u32 np, long i, int tables, const Cell **v)
+{
+  if (!tables || i < 0 || (u32)i >= np) return 0;
+  return cell_path(d, &pp[i]->pf, v);
+}
+/* whether the table (row, cell: what) at level l opens at paragraph i (dir < 0) or closes there (dir > 0) */
+static int w16_edge(Doc *d, Para *const *pp, u32 np, u32 i, int tables, int l, int what, int dir)
+{
+  const Cell *a[2], *b[2];
+  int na = w16_path(d, pp, np, (long)i, tables, a), nb = w16_path(d, pp, np, (long)i + dir, tables, b);
+  if (na <= l) return 0;
+  if (nb <= l) return 1;
+  if (a[l]->table != b[l]->table) return 1;
+  if (what == W16_TBL) return 0;
+  if (a[l]->row != b[l]->row) return 1;
+  if (what == W16_TR) return 0;
+  return a[l]->col != b[l]->col;
+}
+static void w16_list(Doc *d, Para *const *pp, u32 np, int tables)
+{
+  struct { int k; u32 para, off; } st[64];
+  int ns = 0;
+  u32 i, o;
+  for (i = 0; i < np; i++) {
+    const Para *q = pp[i];
+    for (o = 0; o + 4 <= q->len; o++) {
+      int k, j;
+      if (!((u8)q->t[o] == 0xF4 && ((u8)q->t[o + 1] == 0x87 || (u8)q->t[o + 1] == 0x8B))) continue;
+      k = smark_index(q->t + o);
+      if (IS_SSTART(q->t + o)) { if (ns < 64) { st[ns].k = k; st[ns].para = i; st[ns].off = o; ns++; } o += 3; continue; }
+      for (j = ns - 1; j >= 0 && st[j].k != k; j--) ;
+      if (j >= 0) {
+        Sdt *r = sdt_get(d, k);
+        if (r && r->level != SL_INLINE) {
+          const Cell *v[2];
+          int L = r->depth, n0 = w16_path(d, pp, np, (long)st[j].para, tables, v), n1 = w16_path(d, pp, np, (long)i, tables, v), ok = 1;
+          int ko = W16_P, kc = W16_P;
+          if (r->level == SL_BLOCK) {
+            if (n0 < L || n1 < L) ok = 0;
+            if (n0 > L) { ko = W16_TBL; ok = ok && w16_edge(d, pp, np, st[j].para, tables, L, W16_TBL, -1); }
+            if (n1 > L) { kc = W16_TBL; ok = ok && w16_edge(d, pp, np, i, tables, L, W16_TBL, 1); }
+          } else {
+            int what = r->level == SL_ROW ? W16_TR : W16_TC;
+            ko = kc = what;
+            ok = n0 > L && n1 > L && w16_edge(d, pp, np, st[j].para, tables, L, what, -1) && w16_edge(d, pp, np, i, tables, L, what, 1);
+          }
+          if (ok) {
+            char t[512];
+            Pos s, e;
+            s.para = st[j].para; s.off = st[j].off; e.para = i; e.off = o;
+            sdt_text_paras(pp, np, s, e, t, sizeof t);
+            w16_add(pp[st[j].para], st[j].off, L, ko, 1, k, t);
+            w16_add(q, o, L, kc, 0, k, NULL);
+          }
+        }
+        ns = j;                     /* (marks crossing it are left out) */
+      }
+      o += 3;
+    }
+  }
+}
+static void w16_story(Doc *d, const Story *s) { if (s && s->np) w16_list(d, s->p, s->np, 0); }
+static void w16_prepare(Doc *d)
+{
+  int i;
+  w16_clear();
+  w16_in = NULL;
+  if (!sdt_count(d)) return;
+  w16_list(d, d->p, d->np, 1);
+  for (i = 0; i < HF_N; i++) { w16_story(d, &d->hdr[i]); w16_story(d, &d->ftr[i]); }
+  for (i = 0; i < d->nsects; i++) if (d->sects[i].hf) { int k; for (k = 0; k < 2 * HF_N; k++) w16_story(d, &d->sects[i].hf[k]); }
+  for (i = 0; i < d->nnotes; i++) w16_story(d, &d->notes[i]);
+  for (i = 0; i < d->nenotes; i++) w16_story(d, &d->enotes[i]);
+  for (i = 0; i < d->ncomments; i++) w16_story(d, &d->comments[i].text);
+  for (i = 0; i < d->nimages; i++) w16_story(d, d->images[i].text);
+}
+/* the w:id for record k: its own, or a new one if it was written already (copies of a control) */
+static i32 w16_id(Doc *d, int k)
+{
+  Sdt *r = sdt_get(d, k);
+  i32 id = r ? r->id : 0;
+  int i, again = 1;
+  while (again) {
+    again = 0;
+    for (i = 0; i < w16_nids; i++) if (w16_ids[i] == id) { id = (i32)((u32)id * 2654435761u + 977u) & 0x7FFFFFFF; again = 1; break; }
+  }
+  if (w16_nids >= w16_idcap) {
+    int nc = w16_idcap ? w16_idcap * 2 : 64;
+    i32 *ni = (i32 *)realloc(w16_ids, (size_t)nc * sizeof(i32));
+    if (ni) { w16_ids = ni; w16_idcap = nc; }
+  }
+  if (w16_nids < w16_idcap) w16_ids[w16_nids++] = id;
+  return id;
+}
+static void w16_open_tag(Buf *o, Doc *d, int k, const char *text)
+{
+  Sdt *r = sdt_get(d, k);
+  buf_adds(o, "<w:sdt xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\"");
+  if (r && r->nsdecl) buf_adds(o, r->nsdecl);
+  buf_adds(o, ">");
+  sdt_write_pr(o, d, k, text ? text : "", w16_id(d, k));
+  if (r && r->endpr) { buf_adds(o, "<w:sdtEndPr>"); buf_adds(o, r->endpr); buf_adds(o, "</w:sdtEndPr>"); }
+  buf_adds(o, "<w:sdtContent>");
+}
+/* the controls opening (closing) at this place of paragraph p, in the order of their marks */
+static void w16_emit(Buf *o, Doc *d, const Para *p, int l, int kind, int open)
+{
+  for (;;) {
+    int i, best = -1;
+    for (i = 0; i < w16_nev; i++) {
+      W16Ev *e = &w16_ev[i];
+      if (e->done || e->p != p || e->kind != kind || e->open != open || (l >= 0 && e->l != l)) continue;
+      if (best < 0 || e->off < w16_ev[best].off) best = i;
+    }
+    if (best < 0) return;
+    w16_ev[best].done = 1;
+    if (open) w16_open_tag(o, d, w16_ev[best].k, w16_ev[best].text);
+    else buf_adds(o, "</w:sdtContent></w:sdt>");
+  }
+}
+static void w16_slot(Buf *o, Doc *d, u32 i, int l, int kind, int open) { if (w16_nev && i < d->np) w16_emit(o, d, d->p[i], l, kind, open); }
+static int w16_is_mark(const char *t, u32 n) { return n == 4 && IS_SMARK(t); }
+/* in paragraph p, the inline control whose mark is at off: its start and end marks' offsets, if they
+   pair up in p without crossing another inline control's; 0 if not */
+static int w16_pair(Doc *d, const Para *p, u32 off, u32 *so, u32 *eo)
+{
+  int k = smark_index(p->t + off), depth = 0;
+  u32 o, a = off, b = off;
+  Sdt *r = sdt_get(d, k);
+  if (!r || r->level != SL_INLINE) return 0;
+  if (IS_SSTART(p->t + off)) {
+    for (o = off; o + 4 <= p->len; o++) {
+      if (!IS_SMARK(p->t + o) || smark_index(p->t + o) != k) continue;
+      if (IS_SSTART(p->t + o)) depth++; else if (--depth == 0) { b = o; break; }
+      o += 3;
+    }
+    if (b == off) return 0;
+  } else {
+    long q;
+    for (q = (long)off; q >= 0; q--) {
+      if (q + 4 > (long)p->len || !IS_SMARK(p->t + q) || smark_index(p->t + q) != k) continue;
+      if (IS_SEND(p->t + q)) depth++; else if (--depth == 0) { a = (u32)q; break; }
+    }
+    if (a == off) return 0;
+  }
+  /* every inline mark in between has its partner in between too */
+  for (o = a + 4; o < b; o++) {
+    if (IS_SMARK(p->t + o)) {
+      int j = smark_index(p->t + o), dd = 0;
+      Sdt *rj = sdt_get(d, j);
+      u32 q;
+      if (rj && rj->level == SL_INLINE) {
+        for (q = a + 4; q < b; q++) if (IS_SMARK(p->t + q) && smark_index(p->t + q) == j) { dd += IS_SSTART(p->t + q) ? 1 : -1; q += 3; }
+        if (dd) return 0;
+      }
+      o += 3;
+    }
+  }
+  *so = a; *eo = b;
+  return 1;
+}
+/* a run that is a control's mark (at off): an inline control's w:sdt opened or closed */
+static void w16_markrun(Buf *o, Doc *d, const Para *p, u32 off)
+{
+  u32 a, b;
+  if (!w16_pair(d, p, off, &a, &b)) return;
+  if (a == off) {
+    char t[512];
+    Pos s, e;
+    Para *pp = (Para *)p;
+    s.para = 0; s.off = a; e.para = 0; e.off = b;
+    sdt_text_paras(&pp, 1, s, e, t, sizeof t);
+    w16_open_tag(o, d, smark_index(p->t + off), t);
+  } else buf_adds(o, "</w:sdtContent></w:sdt>");
+}
+/* p with each control mark a run of its own; NULL if it needs none (or out of memory) */
+static Para *w16_split(const Para *p)
+{
+  u32 r, start = 0, n = 0, o, cap;
+  int need = 0;
+  Run *nr;
+  Para *q;
+  for (r = 0; r < p->nr; r++) {
+    for (o = start; o + 4 <= p->r[r].end; o++)
+      if (IS_SMARK(p->t + o)) { if (o != start || o + 4 != p->r[r].end) need = 1; o += 3; }
+    start = p->r[r].end;
+  }
+  if (!need || !(q = para_copy(p))) return NULL;
+  cap = p->nr * 3 + 8;
+  for (start = 0, r = 0; r < p->nr; r++) { for (o = start; o + 4 <= p->r[r].end; o++) if (IS_SMARK(p->t + o)) { cap += 2; o += 3; } start = p->r[r].end; }
+  if (!(nr = (Run *)malloc(cap * sizeof(Run)))) { para_free(q); return NULL; }
+  for (start = 0, r = 0; r < p->nr; r++) {
+    u32 a = start;
+    for (o = start; o + 4 <= p->r[r].end; o++) {
+      if (!IS_SMARK(p->t + o)) continue;
+      if (o > a) { nr[n].end = o; nr[n].f = p->r[r].f; n++; }
+      nr[n].end = o + 4; nr[n].f = p->r[r].f; n++;
+      a = o + 4; o += 3;
+    }
+    if (p->r[r].end > a || (p->r[r].end == a && a == start)) { nr[n].end = p->r[r].end; nr[n].f = p->r[r].f; n++; }
+    start = p->r[r].end;
+  }
+  free(q->r);
+  q->r = nr; q->nr = n; q->rcap = cap;
+  return q;
+}
+/* paragraph p written with the controls round it and its marks as runs of their own; 0 if it needs
+   nothing of that (w_para_ex writes it as it is) */
+static int w16_wrap(Buf *o, Doc *d, Para *p, const char *lead, const char *tail)
+{
+  Para *q;
+  const Para *prev;
+  int i, ev = 0;
+  if (p == w16_in || !sdt_count(d)) return 0;
+  for (i = 0; i < w16_nev && !ev; i++) if (w16_ev[i].p == p && w16_ev[i].kind == W16_P && !w16_ev[i].done) ev = 1;
+  q = w16_split(p);
+  if (!ev && !q) return 0;
+  w16_emit(o, d, p, -1, W16_P, 1);
+  prev = w16_in;
+  w16_in = q ? q : p;
+  w_para_ex(o, d, q ? q : p, lead, tail);
+  w16_in = prev;
+  if (q) para_free(q);
+  w16_emit(o, d, p, -1, W16_P, 0);
+  return 1;
+}
+
 /* table structure around paragraph i: the starts of tables, rows and cells before it (as far as the
    paragraph before isn't in them already), the ends after it */
 static void w_table_open(Buf *o, Doc *d, u32 i)
@@ -4154,8 +4629,11 @@ static void w_table_open(Buf *o, Doc *d, u32 i)
     const Table *t = &d->tables[cv[l]->table - 1];
     int tblopen = l == k && l < np && pv[l]->table == cv[l]->table;
     int rowopen = tblopen && pv[l]->row == cv[l]->row;
+    if (!tblopen) w16_slot(o, d, i, l, W16_TBL, 1);      /* (WP16: content controls round tables, rows, cells) */
     if (!tblopen) w_tbl_start(o, d, t);
+    if (!rowopen) w16_slot(o, d, i, l, W16_TR, 1);
     if (!rowopen) { int gb, ga; row_grid_wp21(d, i, cv[l], t, &gb, &ga); w_tr_start(o, cv[l], gb, ga); }
+    w16_slot(o, d, i, l, W16_TC, 1);
     w_tc_start(o, d, t, cv[l]);
   }
 }
@@ -4171,10 +4649,13 @@ static void w_table_close(Buf *o, Doc *d, u32 i)
     int sametbl = l == k && l < nn && nv[l]->table == cv[l]->table;
     if (l < nc - 1) buf_adds(o, "<w:p/>");        /* a cell ends with a paragraph, not a table */
     buf_adds(o, "</w:tc>");
+    w16_slot(o, d, i, l, W16_TC, 0);                      /* (WP16) */
     if (sametbl && nv[l]->row == cv[l]->row) continue;
     buf_adds(o, "</w:tr>");
+    w16_slot(o, d, i, l, W16_TR, 0);
     if (sametbl) continue;
     buf_adds(o, "</w:tbl>");
+    w16_slot(o, d, i, l, W16_TBL, 0);
   }
   if (nc && i + 1 >= d->np) buf_adds(o, "<w:p/>");  /* a document ends with a paragraph */
 }
@@ -4548,6 +5029,7 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
   Buf pp;
   u32 k, start = 0;
   u16 link = 0;                         /* the link the runs written are in (w_link opens and closes it) */
+  if (w16_wrap(o, d, p, lead, tail)) return;      /* (WP16: content controls) */
   if (w_inbody && p->pf.dropcap && p->len && !in_table(&p->pf)) {
     /* a drop cap: Word's framed paragraph with the letter, then the rest */
     u32 n = (u32)utf8_next(p->t, p->len, 0), r;
@@ -4594,6 +5076,7 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
     if (p->r[k].end > start) {
       Buf r;
       const CharFmt *f = &p->r[k].f;
+      if (w16_is_mark(p->t + start, p->r[k].end - start)) { w_link(o, d, link, 0); link = 0; w16_markrun(o, d, p, start); start = p->r[k].end; continue; }   /* (WP16) */
       { u16 fl = w_fld_nolink() ? 0 : f->link; if (fl != link) { w_link(o, d, link, 0); w_link(o, d, fl, 1); link = fl; } }   /* (WP1: a field's own links) */
       if (w_inbody) w_bmark_to(o, d, f->bmark);
       if (w_inbody) prot_write_perm(o, d, &w_perm, f->perm);   /* (WP7: Restrict Editing's exceptions) */
@@ -4886,6 +5369,7 @@ static void w_sectpr(Buf *o, Doc *d, const SectFmt *s, int g, int last)
     buf_adds(o, "/>");
   }
   pages_write_cols(o, s);                           /* (WP22a: columns of their own widths) */
+  if (s->formfree) buf_adds(o, "<w:formProt w:val=\"0\"/>");   /* (WP7) */
   pages_write_valign(o, s);                         /* (WP22a: and Justified) */
   if (sect_titlepg(d, s, last)) buf_adds(o, "<w:titlePg/>");
   pages_write_sect_tail(o, s);                      /* (WP22a) */
@@ -4917,7 +5401,7 @@ static char *w_document(Doc *d, size_t *len)
   w_inbody = 1; w_bmark = 0; w_perm = 0;
   for (i = 0; i < d->np; i++) {
     /* a table of contents: Word's TOC field round its entries, so Word can update it */
-    int toc = toc_para(d, d->p[i]), first = toc && !(i > 0 && toc_para(d, d->p[i - 1])), last = toc && !(i + 1 < d->np && toc_para(d, d->p[i + 1]));
+    int toc = toc_para(d, d->p[i]) && !field_depth_before(d, i) && !(d->p[i]->len >= 4 && IS_FSTART(d->p[i]->t)), first = toc && !(i > 0 && toc_para(d, d->p[i - 1])), last = toc && !(i + 1 < d->np && toc_para(d, d->p[i + 1]));   /* (WP2: not one that is a TOC field's result) */
     w_table_open(&o, d, i);
     w_para_ex(&o, d, d->p[i], first ? w_toc_lead(d) : NULL,
               last ? "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>" : NULL);
@@ -5054,6 +5538,7 @@ static void mark_media(Doc *d, Para **pp, u32 np)
 /* the parts, content types and relationships the hooks add, written by docx_save */
 struct DocxOut {
   Buf ct, pkgrels, docrels;             /* <Override .../> and <Relationship .../> entries */
+  Buf setrels;                          /* word/_rels/settings.xml.rels' entries (WP23 and WP4 share it) */
   struct { char *name; u8 *data; size_t len; } *parts;
   int nparts, oom;
 };
@@ -5084,6 +5569,30 @@ int docx_out_part(DocxOut *o, const char *name, const char *ctype, const char *o
     buf_adds(r, owner[0] && tg == name ? "\" Target=\"/" : "\" Target=\""); xml_escape(r, tg, strlen(tg)); buf_adds(r, "\"/>");
   }
   return 1;
+}
+int docx_out_settings_rel(DocxOut *o, const char *relid, const char *reltype, const char *target, int external)
+{
+  Buf *r = &o->setrels;
+  buf_adds(r, "<Relationship Id=\""); xml_escape(r, relid, strlen(relid));
+  buf_adds(r, "\" Type=\""); xml_escape(r, reltype, strlen(reltype));
+  buf_adds(r, "\" Target=\""); xml_escape(r, target, strlen(target));
+  buf_adds(r, external ? "\" TargetMode=\"External\"/>" : "\"/>");
+  if (r->oom) o->oom = 1;
+  return !r->oom;
+}
+/* word/_rels/settings.xml.rels from what the hooks gave docx_out_settings_rel */
+static void write_settings_rels(DocxOut *o)
+{
+  Buf b;
+  if (!o->setrels.len) return;
+  buf_init(&b);
+  buf_adds(&b, "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n"
+               "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">");
+  buf_add(&b, o->setrels.data, o->setrels.len);
+  buf_adds(&b, "</Relationships>");
+  if (b.oom) o->oom = 1;
+  else docx_out_part(o, "word/_rels/settings.xml.rels", NULL, NULL, NULL, NULL, b.data, b.len);
+  buf_free(&b);
 }
 /* (WP24) docProps/app.xml and (with custom properties) docProps/custom.xml */
 static void write_info_parts(Doc *d, DocxOut *o)
@@ -5120,9 +5629,8 @@ static void write_theme_parts(Doc *d, DocxOut *o)
 /* (WP23) settings.xml's relationship to the attached template */
 static void write_template_parts(Doc *d, DocxOut *o)
 {
-  size_t n;
-  char *x = blocks_settings_rels(d, &n);
-  if (x) { docx_out_part(o, "word/_rels/settings.xml.rels", NULL, NULL, NULL, NULL, x, n); free(x); }
+  if (d->attached && d->attached[0])
+    docx_out_settings_rel(o, "rIdStTpl", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate", d->attached, 1);
 }
 /* ---- WP5: commentsExtended.xml (replies, Resolve), commentsIds.xml (durable ids), commentsExtensible.xml
    (times in UTC) for the comments saved, and people.xml (the authors of comments and changes; those
@@ -5323,6 +5831,7 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
   /* WP2: */
   /* WP3: */
   /* WP4: */
+  merge_write_parts(d, o);
   /* WP5: */
   wp5_write_parts(d, o);
   /* WP7: */
@@ -5370,6 +5879,7 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   /* WP2: */
   /* WP3: */
   /* WP4: */
+  merge_write_settings(d, b, where);
   /* WP5: */
   wp5_write_settings(d, b, where);
   /* WP7: */
@@ -5397,6 +5907,8 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   /* WP24: */
   /* WP27: */
   /* WP31: */
+  /* WP2 (after the others: w:captions comes late in CT_Settings, after m:mathPr): */
+  if (where == 3) refs_write_settings(d, b);
 }
 
 u8 *docx_save(Doc *d, size_t *len)
@@ -5465,13 +5977,15 @@ u8 *docx_save(Doc *d, size_t *len)
     if (!nn) { free(save_comments); save_comments = NULL; }
   }
   w_fld_prepare(d);                     /* WP1: fields whose marks don't pair up are left out */
+  w16_prepare(d);                       /* (WP16: where content controls go) */
   if (!(docxml = w_document(d, &dl))) return NULL;
   if (!(stxml = w_styles(d, &sl))) { free(docxml); return NULL; }
   if (d->nlists && !(numxml = w_numbering(d, &nl))) { free(docxml); free(stxml); return NULL; }
   /* the parts kept from the file read and the work packages' own (docx_write_parts_ext) */
   memset(&ext, 0, sizeof ext);
-  buf_init(&ext.ct); buf_init(&ext.pkgrels); buf_init(&ext.docrels);
+  buf_init(&ext.ct); buf_init(&ext.pkgrels); buf_init(&ext.docrels); buf_init(&ext.setrels);
   docx_write_parts_ext(d, &ext);
+  write_settings_rels(&ext);
   buf_init(&ct); buf_init(&core);
   buf_adds(&ct, XMLHDR);
   buf_adds(&ct, "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
@@ -5641,7 +6155,7 @@ u8 *docx_save(Doc *d, size_t *len)
     for (k = 0; k < ext.nparts; k++) { if (ok) ok = zip_add(&z, ext.parts[k].name, ext.parts[k].data, ext.parts[k].len); free(ext.parts[k].name); free(ext.parts[k].data); }
     free(ext.parts);
     ok = ok && !ext.oom && !ext.ct.oom && !ext.pkgrels.oom && !ext.docrels.oom;
-    buf_free(&ext.ct); buf_free(&ext.pkgrels); buf_free(&ext.docrels);
+    buf_free(&ext.ct); buf_free(&ext.pkgrels); buf_free(&ext.docrels); buf_free(&ext.setrels);
   }
   ok = ok && zip_finish(&z) && !ct.oom && !core.oom;
   free(docxml); free(stxml); free(numxml); buf_free(&ct); buf_free(&core);

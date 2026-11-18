@@ -50,8 +50,6 @@ void blocks_read_setting(Doc *d, Xml *x);       /* a settings.xml element: w:att
    file from settings.xml's relationships (rels: their text, or NULL) */
 void blocks_read_parts(Doc *d, const char *ct, size_t ctn, const char *setrels, size_t srn);
 void blocks_write_settings(Doc *d, Buf *b);     /* w:attachedTemplate, w:linkStyles (and WP13's Styles pane settings) */
-/* word/_rels/settings.xml.rels when there is an attached template (malloc'd; NULL none) */
-char *blocks_settings_rels(const Doc *d, size_t *len);
 void blocks_free(Doc *d);
 
 /* ---- building blocks */

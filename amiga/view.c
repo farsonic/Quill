@@ -42,6 +42,7 @@
 #include "wp_math.h"     /* WP14a: equations */
 #include "../core/math.h"
 #include "../core/spell.h"
+#include "../core/merge.h"     /* (WP4) */
 #include "../core/field.h"
 #include "../core/pages.h"
 #include "../core/review.h"
@@ -53,6 +54,8 @@
 #include "lang.h"
 #include "wp_tables.h"                 /* WP21a/WP21b: the table tools and turned text */
 #include "wp_objects.h"            /* WP17/WP18 */
+#include "../core/sdt.h"            /* WP16 */
+#include "wp_controls.h"
 #include "wp_wordart.h"            /* WP19 */
 #include "../core/wordart.h"
 #include "../core/objfx.h"
@@ -1311,14 +1314,14 @@ static void field_shade(struct Data *d, Object *obj, struct RastPort *rp, ParaLa
     if (body) depth = field_depth_before(doc, pc->para);
     for (k = pl->lines[0].box0; k < ln->box0 && k < pl->nboxes; k++) {
       Box *b = &pl->boxes[k];
-      if ((b->kind == BX_MARK || b->kind == BX_FIELD) && b->off + 4 <= pl->p->len && IS_FMARK(pl->p->t + b->off)) { if (IS_FSTART(pl->p->t + b->off)) depth++; else if (depth > 0) depth--; }
+      if ((b->kind == BX_MARK || b->kind == BX_FIELD) && b->off + 4 <= pl->p->len && IS_FMARK(pl->p->t + b->off) && !IS_SMARK(pl->p->t + b->off)) { if (IS_FSTART(pl->p->t + b->off)) depth++; else if (depth > 0) depth--; }
     }
   }
   SetAPen(rp, pen_bg(d, obj, 0xD9D9D9));
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *b = &pl->boxes[k];
     int in;
-    if ((b->kind == BX_MARK || b->kind == BX_FIELD) && b->off + 4 <= pl->p->len && IS_FMARK(pl->p->t + b->off)) {
+    if ((b->kind == BX_MARK || b->kind == BX_FIELD) && b->off + 4 <= pl->p->len && IS_FMARK(pl->p->t + b->off) && !IS_SMARK(pl->p->t + b->off)) {   /* (not WP16's) */
       if (IS_FSTART(pl->p->t + b->off)) depth++; else if (depth > 0) depth--;
       continue;
     }
@@ -1329,6 +1332,147 @@ static void field_shade(struct Data *d, Object *obj, struct RastPort *rp, ParaLa
       in = pos_cmp(ss, at) < 0 && pos_cmp(at, se) < 0;
     } else in = depth > 0;
     if (in) RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1);
+  }
+}
+/* (WP16) content controls and legacy form fields on the screen: under the text (back), text form
+   fields' results on grey; over it, the frame of each control the caret is in (Word's bounding box,
+   in the control's colour) with its title on a tab above its first line, check boxes drawn as
+   boxes (the screen fonts have no ballot box), and in Design Mode every control's start and end tags */
+static void sdt_box(struct Data *d, Object *obj, struct RastPort *rp, LONG x, LONG y, LONG sz, int on)
+{
+  SetAPen(rp, d->pen_text);
+  Move(rp, x, y); Draw(rp, x + sz, y); Draw(rp, x + sz, y + sz); Draw(rp, x, y + sz); Draw(rp, x, y);
+  if (on) { Move(rp, x + 2, y + 2); Draw(rp, x + sz - 2, y + sz - 2); Move(rp, x + sz - 2, y + 2); Draw(rp, x + 2, y + sz - 2); }
+}
+static void sdt_draw(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Placed *pc, Line *ln, LONG lx, LONG top, int front)
+{
+  static const Doc *cdoc;
+  static ULONG cver;
+  static Pos ccaret, cs[8], ce[8];
+  static int ck[8], cn;
+  Doc *doc = d->doc;
+  Layout *L = d->lay;
+  u32 k, ls = ln->start, le = pc->line + 1 < pl->nlines ? pl->lines[pc->line + 1].start : pl->p->len;
+  LONG h = tx(d, ln->height);
+  int i, body = pc->para < doc->np && pl->p == doc->p[pc->para];
+  if (!body) return;
+  if (!front) {
+    /* text form fields' results shaded (Word's form field shading) */
+    int depth = 0;
+    Field const *f;
+    if (!doc->nfields) return;
+    for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
+      Box *b = &pl->boxes[k];
+      if (b->kind == BX_MARK && b->off + 4 <= pl->p->len && IS_FSTART(pl->p->t + b->off) && !IS_SMARK(pl->p->t + b->off)) {
+        f = field_get(doc, fmark_index(pl->p->t + b->off));
+        if (f && ff_kind(doc, fmark_index(pl->p->t + b->off)) == FF_TEXT) depth = 1;
+        continue;
+      }
+      if (b->kind == BX_MARK && b->off + 4 <= pl->p->len && IS_FEND(pl->p->t + b->off) && !IS_SMARK(pl->p->t + b->off)) { depth = 0; continue; }
+      if (depth && b->w > 0) { SetAPen(rp, pen_bg(d, obj, 0xD9D9D9)); RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + h - 1); }
+    }
+    return;
+  }
+  /* the controls the caret is in (worked out once for each caret place and version) */
+  if (sdt_count(doc) && (cdoc != doc || cver != doc->ver || pos_cmp(ccaret, d->caret))) {
+    cdoc = doc; cver = doc->ver; ccaret = d->caret; cn = 0;
+    while (cn < 8 && (ck[cn] = sdt_at_depth(doc, d->caret, cn, &cs[cn], &ce[cn])) >= 0) cn++;
+  }
+  if (!sdt_count(doc)) cn = 0;
+  for (i = cn - 1; i >= 0; i--) {
+    Sdt *r = sdt_get(doc, ck[i]);
+    u32 a, b;
+    LONG x0, x1;
+    if (!r || pc->para < cs[i].para || pc->para > ce[i].para || (r->hasapp && r->appearance == SAP_HIDDEN && !sdt_set(doc)->design)) continue;
+    a = pc->para == cs[i].para ? cs[i].off + 4 : 0;
+    b = pc->para == ce[i].para ? ce[i].off : pl->p->len;
+    if (a < ls) a = ls;
+    if (b > le) b = le;
+    if (a > b || (a == b && !(pc->para == cs[i].para && cs[i].off >= ls && cs[i].off <= le))) continue;
+    x0 = lx + tx(d, line_x(L, pl, ln, a)) - 2; x1 = lx + tx(d, line_x(L, pl, ln, b)) + 1;
+    if (r->level != SL_INLINE) { x0 = lx - 3; x1 = lx + tx(d, pc->w) + 2; }
+    if (x1 < x0 + 4) x1 = x0 + 4;
+    SetAPen(rp, pen_for(d, obj, r->hascolor ? r->color : 0x7F9DB9));
+    Move(rp, x0, top); Draw(rp, x0, top + h - 1);
+    Move(rp, x1, top); Draw(rp, x1, top + h - 1);
+    if (pc->para == cs[i].para && cs[i].off >= ls && cs[i].off < le + (le == pl->p->len)) { Move(rp, x0, top); Draw(rp, x1, top); }
+    if (pc->para == ce[i].para && ce[i].off >= ls && ce[i].off <= le) { Move(rp, x0, top + h - 1); Draw(rp, x1, top + h - 1); }
+    if (i == 0 && pc->para == cs[i].para && cs[i].off >= ls && cs[i].off < le + (le == pl->p->len)) {
+      /* the title on its tab */
+      char t[80];
+      const char *lab = r->alias ? r->alias : NULL;
+      struct TextFont *tf = theme_small();
+      if (lab || sdt_set(doc)->design) {
+        LONG tw, th = tf->tf_YSize + 2;
+        if (lab) utf8_to_latin1(lab, strlen(lab), t, sizeof t); else snprintf(t, sizeof t, "%s", tr(sdt_type_name(r->type)));
+        SetFont(rp, tf);
+        SetSoftStyle(rp, 0, FSF_BOLD | FSF_ITALIC | FSF_UNDERLINED);
+        tw = TextLength(rp, (STRPTR)t, (ULONG)strlen(t)) + 6;
+        SetAPen(rp, pen_bg(d, obj, r->hascolor ? r->color : 0xDCE6F2));
+        RectFill(rp, x0, top - th, x0 + tw, top - 1);
+        SetAPen(rp, pen_for(d, obj, r->hascolor ? r->color : 0x7F9DB9));
+        Move(rp, x0, top - 1); Draw(rp, x0, top - th); Draw(rp, x0 + tw, top - th); Draw(rp, x0 + tw, top - 1);
+        SetAPen(rp, d->pen_text); SetDrMd(rp, JAM1);
+        Move(rp, x0 + 3, top - th + 1 + tf->tf_Baseline); Text(rp, (STRPTR)t, (ULONG)strlen(t));
+      }
+    }
+  }
+  /* check boxes (content controls and legacy form fields), and Design Mode's tags */
+  for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
+    Box *b = &pl->boxes[k];
+    if (b->off + 4 <= pl->p->len && IS_SMARK(pl->p->t + b->off) && sdt_set(doc) && sdt_set(doc)->design) {
+      Sdt *r = sdt_get(doc, smark_index(pl->p->t + b->off));
+      LONG x = lx + tx(d, b->x), sz = h / 2 > 3 ? h / 2 : 3;
+      LONG y = top + (h - sz) / 2;
+      SetAPen(rp, pen_for(d, obj, r && r->hascolor ? r->color : 0x4F81BD));
+      if (IS_SSTART(pl->p->t + b->off)) { LONG yy; for (yy = 0; yy <= sz; yy++) { Move(rp, x - 4, y + yy); Draw(rp, x - 4 + (yy < sz / 2 ? yy : sz - yy) / 2 + 2, y + yy); } }
+      else { LONG yy; for (yy = 0; yy <= sz; yy++) { Move(rp, x + 3, y + yy); Draw(rp, x + 3 - (yy < sz / 2 ? yy : sz - yy) / 2 - 2, y + yy); } }
+      continue;
+    }
+    if (b->kind == BX_FIELD && b->w > 0 && b->off + 4 <= pl->p->len && IS_FSTART(pl->p->t + b->off) && !IS_SMARK(pl->p->t + b->off)) {
+      int f = fmark_index(pl->p->t + b->off);
+      if (ff_kind(doc, f) == FF_CHECK && !field_get(doc, f)->showcode && !doc->fieldcodes) {
+        LONG x = lx + tx(d, b->x), w = tx(d, b->w), sz = w - 2 < h - 4 ? w - 2 : h - 4;
+        if (sz < 5) sz = 5;
+        SetAPen(rp, pen_bg(d, obj, 0xD9D9D9)); RectFill(rp, x, top, x + w - 1, top + h - 1);
+        sdt_box(d, obj, rp, x + (w - sz) / 2, top + (h - sz) / 2, sz, ff_checked(doc, f));
+      }
+      continue;
+    }
+    if (b->kind == BX_TEXT && b->w > 0 && sdt_count(doc)) {
+      int used, depth;
+      u32 c = utf8_get(pl->p->t + b->off, pl->p->len - b->off, &used);
+      Pos at;
+      if (c != 0x2610 && c != 0x2612 && c < 0x2600) continue;
+      at.para = pc->para; at.off = b->off;
+      for (depth = 0; depth < 1; depth++) {
+        Pos s, e;
+        int kk = sdt_at(doc, at, &s, &e);
+        Sdt *r = sdt_get(doc, kk);
+        if (r && r->type == SDT_CHECK && (c == r->chk_on || c == r->chk_off)) {
+          LONG x = lx + tx(d, b->x), w = tx(d, b->w), sz = w - 2 < h - 4 ? w - 2 : h - 4;
+          if (sz < 5) sz = 5;
+          SetAPen(rp, d->pen_page); RectFill(rp, x, top + 1, x + w - 1, top + h - 2);
+          sdt_box(d, obj, rp, x + (w - sz) / 2, top + (h - sz) / 2, sz, c == r->chk_on);
+        }
+      }
+    }
+  }
+}
+/* WP4: Highlight Merge Fields: the merge fields' results on grey (core/merge.h) */
+static void merge_shade(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Line *ln, LONG lx, LONG top)
+{
+  int stack[16], n = 0, i, in;
+  u32 k;
+  for (k = pl->lines[0].box0; k < ln->box0 + ln->nbox && k < pl->nboxes; k++) {
+    Box *b = &pl->boxes[k];
+    if ((b->kind == BX_MARK || b->kind == BX_FIELD) && b->off + 4 <= pl->p->len && IS_FMARK(pl->p->t + b->off)) {
+      if (IS_FSTART(pl->p->t + b->off)) { if (n < 16) stack[n] = fmark_index(pl->p->t + b->off); n++; } else if (n > 0) n--;
+      continue;
+    }
+    if (k < ln->box0 || b->w <= 0 || b->kind == BX_FIELD) continue;
+    for (i = 0, in = 0; i < n && i < 16 && !in; i++) in = merge_is_field_k(d->doc, stack[i]);
+    if (in) { SetAPen(rp, pen_bg(d, obj, 0xC8C8C8)); RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1); }
   }
 }
 /* WP14a: equations' colours as pens (for wp14a_draw) */
@@ -1428,6 +1572,8 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
         RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1);
       }
     }
+  if (doc->nfields) sdt_draw(d, obj, rp, pl, pc, ln, lx, top, 0);      /* (WP16: form fields) */
+  if (doc->nfields && doc->merge && doc->merge->highlight) merge_shade(d, obj, rp, pl, ln, lx, top);   /* (WP4) */
   /* highlighting behind the text (not trailing spaces); page fields on grey, as Word shades fields */
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *b = &pl->boxes[k];
@@ -1469,10 +1615,13 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     draw_text(d, obj, rp, &lb, pl->label, lx, base);
   }
   if (pc->lnum) {
-    /* the line number, its right edge pc->lnd left of the column, in the Normal style's font */
-    struct TextFont *tf = screen_font(d, &doc->styles[0].cf);
+    /* the line number, its right edge pc->lnd left of its column, in the Line Number style's font */
+    CharFmt lf;
+    struct TextFont *tf;
     char num[12];
     LONG nx = px + tx(d, d->pg->left + pc->x - pc->lnd);
+    lay_lnum_fmt(doc, &lf);
+    tf = screen_font(d, &lf);
     sprintf(num, "%lu", (unsigned long)pc->lnum);
     if (tf) SetFont(rp, tf);
     SetSoftStyle(rp, 0, FSF_BOLD | FSF_ITALIC | FSF_UNDERLINED);
@@ -1621,6 +1770,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     SetAPen(rp, d->pen_marks);
     for (xx = x0; xx < x0 + tx(d, pc->w); xx += 2) WritePixel(rp, xx, y);
   }
+  if (doc->sdt || doc->nfields) sdt_draw(d, obj, rp, pl, pc, ln, lx, top, 1);     /* (WP16: content controls, form fields) */
 }
 /* (WP5) up to max lines of Latin-1 text s wrapped to w pixels in rp's font: each line's start and length */
 static int wrap_text(struct RastPort *rp, const char *s, LONG w, int max, const char **st, ULONG *len)
@@ -4828,6 +4978,7 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
       if (DoubleClick(d->secs, d->micros, im->Seconds, im->Micros) && !shift) d->clicks++; else d->clicks = 1;
       d->secs = im->Seconds; d->micros = im->Micros;
       move_to(d, p, shift);
+      if (d->clicks == 1 && !shift && (d->doc->sdt || d->doc->nfields)) { ULONG wid = wp16_click(d->doc, d->caret); if (wid) DoMethod(_app(obj), MUIM_Application_ReturnID, wid); }   /* (WP16) */
       if (d->clicks == 2) select_word(d);
       else if (d->clicks >= 3) { d->anchor.para = d->caret.para; d->anchor.off = 0; d->caret.off = d->doc->p[d->caret.para]->len; }
       d->wantx = -1;
