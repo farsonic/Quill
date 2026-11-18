@@ -388,8 +388,62 @@ static void linenum_col_tests(void)
   doc_free(d);
 }
 
+/* continuous sections one after another go onto new pages instead of running off the page; empty
+   section marks in a row stay on the page (WordCraft #3907) */
+static int on_pages(Layout *L)
+{
+  u32 k;
+  for (k = 0; k < L->nplaced; k++) {
+    const Placed *pc = &L->placed[k];
+    const PageSetup *pg = lay_page(L, pc->page);
+    if (pc->para < L->npl && pc->line < L->pl[pc->para].nlines && pc->y + L->pl[pc->para].lines[pc->line].height > pg->height - pg->bottom + 20) {
+      printf("  para %lu line %lu: y %ld past the bottom of page %lu\n", (unsigned long)pc->para, (unsigned long)pc->line, (long)pc->y, (unsigned long)pc->page);
+      return 0;
+    }
+  }
+  return 1;
+}
+static void contsect_tests(void)
+{
+  SectFmt s;
+  Doc *d = words_doc(80, 12);
+  Layout *L;
+  u32 i;
+  sect_default(&s);
+  s.start = SB_CONT;
+  for (i = 0; i + 1 < d->np; i++) end_sect(d, i, &s);
+  L = lay_new(d, &fs); lay_update(L);
+  ok("continuous sections: a run of them goes on to new pages, none off the page", L->npages >= 2 && on_pages(L));
+  lay_free(L);
+  doc_free(d);
+  /* two columns, continuous, many in a row */
+  d = words_doc(60, 30);
+  sect_default(&s);
+  s.start = SB_CONT; s.cols = 2;
+  for (i = 0; i + 1 < d->np; i += 3) end_sect(d, i, &s);
+  L = lay_new(d, &fs); lay_update(L);
+  ok("continuous sections: balanced two-column sections stay on their pages", L->npages >= 2 && on_pages(L));
+  lay_free(L);
+  doc_free(d);
+  /* empty marks in a row */
+  {
+    Doc *e = words_doc(1, 3);
+    Pos c = doc_end_pos(e);
+    for (i = 0; i < 120; i++) doc_insert(e, &c, "\n", 1, NULL);
+    doc_insert(e, &c, "after", 5, NULL);
+    sect_default(&s);
+    s.start = SB_CONT;
+    for (i = 1; i + 1 < e->np; i++) end_sect(e, i, &s);
+    L = lay_new(e, &fs); lay_update(L);
+    ok("continuous sections: empty marks in a row stay on the page", on_pages(L));
+    lay_free(L);
+    doc_free(e);
+  }
+}
+
 void test_wp22a(void)
 {
+  contsect_tests();
   linenum_col_tests();
   fit_tests();
   page_setup_tests();
