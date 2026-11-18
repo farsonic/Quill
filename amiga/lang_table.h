@@ -2726,6 +2726,7 @@
   { { "Intense Effect", "Intensiver Effekt", "Effet intense", "Efecto intenso", "Effetto intenso" } },
 /* ---- end WP15c */
 /* ---- begin WP16 (tools/lang/wp16.py) */
+  { { "Developer Tab", "Registerkarte Entwicklertools", "Onglet D\351veloppeur", "Pesta\361a Programador", "Scheda Sviluppo" } },
   { { "Controls", "Steuerelemente", "Contr\364les", "Controles", "Controlli" } },
   { { "Mapping", "Zuordnung", "Mappage", "Asignaci\363n", "Mapping" } },
   { { "Rich Text Content Control", "Rich-Text-Inhaltssteuerelement", "Contr\364le du contenu de texte enrichi", "Control de contenido de texto enriquecido", "Controllo contenuto testo RTF" } },
@@ -2788,7 +2789,6 @@
   { { "Check Box Properties", "Kontrollk\344stcheneigenschaften", "Propri\351t\351s de la case \340 cocher", "Propiedades de casilla", "Propriet\340 casella di controllo" } },
   { { "Checked symbol:", "Symbol f\374r aktiviert:", "Symbole Activ\351 :", "S\355mbolo de activada:", "Simbolo selezionato:" } },
   { { "Unchecked symbol:", "Symbol f\374r deaktiviert:", "Symbole D\351sactiv\351 :", "S\355mbolo de desactivada:", "Simbolo non selezionato:" } },
-  { { "Font:", "Schriftart:", "Police :", "Fuente:", "Tipo di carattere:" } },
   { { "Drop-Down List Properties", "Eigenschaften der Dropdownliste", "Propri\351t\351s de la liste d\351roulante", "Propiedades de la lista desplegable", "Propriet\340 elenco a discesa" } },
   { { "Display Name:", "Anzeigename:", "Nom d'affichage :", "Nombre para mostrar:", "Nome visualizzato:" } },
   { { "Value:", "Wert:", "Valeur :", "Valor:", "Valore:" } },
@@ -2804,8 +2804,6 @@
   { { "Repeating Section Properties", "Eigenschaften des Wiederholungsabschnitts", "Propri\351t\351s de la section r\351p\351t\351e", "Propiedades de la secci\363n repetible", "Propriet\340 sezione ripetuta" } },
   { { "Section title:", "Abschnittstitel:", "Titre de la section :", "T\355tulo de la secci\363n:", "Titolo sezione:" } },
   { { "Allow users to add and remove sections", "Benutzern das Hinzuf\374gen und Entfernen von Abschnitten erlauben", "Autoriser les utilisateurs \340 ajouter et supprimer des sections", "Permitir que los usuarios agreguen y quiten secciones", "Consenti agli utenti di aggiungere e rimuovere sezioni" } },
-  { { "Bookmark:", "Textmarke:", "Signet :", "Marcador:", "Segnalibro:" } },
-  { { "Default text:", "Standardtext:", "Texte par d\351faut :", "Texto predeterminado:", "Testo predefinito:" } },
   { { "Maximum length:", "Maximale L\344nge:", "Longueur maximale :", "Longitud m\341xima:", "Lunghezza massima:" } },
   { { "Default value:", "Standardwert:", "Valeur par d\351faut :", "Valor predeterminado:", "Valore predefinito:" } },
   { { "Not checked", "Nicht aktiviert", "D\351sactiv\351e", "No activada", "Non selezionata" } },

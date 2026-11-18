@@ -211,7 +211,9 @@ static void w_runs(HW *w, const Para *p, int notes)
       u32 j;
       for (j = i; j < end; j++) {
         u8 c = (u8)p->t[j];
-        if ((c == 0xF3 || c == 0xF4) && j + 4 <= end && (IS_PIC(p->t + j) || IS_NOTE(p->t + j) || IS_ENOTE(p->t + j) || IS_MARK(p->t + j))) break;
+        /* every character of planes 15 and 16 is a mark (pictures, notes, comments, fields, content controls
+           (WP16), equations): those not written below are left out */
+        if ((c == 0xF3 || c == 0xF4) && j + 4 <= end) break;
         if (c == 0xEE && j + 3 <= end && IS_FIELD(p->t + j)) break;
       }
       if (j > i) {

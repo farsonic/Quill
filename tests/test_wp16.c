@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 /* test_wp16.c - the native tests of WP16 Content controls (docs/wordcraft-gap.md); this file belongs
    to that package. Checks with ok() (tests/testutil.h); coretest.c's main() calls test_wp16() */
 #include <stdio.h>
@@ -8,6 +9,8 @@
 #include "../core/field.h"
 #include "../core/zip.h"
 #include "../core/keep.h"
+#include "../core/layout.h"
+#include "../core/pdf.h"
 
 #define W_NS "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" " \
   "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" " \
@@ -289,6 +292,81 @@ static void roundtrip(Doc *d, const char *name, int sample)
   free(x1);
 }
 
+/* the other formats and PDF: controls are plain there (their content only, no marks, no frames);
+   check boxes the font lacks drawn as boxes rather than question marks */
+static void plain_elsewhere(Doc *d)
+{
+  static const char *const names[] = { "x.html", "x.md", "x.rtf", "x.odt", "x.txt" };
+  int i;
+  for (i = 0; i < 5; i++) {
+    const DocFormat *df = doc_format_for_name(names[i], 1);
+    size_t n = 0;
+    u8 *out = df && df->save ? df->save(d, &n) : NULL;
+    char what[80];
+    snprintf(what, sizeof what, "plain elsewhere: %s keeps the content", names[i] + 2);
+    if (i == 3) { ok(what, out && n > 0); free(out); continue; }      /* (.odt: zipped; its writer skips marks itself) */
+    ok(what, out && memmem(out, n, "Amsterdam", 9) && memmem(out, n, "Block two", 9));
+    snprintf(what, sizeof what, "plain elsewhere: %s has no control or field marks", names[i] + 2);
+    ok(what, out && !memmem(out, n, "\xF4\x87", 2) && !memmem(out, n, "\xF4\x8B", 2) && !memmem(out, n, "\xF4\x84", 2) && !memmem(out, n, "\xF4\x88", 2));
+    free(out);
+  }
+  {
+    Layout *L = lay_new(d, &fs);
+    size_t n = 0;
+    u8 *pdf = L ? pdf_export(L, &n) : NULL, *page = NULL;
+    const u8 *q;
+    long got = 0;
+    int boxes = 0, frames = 0;
+    ok("pdf: the controls' document exports", pdf != NULL);
+    for (q = pdf; pdf && q && (q = memmem(q, n - (size_t)(q - pdf), "/FlateDecode /Length ", 21)); q++) {
+      long len = atol((const char *)q + 21);
+      const u8 *st = memmem(q, n - (size_t)(q - pdf), "stream\n", 7);
+      if (!page) page = (u8 *)malloc(262144);
+      got = st && page && len > 6 ? zinflate(st + 7 + 2, (size_t)len - 6, page, 262143) : -1;
+      if (got > 0) {
+        char *c;
+        page[got] = 0;
+        for (c = (char *)page; (c = strstr(c, " re S\n")); c++) boxes++;
+        for (c = (char *)page; (c = strstr(c, " re\n")); c++) frames++;     /* (the screen's frames would be rectangles too) */
+        if (getenv("WP16_DEBUG")) printf("%s\n", (char *)page);
+      }
+    }
+    /* the content control's checked box (a cross after it) and the form field's empty one */
+    ok("pdf: check boxes drawn as boxes", boxes == 2);
+    ok("pdf: no frames or titles round the controls", frames == 0 && !memmem(pdf, n, "Rich Text", 9));
+    free(page); free(pdf);
+    if (L) lay_free(L);
+  }
+}
+
+/* a picture control: a picture in place of its placeholder, written inside the w:sdt */
+static void picture(Doc *d)
+{
+  Pos s;
+  size_t n, pn;
+  u8 *png = file_read("tests/data/disc.png", &pn);
+  int k = nth(d, 11, &s), img = png ? doc_add_image(d, png, (u32)pn, 0, 0) : -1;
+  char t[256];
+  ok("picture: a picture control", k >= 0 && sdt_get(d, k)->type == SDT_PICTURE && img >= 0);
+  ok("picture: the picture set", img >= 0 && sdt_set_picture(d, s, img));
+  nth(d, 11, &s);
+  {
+    Pos e;
+    sdt_end(d, s, &e);
+    ok("picture: its content is the picture", e.para == s.para && e.off == s.off + 8 && IS_PIC(d->p[s.para]->t + s.off + 4) && pic_index(d->p[s.para]->t + s.off + 4) == img);
+  }
+  {
+    char *x = part_of(d, "word/document.xml", &n);
+    const char *a = x ? strstr(x, "<w:picture/>") : NULL;
+    ok("picture: written in the control", a && strstr(a, "<w:sdtContent>") && strstr(a, "<w:drawing>") && strstr(a, "<w:drawing>") < strstr(a, "</w:sdtContent>"));
+    free(x);
+  }
+  doc_undo(d, &undo_at);
+  nth(d, 11, &s);
+  content(d, s, t, sizeof t);
+  ok("picture: undone, the placeholder back", !strcmp(t, "Click or tap to insert a picture."));
+}
+
 static void edits(Doc *d)
 {
   Pos s, e, s2;
@@ -445,6 +523,8 @@ void test_wp16(void)
   if (d) {
     reading(d);
     roundtrip(d, "wp16-sample.docx", 1);
+    plain_elsewhere(d);
+    picture(d);
     edits(d);
     {
       size_t n;

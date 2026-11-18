@@ -5,6 +5,7 @@
 # amiga/lang_table.h.
 W = [
 # ---- the ribbon (Developer tab) and the menus
+("Developer Tab", "Registerkarte Entwicklertools", "Onglet Développeur", "Pestaña Programador", "Scheda Sviluppo"),
 ("Controls", "Steuerelemente", "Contrôles", "Controles", "Controlli"),
 ("Mapping", "Zuordnung", "Mappage", "Asignación", "Mapping"),
 ("Rich Text Content Control", "Rich-Text-Inhaltssteuerelement", "Contrôle du contenu de texte enrichi", "Control de contenido de texto enriquecido", "Controllo contenuto testo RTF"),

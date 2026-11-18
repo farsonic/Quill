@@ -57,10 +57,11 @@ enum {
   ID_CC_CHOOSE,                       /* an entry chosen on the right button's menu (value) */
   ID_CC_DELETE,                       /* the control and its content */
   ID_CC_DATEFMT,                      /* a date format chosen in the Properties window */
+  ID_CC_DEVTAB,                       /* View > Developer Tab: the tab shown or hidden */
   ID_CC_LAST
 };
 /* the state bits */
-enum { ST_DESIGN = 1, ST_INCTL = 2, ST_INGROUP = 3, ST_SEL = 4, ST_INITEM = 5 };
+enum { ST_DESIGN = 1, ST_INCTL = 2, ST_INGROUP = 3, ST_SEL = 4, ST_INITEM = 5, ST_DEVTAB = WP16_ST_DEVTAB };
 
 /* ------------------------------------------------------------------ */
 /* helpers */
@@ -815,10 +816,20 @@ static void next_field(int dir)
 
 /* ------------------------------------------------------------------ */
 /* every command of the package */
+/* the Developer tab shown (off until the user turns it on, as in Word) */
+static int devtab;
+int wp16_devtab_on(void) { return devtab; }
+void wp16_devtab_set(int on)
+{
+  devtab = on != 0;
+  SetVar((STRPTR)"Quill/DeveloperTab", (STRPTR)(devtab ? "1" : "0"), -1, GVF_GLOBAL_ONLY | GVF_SAVE_VAR);
+  if (wp_view()) wp_refresh();                     /* the ribbon (its tab strip) afresh */
+}
 int wp16_command(ULONG id, LONG value)
 {
   Doc *d = doc();
   Pos s, e, lo, hi;
+  if (id == ID_CC_DEVTAB) { wp16_devtab_set(!devtab); return WPR_DONE; }
   if (!d) return WPR_DONE;
   switch (id) {
   case ID_CC_RICH: insert_control(SDT_RICH); return WPR_DONE;
@@ -972,12 +983,22 @@ static const WpMenu menus[] = {
   { WM_INSERT, { NM_SUB, (STRPTR)"Remove Content Control", 0, 0, 0, (APTR)ID_CC_REMOVE } },
   { WM_INSERT, { NM_SUB, (STRPTR)"Insert Item After", 0, 0, 0, (APTR)ID_CC_ITEM_AFTER } },
   { WM_INSERT, { NM_SUB, (STRPTR)"Delete Item", 0, 0, 0, (APTR)ID_CC_ITEM_DEL } },
-  { WM_INSERT, { NM_SUB, (STRPTR)"XML Mapping Pane...", 0, 0, 0, (APTR)ID_CC_XML } } };
+  { WM_INSERT, { NM_SUB, (STRPTR)"XML Mapping Pane...", 0, 0, 0, (APTR)ID_CC_XML } },
+  { WM_VIEW, { NM_ITEM, NM_BARLABEL, 0, 0, 0, 0 } },
+  { WM_VIEW, { NM_ITEM, (STRPTR)"Developer Tab", 0, CHECKIT | MENUTOGGLE, 0, (APTR)ID_CC_DEVTAB } } };
 
 static void state(ULONG *on, const WpCtx *c)
 {
   Pos s, e;
   int depth;
+  Object *strip = NULL, *it;
+  if (devtab) *on |= 1UL << ST_DEVTAB;
+  if (wp_win()) get(wp_win(), MUIA_Window_Menustrip, &strip);       /* View > Developer Tab's tick kept */
+  if (strip && (it = (Object *)DoMethod(strip, MUIM_FindUData, ID_CC_DEVTAB))) {
+    ULONG ck = 0;
+    get(it, MUIA_Menuitem_Checked, &ck);
+    if ((ck != 0) != (devtab != 0)) SetAttrs(it, MUIA_NoNotify, TRUE, MUIA_Menuitem_Checked, devtab, TAG_DONE);
+  }
   if (!c->doc) return;
   if (c->doc->sdt && c->doc->sdt->design) *on |= 1UL << ST_DESIGN;
   if (c->hassel) *on |= 1UL << ST_SEL;
@@ -1078,6 +1099,8 @@ static ULONG key(UWORD code, UWORD qual, const WpCtx *c)
 static void init(void)
 {
   int i;
+  char v[4];
+  if (GetVar((STRPTR)"Quill/DeveloperTab", (STRPTR)v, sizeof v, GVF_GLOBAL_ONLY) > 0) devtab = v[0] == '1';
   for (i = 0; i < 4; i++) legacy_lab[i] = legacy_names[i];
   for (i = 0; i < 2; i++) group_lab[i] = group_names[i];
 }

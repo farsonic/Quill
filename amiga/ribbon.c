@@ -27,6 +27,7 @@
 #include "ribbondef.h"
 #include "wp_charpara.h"                /* (WP9, WP10: their items in the Font and Paragraph groups) */
 #include "wphooks.h"
+#include "wp_controls.h"                /* (WP16: the Developer tab shown only when turned on) */
 #include "wp_tables.h"                 /* WP21a/WP21b: Insert > Tables' Draw Table, Quick Tables, Spreadsheet */
 #include "wp_outline.h"                /* WP11: View > Outline (ID_OL_VIEW) */
 
@@ -751,6 +752,7 @@ static int tab_visible(struct RData *d, int t)
   static const u8 needs[6] = { 0, RB_INTABLE, RB_PICSEL, RB_SHAPESEL, RB_HFEDIT, RB_STORYEDIT };
   UWORD c = tabs[t].contextual;
   if (t != TAB_FILE && !tabs[t].n) return 0;          /* a package tab nobody has filled yet */
+  if (t == TAB_DEVELOPER) return bit_on(d, RB_WP(WPI_16, WP16_ST_DEVTAB));   /* (WP16) off until turned on */
   return !c || bit_on(d, c >= RB_WP_BASE ? c : needs[c < 6 ? c : 0]);
 }
 
