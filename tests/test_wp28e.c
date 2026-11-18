@@ -321,8 +321,39 @@ static void word2003(void)
   }
 }
 
+/* ---- Markdown Source */
+static void markdown_source(void)
+{
+  static const char md[] = "# Title\n\nSome *em* text.\n\n- one\n- two\n";
+  unsigned lost;
+  Doc *d = from(&fmt_markdown, md, sizeof md - 1, &lost), *s, *e;
+  char err[200];
+  size_t n;
+  u8 *out;
+  s = d ? md_source_doc(d) : NULL;
+  ok("md source: the Markdown as lines of text in the Code style", s && s->mdsource && s->np >= 5 && !strcmp(s->p[0]->t, "# Title") && fmt_is_code_style(s, s->p[0]->pf.style) &&
+     para(s, "Some *em* text.") > 0 && para(s, "- two") > 0 && !s->dirty);
+  out = s ? fmt_markdown.save(s, &n) : NULL;
+  ok("md source: saved as Markdown, its text as it is", out && n >= 8 && !memcmp(out, "# Title\n", 8) && strstr((const char *)out, "Some *em* text."));
+  free(out);
+  if (s) {
+    /* edited: a line changed and one added, then read as Markdown again */
+    int k = para(s, "Some *em* text.");
+    Pos c = P((u32)k, 0);
+    doc_insert(s, &c, "**Bold** and ", 13, NULL);
+    c = P(s->np - 1, s->p[s->np - 1]->len);
+    doc_insert(s, &c, "\n\n## Added", 10, NULL);
+  }
+  e = s ? md_apply_source(s, &lost, err, sizeof err) : NULL;
+  ok("md source: applied, the edits are formatting again", e && !strcmp(e->p[0]->t, "Title") && fmt_heading_level(e, e->p[0]->pf.style) == 1 && at(e, "Bold") && (at(e, "Bold")->flags & CF_BOLD) &&
+     at(e, "em") && (at(e, "em")->flags & CF_ITALIC) && para(e, "one") > 0 && e->p[para(e, "one")]->pf.list && para(e, "Added") > 0 &&
+     fmt_heading_level(e, e->p[para(e, "Added")]->pf.style) == 2 && !e->mdsource);
+  doc_free(d); doc_free(s); doc_free(e);
+}
+
 void test_wp28e(void)
 {
+  markdown_source();
   text_encodings();
   flat_opc();
   word2003();

@@ -4332,6 +4332,10 @@
   { { "UTF-8|Latin-1|Cancel", "UTF-8|Latin-1|Abbrechen", "UTF-8|Latin-1|Annuler", "UTF-8|Latin-1|Cancelar", "UTF-8|Latin-1|Annulla" } },
   { { "UTF-8|Latin-1|UTF-16|Cancel", "UTF-8|Latin-1|UTF-16|Abbrechen", "UTF-8|Latin-1|UTF-16|Annuler", "UTF-8|Latin-1|UTF-16|Cancelar", "UTF-8|Latin-1|UTF-16|Annulla" } },
   { { "Save the text in which encoding?\nUTF-8 keeps every character; Latin-1 is\nwhat most Amiga editors read.%s", "In welcher Codierung speichern?\nUTF-8 beh\344lt jedes Zeichen; Latin-1 lesen\ndie meisten Amiga-Editoren.%s", "Enregistrer le texte dans quel codage ?\nUTF-8 garde tous les caract\350res ; Latin-1 est\nce que lisent la plupart des \351diteurs Amiga.%s", "\277En qu\351 codificaci\363n guardar el texto?\nUTF-8 conserva todos los caracteres; Latin-1 es\nlo que leen casi todos los editores de Amiga.%s", "In quale codifica salvare il testo?\nUTF-8 conserva ogni carattere; Latin-1 \350\nci\362 che legge la maggior parte degli editor Amiga.%s" } },
+  { { "Markdown Source", "Markdown-Quelle", "Source Markdown", "Origen de Markdown", "Origine Markdown" } },
+  { { "Source", "Quelle", "Source", "Origen", "Origine" } },
+  { { "The document's Markdown as text to edit (again: read back as the document)", "Das Markdown des Dokuments als Text zum Bearbeiten (erneut: wieder als Dokument gelesen)", "Le Markdown du document en texte \340 modifier (\340 nouveau : relu comme document)", "El Markdown del documento como texto para editar (otra vez: le\355do de nuevo como documento)", "Il Markdown del documento come testo da modificare (di nuovo: riletto come documento)" } },
+  { { "This document is open in another window too.\nClose that window first.%s", "Dieses Dokument ist auch in einem anderen Fenster ge\366ffnet.\nSchlie\337en Sie zuerst dieses Fenster.%s", "Ce document est aussi ouvert dans une autre fen\352tre.\nFermez d'abord cette fen\352tre.%s", "Este documento tambi\351n est\341 abierto en otra ventana.\nCierre primero esa ventana.%s", "Questo documento \350 aperto anche in un'altra finestra.\nChiudere prima quella finestra.%s" } },
 /* ---- end WP28c */
 /* ---- begin WP28d (tools/lang/wp28d.py) */
 /* ---- end WP28d */

@@ -673,6 +673,9 @@ typedef struct Doc {
   /* plain text (core/docx.c txt_load/txt_save): the encoding a .txt was read in and is saved in
      (TXT_UTF8, the default, TXT_LATIN1, TXT_UTF16LE/BE), TXT_BOM if it began with a byte order mark */
   u8 txtenc;
+  /* (WP28e) a Markdown source view's document (core/markdown.c md_source_doc): its text is the Markdown,
+     written as it is when saved as Markdown */
+  u8 mdsource;
 } Doc;
 enum { TXT_UTF8, TXT_LATIN1, TXT_UTF16LE, TXT_UTF16BE, TXT_BOM = 0x10 };
 /* (WP13) styles (and the document's defaults, Doc.defpf and defcf) changed by edit(d, arg) as one undo

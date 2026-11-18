@@ -76,4 +76,10 @@ i32  css_twips(const char *s, size_t n, int *ok);
 /* &name; and &#n; entities: the character, *used the bytes taken; 0 if s isn't one */
 u32  html_entity(const char *s, size_t n, int *used);
 
+/* (WP28e) Markdown Source: the Markdown d is written as, as a document of its own (a paragraph a line,
+   the Code style, Doc.mdsource set, so saving it as Markdown writes its text as it is); NULL if out of
+   memory. md_apply_source reads such a document's text as Markdown (err says why if NULL) */
+Doc *md_source_doc(Doc *d);
+Doc *md_apply_source(Doc *src, unsigned *lost, char *err, size_t errcap);
+
 #endif

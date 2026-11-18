@@ -338,6 +338,7 @@ static u8 *md_save(Doc *d, size_t *len)
 {
   Buf b;
   MW w;
+  if (d->mdsource) return txt_save_enc(d, TXT_UTF8, len);    /* (WP28e: the source view's text is the Markdown) */
   memset(&w, 0, sizeof w);
   w.d = d;
   buf_init(&b);
@@ -1410,4 +1411,50 @@ static Doc *md_load(const u8 *data, size_t len, unsigned *lost, char *err, size_
   return d;
 }
 
+/* ---- WP28e: Markdown Source (View): the document's Markdown as a plain-text document, one paragraph a
+   line in the Code style, to read and edit; and that text read as Markdown again */
+Doc *md_source_doc(Doc *d)
+{
+  size_t n = 0, i, a = 0;
+  u8 *md = md_save(d, &n);
+  Doc *s;
+  ParaList l;
+  int k;
+  if (!md) return NULL;
+  if (!(s = doc_new())) { free(md); return NULL; }
+  memset(&l, 0, sizeof l);
+  k = fmt_code_style(s);
+  while (n && md[n - 1] == '\n') n--;           /* (the last line's end) */
+  for (i = 0; i <= n; i++) {
+    if (i < n && md[i] != '\n') continue;
+    {
+      Para *p = para_new(&s->styles[k].pf, &s->styles[k].cf);
+      size_t e = i;
+      if (e > a && md[e - 1] == '\r') e--;
+      if (p && e > a && !para_append(p, (const char *)md + a, (u32)(e - a), &s->styles[k].cf)) { para_free(p); p = NULL; }
+      if (!pl_add(&l, p)) break;
+    }
+    a = i + 1;
+  }
+  free(md);
+  if (l.oom || !pl_to_body(s, &l)) { pl_free(&l); doc_free(s); return NULL; }
+  snprintf(s->title, sizeof s->title, "%s", d->title);
+  snprintf(s->author, sizeof s->author, "%s", d->author);
+  s->mdsource = 1;
+  doc_clear_undo(s);
+  s->dirty = 0;
+  return s;
+}
+Doc *md_apply_source(Doc *src, unsigned *lost, char *err, size_t errcap)
+{
+  size_t n = 0;
+  u8 *t = txt_save_enc(src, TXT_UTF8, &n);
+  Doc *d;
+  unsigned l = 0;
+  if (!t) { snprintf(err, errcap, "Not enough memory."); return NULL; }
+  d = md_load(t, n, &l, err, errcap);
+  free(t);
+  if (lost) *lost = l;
+  return d;
+}
 const DocFormat fmt_markdown = { "Markdown", "md|markdown", NULL, md_load, md_save, 0 };

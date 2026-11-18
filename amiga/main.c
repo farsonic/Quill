@@ -4930,6 +4930,18 @@ void wp_replace_doc(Doc *d, int changed)
   show_doc(d);
   if (changed) { set(view, MUIA_Quill_Changed, TRUE); set_title(); }
 }
+/* (WP28e, wp_html.c's Markdown Source) d shown in this window in place of its document, which is given
+   back, not freed (the caller keeps it); NULL, nothing changed, if another window shows that document */
+Doc *wp_swap_doc(Doc *d, int changed)
+{
+  Doc *old = doc;
+  if (!d || (old && win_share_index(old, -2, NULL))) return NULL;
+  story_close(1);
+  doc = NULL;
+  show_doc(d);
+  if (changed) { set(view, MUIA_Quill_Changed, TRUE); set_title(); }
+  return old;
+}
 const char *wp_username(void) { return username; }
 Object *wp_window_obj(int i) { return i < 0 || i >= MAXWIN || !wins[i].used ? NULL : i == curwin ? win : wins[i].win; }   /* (WP13) */
 void wp_backstage_hide(void) { if (back_shown) backstage_show(0, 0); }       /* (WP23: the File page put away) */
