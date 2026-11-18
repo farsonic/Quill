@@ -4417,4 +4417,8 @@
   { { "Revert|*Cancel", "Alte Version|*Abbrechen", "Version pr\351c\351dente|*Annuler", "Recuperar|*Cancelar", "Ripristina|*Annulla" } },
   { { "Revert to the saved version of %s? The changes made since are lost.", "Zur gesicherten Version von %s zur\374ckkehren? Die \304nderungen seither gehen verloren.", "Revenir \340 la version enregistr\351e de %s ? Les modifications faites depuis seront perdues.", "\277Volver a la versi\363n guardada de %s? Se perder\341n los cambios hechos desde entonces.", "Tornare alla versione salvata di %s? Le modifiche fatte da allora andranno perse." } },
   { { "Tool Strip", "Symbolleiste", "Barre d'outils", "Barra de herramientas", "Barra degli strumenti" } },
+  { { "Rows:", "Zeilen:", "Lignes :", "Filas:", "Righe:" } },
+  { { "Columns are 1 to 64 and rows 1 to 500.", "Spalten: 1 bis 64, Zeilen: 1 bis 500.", "Colonnes : de 1 \340 64, lignes : de 1 \340 500.", "Columnas: de 1 a 64; filas: de 1 a 500.", "Colonne da 1 a 64, righe da 1 a 500." } },
+  { { "Footnote text:", "Text der Fu\337note:", "Texte de la note de bas de page :", "Texto de la nota al pie:", "Testo della nota a pi\350 di pagina:" } },
+  { { "Endnote text:", "Text der Endnote:", "Texte de la note de fin :", "Texto de la nota al final:", "Testo della nota di chiusura:" } },
 /* ---- end the Mac front end */

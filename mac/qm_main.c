@@ -90,6 +90,11 @@ static void nm_add(UBYTE type, const char *label, const char *key, UWORD flags, 
 	e->nm_UserData = (APTR)id;
 }
 #define BAR() nm_add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0)
+/* (the same for mac/qm_cmds.c's menus) */
+static void nm_addc(int type, const char *label, const char *key, int flags, unsigned long id)
+{
+	nm_add((UBYTE)type, label, key, (UWORD)flags, (ULONG)id);
+}
 
 static void menus_build(void)
 {
@@ -150,8 +155,7 @@ static void menus_build(void)
 	nm_add(NM_ITEM, "Single", "1", CHECKIT, ID_SINGLE);
 	nm_add(NM_ITEM, "1.5 Lines", "5", CHECKIT, ID_ONEHALF);
 	nm_add(NM_ITEM, "Double", "2", CHECKIT, ID_DOUBLE);
-	BAR();
-	nm_add(NM_ITEM, "Page Break", NULL, 0, ID_PAGEBREAK);        /* the Amiga's Amiga-P is Print on the Mac */
+	qc_menus(nm_addc);                                           /* Insert, Layout, References, Review */
 	nm_add(NM_TITLE, "View", NULL, 0, 0);
 	/* toggles with a check mark (p. 75); Ribbon is what Word for the Mac called its formatting bar */
 	nm_add(NM_ITEM, "Ribbon", NULL, CHECKIT | (prefs.ribbon ? CHECKED : 0), ID_RIBBON);
@@ -186,7 +190,10 @@ const char *qm_label(unsigned long id)
 		return tr(pstyles[id - ID_STYLE0].name);
 	if (id >= ID_STRIP0 && id < ID_STRIP0 + QS_NSTRIPS)
 		return tr(strip_names[id - ID_STRIP0]);
-	return "";
+	{
+		const char *c = qc_label(id);
+		return c ? c : "";
+	}
 }
 
 /* ---- the preferences file: "Quill Preferences" in the System Folder's Preferences folder, a line
@@ -292,10 +299,13 @@ static void here_now(void)
 
 unsigned qm_state(unsigned long id)
 {
-	unsigned flags = here.f.flags & (CF_BOLD | CF_ITALIC | CF_UNDERLINE | CF_STRIKE | CF_SUPER | CF_SUB);
-	int on = 0;
+	unsigned flags = here.f.flags & (CF_BOLD | CF_ITALIC | CF_UNDERLINE | CF_STRIKE | CF_SUPER | CF_SUB), st;
+	int on = 0, mine;
 	if (!qd.doc)
 		return 0;
+	st = qc_state(id, &mine);
+	if (mine)
+		return st;
 	if (id >= ID_FONT0 && id < ID_FONT0 + (unsigned long)nfam)
 		on = here.font == (int)(id - ID_FONT0);
 	else if (id >= ID_SIZE0 && id < ID_SIZE0 + NSIZES)
@@ -364,6 +374,9 @@ int qm_popup(int which, unsigned long *first, char *now, int cap)
 		*first = ID_STRIP0;
 		snprintf(now, (size_t)cap, "%s", tr(strip_names[prefs.strip]));
 		return QS_NSTRIPS;
+	case QP_BREAKS: case QP_SYMBOL:
+		now[0] = 0;
+		return qc_popup(which, first);
 	case QP_SIZE:
 		*first = ID_SIZE0;
 		/* half points: 11, or 10.5 */
@@ -437,6 +450,26 @@ static void win_show(void)
 	}
 }
 
+static int reply_path(const StandardFileReply *r, char *out, int cap);
+
+void qm_alert(int level, const char *fmt, const char *arg)
+{
+	static const char *const ok[] = { "OK" };
+	char t[600];
+	snprintf(t, sizeof t, tr(fmt), arg ? arg : "");
+	mac_alert(level, t, ok, 1, 0, -1);
+}
+
+Object *qm_view(void) { return view; }
+
+int qm_get_file(char *path, int cap)
+{
+	StandardFileReply r;
+	memset(&r, 0, sizeof r);
+	mac_stdgetfile(-1, NULL, &r);       /* every file: pictures from elsewhere come typed '????' */
+	return r.sfGood && reply_path(&r, path, cap);
+}
+
 static int ask(const char *gadgets, const char *fmt, const char *arg)
 {
 	ULONG args[1];
@@ -465,7 +498,7 @@ static int save_to(const char *path)
 	ok = doc_save_file(qd.doc, path);
 	set_watch_cursor(0);
 	if (!ok) {
-		ask("OK", "%s couldn't be saved.", path);
+		qm_alert(QA_STOP, "%s couldn't be saved.", path);
 		return 0;
 	}
 	qm_flush(path);
@@ -522,7 +555,7 @@ static void open_file(const char *path)
 	d = doc_load_file(path, &lost, err, sizeof err);
 	set_watch_cursor(0);
 	if (!d) {
-		ask("OK", "%s couldn't be read.", path);
+		qm_alert(QA_STOP, "%s couldn't be read.", path);
 		return;
 	}
 	doc_clear_undo(d);
@@ -560,7 +593,7 @@ static void cmd_pdf(void)
 	set_watch_cursor(1);
 	if (!pdf_save_file(qd.lay, path)) {
 		set_watch_cursor(0);
-		ask("OK", "%s couldn't be saved.", path);
+		qm_alert(QA_STOP, "%s couldn't be saved.", path);
 		return;
 	}
 	qm_flush(path);
@@ -853,6 +886,8 @@ static void command(ULONG id)
 	ParaFmt pf;
 	memset(&cf, 0, sizeof cf);
 	memset(&pf, 0, sizeof pf);
+	if (qc_command(id))
+		return;
 	if (id >= ID_FONT0 && id < ID_FONT0 + (ULONG)nfam) {
 		cf.font = (u8)doc_font(qd.doc, fam[id - ID_FONT0]);
 		char_format(CM_FONT, &cf);
@@ -918,7 +953,7 @@ static void command(ULONG id)
 	case ID_SAVEAS: save_as(); break;
 	case ID_PDF: cmd_pdf(); break;
 	case ID_ABOUT:
-		ask("OK", "Quill 0.15 for the Mac\n\n%s", tr("A word processor for the classic Mac OS.\nReads and writes Word documents (.docx).\n\n"
+		qm_alert(QA_STOP, "Quill 0.15 for the Mac\n\n%s", tr("A word processor for the classic Mac OS.\nReads and writes Word documents (.docx).\n\n"
 		                               "Text is measured with the Liberation and Carlito/Caladea fonts\n(SIL Open Font License), so documents break\n"
 		                               "their lines as they do in Word."));
 		break;
@@ -962,22 +997,6 @@ static void command(ULONG id)
 		pf.linerule = LS_AUTO;
 		para_format(PM_LINE, &pf);
 		break;
-	case ID_PAGEBREAK: {
-		Pos a, b;
-		doc_begin(qd.doc, qd.caret);
-		if (pos_cmp(qd.anchor, qd.caret)) {
-			fmt_range(&a, &b);
-			doc_delete(qd.doc, a, b);
-			qd.caret = a;
-		}
-		doc_insert(qd.doc, &qd.caret, "\n", 1, NULL);
-		pf.pagebreak = 1;
-		doc_para_format(qd.doc, qd.caret.para, qd.caret.para, PM_BREAK, &pf);
-		doc_end(qd.doc, qd.caret);
-		qd.anchor = qd.caret;
-		qv_changed(view, 1);
-		break;
-	}
 	case ID_BULLETS: case ID_NUMBERS: list_toggle(id == ID_NUMBERS); break;
 	case ID_OUTDENT: case ID_INDENT: indent(id == ID_INDENT ? 1 : -1); break;
 	case ID_RIBBON: case ID_RULER:

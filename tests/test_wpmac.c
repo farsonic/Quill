@@ -8,6 +8,8 @@
 #include "../core/ruler.h"
 #include "../core/table.h"
 #include "../core/layout.h"
+#include "../core/edcmd.h"
+#include "../core/field.h"
 
 /* the ruler for the caret at p, laid out afresh */
 static void geom_at(Doc *d, Pos p, RulerGeom *g)
@@ -138,8 +140,99 @@ static void test_columns(void)
   doc_free(d);
 }
 
+/* a file's bytes (malloc'd), NULL if it can't be read */
+static u8 *slurp(const char *path, u32 *n)
+{
+  FILE *f = fopen(path, "rb");
+  u8 *b;
+  long len;
+  if (!f) return NULL;
+  fseek(f, 0, SEEK_END);
+  len = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  if ((b = (u8 *)malloc((size_t)len)) && fread(b, 1, (size_t)len, f) != (size_t)len) { free(b); b = NULL; }
+  fclose(f);
+  *n = (u32)len;
+  return b;
+}
+
+/* the Insert strip's commands (core/edcmd.c) */
+static void test_insert(void)
+{
+  Doc *d = doc_new(), *r;
+  ESel s;
+  Table *t;
+  u8 *png;
+  u32 n, i;
+  int k, found;
+  memset(&s, 0, sizeof s);
+  ok("edcmd: text in place of nothing", ec_text(d, &s, "Hello world") && text_is(d, "Hello world"));
+  s.anchor = P(0, 6); s.caret = P(0, 11);
+  ok("edcmd: text over a selection", ec_text(d, &s, "Mac") && text_is(d, "Hello Mac") && !pos_cmp(s.caret, P(0, 9)));
+  doc_clear_undo(d);
+  /* a table: 2 rows of 3 at the end, as wide as the page's text */
+  ok("edcmd: a table", ec_table(d, &s, 2, 3));
+  t = doc_table(d, &d->p[s.caret.para]->pf);
+  ok("edcmd: three columns, the page's width", t && t->ncols == 3 && t->grid[0] == (11906 - 2880) / 3 && t->grid[2] == t->grid[0]);
+  ok("edcmd: the caret in its first cell", t && d->p[s.caret.para]->pf.cell.row == 0 && d->p[s.caret.para]->pf.cell.col == 0);
+  ok("edcmd: one undo step", doc_undo(d, &s.caret) && !doc_table(d, &d->p[d->np - 1]->pf));
+  doc_redo(d, &s.caret);
+  s.anchor = s.caret = pos_clamp(d, s.caret);
+  for (i = 0; i < d->np && !in_table(&d->p[i]->pf); i++) ;
+  s.anchor = s.caret = P(i, 0);
+  ok("edcmd: a row below", ec_table_op(d, &s, ET_ROW_BELOW));
+  ok("edcmd: a column right", ec_table_op(d, &s, ET_COL_RIGHT) && (t = doc_table(d, &d->p[s.caret.para]->pf)) && t->ncols == 4);
+  ok("edcmd: a column deleted", ec_table_op(d, &s, ET_DEL_COL) && (t = doc_table(d, &d->p[s.caret.para]->pf)) && t->ncols == 3);
+  ok("edcmd: the table deleted", ec_table_op(d, &s, ET_DEL_TABLE));
+  for (i = 0, found = 0; i < d->np; i++) found |= in_table(&d->p[i]->pf);
+  ok("edcmd: no table left, and no table command outside one", !found && !ec_table_op(d, &s, ET_ROW_ABOVE));
+  /* breaks and sections */
+  s.anchor = s.caret = P(0, 5);
+  ok("edcmd: a page break", ec_break(d, &s, 0) && d->p[s.caret.para]->pf.pagebreak && s.caret.para == 1);
+  ok("edcmd: a column break", ec_break(d, &s, 1) && d->p[s.caret.para]->pf.colbreak);
+  n = d->np;
+  ok("edcmd: a section break", ec_section(d, &s, SB_CONT) && d->np == n + 1 && d->p[s.caret.para - 1]->pf.sect);
+  ok("edcmd: the next section starts on the same page", doc_sect(d, s.caret.para)->start == SB_CONT);
+  /* a picture, narrowed to the column */
+  png = slurp("tests/data/disc.png", &n);
+  ok("edcmd: the test picture", png != NULL);
+  k = png ? ec_picture(d, &s, png, n) : -1;
+  ok("edcmd: a picture at the caret", k >= 0 && IS_PIC(d->p[s.caret.para]->t + s.caret.off - 4));
+  ok("edcmd: no wider than the column", k >= 0 && d->images[k].cx <= ec_text_width(d, s.caret.para));
+  {
+    u8 *junk = (u8 *)malloc(13);
+    memcpy(junk, "not a picture", 13);
+    ok("edcmd: not a picture: nothing", ec_picture(d, &s, junk, 13) < 0);
+  }
+  /* a footnote with its text, an endnote, the date */
+  k = ec_note(d, &s, 0, "A note's text.");
+  ok("edcmd: a footnote", k == 0 && d->nnotes == 1 && IS_NOTE(d->p[s.caret.para]->t + s.caret.off - 4));
+  {
+    char *nt = k >= 0 ? story_text(&d->notes[k]) : NULL;
+    ok("edcmd: its text", nt && strstr(nt, "A note's text.") != NULL);
+    free(nt);
+  }
+  ok("edcmd: an endnote", ec_note(d, &s, 1, "End.") == 0 && d->nenotes == 1);
+  ok("edcmd: a date field", ec_field(d, &s, "DATE \\@ \"d MMMM yyyy\""));
+  ok("edcmd: a page number field", ec_field(d, &s, "PAGE"));
+  {
+    Pos at[8];
+    ok("edcmd: two fields in the text", field_list(d, doc_start(d), doc_end_pos(d), at, 8) == 2);
+  }
+  /* all of it kept in a .docx */
+  r = docx_again(d, NULL);
+  ok("edcmd: read back from .docx", r != NULL);
+  if (r) {
+    for (i = 0, found = 0; i < r->np; i++) found += r->p[i]->pf.pagebreak;
+    ok("edcmd: .docx keeps the page break, picture and notes", found >= 1 && r->nimages >= 1 && r->nnotes == 1 && r->nenotes == 1);
+    doc_free(r);
+  }
+  doc_free(d);
+}
+
 void test_wpmac(void)
 {
+  test_insert();
   test_units();
   test_indents();
   test_tabs();

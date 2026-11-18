@@ -35,16 +35,23 @@ enum {
 	ID_REDO, ID_SELALL,
 	ID_PLAIN, ID_BOLD, ID_ITALIC, ID_UNDERLINE, ID_STRIKE, ID_SUPER, ID_SUB,
 	ID_GROW, ID_SHRINK,
-	ID_LEFT, ID_CENTER, ID_RIGHT, ID_JUSTIFY, ID_SINGLE, ID_ONEHALF, ID_DOUBLE, ID_PAGEBREAK,
+	ID_LEFT, ID_CENTER, ID_RIGHT, ID_JUSTIFY, ID_SINGLE, ID_ONEHALF, ID_DOUBLE,
 	ID_ZOOMFIT, ID_ZOOM50, ID_ZOOM75, ID_ZOOM100, ID_ZOOM150, ID_ZOOM200,
 	ID_CLOSEWIN,
 	ID_BULLETS, ID_NUMBERS, ID_OUTDENT, ID_INDENT, ID_RIBBON, ID_RULER, ID_REVERT,
+	/* Insert (mac/qm_cmds.c) */
+	ID_TABLE, ID_PICTURE, ID_FOOTNOTE, ID_ENDNOTE, ID_DATE, ID_PAGENUM,
+	/* Layout > Table, in core/edcmd.h's ET_ order */
+	ID_ROW_ABOVE, ID_ROW_BELOW, ID_COL_LEFT, ID_COL_RIGHT, ID_DEL_ROW, ID_DEL_COL, ID_DEL_TABLE, ID_MERGE, ID_SPLIT,
+	ID_BREAK0 = 120,            /* + Insert > Breaks' row (NBREAKS): page, column, section next page, continuous */
+	ID_SYM0 = 130,              /* + Insert > Symbol's row */
 	ID_SIZE0 = 200,             /* + the Size menu's row */
 	ID_FONT0 = 220,             /* + the Font menu's family (24) */
 	ID_STYLE0 = 250,            /* + the Paragraph Style submenu's row */
 	ID_STRIP0 = 270,            /* + View > Tool Strip's row: the strip shown (QS_) */
 	ID_LAST = 400
 };
+#define NBREAKS 4
 /* the tool strips, one per tab of the Amiga's ribbon that the Mac has commands for */
 enum { QS_HOME, QS_INSERT, QS_LAYOUT, QS_REFERENCES, QS_REVIEW, QS_NSTRIPS };
 
@@ -54,11 +61,28 @@ enum { QS_HOME, QS_INSERT, QS_LAYOUT, QS_REFERENCES, QS_REVIEW, QS_NSTRIPS };
 #define QS_CHECKED 2
 unsigned qm_state(unsigned long id);
 void qm_command(unsigned long id);                     /* a menu item's command, from the strip */
+#ifdef RT_PREFS_MUI_H
+Object *qm_view(void);                                 /* the page view */
+#endif
 /* the strip's pop-up menus show the Paragraph Style, Font and Size menus' items: their first command
    and how many, and what the box shows now (the caret's style, font or size, even one not listed) */
-enum { QP_STYLE, QP_FONT, QP_SIZE, QP_STRIP };
+enum { QP_STYLE, QP_FONT, QP_SIZE, QP_STRIP, QP_BREAKS, QP_SYMBOL };
 int  qm_popup(int which, unsigned long *first, char *now, int cap);
 const char *qm_label(unsigned long id);                /* a menu item's words as the menu shows them (Mac Roman) */
+
+/* alerts at their level (Guidelines pp. 193-196): a note informs, a caution warns before something
+   that can't be undone, a stop says it can't be done. fmt has at most one %s, arg (Mac Roman) */
+enum { QA_STOP, QA_NOTE, QA_CAUTION };
+void qm_alert(int level, const char *fmt, const char *arg);
+int  qm_get_file(char *path, int cap);                 /* Standard File's Open dialog: a full Mac path, 0 if cancelled */
+int  mac_alert(int icon, const char *text, const char *const *btn, int n, int def, int cancel);   /* riptide mac_alert.c */
+
+/* qm_cmds.c: the Insert, Layout, References and Review menus' commands */
+unsigned qc_state(unsigned long id, int *mine);        /* qm_state for its commands (*mine: it is one of them) */
+int  qc_command(unsigned long id);                     /* 1 if it was one of its commands */
+int  qc_popup(int which, unsigned long *first);        /* a strip pop-up button's submenu: its first command, how many */
+const char *qc_label(unsigned long id);                /* a submenu item's words, NULL if not its */
+void qc_menus(void (*add)(int type, const char *label, const char *key, int flags, unsigned long id));
 
 /* qm_view.c: the page view, a MUI Area subclass (for the files that include MUI) */
 #ifdef RT_PREFS_MUI_H

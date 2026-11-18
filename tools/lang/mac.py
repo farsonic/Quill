@@ -24,4 +24,9 @@ W = [
  "Tornare alla versione salvata di %s? Le modifiche fatte da allora andranno perse."),
 # View > Tool Strip: which of the strips (Home, Insert, Layout, References, Review) the window shows
 ("Tool Strip", "Symbolleiste", "Barre d'outils", "Barra de herramientas", "Barra degli strumenti"),
+# Insert > Table..., Footnote..., Endnote... (mac/qm_cmds.c)
+("Rows:", "Zeilen:", "Lignes :", "Filas:", "Righe:"),
+("Columns are 1 to 64 and rows 1 to 500.", "Spalten: 1 bis 64, Zeilen: 1 bis 500.", "Colonnes : de 1 à 64, lignes : de 1 à 500.", "Columnas: de 1 a 64; filas: de 1 a 500.", "Colonne da 1 a 64, righe da 1 a 500."),
+("Footnote text:", "Text der Fußnote:", "Texte de la note de bas de page :", "Texto de la nota al pie:", "Testo della nota a piè di pagina:"),
+("Endnote text:", "Text der Endnote:", "Texte de la note de fin :", "Texto de la nota al final:", "Testo della nota di chiusura:"),
 ]

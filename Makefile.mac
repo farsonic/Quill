@@ -46,7 +46,7 @@ FE_CFLAGS := $(BASE) -std=gnu11 -Imac/include $(RT_INC) -Imac
 
 CORE_SRC := $(wildcard core/*.c)
 CORE_OBJ := $(patsubst core/%.c,$(B)/core/%.o,$(CORE_SRC))
-MAC_OBJ  := $(patsubst mac/%.c,$(B)/mac/%.o,mac/qm_main.c mac/qm_view.c mac/qm_strip.c mac/qm_ruler.c mac/qm_dialog.c mac/qm_lang.c mac/qm_text.c) \
+MAC_OBJ  := $(patsubst mac/%.c,$(B)/mac/%.o,mac/qm_main.c mac/qm_view.c mac/qm_strip.c mac/qm_ruler.c mac/qm_dialog.c mac/qm_cmds.c mac/qm_lang.c mac/qm_text.c) \
             $(B)/mac/libc.o $(B)/mac/softfp.o $(B)/mac/qm_mac.o $(B)/mac/qm_thunks.o
 # Riptide's app kit and MUI for the Mac, and what they need of its core and libc (as Lagoon)
 RT_OBJ   := $(B)/rt/mac/app/crt0.o $(B)/rt/mac/app/ostraps.o $(B)/rt/gen/toolbox_glue.o $(B)/rt/mac/app/mac_alert.o \
