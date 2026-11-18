@@ -14,7 +14,7 @@
 # without one (the LC III, the LC 475's 68LC040, the Color Classic II...). Nothing that runs while
 # typing needs it: the layout, the TrueType rasteriser and the page drawing are integer
 # arithmetic (fixed point); only charts and a few file readers use doubles, and those are rare
-# and short. docs/mac.md has the measurements behind the choice.
+# and short. docs/mac.md gives the reasons.
 RIPTIDE ?= ../riptide
 CROSS   ?= m68k-linux-gnu-
 CC      := $(CROSS)gcc

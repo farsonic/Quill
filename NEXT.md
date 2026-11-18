@@ -8,6 +8,22 @@ The full gap list, with every WordCraft command marked ✅/🟨/⬜/➖ and evid
 How work packages plug in (id blocks, wp_*.c files, hooks, lang rows, tests, file formats) is at the top
 of `amiga/wphooks.h` and in "WP0 conventions" at the end of the gap document.
 
+## Quill for the classic Mac OS (branch `mac-port`, 2026-11-18)
+
+A Mac build: `make -f Makefile.mac` → `build/mac/Quill.bin`, with Riptide's tree beside Quill's (`../riptide`,
+its `mac-port` branch: the MUI for the Mac). The core is unchanged; `mac/` is a small MUI front end of its own
+(window, page view drawn with `pdf_page_rgb` and CopyBits at 1 to 32 bits, HIG menus, Standard File, Mac types
+and creator `QUIL`, Finder icons) and a C library over the Toolbox. `docs/mac.md` tells the story, lists the
+Command keys and what is not done (printing, more than one window, the ribbon's commands beyond the menus,
+Apple events while running). Tested in the Aurora68 testbed at 1, 8 and 32 bits: open a .docx, type, bold,
+save, close, reopen; the saved file checked on the host. Pitfalls found:
+
+- `mac/libc.c` is the C library: keep it 32-bit clean in its own headers (`unsigned int` where the Mac's
+  `long` is meant), so the host harness (core + mac/libc.c on Linux, see docs/mac.md "Tested") stays usable.
+- A control moved or sized inside MUIM_Draw invalidates itself: the next update draws again, for ever.
+- Save must FlushVol, or a crash (or the testbed stopping) loses the file's catalog entry.
+- New Mac interface words go in `tools/lang/mac.py` (mklang reads it after the work packages).
+
 ## Merged into master (done)
 
 WP0 scaffolding · WP1 fields · WP5 comments and markup · WP8 proofing · WP9 character formatting ·
