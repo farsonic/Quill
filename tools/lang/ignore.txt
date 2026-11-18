@@ -66,3 +66,5 @@ SAVEDATE \@ "yyyy-MM-dd"
 %s   %ld KB%s
 ÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝàáâãäåçèéêëìíîïñòóôõöùúûüýÿ
 AAAAAACEEEEIIIINOOOOOUUUUYaaaaaaceeeeiiiinooooouuuuyy
+:Fonts:
+$VER: Quill 0.15 (18.11.2026)

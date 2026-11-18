@@ -74,7 +74,7 @@ void *malloc(size_t n)
 		char *p = qm_newptr((long)n + 8);
 		if (!p)
 			return NULL;
-		*(unsigned long *)p = n;
+		*(unsigned int *)p = (unsigned int)n;      /* 32 bits, before the class word */
 		*(unsigned short *)(p + 4) = BIG;
 		return p + 8;
 	}
@@ -83,7 +83,7 @@ void *malloc(size_t n)
 static size_t block_size(void *p)
 {
 	unsigned short c = *((unsigned short *)p - 2);
-	return c == BIG ? *(unsigned long *)((char *)p - 8) : class_size[c];
+	return c == BIG ? *(unsigned int *)((char *)p - 8) : class_size[c];
 }
 
 void free(void *p)

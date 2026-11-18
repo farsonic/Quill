@@ -222,3 +222,21 @@ short qm_system_region(void)
 	UseResFile(save);
 	return region;
 }
+
+/* Everything the File Manager still holds for the volume a path is on written to the disk
+   (FlushVol): after a save, so that a crash or a switched-off Mac keeps the document. The
+   volume is named by the path's first part, "Disk:" */
+#define T_FLUSHVOL 0xA013
+void qm_flush(const char *path)
+{
+	unsigned char pb[PB_SIZE], name[64];
+	const char *c = strchr(path, ':');
+	size_t n = c && c != path ? (size_t)(c - path) + 1 : 0;
+	memset(pb, 0, sizeof pb);
+	if (n && n < sizeof name) {
+		name[0] = (unsigned char)n;
+		memcpy(name + 1, path, n);
+		*(unsigned char **)(pb + PB_NAME) = name;
+	}
+	mac_pb(pb, T_FLUSHVOL);
+}

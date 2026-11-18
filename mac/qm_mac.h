@@ -17,6 +17,7 @@ long  qm_feof_pos(short ref);               /* the file's length */
 int   qm_fseek(short ref, long pos);
 int   qm_fdelete(const char *path);
 int   qm_frename(const char *from, const char *to);
+void  qm_flush(const char *path);           /* the path's volume written out (FlushVol): after a save */
 unsigned long qm_seconds(void);             /* the Mac's clock: local seconds since 1904 */
 unsigned long qm_ticks(void);               /* sixtieths of a second since the Mac started */
 void  qm_log_bytes(const void *p, long n);  /* stdout and stderr: Riptide's log (Aurora68's with AURORA68_LOG) */

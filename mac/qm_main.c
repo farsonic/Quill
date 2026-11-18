@@ -287,6 +287,7 @@ static int save_to(const char *path)
 		ask("OK", "%s couldn't be saved.", path);
 		return 0;
 	}
+	qm_flush(path);
 	strncpy(qd.path, path, sizeof qd.path - 1);
 	set_title();
 	return 1;
@@ -381,6 +382,7 @@ static void cmd_pdf(void)
 		ask("OK", "%s couldn't be saved.", path);
 		return;
 	}
+	qm_flush(path);
 	set_watch_cursor(0);
 }
 

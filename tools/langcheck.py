@@ -23,7 +23,7 @@ ROOT = mklang.ROOT
 IGNORE = os.path.join(ROOT, 'tools', 'lang', 'ignore.txt')
 QUIET_CALLS = {'printf', 'fprintf', 'sprintf', 'snprintf_log', 'sscanf', 'strcmp', 'strncmp', 'strstr', 'strchr', 'strrchr',
                'Stricmp', 'Strnicmp', 'str_ieq', 'fopen', 'Open', 'Lock', 'OpenLibrary', 'OpenDevice', 'FindPort', 'MAKE_ID',
-               'OpenDiskFont', 'GetVar', 'SetVar', 'DeleteFile', 'Rename', 'CreateDir', 'MatchPattern', 'ParsePattern',
+               'OpenDiskFont', 'mm_log', '__asm__', 'volatile', 'GetVar', 'SetVar', 'DeleteFile', 'Rename', 'CreateDir', 'MatchPattern', 'ParsePattern',
                'ParsePatternNoCase', 'AddPart', 'fputs', 'theme_open_font', 'hyph_load', 'qlogf'}
 FMT = re.compile(r'%(?:-?[0-9]*(?:\.[0-9]+)?|\.\*|-?\*)(?:hh|h|ll|l)?[diouxXeEfgGcs%]')
 

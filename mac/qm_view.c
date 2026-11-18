@@ -89,6 +89,8 @@ struct qv_data {
 };
 
 static struct MUI_CustomClass *qv_mcc;
+static unsigned char ink[256];  /* the levels on a 1-bit screen (blit) */
+static int ink_ready;
 static Object *qv_obj;          /* the view (one window, one view) */
 
 /* ---- geometry ---- */
@@ -204,14 +206,18 @@ static Drawn *page_drawn(struct qv_data *d, u32 k, long *y0, long *y1)
 {
 	Drawn *c = cache_find(d, k), *old = c;
 	unsigned char *rgb;
+	unsigned long t0;
 	u32 w, h;
 	int i;
 	if (y0) { *y0 = 0; *y1 = -1; }
 	if (c && c->ver == qd.doc->ver)
 		return c;
 	set_watch_cursor(1);
+	t0 = qm_ticks();
 	rgb = pdf_page_rgb(qd.lay, k, d->dpi, &w, &h);
 	set_watch_cursor(0);
+	/* the log says how long a page takes: the measure of whether a Mac is fast enough */
+	mm_log("page %lu drawn at %d dpi in %lu ticks%s", (unsigned long)k + 1, d->dpi, qm_ticks() - t0, rgb ? "" : " (out of memory)");
 	if (!rgb) {
 		/* out of memory: give the others' room to this one and try once more */
 		for (i = 0; i < NCACHE; i++)
@@ -342,9 +348,16 @@ static int gw_ready(struct qv_data *d, int w)
 	if (d->gw)
 		qm_disposegworld(d->gw);
 	d->gw = NULL;
+	/* made once, wide enough for a screen's width (a band of 1280 pixels is 160 KB), so that it
+	   is not made again for every page width and the heap is not cut up by it */
+	if (w < 1280)
+		w = 1280;
 	b.left = 0; b.top = 0; b.right = (short)w; b.bottom = BAND;
-	if (qm_newgworld(&d->gw, 32, &b) != 0 || !d->gw)
+	if (qm_newgworld(&d->gw, 32, &b) != 0 || !d->gw) {
+		mm_log("no offscreen GWorld %d pixels wide (32-bit QuickDraw missing, or memory)", w);
+		d->gw = NULL;
 		return 0;
+	}
 	d->gwpm = qm_gworldpixmap(d->gw);
 	d->gw_w = w;
 	return 1;
@@ -382,6 +395,15 @@ static void blit(struct qv_data *d, Object *obj, u32 k, long x0, long x1, long y
 	   inverted where the highlight is black or white or the screen has one bit */
 	hr = LM_HILITERGB[0] >> 8; hg = LM_HILITERGB[1] >> 8; hb = LM_HILITERGB[2] >> 8;
 	invert = depth == 1 || (hr + hg + hb < 0x60) || (hr > 0xF0 && hg > 0xF0 && hb > 0xF0);
+	/* One bit per pixel: the greys of smoothed text edges, dithered as they are, make letters
+	   speckled and thin. Each level is stretched first (up to 72 black, from 200 white, the
+	   rest spread between), so text comes out solid and pictures keep their dithered shades. */
+	if (depth == 1 && !ink_ready) {
+		int v;
+		for (v = 0; v < 256; v++)
+			ink[v] = (unsigned char)(v <= 72 ? 0 : v >= 200 ? 255 : (v - 72) * 255 / (200 - 72));
+		ink_ready = 1;
+	}
 	ForeColor(33);              /* blackColor, whiteColor: CopyBits colours by them */
 	BackColor(30);
 	for (y = y0; y <= y1; y += BAND) {
@@ -389,8 +411,10 @@ static void blit(struct qv_data *d, Object *obj, u32 k, long x0, long x1, long y
 		unsigned char *base;
 		long rowb;
 		Rect sr, dr;
-		if (!qm_lockpixels(d->gwpm))
+		if (!qm_lockpixels(d->gwpm)) {
+			mm_log("the GWorld's pixels could not be locked");
 			return;
+		}
 		base = qm_pixbaseaddr(d->gwpm);
 		rowb = *(unsigned short *)((char *)*d->gwpm + 4) & 0x3FFF;
 		for (r = 0; r < n; r++) {
@@ -400,6 +424,9 @@ static void blit(struct qv_data *d, Object *obj, u32 k, long x0, long x1, long y
 			int sel = sel_span(d, &s, k, y + r, &sx0, &sx1);
 			for (i = x0; i <= x1; i++, sp += 3) {
 				unsigned long R = sp[0], G = sp[1], B = sp[2];
+				if (depth == 1) {
+					R = ink[R]; G = ink[G]; B = ink[B];
+				}
 				if (sel && i >= sx0 && i < sx1) {
 					if (invert) {
 						R ^= 0xFF; G ^= 0xFF; B ^= 0xFF;
@@ -553,6 +580,16 @@ static void bars_set(struct qv_data *d, Object *obj)
 	SetCtlValue(d->hbar, (int)(d->sx / d->bar_scale));
 }
 
+/* a control where r says, if it is not there already (a ControlRecord's contrlRect is at 8) */
+static void place_bar(void *ctl, const Rect *r)
+{
+	const Rect *now = (const Rect *)(*(char **)ctl + 8);
+	if (now->left != r->left || now->top != r->top)
+		MoveControl(ctl, r->left, r->top);
+	if (now->right - now->left != r->right - r->left || now->bottom - now->top != r->bottom - r->top)
+		SizeControl(ctl, r->right - r->left, r->bottom - r->top);
+}
+
 static void bars_place(struct qv_data *d, Object *obj)
 {
 	void *win = mm_win_of(obj)->macwin;
@@ -563,10 +600,10 @@ static void bars_place(struct qv_data *d, Object *obj)
 		d->vbar = NewControl(win, &vr, e, 1, 0, 0, 0, SCROLLBARPROC, 1);
 		d->hbar = NewControl(win, &hr, e, 1, 0, 0, 0, SCROLLBARPROC, 2);
 	} else {
-		MoveControl(d->vbar, vr.left, vr.top);
-		SizeControl(d->vbar, vr.right - vr.left, vr.bottom - vr.top);
-		MoveControl(d->hbar, hr.left, hr.top);
-		SizeControl(d->hbar, hr.right - hr.left, hr.bottom - hr.top);
+		/* only when the window's size changed: moving a control hides it first, which adds its
+		   place to the update region, and drawing again from that update would never end */
+		place_bar(d->vbar, &vr);
+		place_bar(d->hbar, &hr);
 	}
 	bars_set(d, obj);
 }
