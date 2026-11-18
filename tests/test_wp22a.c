@@ -354,8 +354,43 @@ static void fit_tests(void)
   doc_free(d);
 }
 
+/* line numbers beside every column, in the Line Number style (WordCraft #6018) */
+static void linenum_col_tests(void)
+{
+  SectFmt s;
+  Doc *d = words_doc(30, 40);
+  Layout *L;
+  Style st;
+  CharFmt f;
+  u32 k, in1 = 0, in2 = 0;
+  i32 x2 = -1;
+  sect_default(&s);
+  s.cols = 2; s.linenum = LN_PAGE; s.lnby = 1;
+  last_sect(d, &s);
+  L = lay_new(d, &fs); lay_update(L);
+  for (k = 0; k < L->nplaced; k++) {
+    const Placed *pc = &L->placed[k];
+    if (pc->page) continue;
+    if (pc->x == 0 && pc->lnum) in1++;
+    else if (pc->x > 0 && pc->lnum) { in2++; x2 = pc->x; }
+  }
+  ok("line numbers: beside both columns, each left of its own column", in1 > 5 && in2 > 5 && x2 > 2000);
+  lay_free(L);
+  lay_lnum_fmt(d, &f);
+  ok("line numbers: Normal's look without a Line Number style", f.size == d->styles[0].cf.size);
+  memset(&st, 0, sizeof st);
+  st = d->styles[0];
+  strcpy(st.id, "Zeilennummer"); strcpy(st.name, "line number");
+  st.type = ST_CHAR; st.cf.size = 16; st.cf.color = 0x808080; st.cf.flags |= CF_BOLD;
+  doc_add_style(d, &st);
+  lay_lnum_fmt(d, &f);
+  ok("line numbers: a Line Number style saved under a localised id", f.size == 16 && f.color == 0x808080 && !(f.flags & CF_BOLD));
+  doc_free(d);
+}
+
 void test_wp22a(void)
 {
+  linenum_col_tests();
   fit_tests();
   page_setup_tests();
   column_tests();

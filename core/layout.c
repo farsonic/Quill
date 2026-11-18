@@ -2832,6 +2832,20 @@ int lay_bmark_page(Layout *L, const char *name)
   lay_caret(L, a, &pg, &x, &y, &h);
   return (int)pg + 1;
 }
+/* see layout.h */
+void lay_lnum_fmt(const Doc *d, CharFmt *f)
+{
+  int k, found = -1;
+  for (k = 0; k < d->nstyles; k++) {
+    const Style *s = &d->styles[k];
+    if (s->type != ST_CHAR) continue;
+    if (!strcmp(s->id, "LineNumber")) { found = k; break; }
+    if (found < 0 && str_ieq(s->name, "line number")) found = k;
+  }
+  *f = found >= 0 ? d->styles[found].cf : d->styles[0].cf;
+  f->flags &= (u8)~(CF_BOLD | CF_ITALIC | CF_UNDERLINE | CF_STRIKE | CF_SUPER | CF_SUB);
+  f->rev = REV_NONE; f->rid = 0; f->frev = 0; f->move = 0; f->hl = 0; f->link = 0; f->bmark = 0; f->cstyle = 0;
+}
 /* see layout.h: everything, no budget */
 int lay_update(Layout *L) { return lay_update_part(L, 0); }
 

@@ -1025,13 +1025,14 @@ static void page_content(Pdf *p, u32 page, Buf *b)
       link_area(p, LK_PARA, (u32)p->tocto[pc->para], lx, H - pc->y - ln->height, lx + ln->width, H - pc->y);
     if (pc->lnum) {
       /* its line number, its right edge lnd left of the column */
-      CharFmt f = d->styles[0].cf;
-      FaceSize *z = lay_face(L, &f);
+      CharFmt f;
+      FaceSize *z;
       char num[16];
       i32 nw;
+      lay_lnum_fmt(d, &f);                                 /* (the Line Number style's look) */
+      z = lay_face(L, &f);
       sprintf(num, "%lu", (unsigned long)pc->lnum);
       nw = z ? (i32)(fonts_text(z, num, (u32)strlen(num)) / QFINE) : 0;
-      f.flags = 0; f.color = COLOR_AUTO; f.rev = 0; f.hl = 0;
       text(p, b, &f, num, (u32)strlen(num), pg->left + pc->x - pc->lnd - nw, base, nw);
     }
   }

@@ -1459,10 +1459,13 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     draw_text(d, obj, rp, &lb, pl->label, lx, base);
   }
   if (pc->lnum) {
-    /* the line number, its right edge pc->lnd left of the column, in the Normal style's font */
-    struct TextFont *tf = screen_font(d, &doc->styles[0].cf);
+    /* the line number, its right edge pc->lnd left of its column, in the Line Number style's font */
+    CharFmt lf;
+    struct TextFont *tf;
     char num[12];
     LONG nx = px + tx(d, d->pg->left + pc->x - pc->lnd);
+    lay_lnum_fmt(doc, &lf);
+    tf = screen_font(d, &lf);
     sprintf(num, "%lu", (unsigned long)pc->lnum);
     if (tf) SetFont(rp, tf);
     SetSoftStyle(rp, 0, FSF_BOLD | FSF_ITALIC | FSF_UNDERLINED);
