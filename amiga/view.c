@@ -42,6 +42,7 @@
 #include "wp_math.h"     /* WP14a: equations */
 #include "../core/math.h"
 #include "../core/spell.h"
+#include "../core/merge.h"     /* (WP4) */
 #include "../core/field.h"
 #include "../core/pages.h"
 #include "../core/review.h"
@@ -55,6 +56,8 @@
 #include "wp_objects.h"            /* WP17/WP18 */
 #include "../core/sdt.h"            /* WP16 */
 #include "wp_controls.h"
+#include "wp_wordart.h"            /* WP19 */
+#include "../core/wordart.h"
 #include "../core/objfx.h"
 
 /* (not in the public MUI 3.8 headers) */
@@ -154,6 +157,7 @@ struct Data {
   int cturn; LONG cw;
   void *wp11;                           /* WP11's own state (wp_outline_view.h) */
   void *wp25;                           /* WP25's own state (wp_windows_view.h) */
+  void *wp14b;                          /* WP14b's own state (wp_equation_view.h): the equation being edited */
 };
 
 static struct MUI_CustomClass *cls;
@@ -512,6 +516,7 @@ static void free_pens(struct Data *d, Object *obj)
   for (i = 0; i < d->ncube; i++) ReleasePen(cm, d->cube[i]);
   d->ncube = 0;
   wp18_flush();                         /* (WP18: drawings made with those pens) */
+  wp19_flush();                         /* (WP19) */
   free_pics(d);
   for (i = 0; i < d->ncol; i++) ReleasePen(cm, d->col[i].pen);
   d->ncol = 0;
@@ -610,6 +615,7 @@ static int lower_l1(u8 c) { return (c >= 'a' && c <= 'z') || (c >= 0xE0 && c != 
 /* box b's text (t: the paragraph's UTF-8, shown as Latin-1 for the Amiga font) at x, on baseline base,
    in its colour and screen font: capitals, small capitals, raised and lowered text, underlines and
    strikes. Expects JAM1 (only the letters' pixels set, what's behind showing through) */
+static void get_cube(struct Data *d, Object *obj);     /* (WP19) */
 static void draw_text(struct Data *d, Object *obj, struct RastPort *rp, const Box *b, const char *t, LONG x, LONG base)
 {
   char buf[512];
@@ -620,6 +626,10 @@ static void draw_text(struct Data *d, Object *obj, struct RastPort *rp, const Bo
   u8 low[512], skip[512];
   LONG dx[3] = { 0, 0, 0 }, dy[3] = { 0, 0, 0 };
   ULONG pens[3];
+  if (WA_RICH(&b->f)) {                 /* (WP19) WordArt: drawn from the letters' outlines with its effects */
+    get_cube(d, obj);
+    if (wp19_draw_run(rp, d->lay, b, t, x, base, d->zoom, d->cube, d->cubelv, d->band0, d->band1)) return;
+  }
   {
     /* (WP10) an optional hyphen isn't drawn (with formatting marks: a not sign), a nonbreaking hyphen
        is a hyphen, a nonbreaking space shows as a degree sign with the marks */
@@ -856,6 +866,7 @@ static int sel_object(struct Data *d, Pos *at)
   if (at) *at = lo;
   return pic_index(d->doc->p[lo.para]->t + lo.off);
 }
+#include "wp_draw_view.h"               /* WP20: freeforms and ink drawn, drawing with the mouse, the eraser, the lasso, Ink Replay */
 /* a polygon (xy: n points, pixels x 16) filled, row by row */
 static void fill_poly(struct RastPort *rp, const LONG *xy, int n)
 {
@@ -1101,6 +1112,7 @@ static void draw_leaf(struct Data *d, Object *obj, struct RastPort *rp, const Ob
   t.cx = part->cx; t.cy = part->cy; t.rot = part->rot; t.flip = part->flip;
   bx = cx - OBJ_W(&t) / 2; by = cy - OBJ_H(&t) / 2;          /* its box's top left */
   if (src->pack) { draw_pack(d, obj, rp, src, pl + tx(d, cx - part->cx / 2), pt + tx(d, cy - part->cy / 2), part->cx, part->cy); return; }   /* (WP15a) */
+  if (dv_leaf(d, obj, rp, part, pl, pt, cx, cy)) return;      /* WP20: a freeform or ink */
   outline = src->lstyle != PB_NONE && src->lwidth;
   th = (int)tx(d, src->lwidth * 5 / 2);
   if (th < 1) th = 1;
@@ -1177,7 +1189,10 @@ text:
   if ((src->text && src->text->np) || src->fx.link) {
     Furn f;
     u32 j, ln;
-    if (lay_textbox(d->lay, src, t.cx, &f) && (t.rot || src->fx.vert)) draw_text_turned(d, obj, rp, src, &t, cx, cy, pl, pt, &f);
+    int laid = lay_textbox(d->lay, src, t.cx, &f);
+    if (laid && src->warp) get_cube(d, obj);
+    if (laid && src->warp && wp19_draw_warped(rp, d->lay, src, &t, cx, cy, pl, pt, d->zoom, d->cube, d->cubelv, d->band0, d->band1)) ;   /* (WP19) bent */
+    else if (laid && (t.rot || src->fx.vert)) draw_text_turned(d, obj, rp, src, &t, cx, cy, pl, pt, &f);
     else if (f.n) {
       Pos none;
       i32 tx0 = cx - t.cx / 2, ty0 = cy - t.cy / 2;
@@ -1443,9 +1458,26 @@ static void sdt_draw(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *
     }
   }
 }
+/* WP4: Highlight Merge Fields: the merge fields' results on grey (core/merge.h) */
+static void merge_shade(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Line *ln, LONG lx, LONG top)
+{
+  int stack[16], n = 0, i, in;
+  u32 k;
+  for (k = pl->lines[0].box0; k < ln->box0 + ln->nbox && k < pl->nboxes; k++) {
+    Box *b = &pl->boxes[k];
+    if ((b->kind == BX_MARK || b->kind == BX_FIELD) && b->off + 4 <= pl->p->len && IS_FMARK(pl->p->t + b->off)) {
+      if (IS_FSTART(pl->p->t + b->off)) { if (n < 16) stack[n] = fmark_index(pl->p->t + b->off); n++; } else if (n > 0) n--;
+      continue;
+    }
+    if (k < ln->box0 || b->w <= 0 || b->kind == BX_FIELD) continue;
+    for (i = 0, in = 0; i < n && i < 16 && !in; i++) in = merge_is_field_k(d->doc, stack[i]);
+    if (in) { SetAPen(rp, pen_bg(d, obj, 0xC8C8C8)); RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1); }
+  }
+}
 /* WP14a: equations' colours as pens (for wp14a_draw) */
 static struct Data *mpen_d; static Object *mpen_obj;
 static LONG math_pen(ULONG rgb) { return pen_for(mpen_d, mpen_obj, rgb); }
+#include "wp_equation_view.h"           /* WP14b: editing equations in place */
 /* one laid-out line (pl: its paragraph's layout, pc: where it was placed) on the page whose top left
    is at (px, py). Back to front: change bar, comment shading, highlights, the selection (sel: slo to
    shi), then the text, note numbers, fields, inline pictures, leaders and formatting marks. Headers,
@@ -1531,6 +1563,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
   }
   if (doc->nfields && field_shading != FS_NEVER) field_shade(d, obj, rp, pl, pc, ln, lx, top);     /* fields on grey (WP1) */
   if (doc->nfields) sdt_draw(d, obj, rp, pl, pc, ln, lx, top, 0);      /* (WP16: form fields) */
+  if (doc->nfields && doc->merge && doc->merge->highlight) merge_shade(d, obj, rp, pl, ln, lx, top);   /* (WP4) */
   /* highlighting behind the text (not trailing spaces); page fields on grey, as Word shades fields */
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *b = &pl->boxes[k];
@@ -1628,7 +1661,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
       nb.kind = BX_TEXT; nb.off = 0; nb.len = (u16)strlen(num);
       draw_text(d, obj, rp, &nb, num, lx + tx(d, b->x), base);
     }
-    else if (b->kind == BX_MATH) { mpen_d = d; mpen_obj = obj; wp14a_draw(rp, L, b, pl->p->t, lx + tx(d, b->x), base, d->zoom, math_pen); }   /* WP14a */
+    else if (b->kind == BX_MATH) ev_draw_math(d, obj, rp, L, pl, pc, b, lx + tx(d, b->x), base);   /* WP14a (drawn), WP14b (edited) */
     else if (b->kind == BX_PIC) {
       Pos at;
       int pk = pic_index(pl->p->t + b->off);
@@ -2263,6 +2296,7 @@ static void caret_place(struct Data *d, Object *obj)
 {
   u32 page;
   i32 x, y, h;
+  if (ev_caret(d, obj)) return;          /* WP14b: inside an equation */
   lay_caret(d->lay, d->caret, &page, &x, &y, &h);
   d->cx = _mleft(obj) + page_x(d, page, _mwidth(obj)) + tx(d, x);
   d->cy = _mtop(obj) + page_top(d, page) - d->scrolly + tx(d, y);
@@ -2280,7 +2314,7 @@ static void caret_hide(struct Data *d, Object *obj)
 }
 static void caret_show(struct Data *d, Object *obj)
 {
-  if (!d->caret_shown && !has_sel(d) && !ww_passive(d)) { caret_place(d, obj); caret_xor(d, obj); d->caret_shown = 1; }   /* (WP25: not in a split window's other pane) */
+  if (!d->caret_shown && !has_sel(d) && !ww_passive(d) && !ev_hidecaret(d)) { caret_place(d, obj); caret_xor(d, obj); d->caret_shown = 1; }   /* (WP25: not in a split window's other pane; WP14b: not with a selection in an equation) */
 }
 
 /* ------------------------------------------------------------------ */
@@ -3155,6 +3189,7 @@ static ULONG do_command(struct IClass *cl, Object *obj, struct MUIP_Quill_Comman
   ww_sync(d, obj, 1);                          /* WP25: changed in another view */
   if (ww_command(d, obj, m)) return 0;         /* WP25's commands */
   if (ov_command(d, obj, m)) return 0;         /* WP11's commands */
+  if (ev_command(d, obj, m)) return 0;         /* WP14b's commands, and editing commands inside an equation */
   if (fv_command(d, obj, m)) return 0;         /* WP12's commands, and commands while several ranges are selected */
   caret_hide(d, obj);
   memset(&v, 0, sizeof v);
@@ -4190,6 +4225,7 @@ static Object *ctx_build(struct Data *d, Object *obj, LONG mx, LONG my)
     if (k >= 0 && k < d->doc->nimages) return ctx_object(d, obj, k, at);
   }
   p = point_pos(d, obj, mx, my);
+  if (ev_rclick(d, obj, mx, my)) p = d->caret;   /* WP14b: in an equation, the caret there */
   if (p.para >= d->doc->np) return NULL;
   /* a click outside the selection puts the caret there first, as a left click would */
   if (!has_sel(d) || pos_cmp(p, sel_lo(d)) < 0 || pos_cmp(p, sel_hi(d)) > 0) {
@@ -4603,6 +4639,7 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
     }
     return 1;
   }
+  if (ev_key(d, obj, im)) return 1;             /* WP14b: keys inside an equation, and into one */
   {
     /* a work package's key (wphooks.h): its command, run by main.c's loop */
     WpCtx wc;
@@ -4791,7 +4828,9 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
   ww_sync(d, obj, 1);                            /* WP25: changed in another view */
   ww_click(d, obj, im);                          /* WP25: the working pane of a split window */
   if (im->Class == IDCMP_RAWKEY) return key_grab || ww_passive(d) || !key(d, obj, im) ? 0 : MUI_EventHandlerRC_Eat;
+  { ULONG r = ev_mouse(d, obj, im); if (r) return r; }    /* WP14b: dragging in an equation */
   { ULONG r = fv_mouse(d, obj, im); if (r) return r; }    /* WP12: Select Objects */
+  { ULONG r = dv_mouse(d, obj, im); if (r) return r; }    /* WP20: drawing, the eraser, the lasso, Ink Replay */
   { ULONG r = ov_mouse(d, obj, im); if (r) return r; }    /* WP11: the outline symbols */
   if (im->Class == IDCMP_MOUSEBUTTONS) {
     if (im->Code == SELECTDOWN && im->MouseX >= _mleft(obj) && im->MouseX <= _mright(obj) && im->MouseY >= _mtop(obj) && im->MouseY <= _mbottom(obj)) {
@@ -4918,6 +4957,7 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
           return MUI_EventHandlerRC_Eat;
         }
       }
+      if (ev_click(d, obj, im)) return MUI_EventHandlerRC_Eat;      /* WP14b: a click into an equation */
       p = point_pos(d, obj, im->MouseX, im->MouseY);
       int shift = (im->Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) != 0;
       fv_click(d, im, &shift);                 /* WP12 */
@@ -5230,6 +5270,7 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     fv_free(d);                         /* WP12 */
     ov_free(d);                         /* WP11 */
     ww_free(d);                         /* WP25 */
+    ev_free(d);                         /* WP14b */
     break;
   case OM_SET:
     mSet(cl, obj, (struct opSet *)msg, 0);

@@ -23,6 +23,7 @@
 #include "theme.h"
 #include "ids.h"
 #include "wp_info.h"   /* (WP24) */
+#include "wp_templates.h"   /* (WP23) */
 #include "lang.h"
 #include "../core/template.h"
 
@@ -52,6 +53,7 @@ static const struct { int icon; const char *title, *sub; ULONG id; } infobtn[] =
   { IC_OPEN, "Recover Unsaved", "Documents Quill kept when it ended", ID_INFO_RECOVER } };
 #define NINFOBTN ((int)(sizeof infobtn / sizeof infobtn[0]))
 enum { H_WP29_IMAGE = 200, H_WP29_OPTIONS };      /* (WP29: Export Image, Export Options: its first two ids) */
+enum { H_WP23_TPL = 220, H_WP23_SAVETPL = 240 };   /* (WP23: a personal template on the New page; Save as Template) */
 typedef struct { BBox b; int kind, n; } Hot;
 /* the File page's instance data. hot: the clickable areas found while drawing, which the events
    look the pointer up in; editing: the name field has the keyboard; metric, dark, lang, large: the
@@ -200,6 +202,29 @@ static LONG recent_list(struct BData *d, struct RastPort *rp, LONG x, LONG y, LO
   }
   return y;
 }
+/* (WP23) the templates in the personal templates folder, under the built-in ones: a heading and a row
+   for each (its name); returns the y below them */
+static LONG personal_list(struct BData *d, struct RastPort *rp, LONG x, LONG y, LONG maxx, LONG maxy)
+{
+  int i;
+  char name[64];
+  if (!wp23_personal(0, name, sizeof name)) {
+    text_fit(rp, theme_font(), x, y, tr("Templates you save (File > Save as Template) appear here."), maxx - x, tpen(T_DIM));
+    return y + fh() + 6;
+  }
+  theme_text(rp, theme_bold(), x, y, tr("Personal"), tpen(T_TEXT));
+  SetAPen(rp, tpen(T_BORDER)); Move(rp, x, y + fh() + 3); Draw(rp, maxx, y + fh() + 3);
+  y += fh() + 9;
+  for (i = 0; i < WP23_NPERSONAL && wp23_personal(i, name, sizeof name) && y + fh() + 8 < maxy; i++) {
+    LONG rh = fh() + 8, cx = x + (i & 1) * ((maxx - x) / 2), cw = (maxx - x) / 2 - 8;
+    if (is_over(d, H_WP23_TPL + i, 0)) theme_fill(rp, cx - 4, y - 2, cx + cw, y + rh - 4, tpen(T_HOVER));
+    theme_icon(rp, IC_NEW, cx, y, 16, 0);
+    text_fit(rp, theme_font(), cx + 22, y + 1, name, cw - 26, tpen(T_TEXT));
+    add_hot(d, cx - 4, y - 2, cx + cw, y + rh - 4, H_WP23_TPL + i, 0);
+    if (i & 1) y += rh;
+  }
+  return y + fh() + 8;
+}
 /* a big button with an icon, a title and a line under it */
 static LONG big_button(struct BData *d, struct RastPort *rp, LONG x, LONG y, LONG w, int icon, const char *title, const char *sub, int kind)
 {
@@ -277,7 +302,8 @@ static void back_draw(struct BData *d, Object *obj)
     break;
   case BP_NEW:
     text_fit(rp, theme_font(), x, y, tr("Start from a blank page or one of these."), r - x - 12, tpen(T_DIM));
-    cards(d, rp, x, y + fh() + 10, r - 12, 80);
+    y = cards(d, rp, x, y + fh() + 10, r - 12, 80);
+    y = personal_list(d, rp, x, y, r - 16, b - 6);     /* (WP23) */
     break;
   case BP_OPEN:
     y = big_button(d, rp, x, y, (r - x - 16 < 300 ? r - x - 16 : 300), IC_OPEN, "Browse", "Open a document from a disk or drawer", H_BROWSE) + 6;
@@ -316,7 +342,8 @@ static void back_draw(struct BData *d, Object *obj)
     y = big_button(d, rp, x, y, w, IC_PDF, "Export to PDF", "The pages as they look here, fonts and pictures in it", H_PDF);
     y = big_button(d, rp, x, y, w, IC_EXPORT, "Save as plain text", "The words alone, as a .txt file", H_TEXT);
     y = big_button(d, rp, x, y, w, IC_PICTURE, "Export Image", "Each page as a PNG or IFF ILBM picture", H_WP29_IMAGE);
-    big_button(d, rp, x, y, w, IC_OPTIONS, "Export Options", "Pages, picture resolution, bookmarks, subject", H_WP29_OPTIONS);
+    y = big_button(d, rp, x, y, w, IC_OPTIONS, "Export Options", "Pages, picture resolution, bookmarks, subject", H_WP29_OPTIONS);
+    big_button(d, rp, x, y, w, IC_NEW, "Save as Template", "A Word template (.dotx) new documents can start from", H_WP23_SAVETPL);   /* (WP23) */
     break; }
   case BP_OPTIONS: {
     static const char *const units[] = { "Centimetres", "Inches" }, *const themes[] = { "Light", "Dark" }, *const sizes[] = { "Normal", "Large" };
@@ -402,6 +429,7 @@ static ULONG back_events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent
     case H_TEXT: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_SAVETXT); break;
     case H_WP29_IMAGE: case H_WP29_OPTIONS: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_WP29_FIRST + (ht->kind - H_WP29_IMAGE)); break;
     case H_WINDOW: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_WINPREFS); break;
+    case H_WP23_SAVETPL: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_TP_SAVEAS); break;   /* (WP23) */
     case H_AUTOSAVE: wp24_autosave_set(ht->n); MUI_Redraw(obj, MADF_DRAWOBJECT); break;   /* (WP24) */
     case H_CM: case H_THEME: case H_LANG: case H_SIZE:
       if (ht->kind == H_CM) d->metric = ht->n == 0;
@@ -414,6 +442,7 @@ static ULONG back_events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent
     case H_NAME: d->editing = 1; key_grab = obj; MUI_Redraw(obj, MADF_DRAWOBJECT); break;
     default:
       if (ht->kind >= H_INFO0 && ht->kind < H_INFO0 + NINFOBTN) DoMethod(_app(obj), MUIM_Application_ReturnID, infobtn[ht->kind - H_INFO0].id);   /* (WP24) */
+      if (ht->kind >= H_WP23_TPL && ht->kind < H_WP23_TPL + WP23_NPERSONAL) DoMethod(_app(obj), MUIM_Application_ReturnID, ID_TP_PERSONAL0 + (ht->kind - H_WP23_TPL));   /* (WP23) */
     }
     return MUI_EventHandlerRC_Eat;
   }

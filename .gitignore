@@ -2,3 +2,4 @@
 /Quill
 *.o
 __pycache__/
+/quill_coretest
