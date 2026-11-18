@@ -18,16 +18,22 @@
  * Manager says is invalid, no more. After an edit the page is drawn again in memory, compared
  * row by row with the picture it replaces, and only the rows that differ reach the screen.
  *
- * Geometry, in window pixels: pages stacked top to bottom with GAP between them, centred across
- * when narrower than the view; a vertical scroll bar on the right, and along the bottom the page
- * number (in the place Word 5 for the Mac gave it) beside the horizontal scroll bar, leaving the
- * size box its corner (Human Interface Guidelines, pp. 152-160). A page is drawn at dpi dots per
- * inch: 72 at 100%, the Mac screen's own resolution, so a 12-point letter is 12 pixels high.
+ * Geometry, in window pixels: at the top the tool strip (View > Ribbon, mac/qm_strip.c) and under it
+ * the horizontal ruler, with the vertical ruler down the left and the tab kind box where they meet
+ * (View > Ruler, mac/qm_ruler.c), as Word for the Mac had them; then the pages, stacked top to bottom
+ * with GAP between them, centred across when narrower than their area; a vertical scroll bar on the
+ * right, from under the ruler, and along the bottom the page number (in the place Word 5 for the
+ * Mac gave it) beside the horizontal scroll bar, leaving the size box its corner (Human Interface
+ * Guidelines, pp. 97 and 152-160: nothing of Quill's where the scroll bars and the close box are). A
+ * page is drawn at dpi dots per inch: 72 at 100%, the Mac screen's own resolution, so a 12-point
+ * letter is 12 pixels high. The strip and the rulers are drawn and clicked here, by the view, so its
+ * one box keeps one geometry: scrolling, updates and the caret all keep to the pages' area.
  */
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "mui/mm.h"
+#include "../core/ruler.h"
 #include "quill_mac.h"
 #include "qm_mac.h"
 #include "../core/pdf.h"
@@ -87,12 +93,17 @@ struct qv_data {
 	long want_x;                /* up and down arrows keep to this x (twips), -1 none */
 	int shown;
 	u32 status_page, status_of;  /* what the page box says now (0: not drawn yet) */
+	RulerGeom rgh, rgv;         /* what each ruler shows now, the page's left (top) edge in the */
+	long rgh_x, rgv_y;          /* window and the resolution it was drawn at (0: not drawn yet) */
+	int rgh_dpi, rgv_dpi;
 };
 
 static struct MUI_CustomClass *qv_mcc;
 static unsigned char ink[256];  /* the levels on a 1-bit screen (blit) */
 static int ink_ready;
 static Object *qv_obj;          /* the view (one window, one view) */
+static int show_strip = 1, show_ruler = 1;      /* View > Ribbon, View > Ruler */
+static void rulers_sync(struct qv_data *d, Object *obj, int force, const Rect *area);
 
 /* ---- geometry ---- */
 
@@ -105,15 +116,46 @@ static long px(long tw, int dpi)
 static long page_w(u32 k, int dpi) { return px(lay_page(qd.lay, k)->width, dpi); }
 static long page_h(u32 k, int dpi) { return px(lay_page(qd.lay, k)->height, dpi); }
 
+static void set_rect(Rect *r, int l, int t, int rt, int b)
+{
+	r->left = (short)l; r->top = (short)t; r->right = (short)rt; r->bottom = (short)b;
+}
+
+/* the strip and the rulers in window coordinates (empty boxes when hidden); *left and *top: where
+   the pages' area begins */
+static void chrome(Object *obj, Rect *strip, Rect *corner, Rect *hrule, Rect *vrule, short *left, short *top)
+{
+	short l = _mleft(obj), t = _mtop(obj), r = _mleft(obj) + _mwidth(obj), b = _mtop(obj) + _mheight(obj);
+	if (strip) set_rect(strip, 0, 0, 0, 0);
+	if (corner) set_rect(corner, 0, 0, 0, 0);
+	if (hrule) set_rect(hrule, 0, 0, 0, 0);
+	if (vrule) set_rect(vrule, 0, 0, 0, 0);
+	if (show_strip) {
+		if (strip) set_rect(strip, l, t, r, t + QS_HEIGHT);
+		t += QS_HEIGHT;
+	}
+	if (show_ruler) {
+		if (corner) set_rect(corner, l, t, l + QR_WIDTH, t + QR_HEIGHT);
+		if (hrule) set_rect(hrule, l + QR_WIDTH, t, r, t + QR_HEIGHT);
+		t += QR_HEIGHT;
+		if (vrule) set_rect(vrule, l, t, l + QR_WIDTH, b - (BARW - 1));
+		l += QR_WIDTH;
+	}
+	if (left) *left = l;
+	if (top) *top = t;
+}
+
 /* the view's parts in window coordinates (inclusive rectangles as Rects: right, bottom exclusive) */
 static void parts(Object *obj, Rect *pages, Rect *vbar, Rect *hbar, Rect *status)
 {
-	short l = _mleft(obj), t = _mtop(obj), r = _mleft(obj) + _mwidth(obj), b = _mtop(obj) + _mheight(obj);
+	short l, t, r = _mleft(obj) + _mwidth(obj), b = _mtop(obj) + _mheight(obj);
+	chrome(obj, NULL, NULL, NULL, NULL, &l, &t);
 	if (pages) { pages->left = l; pages->top = t; pages->right = r - (BARW - 1); pages->bottom = b - (BARW - 1); }
-	/* the bars overlap the window's edge by a pixel, so their frames and the window's are one line */
+	/* the bars overlap the window's edge by a pixel, so their frames and the window's are one line;
+	   the vertical one's top is the ruler's (or the strip's) bottom line */
 	if (vbar) { vbar->left = r - BARW + 1; vbar->top = t - 1; vbar->right = r + 1; vbar->bottom = b - (BARW - 2); }
-	if (hbar) { hbar->left = l + STATUSW - 1; hbar->top = b - BARW + 1; hbar->right = r - (BARW - 2); hbar->bottom = b + 1; }
-	if (status) { status->left = l; status->top = b - BARW + 2; status->right = l + STATUSW - 1; status->bottom = b; }
+	if (hbar) { hbar->left = _mleft(obj) + STATUSW - 1; hbar->top = b - BARW + 1; hbar->right = r - (BARW - 2); hbar->bottom = b + 1; }
+	if (status) { status->left = _mleft(obj); status->top = b - BARW + 2; status->right = _mleft(obj) + STATUSW - 1; status->bottom = b; }
 }
 
 static int zoom_dpi(struct qv_data *d, Object *obj)
@@ -167,9 +209,21 @@ static void doc_size(struct qv_data *d, Object *obj, long *w, long *h)
 	*h = n ? y + page_h(n - 1, d->dpi) + GAP : GAP;
 }
 
-/* where the view shows document pixel (x, y): window coordinates */
-static long win_x(struct qv_data *d, Object *obj, long x) { return _mleft(obj) + x - d->sx; }
-static long win_y(struct qv_data *d, Object *obj, long y) { return _mtop(obj) + y - d->sy; }
+/* where the view shows document pixel (x, y): window coordinates (the pages' area starts below and
+   right of the strip and rulers) */
+static long win_x(struct qv_data *d, Object *obj, long x)
+{
+	short l;
+	chrome(obj, NULL, NULL, NULL, NULL, &l, NULL);
+	return l + x - d->sx;
+}
+
+static long win_y(struct qv_data *d, Object *obj, long y)
+{
+	short t;
+	chrome(obj, NULL, NULL, NULL, NULL, NULL, &t);
+	return t + y - d->sy;
+}
 
 /* ---- pages drawn ---- */
 
@@ -330,7 +384,7 @@ static int sel_span(struct qv_data *d, const Sel *s, u32 k, long y, long *x0, lo
 
 /* ---- copying to the window ---- */
 
-static int port_depth(void *port)
+int qm_port_depth(void *port)
 {
 	/* a CGrafPort's portVersion (offset 6) has its two top bits set; its pixel map's pixelSize
 	   (offset 32 of the PixMap) is the depth */
@@ -371,7 +425,7 @@ static void blit(struct qv_data *d, Object *obj, u32 k, long x0, long x1, long y
 {
 	Drawn *c = cache_find(d, k);
 	void *port = mm_win_of(obj)->macwin;
-	int depth = port_depth(port), invert;
+	int depth = qm_port_depth(port), invert;
 	unsigned short hr, hg, hb;
 	long px0, py0, y;
 	Sel s;
@@ -672,6 +726,7 @@ static void scroll_to(struct qv_data *d, Object *obj, long nx, long ny)
 	SetCtlValue(d->vbar, (int)(d->sy / d->bar_scale));
 	SetCtlValue(d->hbar, (int)(d->sx / d->bar_scale));
 	status_check(d, obj, 0);
+	rulers_sync(d, obj, 0, NULL);
 }
 
 /* TrackControl's action (mm_ctl_action): the arrows and the grey parts scroll while held */
@@ -715,6 +770,107 @@ static void follow_caret(struct qv_data *d, Object *obj)
 	else if (x > d->sx + (pr.right - pr.left) - LINE)
 		nx = x - (pr.right - pr.left) + LINE * 4;
 	scroll_to(d, obj, nx, ny);
+}
+
+/* ---- the strip and the rulers ---- */
+
+static void refresh(struct qv_data *d, Object *obj);
+static void caret_show(struct qv_data *d, Object *obj, int on);
+
+static int meets(const Rect *a, const Rect *b)
+{
+	return a->left < b->right && b->left < a->right && a->top < b->bottom && b->top < a->bottom;
+}
+
+/* a wholly inside b */
+static int inside_rect(const Rect *a, const Rect *b)
+{
+	return a->left >= b->left && a->right <= b->right && a->top >= b->top && a->bottom <= b->bottom;
+}
+
+/* The rulers for the caret now, each drawn again if it differs from what it shows (or force), as the
+   caret moves, the text changes or the pages scroll. In an update (area: what it draws) a ruler in
+   the area is drawn whatever it showed, and one outside it that has changed is marked for the next
+   update instead: drawn now it would be clipped away and thought shown. The layout must be current:
+   not while typing waits to be laid out (refresh calls this when it has). */
+static void rulers_sync(struct qv_data *d, Object *obj, int force, const Rect *area)
+{
+	void *port;
+	RulerGeom g;
+	Rect h, v;
+	long x, y;
+	int hneed, vneed;
+	if (!show_ruler || !d->shown || d->stale || !qd.lay || !mm_win_of(obj) || !(port = mm_win_of(obj)->macwin))
+		return;
+	lay_update(qd.lay);
+	ruler_geom(qd.doc, qd.lay, qd.caret, -1, &g);
+	page_at(d, obj, g.page, &x, &y);
+	x = win_x(d, obj, x);
+	y = win_y(d, obj, y);
+	chrome(obj, NULL, NULL, &h, &v, NULL, NULL);
+	hneed = force || d->rgh_dpi != d->dpi || x != d->rgh_x || memcmp(&g, &d->rgh, sizeof g);
+	vneed = force || d->rgv_dpi != d->dpi || y != d->rgv_y || g.page != d->rgv.page || g.pageh != d->rgv.pageh ||
+	        g.mtop != d->rgv.mtop || g.mbottom != d->rgv.mbottom || g.metric != d->rgv.metric;
+	SetPort(port);
+	/* (a changed ruler only partly in the update's area: all of it in the next update) */
+	if (area && hneed && !inside_rect(&h, area))
+		InvalRect(&h);
+	if (area ? meets(&h, area) : hneed) {
+		qr_draw_h(port, &h, &g, x, d->dpi);
+		d->rgh = g;
+		d->rgh_x = x;
+		d->rgh_dpi = d->dpi;
+	}
+	if (area && vneed && !inside_rect(&v, area))
+		InvalRect(&v);
+	if (area ? meets(&v, area) : vneed) {
+		qr_draw_v(port, &v, &g, y, d->dpi);
+		d->rgv = g;
+		d->rgv_y = y;
+		d->rgv_dpi = d->dpi;
+	}
+}
+
+/* the strip and the rulers where they meet area (window coordinates), in an update or a redraw */
+static void chrome_draw(struct qv_data *d, Object *obj, const Rect *area)
+{
+	void *port = mm_win_of(obj)->macwin;
+	Rect s, c;
+	chrome(obj, &s, &c, NULL, NULL, NULL, NULL);
+	if (show_strip) {
+		qs_layout(s.left, s.top, s.right);
+		qs_draw(port, area);
+	}
+	if (show_ruler) {
+		if (meets(&c, area))
+			qr_draw_corner(port, &c);
+		rulers_sync(d, obj, 0, area);
+	}
+}
+
+/* a press on the horizontal ruler: the marker dragged, the change made when it is let go */
+static void ruler_press(struct qv_data *d, Object *obj, int x, int y)
+{
+	void *port = mm_win_of(obj)->macwin;
+	RulerGeom g;
+	Rect h, pr;
+	long px0, py0;
+	int part;
+	if (d->stale)
+		refresh(d, obj);
+	lay_update(qd.lay);
+	ruler_geom(qd.doc, qd.lay, qd.caret, -1, &g);
+	page_at(d, obj, g.page, &px0, &py0);
+	chrome(obj, NULL, NULL, &h, NULL, NULL, NULL);
+	parts(obj, &pr, NULL, NULL, NULL);
+	caret_show(d, obj, 0);
+	part = qr_track_h(port, &h, &pr, &g, win_x(d, obj, px0), d->dpi, x, y);
+	if (part && ruler_apply(qd.doc, qd.anchor.para, qd.caret.para, &qd.caret, &g, part)) {
+		qd.anchor = pos_clamp(qd.doc, qd.anchor);
+		mm_log("Quill: the ruler changed the paragraph (part %d)", part);
+		qv_changed(obj, 0);
+	} else
+		rulers_sync(d, obj, 1, NULL);       /* back to what the paragraph has */
 }
 
 /* ---- redrawing after a change ---- */
@@ -801,6 +957,7 @@ static void refresh(struct qv_data *d, Object *obj)
 	clip_end(save);
 	status_check(d, obj, 0);
 	d->stale = 0;
+	rulers_sync(d, obj, 0, NULL);
 }
 
 /* the caret shown or hidden: its column copied again */
@@ -876,6 +1033,7 @@ static void move_to(struct qv_data *d, Object *obj, Pos p, int extend)
 	follow_caret(d, obj);
 	caret_show(d, obj, 1);
 	status_check(d, obj, 0);
+	rulers_sync(d, obj, 0, NULL);
 	qm_status();
 }
 
@@ -1037,6 +1195,29 @@ static void click(struct qv_data *d, Object *obj, struct IntuiMessage *im)
 	Pos p;
 	pt.h = im->MouseX;
 	pt.v = im->MouseY;
+	{
+		/* the strip, the tab kind box, the rulers */
+		Rect s, c, h, v;
+		chrome(obj, &s, &c, &h, &v, NULL, NULL);
+#define IN(r) (pt.h >= (r).left && pt.h < (r).right && pt.v >= (r).top && pt.v < (r).bottom)
+		if (IN(s)) {
+			if (d->stale)
+				refresh(d, obj);
+			qs_click(win, pt.h, pt.v);
+			return;
+		}
+		if (IN(c)) {
+			qr_click_corner(win, &c);
+			return;
+		}
+		if (IN(h)) {
+			ruler_press(d, obj, pt.h, pt.v);
+			return;
+		}
+		if (IN(v))
+			return;
+#undef IN
+	}
 	lp = ((long)pt.v << 16) | (unsigned short)pt.h;
 	part = FindControl(lp, win, &ctl);
 	if (ctl && (ctl == d->vbar || ctl == d->hbar)) {
@@ -1165,9 +1346,9 @@ DISPATCHER(qv_dispatch)
 		mm = ((struct MUIP_AskMinMax *)msg)->MinMaxInfo;
 		/* room for the page number box, the bars, a little of a page; by default a US Letter
 		   page's width at 100% and the screen's height (the window is clipped to the screen) */
-		mm->MinWidth += STATUSW + 3 * BARW;
-		mm->MinHeight += 6 * BARW;
-		mm->DefWidth += 612 + 2 * GAP + BARW;
+		mm->MinWidth += STATUSW + 3 * BARW + QR_WIDTH;
+		mm->MinHeight += 6 * BARW + QS_HEIGHT + QR_HEIGHT;
+		mm->DefWidth += 612 + 2 * GAP + BARW + QR_WIDTH;
 		mm->DefHeight += 2000;
 		mm->MaxWidth += MUI_MAXMAX;
 		mm->MaxHeight += MUI_MAXMAX;
@@ -1246,6 +1427,7 @@ DISPATCHER(qv_dispatch)
 				draw_status(d, obj);
 		}
 		status_check(d, obj, 1);
+		chrome_draw(d, obj, &area);
 		return 0;
 	}
 	case MUIM_HandleEvent: {
@@ -1328,4 +1510,28 @@ void qv_redraw_all(Object *view)
 		SetPort(mm_win_of(view)->macwin);
 		InvalRect(&r);
 	}
+}
+
+void qv_chrome(Object *view, int ribbon, int ruler)
+{
+	struct qv_data *d = INST_DATA(qv_mcc->mcc_Class, view);
+	show_strip = ribbon;
+	show_ruler = ruler;
+	d->rgh_dpi = d->rgv_dpi = 0;
+	if (d->shown && mm_win_of(view) && mm_win_of(view)->macwin) {
+		/* the pages' area moved: the bars to their new places, and everything drawn again */
+		Rect r;
+		r.left = _mleft(view); r.top = _mtop(view);
+		r.right = (short)(_mleft(view) + _mwidth(view)); r.bottom = (short)(_mtop(view) + _mheight(view));
+		bars_place(d, view);
+		SetPort(mm_win_of(view)->macwin);
+		InvalRect(&r);
+	}
+}
+
+void qv_strip_changed(Object *view)
+{
+	struct qv_data *d = INST_DATA(qv_mcc->mcc_Class, view);
+	if (show_strip && d->shown && mm_win_of(view) && mm_win_of(view)->macwin)
+		qs_update(mm_win_of(view)->macwin);
 }

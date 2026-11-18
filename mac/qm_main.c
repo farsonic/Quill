@@ -2,12 +2,18 @@
  * mac/qm_main.c - Quill on the classic Mac OS: the application, its window and its menus.
  * GPL-2.0-only, as Quill.
  *
- * One document window (the page view, mac/qm_view.c) and the menu bar. The menus are a NewMenu
- * table, as on the Amiga; Riptide's MUI for the Mac arranges it the way the Human Interface
- * Guidelines (1992) want: About Quill in the Apple menu, Close and Quit last in File, the
- * standard Edit menu, then Quill's Font, Size, Style, Format and View, with their check marks
- * kept to the text at the caret. Command keys are the Amiga's where the Mac does not reserve the
- * key for something else (docs/mac.md lists them).
+ * One document window (the page view, mac/qm_view.c, with the tool strip and rulers inside it) and
+ * the menu bar. The menus are a NewMenu table, as on the Amiga; Riptide's MUI for the Mac arranges
+ * it the way the Human Interface Guidelines (1992) want: About Quill in the Apple menu, Close and
+ * Quit last in File, the standard Edit menu, then Quill's Font, Size, Style, Format and View, with
+ * their check marks kept to the text at the caret. Command keys are the Amiga's where the Mac does
+ * not reserve the key for something else (docs/mac.md lists them).
+ *
+ * Every command has one number (quill_mac.h) and one answer to whether it can be chosen and is on
+ * (qm_state): the menus' check marks and dimming and the tool strip's items are all set from it, so
+ * a strip button and its menu item never disagree (Cornerstone, "State: one answer for everyone").
+ * The strip has no command that is not in a menu. Whether the strip and rulers show is kept in the
+ * Preferences folder ("Quill Preferences").
  *
  * Files are opened and saved with Standard File and read and written by Quill's core, which
  * knows the format by the name's ending (.docx, .odt, .rtf, .html, .md, .txt); a saved file gets
@@ -27,6 +33,8 @@
 #include "../core/pdf.h"
 #include "../amiga/lang.h"
 
+int mm_dir_path(short vref, long dir, char *out, int len);       /* riptide src/mac/mui/mm_os.c */
+
 QDoc qd;
 static Object *app, *win, *view, *strip;
 
@@ -39,20 +47,22 @@ const CharFmt *qm_typing_fmt(void) { return typing_set ? &typing : NULL; }
 void qm_typing_reset(void) { typing_set = 0; }
 
 /* ---- the menus ---- */
-enum {
-	ID_NEW = 1, ID_OPEN, ID_SAVE, ID_SAVEAS, ID_PDF, ID_ABOUT, ID_QUIT,
-	ID_REDO, ID_SELALL,
-	ID_PLAIN, ID_BOLD, ID_ITALIC, ID_UNDERLINE, ID_STRIKE, ID_SUPER, ID_SUB,
-	ID_GROW, ID_SHRINK,
-	ID_LEFT, ID_CENTER, ID_RIGHT, ID_JUSTIFY, ID_SINGLE, ID_ONEHALF, ID_DOUBLE, ID_PAGEBREAK,
-	ID_ZOOMFIT, ID_ZOOM50, ID_ZOOM75, ID_ZOOM100, ID_ZOOM150, ID_ZOOM200,
-	ID_CLOSEWIN,
-	ID_SIZE0 = 100,             /* + the Size menu's row */
-	ID_FONT0 = 200              /* + the Font menu's family */
-};
 static const int sizes[] = { 9, 10, 12, 14, 18, 24, 36 };       /* points: the Size menu (p. 112) */
 #define NSIZES ((int)(sizeof sizes / sizeof sizes[0]))
 static const int zooms[] = { 0, 50, 75, 100, 150, 200 };
+static int zoom_row = 3;                                         /* View's zoom checked: 100% */
+
+/* The paragraph styles of Format > Paragraph Style and the strip's style pop-up: the ones every
+   Quill document has (doc_new makes them, and a .docx read starts from it), by their ids, with the
+   names the Amiga's styles gallery shows. Plain Text is left out: it would sit beside Style's
+   Plain Text, a different command. */
+static const struct { const char *id, *name; } pstyles[] = {
+	{ "Normal", "Normal" }, { "Title", "Title" }, { "Subtitle", "Subtitle" },
+	{ "Heading1", "Heading 1" }, { "Heading2", "Heading 2" }, { "Heading3", "Heading 3" },
+	{ "Quote", "Quote" }, { "ListParagraph", "List Paragraph" },
+};
+#define NPSTYLES ((int)(sizeof pstyles / sizeof pstyles[0]))
+static int pstyle_at[NPSTYLES];          /* each one's index in the document's styles, -1 none */
 
 /* the font families Quill has (the Fonts folder's), each once */
 #define MAXFAM 24
@@ -62,6 +72,9 @@ static int nfam;
 static struct NewMenu menu[128];
 static int nmenu;
 static char size_label[NSIZES][8];
+
+/* the preferences: what View shows, kept between sessions (Guidelines p. 37) */
+static struct { int ribbon, ruler; } prefs = { 1, 1 };
 
 static void nm_add(UBYTE type, const char *label, const char *key, UWORD flags, ULONG id)
 {
@@ -86,6 +99,7 @@ static void menus_build(void)
 	BAR();
 	nm_add(NM_ITEM, "Save", "S", 0, ID_SAVE);
 	nm_add(NM_ITEM, "Save As...", NULL, 0, ID_SAVEAS);           /* the Amiga's Amiga-A is Select All here */
+	nm_add(NM_ITEM, "Revert", NULL, 0, ID_REVERT);               /* the Guidelines' File menu (pp. 99-109) */
 	nm_add(NM_ITEM, "Export PDF...", "D", 0, ID_PDF);
 	nm_add(NM_ITEM, "About...", NULL, 0, ID_ABOUT);              /* to the Apple menu */
 	nm_add(NM_ITEM, "Quit", "Q", 0, ID_QUIT);
@@ -103,7 +117,9 @@ static void menus_build(void)
 	BAR();
 	nm_add(NM_ITEM, "Grow Font", ">", 0, ID_GROW);
 	nm_add(NM_ITEM, "Shrink Font", "<", 0, ID_SHRINK);
-	nm_add(NM_TITLE, "Style", NULL, 0, 0);                       /* the Guidelines' Style menu, p. 113 */
+	/* the Guidelines' Style menu (p. 113): the text's style, not a paragraph style (the German
+	   table's "Style" is Formatvorlage, a paragraph style; the menu is Stil) */
+	nm_add(NM_TITLE, tr_ctx("menu", "Style"), NULL, 0, 0);
 	nm_add(NM_ITEM, "Plain Text", "T", CHECKIT, ID_PLAIN);
 	BAR();
 	nm_add(NM_ITEM, "Bold", "B", CHECKIT, ID_BOLD);
@@ -114,10 +130,19 @@ static void menus_build(void)
 	nm_add(NM_ITEM, "Superscript", "+", CHECKIT, ID_SUPER);
 	nm_add(NM_ITEM, "Subscript", "-", CHECKIT, ID_SUB);
 	nm_add(NM_TITLE, tr_ctx("menu", "Format"), NULL, 0, 0);   /* the menu, not the verb */
+	nm_add(NM_ITEM, "Paragraph Style", NULL, 0, 0);              /* a hierarchical menu (p. 79): an attribute list */
+	for (i = 0; i < NPSTYLES; i++)
+		nm_add(NM_SUB, pstyles[i].name, NULL, CHECKIT, (ULONG)(ID_STYLE0 + i));
+	BAR();
 	nm_add(NM_ITEM, "Align Left", "[", CHECKIT, ID_LEFT);
 	nm_add(NM_ITEM, "Centre", "E", CHECKIT, ID_CENTER);
 	nm_add(NM_ITEM, "Align Right", "]", CHECKIT, ID_RIGHT);
 	nm_add(NM_ITEM, "Justify", "J", CHECKIT, ID_JUSTIFY);
+	BAR();
+	nm_add(NM_ITEM, "Bullets", NULL, CHECKIT, ID_BULLETS);
+	nm_add(NM_ITEM, "Numbering", NULL, CHECKIT, ID_NUMBERS);
+	nm_add(NM_ITEM, "Decrease Indent", "K", 0, ID_OUTDENT);      /* the Amiga's keys, free on the Mac */
+	nm_add(NM_ITEM, "Increase Indent", "M", 0, ID_INDENT);
 	BAR();
 	nm_add(NM_ITEM, "Single", "1", CHECKIT, ID_SINGLE);
 	nm_add(NM_ITEM, "1.5 Lines", "5", CHECKIT, ID_ONEHALF);
@@ -125,6 +150,10 @@ static void menus_build(void)
 	BAR();
 	nm_add(NM_ITEM, "Page Break", NULL, 0, ID_PAGEBREAK);        /* the Amiga's Amiga-P is Print on the Mac */
 	nm_add(NM_TITLE, "View", NULL, 0, 0);
+	/* toggles with a check mark (p. 75); Ribbon is what Word for the Mac called its formatting bar */
+	nm_add(NM_ITEM, "Ribbon", NULL, CHECKIT | (prefs.ribbon ? CHECKED : 0), ID_RIBBON);
+	nm_add(NM_ITEM, "Ruler", NULL, CHECKIT | (prefs.ruler ? CHECKED : 0), ID_RULER);
+	BAR();
 	nm_add(NM_ITEM, "Fit Page Width", "0", CHECKIT, ID_ZOOMFIT);
 	BAR();
 	nm_add(NM_ITEM, "50%", NULL, CHECKIT, ID_ZOOM50);
@@ -135,11 +164,61 @@ static void menus_build(void)
 	nm_add(NM_END, NULL, NULL, 0, 0);
 }
 
-static void check(ULONG id, int on)
+/* the menu item of a command (a Menuitem object), NULL if it has none */
+static Object *item_of(ULONG id)
 {
-	Object *it = strip ? (Object *)mui_do(strip, MUIM_FindUData, id) : NULL;
-	if (it)
-		mui_set(it, MUIA_Menuitem_Checked, on ? TRUE : FALSE);
+	return strip ? (Object *)mui_do(strip, MUIM_FindUData, id) : NULL;
+}
+
+const char *qm_label(unsigned long id)
+{
+	if (id >= ID_FONT0 && id < ID_FONT0 + (unsigned long)nfam)
+		return fam[id - ID_FONT0];
+	if (id >= ID_SIZE0 && id < ID_SIZE0 + NSIZES)
+		return size_label[id - ID_SIZE0];
+	if (id >= ID_STYLE0 && id < ID_STYLE0 + NPSTYLES)
+		return tr(pstyles[id - ID_STYLE0].name);
+	return "";
+}
+
+/* ---- the preferences file: "Quill Preferences" in the System Folder's Preferences folder, a line
+   per setting ("ribbon 1"), read at the start and written when a setting changes ---- */
+static char prefs_path[300];
+
+static void prefs_load(void)
+{
+	short vref;
+	long dir;
+	char line[64];
+	int v;
+	FILE *f;
+	if (mac_findfolder(-32768, MAC_TYPE('p', 'r', 'e', 'f'), 1, &vref, &dir) != 0 ||
+	    mm_dir_path(vref, dir, prefs_path, (int)sizeof prefs_path - 24) < 0) {
+		prefs_path[0] = 0;
+		return;
+	}
+	if (prefs_path[0] && prefs_path[strlen(prefs_path) - 1] != ':')
+		strcat(prefs_path, ":");
+	strcat(prefs_path, "Quill Preferences");
+	if (!(f = fopen(prefs_path, "r")))
+		return;
+	while (fgets(line, sizeof line, f)) {
+		if (sscanf(line, "ribbon %d", &v) == 1)
+			prefs.ribbon = v != 0;
+		else if (sscanf(line, "ruler %d", &v) == 1)
+			prefs.ruler = v != 0;
+	}
+	fclose(f);
+}
+
+static void prefs_save(void)
+{
+	FILE *f;
+	if (!prefs_path[0] || !(f = fopen(prefs_path, "w")))
+		return;
+	fprintf(f, "ribbon %d\nruler %d\n", prefs.ribbon, prefs.ruler);
+	fclose(f);
+	qm_flush(prefs_path);
 }
 
 /* ---- the document ---- */
@@ -168,69 +247,157 @@ static const CharFmt *fmt_here(void)
 	return para_fmt_before(qd.doc->p[a.para], a.off);
 }
 
-/* the check marks, as Font, Size, Style and Format apply to the text at the caret (only the ones
-   that changed are set: each is a Menu Manager call) */
+/* what the caret's text and paragraph are, worked out once per change for qm_state */
+static struct {
+	CharFmt f;
+	int font, size, style;      /* the Font, Size and Paragraph Style rows that are it (-1 none) */
+	int align, line;            /* AL_; 240ths of a line (0: not auto spacing) */
+	int list;                   /* 0 none, 1 bullets, 2 numbers */
+	int pstyle;                 /* the paragraph's style, the document's index */
+} here;
+
+static void here_now(void)
+{
+	const ParaFmt *pf = &qd.doc->p[qd.caret.para]->pf;
+	int i;
+	here.f = *fmt_here();
+	here.font = here.size = here.style = -1;
+	if (here.f.font < qd.doc->nfonts)
+		for (i = 0; i < nfam; i++)
+			if (!strcmp(fam[i], qd.doc->fonts[here.f.font]))
+				here.font = i;
+	for (i = 0; i < NSIZES; i++)
+		if (here.f.size == sizes[i] * 2)
+			here.size = i;
+	for (i = 0; i < NPSTYLES; i++)
+		if (pstyle_at[i] == pf->style)
+			here.style = i;
+	here.pstyle = pf->style;
+	here.align = pf->align;
+	here.line = pf->linerule == LS_AUTO ? pf->line : 0;
+	here.list = 0;
+	if (pf->list && pf->list <= qd.doc->nlists)
+		here.list = qd.doc->lists[pf->list - 1].lvl[pf->level < 9 ? pf->level : 0].fmt == NF_BULLET ? 1 : 2;
+}
+
+unsigned qm_state(unsigned long id)
+{
+	unsigned flags = here.f.flags & (CF_BOLD | CF_ITALIC | CF_UNDERLINE | CF_STRIKE | CF_SUPER | CF_SUB);
+	int on = 0;
+	if (!qd.doc)
+		return 0;
+	if (id >= ID_FONT0 && id < ID_FONT0 + (unsigned long)nfam)
+		on = here.font == (int)(id - ID_FONT0);
+	else if (id >= ID_SIZE0 && id < ID_SIZE0 + NSIZES)
+		on = here.size == (int)(id - ID_SIZE0);
+	else if (id >= ID_STYLE0 && id < ID_STYLE0 + NPSTYLES) {
+		if (pstyle_at[id - ID_STYLE0] < 0)
+			return 0;               /* the document has no such style: dimmed */
+		on = here.style == (int)(id - ID_STYLE0);
+	} else
+		switch (id) {
+		case ID_PLAIN: on = !flags; break;
+		case ID_BOLD: on = (flags & CF_BOLD) != 0; break;
+		case ID_ITALIC: on = (flags & CF_ITALIC) != 0; break;
+		case ID_UNDERLINE: on = (flags & CF_UNDERLINE) != 0; break;
+		case ID_STRIKE: on = (flags & CF_STRIKE) != 0; break;
+		case ID_SUPER: on = (flags & CF_SUPER) != 0; break;
+		case ID_SUB: on = (flags & CF_SUB) != 0; break;
+		case ID_LEFT: case ID_CENTER: case ID_RIGHT: case ID_JUSTIFY:
+			on = here.align == (int)(id - ID_LEFT);
+			break;
+		case ID_SINGLE: on = here.line == 240 || here.line == 0; break;
+		case ID_ONEHALF: on = here.line == 360; break;
+		case ID_DOUBLE: on = here.line == 480; break;
+		case ID_BULLETS: on = here.list == 1; break;
+		case ID_NUMBERS: on = here.list == 2; break;
+		case ID_REVERT:
+			/* only a document read from a file and changed since */
+			return qd.path[0] && qd.doc->dirty ? QS_ENABLED : 0;
+		case ID_RIBBON: on = prefs.ribbon; break;
+		case ID_RULER: on = prefs.ruler; break;
+		case ID_ZOOMFIT: case ID_ZOOM50: case ID_ZOOM75: case ID_ZOOM100: case ID_ZOOM150: case ID_ZOOM200:
+			on = zoom_row == (int)(id - ID_ZOOMFIT);
+			break;
+		}
+	return QS_ENABLED | (on ? QS_CHECKED : 0);
+}
+
+int qm_popup(int which, unsigned long *first, char *now, int cap)
+{
+	char t[64];
+	if (!qd.doc)
+		return 0;
+	switch (which) {
+	case QP_STYLE:
+		*first = ID_STYLE0;
+		now[0] = 0;
+		if (here.style >= 0)
+			snprintf(now, (size_t)cap, "%s", tr(pstyles[here.style].name));
+		else if (here.pstyle < qd.doc->nstyles) {
+			/* a style of the document's own: its name as the file has it, with a capital */
+			utf8_to_macroman(qd.doc->styles[here.pstyle].name, t, sizeof t);
+			if (t[0] >= 'a' && t[0] <= 'z')
+				t[0] = (char)(t[0] - 32);
+			snprintf(now, (size_t)cap, "%s", t);
+		}
+		return NPSTYLES;
+	case QP_FONT:
+		*first = ID_FONT0;
+		now[0] = 0;
+		if (here.f.font < qd.doc->nfonts)
+			utf8_to_macroman(qd.doc->fonts[here.f.font], now, cap);
+		return nfam;
+	case QP_SIZE:
+		*first = ID_SIZE0;
+		/* half points: 11, or 10.5 */
+		snprintf(now, (size_t)cap, here.f.size & 1 ? "%d.5" : "%d", here.f.size / 2);
+		return NSIZES;
+	}
+	return 0;
+}
+
+/* The menus' check marks and dimming, and the strip, after the caret moved or the text changed:
+   every command's qm_state, and only the menu items whose answer changed are set (each is a Menu
+   Manager call). last[] holds each answer plus one, 0 before the first. */
 void qm_status(void)
 {
-	static int last_font = -2, last_size = -2, last_flags = -1, last_align = -1, last_line = -1;
-	const CharFmt *f;
-	const ParaFmt *pf;
-	int i, font = -1, size = -1, flags, align, line;
+	static unsigned char last[ID_LAST];
+	int i;
 	if (!qd.doc || !qd.doc->np)
 		return;
-	f = fmt_here();
-	pf = &qd.doc->p[qd.caret.para]->pf;
-	if (f->font < qd.doc->nfonts)
-		for (i = 0; i < nfam; i++)
-			if (!strcmp(fam[i], qd.doc->fonts[f->font]))
-				font = i;
-	for (i = 0; i < NSIZES; i++)
-		if (f->size == sizes[i] * 2)
-			size = i;
-	flags = f->flags & (CF_BOLD | CF_ITALIC | CF_UNDERLINE | CF_STRIKE | CF_SUPER | CF_SUB);
-	align = pf->align;
-	line = pf->linerule == LS_AUTO ? pf->line : 0;
-	if (font != last_font) {
-		for (i = 0; i < nfam; i++)
-			check(ID_FONT0 + i, i == font);
-		last_font = font;
+	here_now();
+	for (i = 0; i < nmenu; i++) {
+		ULONG id = (ULONG)menu[i].nm_UserData;
+		unsigned now, was;
+		Object *it;
+		if ((menu[i].nm_Type != NM_ITEM && menu[i].nm_Type != NM_SUB) || !id || id >= ID_LAST)
+			continue;
+		now = qm_state(id);
+		was = last[id] ? last[id] - 1u : ~now;
+		if (now == was || !(it = item_of(id)))
+			continue;
+		if (((now ^ was) & QS_CHECKED) && (menu[i].nm_Flags & CHECKIT))
+			mui_set(it, MUIA_Menuitem_Checked, now & QS_CHECKED ? TRUE : FALSE);
+		if ((now ^ was) & QS_ENABLED)
+			mui_set(it, MUIA_Menuitem_Enabled, now & QS_ENABLED ? TRUE : FALSE);
+		last[id] = (unsigned char)(now + 1);
 	}
-	if (size != last_size) {
-		for (i = 0; i < NSIZES; i++)
-			check(ID_SIZE0 + i, i == size);
-		last_size = size;
-	}
-	if (flags != last_flags) {
-		check(ID_PLAIN, !flags);
-		check(ID_BOLD, flags & CF_BOLD);
-		check(ID_ITALIC, flags & CF_ITALIC);
-		check(ID_UNDERLINE, flags & CF_UNDERLINE);
-		check(ID_STRIKE, flags & CF_STRIKE);
-		check(ID_SUPER, flags & CF_SUPER);
-		check(ID_SUB, flags & CF_SUB);
-		last_flags = flags;
-	}
-	if (align != last_align) {
-		for (i = 0; i < 4; i++)
-			check(ID_LEFT + i, align == i);
-		last_align = align;
-	}
-	if (line != last_line) {
-		check(ID_SINGLE, line == 240 || line == 0);
-		check(ID_ONEHALF, line == 360);
-		check(ID_DOUBLE, line == 480);
-		last_line = line;
-	}
+	if (view)
+		qv_strip_changed(view);
 }
 
 static void doc_take(Doc *d, const char *path)
 {
+	int i;
 	if (qd.lay)
 		lay_free(qd.lay);
 	if (qd.doc)
 		doc_free(qd.doc);
 	qd.doc = d;
 	qd.lay = lay_new(d, qd.fonts);
+	for (i = 0; i < NPSTYLES; i++)
+		pstyle_at[i] = doc_style(d, pstyles[i].id);
 	memset(&qd.caret, 0, sizeof qd.caret);
 	qd.anchor = qd.caret;
 	typing_set = 0;
@@ -260,8 +427,6 @@ static int ask(const char *gadgets, const char *fmt, const char *arg)
 	args[0] = (ULONG)arg;
 	return (int)MUI_RequestA(app, win, 0, (CONST_STRPTR)"Quill", (CONST_STRPTR)tr(gadgets), (CONST_STRPTR)tr(fmt), args);
 }
-
-int mm_dir_path(short vref, long dir, char *out, int len);       /* riptide src/mac/mui/mm_os.c */
 
 /* a full Mac path from Standard File's reply */
 static int reply_path(const StandardFileReply *r, char *out, int cap)
@@ -464,6 +629,83 @@ static void para_format(unsigned mask, const ParaFmt *pf)
 	qv_changed(view, 0);
 }
 
+/* the selection's paragraphs, first and last */
+static void sel_paras(u32 *a, u32 *b)
+{
+	*a = qd.anchor.para;
+	*b = qd.caret.para;
+	if (*a > *b) {
+		u32 t = *a;
+		*a = *b;
+		*b = t;
+	}
+}
+
+/* Bullets or Numbering, as the Amiga's view does it (amiga/view.c list_toggle): on, continuing a list
+   of the kind just above or starting one; off when the first paragraph is in such a list already,
+   back to its style's indents */
+static void list_toggle(int numbered)
+{
+	Doc *doc = qd.doc;
+	u32 a, b;
+	ParaFmt pf;
+	int on;
+	sel_paras(&a, &b);
+	pf = doc->p[a]->pf;
+	on = pf.list && pf.list <= doc->nlists && ((doc->lists[pf.list - 1].lvl[0].fmt == NF_BULLET) != numbered);
+	if (on) {
+		const Style *st = &doc->styles[pf.style < doc->nstyles ? pf.style : 0];
+		pf.list = 0;
+		pf.level = 0;
+		pf.left = st->pf.left;
+		pf.first = st->pf.first;
+	} else {
+		int l = 0;
+		if (a > 0) {
+			const ParaFmt *q = &doc->p[a - 1]->pf;
+			if (q->list && q->list <= doc->nlists && (doc->lists[q->list - 1].lvl[0].fmt != NF_BULLET) == numbered)
+				l = q->list;
+		}
+		if (!l && !(l = doc_new_list(doc, numbered)))
+			return;
+		pf.list = (u16)l;
+		pf.level = 0;
+		pf.left = doc->lists[l - 1].lvl[0].left;
+		pf.first = -doc->lists[l - 1].lvl[0].hanging;
+	}
+	doc_para_format(doc, a, b, PM_LIST | PM_INDENT, &pf);
+	qv_changed(view, 0);
+}
+
+/* Increase and Decrease Indent (amiga/view.c indent): a list item a level deeper or up, other
+   paragraphs half an inch (720 twips) in or out; one undo step */
+static void indent(int dir)
+{
+	Doc *doc = qd.doc;
+	u32 i, a, b;
+	sel_paras(&a, &b);
+	doc_begin(doc, qd.caret);
+	for (i = a; i <= b; i++) {
+		ParaFmt pf = doc->p[i]->pf;
+		if (pf.list && pf.list <= doc->nlists) {
+			int lv = pf.level + dir;
+			if (lv < 0 || lv > 8)
+				continue;
+			pf.level = (u8)lv;
+			pf.left = doc->lists[pf.list - 1].lvl[lv].left;
+			pf.first = -doc->lists[pf.list - 1].lvl[lv].hanging;
+			doc_para_format(doc, i, i, PM_LIST | PM_INDENT, &pf);
+		} else {
+			pf.left += dir * 720;
+			if (pf.left < 0)
+				pf.left = 0;
+			doc_para_format(doc, i, i, PM_INDENT, &pf);
+		}
+	}
+	doc_end(doc, qd.caret);
+	qv_changed(view, 0);
+}
+
 /* ---- the Edit menu (Riptide's mm_edit_action and mm_edit_state) ---- */
 
 static Fragment *clip;            /* what Quill cut or copied last, with its formatting */
@@ -605,6 +847,17 @@ static void command(ULONG id)
 		char_format(CM_SIZE, &cf);
 		return;
 	}
+	if (id >= ID_STYLE0 && id < ID_STYLE0 + NPSTYLES) {
+		u32 a, b;
+		if (pstyle_at[id - ID_STYLE0] < 0)
+			return;
+		sel_paras(&a, &b);
+		if (doc_apply_style(qd.doc, a, b, pstyle_at[id - ID_STYLE0])) {
+			typing_set = 0;
+			qv_changed(view, 0);
+		}
+		return;
+	}
 	switch (id) {
 	case ID_NEW:
 		if (may_close()) {
@@ -621,6 +874,18 @@ static void command(ULONG id)
 		}
 		break;
 	case ID_SAVE: save(); break;
+	case ID_REVERT: {
+		/* back to the file as last saved, after asking (a caution: the changes go) */
+		char path[sizeof qd.path];
+		const char *n = strrchr(qd.path, ':');
+		if (!qd.path[0] || !qd.doc->dirty)
+			break;
+		if (ask("Revert|*Cancel", "Revert to the saved version of %s? The changes made since are lost.", n ? n + 1 : qd.path) != 1)
+			break;
+		strcpy(path, qd.path);
+		open_file(path);
+		break;
+	}
 	case ID_SAVEAS: save_as(); break;
 	case ID_PDF: cmd_pdf(); break;
 	case ID_ABOUT:
@@ -684,14 +949,28 @@ static void command(ULONG id)
 		qv_changed(view, 1);
 		break;
 	}
-	case ID_ZOOMFIT: case ID_ZOOM50: case ID_ZOOM75: case ID_ZOOM100: case ID_ZOOM150: case ID_ZOOM200: {
-		int i;
-		for (i = 0; i < 6; i++)
-			check(ID_ZOOMFIT + i, (ULONG)i == id - ID_ZOOMFIT);
-		qv_zoom(view, zooms[id - ID_ZOOMFIT]);
+	case ID_BULLETS: case ID_NUMBERS: list_toggle(id == ID_NUMBERS); break;
+	case ID_OUTDENT: case ID_INDENT: indent(id == ID_INDENT ? 1 : -1); break;
+	case ID_RIBBON: case ID_RULER:
+		if (id == ID_RIBBON)
+			prefs.ribbon = !prefs.ribbon;
+		else
+			prefs.ruler = !prefs.ruler;
+		prefs_save();
+		qv_chrome(view, prefs.ribbon, prefs.ruler);
+		qm_status();
+		break;
+	case ID_ZOOMFIT: case ID_ZOOM50: case ID_ZOOM75: case ID_ZOOM100: case ID_ZOOM150: case ID_ZOOM200:
+		zoom_row = (int)(id - ID_ZOOMFIT);
+		qv_zoom(view, zooms[zoom_row]);
+		qm_status();
 		break;
 	}
-	}
+}
+
+void qm_command(unsigned long id)
+{
+	command((ULONG)id);
 }
 
 /* ---- the start ---- */
@@ -773,6 +1052,7 @@ int main(void)
 	if (!fonts_init(qd.fonts, ":Fonts:"))
 		mm_log("Quill: no fonts in :Fonts: (fonts.list)");
 	families();
+	prefs_load();
 	menus_build();
 	mm_edit_action = edit_action;
 	mm_edit_state = edit_state;
@@ -784,6 +1064,8 @@ int main(void)
 	doc_take(doc_new(), NULL);
 	strip = mui_make(MUIO_MenustripNM, (ULONG)menu, 0);
 	view = mui_newc(qv_class(), MUIA_Frame, MUIV_Frame_None, TAG_DONE);
+	if (view)
+		qv_chrome(view, prefs.ribbon, prefs.ruler);
 	win = mui_new(MUIC_Window, MUIA_Window_Title, (ULONG)tr("Untitled"), MUIA_Window_RootObject, (ULONG)view,
 	              MUIA_Window_Menustrip, (ULONG)strip, TAG_DONE);
 	if (!view || !win)

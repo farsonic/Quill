@@ -9,4 +9,17 @@ W = [
  "Un traitement de texte pour le Mac OS classique.\\nLit et écrit les documents Word (.docx).\\n\\nLe texte est mesuré avec les polices Liberation et Carlito/Caladea\\n(SIL Open Font License) : les lignes se coupent\\ncomme dans Word.",
  "Un procesador de textos para el Mac OS clásico.\\nLee y escribe documentos de Word (.docx).\\n\\nEl texto se mide con las fuentes Liberation y Carlito/Caladea\\n(SIL Open Font License), así las líneas\\nse cortan como en Word.",
  "Un elaboratore di testi per il Mac OS classico.\\nLegge e scrive documenti Word (.docx).\\n\\nIl testo è misurato con i caratteri Liberation e Carlito/Caladea\\n(SIL Open Font License), così le righe\\nvanno a capo come in Word."),
+# Format > Paragraph Style (a submenu, and the strip's style pop-up shows the same styles)
+("Paragraph Style", "Absatzformat", "Style de paragraphe", "Estilo de párrafo", "Stile di paragrafo"),
+# the Style menu of the Guidelines (p. 113): the text's style; the table's "Style" is a paragraph style
+# (German Formatvorlage), and the Mac's localised systems call this menu Stil
+("menu:Style", "Stil", "Style", "Estilo", "Stile"),
+# File > Revert (the Guidelines' File menu) and its question; Cancel is the default (*), as Revert loses changes (p. 206)
+("Revert", "Alte Version", "Version précédente", "Recuperar", "Ripristina"),
+("Revert|*Cancel", "Alte Version|*Abbrechen", "Version précédente|*Annuler", "Recuperar|*Cancelar", "Ripristina|*Annulla"),
+("Revert to the saved version of %s? The changes made since are lost.",
+ "Zur gesicherten Version von %s zurückkehren? Die Änderungen seither gehen verloren.",
+ "Revenir à la version enregistrée de %s ? Les modifications faites depuis seront perdues.",
+ "¿Volver a la versión guardada de %s? Se perderán los cambios hechos desde entonces.",
+ "Tornare alla versione salvata di %s? Le modifiche fatte da allora andranno perse."),
 ]

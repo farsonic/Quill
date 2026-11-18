@@ -28,6 +28,35 @@ typedef struct {
 } QDoc;
 extern QDoc qd;
 
+/* The commands: the menus' items and the tool strip's (mac/qm_strip.c), one number each. The strip
+   never has a command of its own: every item is a menu item's number (Cornerstone, chapter 3) */
+enum {
+	ID_NEW = 1, ID_OPEN, ID_SAVE, ID_SAVEAS, ID_PDF, ID_ABOUT, ID_QUIT,
+	ID_REDO, ID_SELALL,
+	ID_PLAIN, ID_BOLD, ID_ITALIC, ID_UNDERLINE, ID_STRIKE, ID_SUPER, ID_SUB,
+	ID_GROW, ID_SHRINK,
+	ID_LEFT, ID_CENTER, ID_RIGHT, ID_JUSTIFY, ID_SINGLE, ID_ONEHALF, ID_DOUBLE, ID_PAGEBREAK,
+	ID_ZOOMFIT, ID_ZOOM50, ID_ZOOM75, ID_ZOOM100, ID_ZOOM150, ID_ZOOM200,
+	ID_CLOSEWIN,
+	ID_BULLETS, ID_NUMBERS, ID_OUTDENT, ID_INDENT, ID_RIBBON, ID_RULER, ID_REVERT,
+	ID_SIZE0 = 100,             /* + the Size menu's row */
+	ID_FONT0 = 200,             /* + the Font menu's family */
+	ID_STYLE0 = 300,            /* + the Paragraph Style submenu's row */
+	ID_LAST = 320
+};
+
+/* qm_main.c: the one answer to "can it be chosen now, is it on" that the menus' check marks and
+   dimming and the strip's items all take, so they never disagree */
+#define QS_ENABLED 1
+#define QS_CHECKED 2
+unsigned qm_state(unsigned long id);
+void qm_command(unsigned long id);                     /* a menu item's command, from the strip */
+/* the strip's pop-up menus show the Paragraph Style, Font and Size menus' items: their first command
+   and how many, and what the box shows now (the caret's style, font or size, even one not listed) */
+enum { QP_STYLE, QP_FONT, QP_SIZE };
+int  qm_popup(int which, unsigned long *first, char *now, int cap);
+const char *qm_label(unsigned long id);                /* a menu item's words as the menu shows them (Mac Roman) */
+
 /* qm_view.c: the page view, a MUI Area subclass (for the files that include MUI) */
 #ifdef RT_PREFS_MUI_H
 struct MUI_CustomClass *qv_class(void);
@@ -38,7 +67,32 @@ void qv_reset(Object *view);                          /* a new document: back to
 /* the page view's own method: its timer (MUIM_Application_AddInputHandler), ten times a second */
 #define MUIM_QV_Tick 0xFECA0001UL
 void qv_redraw_all(Object *view);                     /* everything again, by an update event */
+void qv_chrome(Object *view, int ribbon, int ruler);   /* the tool strip and the rulers shown or not */
+int  qm_port_depth(void *port);                       /* the bits per pixel a window is drawn in */
+void qv_strip_changed(Object *view);                  /* the commands' states changed: the strip follows */
 #endif
+
+/* qm_strip.c: the tool strip (View > Ribbon), drawn and clicked inside the page view's box */
+#define QS_HEIGHT 24                                   /* its height with the line under it */
+void qs_layout(short left, short top, short right);    /* its items placed in that width */
+void qs_draw(void *port, const void *area);            /* the items in area (a Rect) */
+void qs_update(void *port);                            /* the items whose state changed drawn again */
+int  qs_click(void *port, int x, int y);               /* a click on it: tracked, the command run; 1 if taken */
+
+/* qm_ruler.c: the horizontal and vertical rulers (View > Ruler) and the tab kind box between them */
+#define QR_HEIGHT 20                                   /* the horizontal ruler, with its line */
+#define QR_WIDTH  17                                   /* the vertical one */
+#ifdef QUILL_RULER_H
+/* r: the ruler's box; pagex (pagey): where the page's left (top) edge is in the window; dpi */
+void qr_draw_h(void *port, const void *r, const RulerGeom *g, long pagex, int dpi);
+void qr_draw_v(void *port, const void *r, const RulerGeom *g, long pagey, int dpi);
+/* a press at x, y on the horizontal ruler: the marker under it dragged until the button goes up,
+   the ruler drawn as it goes and a dotted line over the pages (guide: their box) showing where; the
+   part dragged (RP_), g as it ended, or RP_NONE */
+int  qr_track_h(void *port, const void *r, const void *guide, RulerGeom *g, long pagex, int dpi, int x, int y);
+#endif
+void qr_draw_corner(void *port, const void *r);        /* the box choosing the kind of tab stop a click makes */
+void qr_click_corner(void *port, const void *r);       /* ... the next kind */
 
 /* qm_main.c */
 void qm_status(void);                                  /* the menus' check marks after the caret moved */

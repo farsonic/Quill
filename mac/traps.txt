@@ -4,6 +4,9 @@
 #
 # QuickDraw: the page view copies its pages (mac/qm_view.c)
 A8EC - CopyBits(const void *src:l, const void *dst:l, const void *srcRect:l, const void *dstRect:l, int mode:w, void *mask:l)
+# QuickDraw: the tool strip's icons (mac/qm_strip.c: the icon language's circles)
+A8B7 - FrameOval(const void *r:l)
+A8B8 - PaintOval(const void *r:l)
 # Controls: the scroll bars drawn after an update
 A96D - Draw1Control(void *ctl:l)
 # Events: whether keys are waiting (typing is laid out once they stop)

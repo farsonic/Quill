@@ -63,8 +63,12 @@ void qm_type_for(const char *path, unsigned long *type, unsigned long *creator)
 	const char *dot = strrchr(path, '.');
 	*creator = QM_CREATOR;
 	*type = 0x54455854UL;                   /* 'TEXT': .txt .md .html .rtf .xml */
-	if (!dot)
+	if (!dot) {
+		size_t n = strlen(path);
+		if (n >= 17 && !strcmp(path + n - 17, "Quill Preferences"))
+			*type = 0x70726566UL;   /* 'pref': the Finder shows it as a preferences file */
 		return;
+	}
 	if (!strcmp(dot, ".docx") || !strcmp(dot, ".docm") || !strcmp(dot, ".dotx"))
 		*type = 0x444F4358UL;           /* 'DOCX' */
 	else if (!strcmp(dot, ".odt"))
