@@ -44,6 +44,10 @@ CopyBits fits the colours to the screen, whatever its depth: on 1-bit and indexe
 darker black, 200 and lighter white), because smoothed text edges dithered as they are come out speckled;
 pictures keep their dithered shades.
 
+charts.docx was also opened at 1, 2, 4, 8, 16 and 32 bits (18 November 2026, PiDepth setting the depth):
+the charts are drawn at every depth, dithered below 16 bits. The page box beside the horizontal scroll bar
+shows the page at the top of the window, as Word for the Mac did, and the number of pages.
+
 Only what changed is copied. An update event (a window uncovered) redraws the visible region's box; the
 caret blinks by copying its one-pixel column again; a selection that grows redraws the rows between the
 old and new end. After an edit the page is drawn again in memory, compared row by row with the picture it
@@ -57,6 +61,7 @@ that came into view. The watch shows while a page is drawn.
 | 1 bit | [mac-1bit.png](mac-1bit.png): the document after typing, Bold, Save, Close and Open; the Style menu down |
 | 8 bits | [mac-8bit.png](mac-8bit.png): tests/data/word.docx just opened |
 | 32 bits | [mac-32bit.png](mac-32bit.png): text typed at the start, five letters selected and made bold |
+| 8 bits | [mac-charts-8bit.png](mac-charts-8bit.png): tests/data/charts.docx just opened, "Page 1 of 3"; [mac-charts-8bit-page2.png](mac-charts-8bit-page2.png): scrolled to page 2 |
 
 ### Floating point: soft-float
 

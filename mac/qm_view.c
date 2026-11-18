@@ -586,6 +586,7 @@ static void status_check(struct qv_data *d, Object *obj, int in_update)
 		return;
 	}
 	parts(obj, NULL, NULL, NULL, &st);
+	SetPort(mm_win_of(obj)->macwin);       /* (InvalRect works on the current port) */
 	InvalRect(&st);
 }
 
@@ -1311,6 +1312,7 @@ void qv_reset(Object *view)
 		parts(view, &r, NULL, NULL, NULL);
 		SetPort(port);
 		InvalRect(&r);          /* the update event draws it */
+		lay_update(qd.lay);     /* (laid out now, so the page box counts the pages) */
 		d->status_page = 0;     /* a new document: the page box again */
 		status_check(d, view, 0);
 		bars_set(d, view);
