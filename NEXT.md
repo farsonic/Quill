@@ -29,6 +29,19 @@ Line Number style. Still open from that report: Emphasis Mark (WP27), Markdown S
 changes (styles carry no tracked change in WP5's model), Delete Previous Sentence. Not checked on an Amiga yet:
 the new ribbon items' fit at 640 px (Home's Paragraph group gained a list, View's Window group two buttons).
 
+## Last gaps (branch `gaps2`, 2026-11-18)
+
+WP28e closed the last ribbon command and most cheap section-2 gaps: View › Markdown Source (core/markdown.c
+`md_source_doc`/`md_apply_source`, amiga/wp_html.c, main.c `wp_swap_doc`), Insert › Shapes › New Drawing Canvas
+(WP20's canvas was there already), Word XML (core/wordxml.c: Flat OPC read and written, Word 2003 XML read, both
+through the .docx code), plain text encodings (UTF-8/UTF-16/Windows-1252 detected and kept, UTF-8 by default;
+Save As Text asks), Strict Open XML measures (`docx_num`, tools/mkstrict.py), .docm with its VBA project kept
+for macro-enabled files only, the .doc reader's bookmarks and comments, Delete Previous Sentence, Options'
+initials and Read Aloud voice/speed/pitch. Tests: tests/test_wp28e.c. Ribbon: 512 ✅ · 3 🟨 · 0 ⬜ · 28 ➖.
+Not checked on an Amiga: the View tab's new Source group at 640 px (ribbonfit says it fits), Save As Text's
+encoding requester, Markdown Source switching, Read Aloud's voice settings (no narrator.device in the emulator).
+LibreOffice 24.2 can't open Flat OPC, so Quill's Flat OPC is only checked against the .docx it stands for.
+
 ## Started but not finished (branches with work in progress)
 
 Each is a branch `<name>` on GitHub (it was a git worktree in the original session); the last commit on each is a
