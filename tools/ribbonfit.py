@@ -358,6 +358,9 @@ for LANG in range(5):
             'fits' if ok else 'OVERFLOW', r['ncol'], (' (cut to %d)' % r['allbtn']) if r['allbtn'] else '',
             (' [' + ', '.join(r['colnames']) + ']') if r['colnames'] else ''))
         if r['cut']: print('   captions cut short:', ', '.join(r['cut']))
+        caps = [T(g[0]) for g in gl]
+        dup = sorted(set(c.decode('latin-1') for c in caps if caps.count(c) > 1))
+        if dup: print('   two groups with the same caption:', ', '.join(dup)); over += 1
         if r['nitems'] > 128: print('   MAXI exceeded', r['nitems'])
         if r['ngroups'] > MAXG: print('   MAXG exceeded')
     print('tab strip:', strip_width())

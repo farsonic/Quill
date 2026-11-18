@@ -2121,7 +2121,7 @@
   { { "Thesaurus", "Thesaurus", "Dictionnaire des synonymes", "Sin\363nimos", "Thesaurus" } },
   { { "Thesaurus...", "Thesaurus...", "Dictionnaire des synonymes...", "Sin\363nimos...", "Thesaurus..." } },
   { { "Words with a similar meaning (Shift-F7)", "W\366rter mit \344hnlicher Bedeutung (Umschalt-F7)", "Mots de sens proche (Maj-F7)", "Palabras con un significado parecido (May\372s-F7)", "Parole con un significato simile (Maiusc-F7)" } },
-  { { "Speech", "Sprache", "Voix", "Voz", "Voce" } },
+  { { "Speech", "Sprachausgabe", "Voix", "Voz", "Voce" } },
   { { "Read Aloud", "Laut vorlesen", "Lecture \340 voix haute", "Leer en voz alta", "Leggi ad alta voce" } },
   { { "Read Aloud: the selection (or from the caret on) read out by the Amiga's narrator, the sentence being read selected. Click again to stop", "Laut vorlesen: die Markierung (oder ab der Einf\374gemarke) vom Sprecher des Amiga vorgelesen, der gelesene Satz markiert. Noch einmal klicken zum Beenden", "Lecture \340 voix haute : la s\351lection (ou \340 partir du curseur) lue par le narrateur de l'Amiga, la phrase lue \351tant s\351lectionn\351e. Cliquez \340 nouveau pour arr\352ter", "Leer en voz alta: la selecci\363n (o desde el cursor) le\355da por el narrador del Amiga, con la frase que se lee seleccionada. Haga clic otra vez para parar", "Leggi ad alta voce: la selezione (o dal cursore in poi) letta dal narratore dell'Amiga, con la frase letta selezionata. Fare di nuovo clic per fermare" } },
   { { "Check Spelling as You Type", "Rechtschreibung w\344hrend der Eingabe \374berpr\374fen", "V\351rifier l'orthographe en cours de frappe", "Revisar ortograf\355a mientras escribe", "Controlla ortografia durante la digitazione" } },

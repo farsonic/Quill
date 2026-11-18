@@ -11,7 +11,7 @@ W = [
 ("Thesaurus", "Thesaurus", "Dictionnaire des synonymes", "Sinónimos", "Thesaurus"),
 ("Thesaurus...", "Thesaurus...", "Dictionnaire des synonymes...", "Sinónimos...", "Thesaurus..."),
 ("Words with a similar meaning (Shift-F7)", "Wörter mit ähnlicher Bedeutung (Umschalt-F7)", "Mots de sens proche (Maj-F7)", "Palabras con un significado parecido (Mayús-F7)", "Parole con un significato simile (Maiusc-F7)"),
-("Speech", "Sprache", "Voix", "Voz", "Voce"),
+("Speech", "Sprachausgabe", "Voix", "Voz", "Voce"),
 ("Read Aloud", "Laut vorlesen", "Lecture à voix haute", "Leer en voz alta", "Leggi ad alta voce"),
 ("Read Aloud: the selection (or from the caret on) read out by the Amiga's narrator, the sentence being read selected. Click again to stop",
  "Laut vorlesen: die Markierung (oder ab der Einfügemarke) vom Sprecher des Amiga vorgelesen, der gelesene Satz markiert. Noch einmal klicken zum Beenden",
