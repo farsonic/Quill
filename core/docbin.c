@@ -85,6 +85,10 @@ typedef struct R {
   u32 *fref, *ftxt; int nfn;   /* footnotes: references' CPs, text CPs (nfn + 1) */
   u32 *eref, *etxt; int nen;
   u32 *hdd; int nhdd;       /* headers and footers (nhdd + 1 CPs) */
+  /* (WP28e) bookmarks: each one's CPs [bks, bke) and Doc bookmark number; comments: their references'
+     CPs, their Doc comments and the ranges they cover (as = ae: none, the marks at the reference) */
+  u32 *bks, *bke; u16 *bkn; int nbk;
+  u32 *aref, *as, *ae; int *acom; int nan;
   int depth;                /* stories read inside stories (notes in notes are left out) */
 } R;
 
@@ -825,7 +829,7 @@ static void sect_fmt(R *r, int i, SectFmt *s, PageSetup *pg)
 
 /* ---- stories: the text between two CPs made paragraphs */
 #define MAXFLD 16
-typedef struct { u32 ch, fc; int piece; u16 link; } Ch;
+typedef struct { u32 ch, fc; int piece; u16 link, bmark; } Ch;
 #define IS_NOTE_CP(c) (((c) & ~0x3FFFUL) == 0xF4000UL || ((c) & ~0x3FFFUL) == 0x100000UL)   /* (a footnote's or endnote's reference: Quill raises it itself) */
 typedef struct {
   R *r;
@@ -833,6 +837,7 @@ typedef struct {
   int main;                 /* the document's text: tables, sections and notes */
   u32 cpbase;               /* its first CP (notes and headers: their subdocument's) */
   Ch *c; u32 nc, ccap;      /* the paragraph being read */
+  u16 bmark;                /* (WP28e) the bookmark the characters being put are in, 0 none */
   u8 pagebreak, colbreak;   /* the next paragraph starts a new page or column */
   /* fields: what each open one is reading (0 its code, 1 its result), its code, its link */
   int nfld;
@@ -854,7 +859,7 @@ static int sb_put(Sb *b, u32 ch, u32 fc, int piece, u16 link)
     if (!q) { b->r->oom = 1; return 0; }
     b->c = q; b->ccap = nc;
   }
-  b->c[b->nc].ch = ch; b->c[b->nc].fc = fc; b->c[b->nc].piece = piece; b->c[b->nc].link = link;
+  b->c[b->nc].ch = ch; b->c[b->nc].fc = fc; b->c[b->nc].piece = piece; b->c[b->nc].link = link; b->c[b->nc].bmark = b->bmark;
   b->nc++;
   return 1;
 }
@@ -1181,9 +1186,10 @@ static void para_end(Sb *b, u32 markcp, int markch)
         cf.link = c->link;
         lastp = cp; lastpiece = c->piece; lastlink = c->link;
       }
+      cf.bmark = c->bmark;
       if (IS_NOTE_CP(c->ch) || (i > 0 && IS_NOTE_CP(b->c[i - 1].ch))) {
         char_fmt(r, ps, c->fc, c->piece, &cf);
-        cf.link = c->link;
+        cf.link = c->link; cf.bmark = c->bmark;
         if (IS_NOTE_CP(c->ch)) { cf.flags &= (u8)~CF_SUPER; cf.position = 0; }
         lastp = NULL;
       }
@@ -1252,6 +1258,16 @@ static void read_story(R *r, u32 cpa, u32 cpb, ParaList *l, int main, u32 cpbase
     u32 ch, fc;
     int piece, k, hidden = 0;
     if (!char_at(r, cp, &ch, &fc, &piece)) continue;
+    if (main && (r->nbk || r->nan)) {
+      /* (WP28e) the bookmark this character is in (the innermost), and the comments' range marks
+         that end and start here */
+      int j, bi = -1;
+      char m[8];
+      for (j = 0; j < r->nbk; j++) if (r->bks[j] <= cp && cp < r->bke[j] && (bi < 0 || r->bks[j] >= r->bks[bi])) bi = j;
+      b->bmark = bi >= 0 ? r->bkn[bi] : 0;
+      for (j = 0; j < r->nan; j++) if (r->acom[j] >= 0 && r->as[j] < r->ae[j] && r->ae[j] == cp) { cmark_utf8(m, r->acom[j], 1); sb_put(b, utf8_get(m, 4, &k), fc, piece, 0); }
+      for (j = 0; j < r->nan; j++) if (r->acom[j] >= 0 && r->as[j] < r->ae[j] && r->as[j] == cp) { cmark_utf8(m, r->acom[j], 0); sb_put(b, utf8_get(m, 4, &k), fc, piece, 0); }
+    }
     /* fields (core/field.h): code read, the result between the field's marks (page numbers as
        placeholders, plain links and the table of contents without marks, as .docx reads them) */
     if (ch == 0x13) {
@@ -1336,7 +1352,18 @@ static void read_story(R *r, u32 cpa, u32 cpb, ParaList *l, int main, u32 cpbase
       }
       continue;
     case 0x01: case 0x08: *r->lost |= LOST_PICTURES; continue;
-    case 0x05: *r->lost |= LOST_COMMENTS; continue;
+    case 0x05:
+      /* (WP28e) a comment's reference: a comment without a range has its marks here */
+      if (main) {
+        int j, got = 0;
+        char m[8];
+        for (j = 0; j < r->nan; j++) if (r->aref[j] == cp && r->acom[j] >= 0) {
+          got = 1;
+          if (r->as[j] >= r->ae[j]) { cmark_utf8(m, r->acom[j], 0); sb_put(b, utf8_get(m, 4, &k), fc, piece, 0); cmark_utf8(m, r->acom[j], 1); sb_put(b, utf8_get(m, 4, &k), fc, piece, 0); }
+        }
+        if (!got) *r->lost |= LOST_COMMENTS;
+      }
+      continue;
     default:
       if (ch < 0x20) continue;
       if (ch >= 0xD800 && ch < 0xE000) {          /* a surrogate pair */
@@ -1363,6 +1390,120 @@ static void r_free(R *r)
   free(r->pcp); free(r->pfc); free(r->pprm); free(r->prc);
   free(r->chp); free(r->pap); free(r->st); free(r->lst); free(r->lfo); free(r->lfolist);
   free(r->sed); free(r->sepx); free(r->fref); free(r->ftxt); free(r->eref); free(r->etxt); free(r->hdd);
+  free(r->bks); free(r->bke); free(r->bkn); free(r->aref); free(r->as); free(r->ae); free(r->acom);
+}
+/* (WP28e) an STTB's strings (UTF-16 with fExtend, else 8-bit), each into out (UTF-8) in turn by fn;
+   the number of strings, 0 if damaged */
+static int sttb(R *r, u32 fc, u32 lcb, void (*fn)(R *r, int i, const char *s, const u8 *extra, u32 cbextra, void *arg), void *arg)
+{
+  u32 o = fc, end, n, cbx, i, ext;
+  if (!lcb || fc >= r->tn || lcb > r->tn - fc) return 0;
+  end = fc + lcb;
+  ext = g16(r->t, r->tn, o) == 0xFFFF;
+  if (ext) o += 2;
+  n = g16(r->t, r->tn, o); o += 2;
+  cbx = g16(r->t, r->tn, o); o += 2;
+  for (i = 0; i < n && o < end; i++) {
+    char u[256];
+    size_t k = 0;
+    u32 cch = ext ? g16(r->t, r->tn, o) : g8(r->t, r->tn, o), j;
+    o += ext ? 2 : 1;
+    for (j = 0; j < cch && o + (ext ? 2 : 1) <= end; j++) {
+      u32 ch = ext ? g16(r->t, r->tn, o) : g8(r->t, r->tn, o);
+      o += ext ? 2 : 1;
+      if (k + 4 < sizeof u) k += (size_t)utf8_put(u + k, ch ? ch : ' ');
+    }
+    u[k] = 0;
+    if (o + cbx > end) break;
+    fn(r, (int)i, u, r->t + o, cbx, arg);
+    o += cbx;
+  }
+  return (int)i;
+}
+static void bk_name(R *r, int i, const char *s, const u8 *extra, u32 cbx, void *arg)
+{
+  if (i < r->nbk) r->bkn[i] = (u16)doc_bmark(r->d, s);
+}
+static void atn_tag(R *r, int i, const char *s, const u8 *extra, u32 cbx, void *arg)
+{
+  u32 *tags = (u32 *)arg;
+  if (cbx >= 6) tags[i] = g32(extra, cbx, 2);         /* (ATNBE: bmc, lTag, lTagOld) */
+}
+/* bookmarks: names (SttbfBkmk), starts (PlcfBkf, with each one's end in PlcfBkl); hidden ones too */
+static void read_bookmarks(R *r, u32 fcn, u32 lcbn, u32 fcf, u32 lcbf, u32 fcl, u32 lcbl)
+{
+  int nf, nl, i;
+  u32 *f = read_cps(r, fcf, lcbf, 4, &nf), *l = read_cps(r, fcl, lcbl, 0, &nl);
+  if (!f || !l || !nf) { free(f); free(l); return; }
+  r->bks = f; r->nbk = nf;
+  if (!(r->bke = (u32 *)rmalloc(r, (size_t)nf * sizeof(u32))) || !(r->bkn = (u16 *)calloc((size_t)nf, sizeof(u16)))) { free(l); r->nbk = 0; return; }
+  for (i = 0; i < nf; i++) {
+    u32 ibkl = g16(r->t, r->tn, fcf + (u32)(nf + 1) * 4 + (u32)i * 4);
+    r->bke[i] = ibkl < (u32)nl ? l[ibkl] : f[i];
+  }
+  free(l);
+  sttb(r, fcn, lcbn, bk_name, NULL);
+  for (i = 0; i < nf; i++) if (r->bke[i] <= r->bks[i]) r->bkn[i] = 0;     /* (empty ones have no runs to be on) */
+}
+/* comments: the references (PlcfandRef with ATRDPre10: initials, author number, range tag), their text
+   in the comments' subdocument (PlcfandTxt), authors (GrpXstAtnOwners), ranges (SttbfAtnBkmk's tags,
+   PlcfAtnBkf/PlcfAtnBkl). Each becomes a Doc comment with its text */
+static void read_comments(R *r, u32 fcref, u32 lcbref, u32 fctxt, u32 lcbtxt, u32 fcown, u32 lcbown, u32 fcab, u32 lcbab, u32 fcbf, u32 lcbbf, u32 fcbl, u32 lcbbl)
+{
+  int n, nt, nf = 0, nl = 0, i, j;
+  u32 *txt, *bf, *bl, *tags = NULL;
+  char owners[64][64];
+  int nown = 0;
+  u32 base = r->ccp[0] + r->ccp[1] + r->ccp[2] + r->ccp[3];
+  if (!(r->aref = read_cps(r, fcref, lcbref, 30, &n))) return;
+  txt = read_cps(r, fctxt, lcbtxt, 0, &nt);
+  if (!txt || nt < n || !(r->as = (u32 *)rmalloc(r, (size_t)n * sizeof(u32))) || !(r->ae = (u32 *)rmalloc(r, (size_t)n * sizeof(u32))) ||
+      !(r->acom = (int *)rmalloc(r, (size_t)n * sizeof(int)))) { free(txt); return; }
+  r->nan = n;
+  /* the authors: Xst after Xst */
+  if (lcbown && fcown < r->tn && lcbown <= r->tn - fcown) {
+    u32 o = fcown, end = fcown + lcbown;
+    while (o + 2 <= end && nown < 64) {
+      u32 cch = g16(r->t, r->tn, o), k;
+      size_t q = 0;
+      o += 2;
+      for (k = 0; k < cch && o + 2 <= end; k++, o += 2) if (q + 4 < sizeof owners[0]) q += (size_t)utf8_put(owners[nown] + q, g16(r->t, r->tn, o));
+      owners[nown++][q] = 0;
+    }
+  }
+  /* the ranges by their tags */
+  bf = read_cps(r, fcbf, lcbbf, 4, &nf);
+  bl = read_cps(r, fcbl, lcbbl, 0, &nl);
+  if (bf && nf && (tags = (u32 *)calloc((size_t)nf, sizeof(u32)))) {
+    for (i = 0; i < nf; i++) tags[i] = 0xFFFFFFFFUL;
+    sttb(r, fcab, lcbab, atn_tag, tags);
+  }
+  for (i = 0; i < n; i++) {
+    u32 d0 = fcref + (u32)(n + 1) * 4 + (u32)i * 30, cch = g16(r->t, r->tn, d0), ibst = g16(r->t, r->tn, d0 + 20), tag = g32(r->t, r->tn, d0 + 26), k;
+    char ini[12];
+    size_t q = 0;
+    ParaList l;
+    int dc;
+    for (k = 0; k < cch && k < 9; k++) if (q + 4 < sizeof ini) q += (size_t)utf8_put(ini + q, g16(r->t, r->tn, d0 + 2 + k * 2));
+    ini[q] = 0;
+    r->as[i] = r->ae[i] = r->aref[i];
+    for (j = 0; tags && j < nf; j++) if (tags[j] == tag && tag != 0xFFFFFFFFUL) {
+      u32 ibkl = g16(r->t, r->tn, fcbf + (u32)(nf + 1) * 4 + (u32)j * 4);
+      if (ibkl < (u32)nl && bl[ibkl] > bf[j] && bl[ibkl] <= r->aref[i] + 1) { r->as[i] = bf[j]; r->ae[i] = bl[ibkl]; }
+      break;
+    }
+    dc = doc_add_comment(r->d, ibst < (u32)nown ? owners[ibst] : "", ini, "");
+    r->acom[i] = dc;
+    if (dc < 0) continue;
+    memset(&l, 0, sizeof l);
+    r->depth++;
+    read_story(r, base + txt[i], base + txt[i + 1], &l, 0, base);
+    r->depth--;
+    if (l.np > 1 && !l.p[l.np - 1]->len) { para_free(l.p[l.np - 1]); l.np--; }
+    if (!l.np) pl_add(&l, para_new(&r->d->styles[0].pf, &r->d->styles[0].cf));
+    pl_to_story(&l, &r->d->comments[dc].text);
+  }
+  free(txt); free(bf); free(bl); free(tags);
 }
 
 static Doc *load_doc(const u8 *data, size_t len, unsigned *lost, char *err, size_t errcap)
@@ -1443,6 +1584,9 @@ static Doc *load_doc(const u8 *data, size_t len, unsigned *lost, char *err, size
     if (!r->etxt || n < r->nen) { free(r->etxt); r->etxt = NULL; }
     r->hdd = read_cps(r, FC(11), LCB(11), 0, &r->nhdd);
   }
+  /* (WP28e) bookmarks and comments, before the text that has them */
+  read_bookmarks(r, FC(21), LCB(21), FC(22), LCB(22), FC(23), LCB(23));
+  read_comments(r, FC(4), LCB(4), FC(5), LCB(5), FC(36), LCB(36), FC(37), LCB(37), FC(42), LCB(42), FC(43), LCB(43));
   memset(&body, 0, sizeof body);
   read_story(r, 0, r->ccp[0], &body, 1, 0);
   /* the last section's settings are the document's */

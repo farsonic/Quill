@@ -444,8 +444,56 @@ static void docm(void)
   free(z); free(m); free(s1); free(s2); doc_free(d); doc_free(a);
 }
 
+/* ---- .doc: bookmarks and comments (tests/data/doc-marks.doc: LibreOffice 24.2's .doc of doc-marks.rtf) */
+static void doc_marks(void)
+{
+  unsigned lost = 0;
+  Doc *d = load("tests/data/doc-marks.doc", &lost);
+  const CharFmt *f;
+  int k;
+  ok(".doc: read without losing comments", d && !(lost & LOST_COMMENTS) && d->np >= 3);
+  if (!d) return;
+  f = at(d, "marked text");
+  ok(".doc: a bookmark over its text", f && f->bmark && !strcmp(doc_bmark_name(d, f->bmark), "place") && (f = at(d, "Before")) && !f->bmark);
+  f = at(d, "another");
+  ok(".doc: a second bookmark", f && f->bmark && !strcmp(doc_bmark_name(d, f->bmark), "second"));
+  ok(".doc: comments with their authors, initials and text", d->ncomments == 2 && !strcmp(d->comments[0].author, "Ann Brown") && !strcmp(d->comments[0].initials, "AB") &&
+     d->comments[0].text.np && strstr(d->comments[0].text.p[0]->t, "Note text here.") && !strcmp(d->comments[1].author, "Carl Day") &&
+     d->comments[1].text.np && strstr(d->comments[1].text.p[0]->t, "Point note."));
+  k = para(d, "A ");
+  {
+    const char *t = k >= 0 ? d->p[k]->t : "", *cw = strstr(t, "commented words");
+    ok(".doc: the first comment's marks round its range", cw && cw - t >= 4 && IS_CSTART(cw - 4) && IS_CEND(cw + 15));
+  }
+  {
+    Doc *e = docx_again(d, NULL);
+    ok(".doc: bookmarks and comments saved as .docx and read back", e && e->ncomments == 2 && (f = at(e, "marked text")) && f->bmark && !strcmp(doc_bmark_name(e, f->bmark), "place"));
+    doc_free(e);
+  }
+  doc_free(d);
+  {
+    /* damaged: bytes changed all through the file (the table stream's bookmarks and comments too) */
+    size_t n;
+    u8 *b = file_read("tests/data/doc-marks.doc", &n), *c;
+    extern const DocFormat fmt_doc;
+    u32 seed = 12345;
+    int i, j;
+    for (i = 0; b && i < 300; i++) {
+      char err[200];
+      if (!(c = (u8 *)malloc(n))) break;
+      memcpy(c, b, n);
+      for (j = 0; j < 8; j++) { seed = seed * 1103515245u + 12345u; c[(seed >> 8) % n] = (u8)(seed >> 3); }
+      doc_free(fmt_doc.load(c, n, &lost, err, sizeof err));
+      free(c);
+    }
+    ok(".doc: 300 damaged copies read safely", b != NULL);
+    free(b);
+  }
+}
+
 void test_wp28e(void)
 {
+  doc_marks();
   docm();
   strict();
   markdown_source();
