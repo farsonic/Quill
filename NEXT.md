@@ -26,7 +26,7 @@ build, finish the package as its entry in the gap document describes, test, merg
 
 | Branch | Package | Commits ahead | State |
 |---|---|---|---|
-| protect | WP6 Compare/Combine, WP7 Restrict Editing + encryption (core/cfb.c, core/crypt.c) | 15 | furthest along; needs finishing checks (LibreOffice/msoffcrypto opening encrypted files) |
+| protect | WP6 Compare/Combine, WP7 Restrict Editing + encryption, WP28d .doc reader | 20 | finished, ready to merge: encryption checked both ways with LibreOffice 24.2 and msoffcrypto-tool; Restrict Editing 🟨 only for forms (waits for WP16's `prot_form_at`); .doc read 🟨 (no pictures, comments, bookmarks) |
 | cite | WP3 citations and bibliography | 9 | partly built |
 | refs | WP2 captions, table of figures, index, authorities, TOC as a field | 6 | partly built |
 | custom | WP26 Options panes, Customize Ribbon/QAT/Keyboard, command search, KeyTips, ribbon group collapsing at 640 px | 5 | partly built |
@@ -36,15 +36,12 @@ build, finish the package as its entry in the gap document describes, test, merg
 
 ## Not started
 
-- **WP28d .doc reader** (Word 97-2003): needs `core/cfb.c` from the `protect` branch first.
 - **WP30 more interface languages** (Dutch, Swedish, Danish, Portuguese first; Latin-2 later): do it last,
   after all strings are in. Rows live in `tools/lang/wp*.py`; `tools/mklang.py` and `tools/langcheck.py`.
 
 ## Integration fixes to make before a release
 
-1. **settings.xml element order**: WP5, WP7 and WP23 all write at hook position 1, so trackRevisions /
-   documentProtection / attachedTemplate can come out of schema order; WP0's comment listing attachedTemplate
-   at position 3 is itself against the schema. Write settings in one schema-ordered place.
+1. **settings.xml element order**: fixed on `protect` for slot 1 (WP23's attachedTemplate group first, then WP4's mailMerge, WP5's revisionView/doNotTrack*, WP7's documentProtection, as CT_Settings orders them; tests/test_wp7.c `settings_order`). The `mailings` branch puts its call in the same place; when merging, keep that order (WP23, WP4, WP5, WP7).
 2. **settings.xml.rels**: WP23 (attached template) and WP4 (mail-merge data source) may both write it; one
    would be dropped. Make it shared.
 3. **Ribbon width**: the Insert tab (and Home in German) is wider than 640 px; several packages put commands
