@@ -103,6 +103,115 @@ static void algorithm(void)
   ok("wide", bidi_wide(0x4E00) && bidi_wide(0xFF21) && !bidi_wide('A') && !bidi_wide(0x5D0));
 }
 
+/* UAX #9 conformance: lines of the Unicode Character Database's BidiCharacterTest.txt (code points;
+   direction 0/1/2 auto; paragraph level; levels, x for characters X9 removes; visual order without
+   them). Returns the number of lines that failed, *total the lines read; -1 if the file is missing */
+static long bidi_char_test(const char *path, long *total)
+{
+  FILE *f = fopen(path, "r");
+  static char line[8192];
+  static u32 cp[512];
+  static u8 lv[512], kl[512];
+  static int kept[512], o2[512];
+  long bad = 0;
+  *total = 0;
+  if (!f) return -1;
+  while (fgets(line, sizeof line, f)) {
+    char *fld[5], *p = line, *q;
+    int k, n = 0, dir, pl, good = 1, i, m = 0;
+    if (line[0] == '#' || line[0] == '\n') continue;
+    for (k = 0; k < 5 && p; k++) { fld[k] = p; p = strchr(p, ';'); if (p) *p++ = 0; }
+    if (k < 5) continue;
+    for (q = fld[0]; *q && n < 512; ) { char *e; unsigned long v = strtoul(q, &e, 16); if (e == q) break; cp[n++] = (u32)v; q = e; }
+    dir = atoi(fld[1]);
+    (*total)++;
+    pl = bidi_levels(cp, NULL, n, dir == 2 ? -1 : dir, lv);
+    bidi_line(cp, NULL, n, pl, lv);
+    if (pl != atoi(fld[2])) good = 0;
+    for (q = fld[3], i = 0; i < n; i++) {
+      while (*q == ' ') q++;
+      if (*q == 'x') { q++; continue; }
+      if (atoi(q) != lv[i]) good = 0;
+      kept[m] = i; kl[m] = lv[i]; m++;
+      while (*q && *q != ' ') q++;
+    }
+    if (good) {
+      bidi_reorder(kl, m, o2);
+      for (q = fld[4], i = 0; i < m; i++) {
+        while (*q == ' ') q++;
+        if (atoi(q) != kept[o2[i]]) good = 0;
+        while (*q && *q != ' ' && *q != '\n') q++;
+      }
+    }
+    if (!good) bad++;
+  }
+  fclose(f);
+  return bad;
+}
+/* UAX #9 conformance by classes: BidiTest.txt (@Levels lines, then "classes; bitset of directions"), each
+   case run with the classes given (the code points don't matter). Returns the cases that failed */
+static long bidi_class_test(const char *path, long *total)
+{
+  static const char *const names[] = { "L", "R", "AL", "EN", "ES", "ET", "AN", "CS", "NSM", "BN", "B", "S", "WS", "ON",
+                                       "LRE", "LRO", "RLE", "RLO", "PDF", "LRI", "RLI", "FSI", "PDI" };
+  FILE *f = fopen(path, "r");
+  static char line[4096], levs[2048];
+  static u8 cls[256], lv[256];
+  static u32 cp[256];
+  long bad = 0;
+  *total = 0;
+  if (!f) return -1;
+  levs[0] = 0;
+  while (fgets(line, sizeof line, f)) {
+    char *p, *q, tok[16];
+    int n = 0, bits, b;
+    if (line[0] == '#' || line[0] == '\n') continue;
+    if (!strncmp(line, "@Levels:", 8)) { strncpy(levs, line + 8, sizeof levs - 1); continue; }
+    if (line[0] == '@' || !(p = strchr(line, ';'))) continue;
+    *p++ = 0;
+    bits = (int)strtol(p, NULL, 16);
+    for (q = line; n < 256 && sscanf(q, "%15s", tok) == 1; n++) {
+      int k;
+      for (k = 0; k < 23 && strcmp(tok, names[k]); k++) ;
+      cls[n] = (u8)k; cp[n] = 'a';
+      q = strstr(q, tok) + strlen(tok);
+    }
+    for (b = 0; b < 3; b++) {
+      int pl, i, good = 1;
+      char *z = levs;
+      if (!(bits & (1 << b))) continue;
+      (*total)++;
+      pl = bidi_levels(cp, cls, n, b == 0 ? -1 : b == 1 ? 0 : 1, lv);
+      bidi_line(cp, cls, n, pl, lv);
+      for (i = 0; i < n; i++) {
+        while (*z == ' ' || *z == '\t') z++;
+        if (*z == 'x') { z++; continue; }
+        if (atoi(z) != lv[i]) good = 0;
+        while (*z && *z != ' ' && *z != '\t' && *z != '\n') z++;
+      }
+      if (!good) bad++;
+    }
+  }
+  fclose(f);
+  return bad;
+}
+static void conformance(void)
+{
+  long total, bad = bidi_char_test("tests/data/BidiCharacterTest-sample.txt", &total);
+  const char *full = getenv("QUILL_BIDI_TEST");      /* the whole BidiCharacterTest.txt, where fetched (and BidiTest.txt below) */
+  ok("bidi: BidiCharacterTest sample (Unicode 18) all pass", bad == 0 && total > 300);
+  if (full) {
+    bad = bidi_char_test(full, &total);
+    printf("BidiCharacterTest %s: %ld lines, %ld failed\n", full, total, bad);
+    ok("bidi: the whole BidiCharacterTest passes", bad == 0 && total > 0);
+  }
+  if ((full = getenv("QUILL_BIDI_CLASSTEST"))) {        /* BidiTest.txt */
+    bad = bidi_class_test(full, &total);
+    printf("BidiTest %s: %ld cases, %ld failed\n", full, total, bad);
+    ok("bidi: the whole BidiTest passes", bad == 0 && total > 0);
+  }
+}
+
 /* a font set with Arabic and Hebrew (DejaVu Sans) and CJK (WenQuanYi or IPA Gothic) when the system has them */
 static FontSet ifs;
 static int have_dejavu, have_cjk;
@@ -144,6 +253,27 @@ static void layout_rtl(void)
   ok("rtl: the Latin word at the left end", L->pl[0].boxes[L->pl[0].nboxes - 1].x < L->pl[0].boxes[0].x);
   p = lay_hit(L, 0, x1, y + 10);
   ok("rtl: hit test finds the place back", p.para == 0 && p.off == 2);
+  /* the cursor keys in visual order: Left from the start goes on into the text, and Right comes back */
+  p = lay_visual_step(L, P(0, 0), -1);
+  ok("rtl: Left from the start of a right-to-left line steps into it", p.para == 0 && p.off == 2);
+  p = lay_visual_step(L, P(0, 2), 1);
+  ok("rtl: Right steps back", p.para == 0 && p.off == 0);
+  {
+    /* from the right edge to the left one, every step to the left on the screen, every place visited */
+    i32 lastx = x0, xx;
+    int steps = 0, mono = 1, n = 0;
+    u32 o;
+    Pos q = P(0, 0);
+    for (o = 0; o < d->p[0]->len; o = (u32)utf8_next(d->p[0]->t, d->p[0]->len, o)) n++;
+    for (;;) {
+      Pos nq = lay_visual_step(L, q, -1);
+      if (nq.para != 0 || (nq.para == q.para && nq.off == q.off) || steps > 40) break;
+      lay_caret(L, nq, &pg, &xx, &y, &h);
+      if (xx >= lastx) { mono = 0; break; }
+      lastx = xx; q = nq; steps++;
+    }
+    ok("rtl: Left goes across the mixed line one place at a time", mono && steps >= n - 1);
+  }
   {
     /* the glyphs as shown: the first word reversed */
     char vis[64];
@@ -323,6 +453,54 @@ static void docx_rtl(void)
   }
 }
 
+/* the dark pixels of page 0 at 72 dpi in the band of y (pixels) [y0, y1) */
+static long dark_pixels(Layout *L, u32 y0, u32 y1)
+{
+  u32 w, h, x, y;
+  long n = 0;
+  u8 *rgb = pdf_page_rgb(L, 0, 150, &w, &h);
+  if (!rgb) return -1;
+  for (y = y0; y < y1 && y < h; y++)
+    for (x = 0; x < w; x++) { const u8 *q = rgb + (y * w + x) * 3; if (q[0] + q[1] + q[2] < 600) n++; }
+  free(rgb);
+  return n;
+}
+/* emphasis marks and phonetic guides: room made above the line, and drawn (in the PDF, and so in page pictures) */
+static void marks(void)
+{
+  Doc *d = doc_new();
+  Layout *L;
+  i32 h0, h1, h2;
+  long plain, dotted, guided;
+  Ruby r;
+  ins(d, "emphasis marks here");
+  L = lay_new(d, &fs);
+  lay_update(L);
+  h0 = L->pl[0].lines[0].height;
+  plain = dark_pixels(L, 0, 2000);
+  lay_free(L);
+  ok("em: set on the text (undoable)", intl_set_em(d, P(0, 0), P(0, 8), EM_DOT) && para_fmt_at(d->p[0], 2)->em == EM_DOT && para_fmt_at(d->p[0], 12)->em == EM_NONE);
+  L = lay_new(d, &fs);
+  lay_update(L);
+  h1 = L->pl[0].lines[0].height;
+  dotted = dark_pixels(L, 0, 2000);
+  lay_free(L);
+  ok("em: room for the marks above the line", h1 > h0);
+  ok("em: the dots drawn", plain > 0 && dotted > plain);
+  { Pos c; doc_undo(d, &c); }
+  ok("em: undo", para_fmt_at(d->p[0], 2)->em == EM_NONE);
+  memset(&r, 0, sizeof r);
+  strcpy(r.text, "guide");
+  ok("ruby: a phonetic guide set", intl_set_ruby(d, P(0, 9), P(0, 14), &r) && para_fmt_at(d->p[0], 10)->ruby);
+  L = lay_new(d, &fs);
+  lay_update(L);
+  h2 = L->pl[0].lines[0].height;
+  guided = dark_pixels(L, 0, 2000);
+  lay_free(L);
+  ok("ruby: room above the line and the guide drawn", h2 > h0 && guided > plain + 20);
+  doc_free(d);
+}
+
 /* PDF: right-to-left text goes out as its visual glyphs (with an embedded font that has them) */
 static void pdf_rtl(void)
 {
@@ -346,10 +524,12 @@ static void pdf_rtl(void)
 void test_wp27(void)
 {
   algorithm();
+  conformance();
   fonts_intl();
   layout_rtl();
   layout_cjk();
   docx_rtl();
   pdf_rtl();
+  marks();
   fonts_free(&ifs);
 }

@@ -226,6 +226,10 @@ Pos  lay_updown(Layout *L, Pos p, i32 x, int dir);
 /* the start and end of the line p is on */
 Pos  lay_line_start(Layout *L, Pos p);
 Pos  lay_line_end(Layout *L, Pos p);
+/* (WP27) the caret place one step to the left (dir -1) or right (1) of p as the line is shown: in a line
+   with right-to-left text the nearest place on that side, at the line's edge on to the next line in
+   reading order; in a left-to-right line pos_left or pos_right */
+Pos  lay_visual_step(Layout *L, Pos p, int dir);
 /* the metrics of a box's format (super/subscript at two thirds size) */
 FaceSize *lay_face(Layout *L, const CharFmt *f);
 i32  lay_text_x(Layout *L, const Box *b, const char *t, u32 off);   /* x within a box of byte off */

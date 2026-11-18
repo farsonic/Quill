@@ -2925,7 +2925,14 @@ void lay_caret(Layout *L, Pos p, u32 *page, i32 *x, i32 *y, i32 *h)
   cx = 0;
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *b = &pl->boxes[k];
-    if (p.off >= b->off && p.off <= b->off + b->len) { cx = lay_text_x(L, b, pl->p->t, p.off); break; }
+    if (p.off >= b->off && p.off <= b->off + b->len) {
+      /* (WP27) where the direction changes, the place before the next character (its box's edge) */
+      if (p.off == b->off + b->len && b->len && k + 1 < ln->box0 + ln->nbox && pl->boxes[k + 1].off == p.off && pl->boxes[k + 1].lvl != b->lvl &&
+          pl->boxes[k + 1].kind == BX_TEXT)
+        b++;
+      cx = lay_text_x(L, b, pl->p->t, p.off);
+      break;
+    }
     cx = b->x + b->w;
   }
   *page = pc->page;
@@ -3067,6 +3074,45 @@ Pos lay_line_end(Layout *L, Pos p)
     p.off = e;
   } else p.off = pl->p->len;
   return p;
+}
+
+/* (WP27) see layout.h */
+Pos lay_visual_step(Layout *L, Pos p, int dir)
+{
+  ParaLay *pl;
+  u32 li, o, end, pg, pg0;
+  i32 x0, y, h, best = 0x7FFFFFFF, x;
+  Pos r = p, q;
+  int found = 0;
+  p = pos_clamp(L->d, p);
+  if (p.para >= L->npl || !L->pl[p.para].nlines) return dir < 0 ? pos_left(L->d, p) : pos_right(L->d, p);
+  pl = &L->pl[p.para];
+  li = line_of(pl, p.off);
+  if (!intl_mixed(pl, &pl->lines[li])) return dir < 0 ? pos_left(L->d, p) : pos_right(L->d, p);
+  end = li + 1 < pl->nlines ? pl->lines[li + 1].start : pl->p->len + 1;
+  lay_caret(L, p, &pg0, &x0, &y, &h);
+  q.para = p.para;
+  /* the caret place on this line nearest x0 on the side dir goes to */
+  for (o = pl->lines[li].start; o < end && o <= pl->p->len; o = (u32)utf8_next(pl->p->t, pl->p->len, o)) {
+    i32 dd;
+    if (o == p.off) { if (o >= pl->p->len) break; continue; }
+    q.off = o;
+    lay_caret(L, q, &pg, &x, &y, &h);
+    dd = dir < 0 ? x0 - x : x - x0;
+    if (pg == pg0 && dd > 0 && dd < best) { best = dd; r = q; found = 1; }
+    if (o >= pl->p->len) break;
+  }
+  if (found) return r;
+  /* at the line's edge: on to the line before or after (a right-to-left paragraph's lines run from the right) */
+  if (pl->rtl & 1) dir = -dir;
+  if (dir > 0) {
+    if (li + 1 < pl->nlines) { r.off = pl->lines[li + 1].start; return r; }
+    if (p.para + 1 < L->d->np) { r.para = p.para + 1; r.off = 0; }
+    return r;
+  }
+  if (li > 0) { r.off = pl->lines[li].start; return pos_left(L->d, r); }
+  if (p.para > 0) { r.para = p.para - 1; r.off = L->d->p[r.para]->len; }
+  return r;
 }
 
 /* AutoFit: the widths a table's columns want for their text. A column's least is its longest word,

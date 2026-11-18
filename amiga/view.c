@@ -4530,7 +4530,7 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
   if (fv_key(d, obj, im, &shift)) return 1;    /* WP12: Extend Selection, column selection */
   caret_hide(d, obj);
   if (d->stale && ((code >= 0x4C && code <= 0x4F) || code == 0x70 || code == 0x71 || code == 0x48 || code == 0x49)) { relayout(d, obj); d->stale = 0; }   /* the cursor keys need the layout */
-  code = wp27_arrow(d, code);                    /* (WP27: Left and Right as seen in right-to-left text) */
+  if (ctrl || alt) code = wp27_arrow(d, code);  /* (WP27: Ctrl/Alt Left and Right as seen in right-to-left text; plain ones step in visual order) */
   switch (code) {
   /* a PC keyboard's Home, End, Page Up and Page Down (as AROS and most adapters send them) */
   case 0x70: move_to(d, ctrl ? doc_start(doc) : lay_line_start(d->lay, d->caret), shift); break;
@@ -4543,8 +4543,8 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
     move_to(d, p, shift);
     vert = 1;
     break; }
-  case 0x4F: move_to(d, ctrl ? lay_line_start(d->lay, d->caret) : alt ? pos_word_left(doc, d->caret) : (!shift && has_sel(d)) ? sel_lo(d) : pos_left(doc, d->caret), shift); break;
-  case 0x4E: move_to(d, ctrl ? lay_line_end(d->lay, d->caret) : alt ? pos_word_right(doc, d->caret) : (!shift && has_sel(d)) ? sel_hi(d) : pos_right(doc, d->caret), shift); break;
+  case 0x4F: move_to(d, ctrl ? lay_line_start(d->lay, d->caret) : alt ? pos_word_left(doc, d->caret) : (!shift && has_sel(d)) ? sel_lo(d) : lay_visual_step(d->lay, d->caret, -1), shift); break;
+  case 0x4E: move_to(d, ctrl ? lay_line_end(d->lay, d->caret) : alt ? pos_word_right(doc, d->caret) : (!shift && has_sel(d)) ? sel_hi(d) : lay_visual_step(d->lay, d->caret, 1), shift); break;
   case 0x4C: case 0x4D: {
     int dir = code == 0x4C ? -1 : 1;
     if (ctrl && alt) { move_to(d, dir < 0 ? doc_start(doc) : doc_end_pos(doc), shift); break; }
