@@ -9,6 +9,7 @@
 #include "../core/encrypt.h"
 #include "../core/protect.h"
 #include "../core/zip.h"
+#include "../core/review.h"
 
 static int hexis(const u8 *b, int n, const char *hex)
 {
@@ -180,6 +181,11 @@ static void encryption(void)
   d = doc_load_file("tests/data/enc-standard.docx", &lost, err, sizeof err);
   ok("encrypt: LibreOffice's standard (AES-128) file opens", starts(d, "The Quill Test"));
   doc_free(d);
+  /* LibreOffice 24.2's agile file (AES-256, SHA-512), saved from word.docx with the password LO-Quill-8 */
+  pw_given = "LO-Quill-8"; asked = 0;
+  d = doc_load_file("tests/data/enc-lo.docx", &lost, err, sizeof err);
+  ok("encrypt: LibreOffice's agile file opens", starts(d, "The Quill Test") && asked == 1 && d->np > 10);
+  doc_free(d);
   pw_given = "wrong";
   asked = 0;
   d = doc_load_file("tests/data/enc-agile.docx", &lost, err, sizeof err);
@@ -320,10 +326,37 @@ static void restrict_editing(void)
   doc_free(d);
 }
 
+/* settings.xml: the packages' elements in CT_Settings' order (NEXT.md's integration item 1): the attached
+   template (WP23) before w:doNotTrackMoves (WP5) before w:documentProtection (WP7), all before w:defaultTabStop */
+static void settings_order(void)
+{
+  Doc *d = three();
+  size_t n;
+  u8 *z;
+  char *st = NULL;
+  const char *a, *b, *c, *t;
+  d->attached = str_dup("Normal.dotm");
+  d->rvsettings |= RVS_NOMOVES;
+  prot_set_kind(d, PR_COMMENTS, 0);
+  prot_start(d, "x");
+  z = docx_save(d, &n);
+  if (z) {
+    ZipReader zr;
+    size_t l = 0;
+    if (zip_open(&zr, z, n)) { st = (char *)zip_read(&zr, zip_find(&zr, "word/settings.xml"), &l); zip_close(&zr); }
+  }
+  a = st ? strstr(st, "<w:attachedTemplate") : NULL; b = st ? strstr(st, "<w:doNotTrackMoves") : NULL;
+  c = st ? strstr(st, "<w:documentProtection") : NULL; t = st ? strstr(st, "<w:defaultTabStop") : NULL;
+  ok("settings: in the schema's order", a && b && c && t && a < b && b < c && c < t);
+  free(st); free(z);
+  doc_free(d);
+}
+
 void test_wp7(void)
 {
   vectors();
   compound();
   encryption();
   restrict_editing();
+  settings_order();
 }

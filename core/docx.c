@@ -5357,11 +5357,15 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
    (w:writeProtection, w:view, w:zoom ...), 1 after w:displayBackgroundShape and before
    w:defaultTabStop (w:trackRevisions, w:documentProtection ...), 2 after w:autoHyphenation (hyphenation
    zone and limits; w:evenAndOddHeaders comes after), 3 after w:compat (w:docVars, w:rsids, m:mathPr,
-   w:attachedTemplate, w:mailMerge ...), 4 after w:evenAndOddHeaders and before w:footnotePr (w:bookFoldPrinting,
+   w:themeFontLang ...), 4 after w:evenAndOddHeaders and before w:footnotePr (w:bookFoldPrinting,
    w:printTwoOnOne ...; WP22a added it) */
 static void docx_write_settings_ext(Doc *d, Buf *b, int where)
 {
   (void)d; (void)b; (void)where;
+  /* (WP23, WP4, then WP5 and WP7: in slot 1 the schema has w:attachedTemplate ... w:stylePaneSortMethod,
+     w:mailMerge, w:revisionView, w:trackRevisions, w:documentProtection in that order) */
+  /* WP23: */
+  if (where == 1) blocks_write_settings(d, b);
   /* WP1: */
   /* WP2: */
   /* WP3: */
@@ -5389,8 +5393,7 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   /* WP22a: */
   pages_write_settings(d, b, where);
   /* WP22b: */
-  /* WP23: */
-  if (where == 1) blocks_write_settings(d, b);
+  /* WP23: (first, above) */
   /* WP24: */
   /* WP27: */
   /* WP31: */
