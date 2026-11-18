@@ -641,6 +641,15 @@ static int speak_next(void)
   }
   return 0;
 }
+/* Read Aloud's voice (Options > Accessibility, kept in Quill.prefs) */
+static LONG speech_rate = DEFRATE, speech_pitch = DEFPITCH, speech_voice;
+static const char *const voices[] = { "Male", "Female", NULL };
+static const WpOption speech_opts[] = {
+  { OP_ACCESSIBILITY, OT_HEAD, "Read Aloud" },
+  { OP_ACCESSIBILITY, OT_CYCLE, "Voice:", "speech.voice", voices, 0, 1, 0, &speech_voice },
+  { OP_ACCESSIBILITY, OT_NUMBER, "Speed (words a minute):", "speech.rate", NULL, MINRATE, MAXRATE, DEFRATE, &speech_rate },
+  { OP_ACCESSIBILITY, OT_NUMBER, "Pitch (Hz):", "speech.pitch", NULL, MINPITCH, MAXPITCH, DEFPITCH, &speech_pitch },
+  { OP_ACCESSIBILITY, OT_TEXT, "Read Aloud speaks through narrator.device, a sentence at a time." } };
 static void read_aloud(void)
 {
   Pos a, b;
@@ -656,6 +665,10 @@ static void read_aloud(void)
     return;
   }
   ndev_open = 1;
+  /* (WP28e/WP26) the voice and speed from Options > Accessibility */
+  nreq->rate = (UWORD)speech_rate; nreq->pitch = (UWORD)speech_pitch; nreq->sex = (UWORD)(speech_voice ? FEMALE : MALE);
+  if (nreq->rate < MINRATE || nreq->rate > MAXRATE) nreq->rate = DEFRATE;
+  if (nreq->pitch < MINPITCH || nreq->pitch > MAXPITCH) nreq->pitch = DEFPITCH;
   if (!scls) scls = MUI_CreateCustomClass(NULL, (STRPTR)MUIC_Notify, NULL, 4, (APTR)sdispatch);
   if (scls && !sobj) sobj = (Object *)NewObject(scls->mcc_Class, NULL, TAG_DONE);
   if (!sobj) { speech_close(); return; }
@@ -871,7 +884,7 @@ static ULONG wp8_key(UWORD code, UWORD qual, const WpCtx *c)
   if (code != 0x56 || (qual & (IEQUALIFIER_CONTROL | IEQUALIFIER_LALT | IEQUALIFIER_RALT))) return 0;
   return (qual & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? ID_PR_THES : ID_PR_SPELLGRAM;
 }
-static void wp8_init(void) { load_prefs8(); ac_setup(); }
+static void wp8_init(void) { load_prefs8(); ac_setup(); wp_options_add(speech_opts, (int)(sizeof speech_opts / sizeof speech_opts[0])); }
 static void wp8_cleanup(void)
 {
   speech_close();

@@ -100,7 +100,7 @@ static const WpMenu menus[] = {
 /* small helpers */
 static const char *trs(const char *s) { return tr(s); }
 /* the user's name (File > Options, PROGDIR:Quill.prefs "name=") as UTF-8, "Quill" if none; and initials */
-static void who(char *au, size_t cap, char *ini)
+static void who(char *au, size_t cap, char *ini)   /* (ini: 8 bytes) */
 {
   char line[200], name[100] = "";
   BPTR f = Open((STRPTR)"PROGDIR:Quill.prefs", MODE_OLDFILE);
@@ -117,6 +117,7 @@ static void who(char *au, size_t cap, char *ini)
   wp_latin1_utf8(name, au, cap);
   for (n = name; *n && k < 4; n++) if (*n != ' ' && (n == name || n[-1] == ' ')) ini[k++] = *n;
   ini[k] = 0;
+  { const char *own = wp_pref("initials"); if (own && *own) { strncpy(ini, own, 7); ini[7] = 0; } }   /* (Options > General) */
 }
 /* the date and time now, as .docx has them: 2026-10-24T09:30:00Z */
 static void now_iso(char *out)

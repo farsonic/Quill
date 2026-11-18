@@ -101,7 +101,7 @@ void wp_options_add(const WpOption *r, int n)
 void wp_ui_get(int *metric, int *dark, int *lang, int *large, char *name, size_t cap);
 void wp_ui_set(int metric, int dark, int lang, int large, const char *name);
 static LONG ui_metric, ui_dark, ui_lang, ui_large;
-static char ui_name[64];
+static char ui_name[64], ui_initials[12];
 static const char *const themes[] = { "Light", "Dark", NULL };
 static const char *const sizes[] = { "Normal", "Large", NULL };
 static const char *const units[] = { "Inches", "Centimetres", NULL };
@@ -111,6 +111,7 @@ static void as_set(LONG v) { wp24_autosave_set((int)v); }
 static const WpOption own[] = {
   { OP_GENERAL, OT_HEAD, "Personalize your copy of Quill" },
   { OP_GENERAL, OT_STRING, "User name:", NULL, NULL, 0, 0, 0, NULL, NULL, NULL, ui_name, sizeof ui_name },
+  { OP_GENERAL, OT_STRING, "Initials:", "initials", NULL, 0, 0, 0, NULL, NULL, NULL, ui_initials, sizeof ui_initials },   /* (comments' initials; empty: the name's) */
   { OP_GENERAL, OT_CYCLE, "Theme:", NULL, themes, 0, 1, 0, &ui_dark },
   { OP_GENERAL, OT_CYCLE, "Text size:", NULL, sizes, 0, 1, 0, &ui_large },
   { OP_GENERAL, OT_BUTTON, "Window and screen...", NULL, NULL, 0, 0, 0, NULL, NULL, NULL, NULL, 0, NULL, ID_WINPREFS },

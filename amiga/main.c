@@ -1263,8 +1263,10 @@ static void comment_done(void)
   /* initials: each word's first letter */
   {
     const char *who = username[0] ? username : "Quill";
+    const char *own = wp_pref("initials");      /* (Options > General) */
     for (n = who; *n && k < 4; n++) if (*n != ' ' && (n == who || n[-1] == ' ')) ini[k++] = *n;
     ini[k] = 0;
+    if (own && *own) { strncpy(ini, own, sizeof ini - 1); ini[sizeof ini - 1] = 0; }
   }
   iso_now(date);
   q.text = u; q.author = au; q.initials = ini; q.date = date; q.edit = cm_editing;

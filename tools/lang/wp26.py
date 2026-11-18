@@ -100,4 +100,12 @@ W = [
 ("Show on the screen", "Auf dem Bildschirm anzeigen", "Afficher à l'écran", "Mostrar en la pantalla", "Mostra sullo schermo"),
 ("These switch at once, as in the View menu.", "Diese schalten sofort um, wie im Menü Ansicht.", "Ces boutons agissent tout de suite, comme dans le menu Affichage.", "Se activan al momento, como en el menú Vista.", "Si attivano subito, come nel menu Visualizza."),
 ("Spelling and grammar as you type: Review > Proofing.", "Rechtschreibung und Grammatik während der Eingabe: Überprüfen > Dokumentprüfung.", "Orthographe et grammaire pendant la frappe : Révision > Vérification.", "Ortografía y gramática mientras escribe: Revisar > Revisión.", "Ortografia e grammatica durante la digitazione: Revisione > Strumenti di correzione."),
+# (WP28e, 2026-11) more of WordCraft's Options: initials, Read Aloud's voice (amiga/wp_proof.c's rows)
+("Initials:", "Initialen:", "Initiales :", "Iniciales:", "Iniziali:"),
+("Voice:", "Stimme:", "Voix :", "Voz:", "Voce:"),
+("Male", "Männlich", "Masculine", "Masculina", "Maschile"),
+("Female", "Weiblich", "Féminine", "Femenina", "Femminile"),
+("Speed (words a minute):", "Geschwindigkeit (Wörter pro Minute):", "Vitesse (mots par minute) :", "Velocidad (palabras por minuto):", "Velocità (parole al minuto):"),
+("Pitch (Hz):", "Tonhöhe (Hz):", "Hauteur (Hz) :", "Tono (Hz):", "Tono (Hz):"),
+("Read Aloud speaks through narrator.device, a sentence at a time.", "Laut vorlesen spricht über narrator.device, Satz für Satz.", "Lecture à voix haute parle par narrator.device, une phrase à la fois.", "Leer en voz alta habla mediante narrator.device, frase a frase.", "Leggi ad alta voce parla tramite narrator.device, una frase alla volta."),
 ]

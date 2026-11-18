@@ -4226,6 +4226,13 @@
   { { "Show on the screen", "Auf dem Bildschirm anzeigen", "Afficher \340 l'\351cran", "Mostrar en la pantalla", "Mostra sullo schermo" } },
   { { "These switch at once, as in the View menu.", "Diese schalten sofort um, wie im Men\374 Ansicht.", "Ces boutons agissent tout de suite, comme dans le menu Affichage.", "Se activan al momento, como en el men\372 Vista.", "Si attivano subito, come nel menu Visualizza." } },
   { { "Spelling and grammar as you type: Review > Proofing.", "Rechtschreibung und Grammatik w\344hrend der Eingabe: \334berpr\374fen > Dokumentpr\374fung.", "Orthographe et grammaire pendant la frappe : R\351vision > V\351rification.", "Ortograf\355a y gram\341tica mientras escribe: Revisar > Revisi\363n.", "Ortografia e grammatica durante la digitazione: Revisione > Strumenti di correzione." } },
+  { { "Initials:", "Initialen:", "Initiales :", "Iniciales:", "Iniziali:" } },
+  { { "Voice:", "Stimme:", "Voix :", "Voz:", "Voce:" } },
+  { { "Male", "M\344nnlich", "Masculine", "Masculina", "Maschile" } },
+  { { "Female", "Weiblich", "F\351minine", "Femenina", "Femminile" } },
+  { { "Speed (words a minute):", "Geschwindigkeit (W\366rter pro Minute):", "Vitesse (mots par minute) :", "Velocidad (palabras por minuto):", "Velocit\340 (parole al minuto):" } },
+  { { "Pitch (Hz):", "Tonh\366he (Hz):", "Hauteur (Hz) :", "Tono (Hz):", "Tono (Hz):" } },
+  { { "Read Aloud speaks through narrator.device, a sentence at a time.", "Laut vorlesen spricht \374ber narrator.device, Satz f\374r Satz.", "Lecture \340 voix haute parle par narrator.device, une phrase \340 la fois.", "Leer en voz alta habla mediante narrator.device, frase a frase.", "Leggi ad alta voce parla tramite narrator.device, una frase alla volta." } },
 /* ---- end WP26 */
 /* ---- begin WP27 (tools/lang/wp27.py) */
   { { "Left-to-Right", "Von links nach rechts", "Gauche \340 droite", "De izquierda a derecha", "Da sinistra a destra" } },
