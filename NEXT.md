@@ -42,6 +42,49 @@ Not checked on an Amiga: the View tab's new Source group at 640 px (ribbonfit sa
 encoding requester, Markdown Source switching, Read Aloud's voice settings (no narrator.device in the emulator).
 LibreOffice 24.2 can't open Flat OPC, so Quill's Flat OPC is only checked against the .docx it stands for.
 
+## Emulator check of the merged interface (branch `emucheck`, 2026-11-18)
+
+Everything merged since 0.15 was run for the first time, on FS-UAE (A4000/68040, uaegfx) with the AROS ROM
+and its Zune, at 640×480 and on a 1024×768 public screen (a small test program opened it; Quill took
+`PUBSCREEN=`), in English and German. Windows were opened with the `CMD=` start argument (the command id),
+tabs and buttons with the mouse. Checked: every ribbon tab (English and German at 640, English at 1024), the
+Mailings windows (recipients, new list, filter, address block, greeting, rules, match fields, wizard, insert
+field, check errors, envelopes, labels, merge to document, preview of merged data from a CSV), References
+(caption, AutoCaption, table of figures, mark entry, index, mark citation, authorities; Insert Citation,
+Create Source, Source Manager), Compare/Combine, Restrict Editing pane, Protect Document, Encrypt, Options
+(General, Proofing, Accessibility with Read Aloud's voice settings), Customize Ribbon, Quick Access
+Toolbar, Keyboard, Tell Me, KeyTips, the Developer tab, Phonetic Guide, Two Lines in One, Asian Typography,
+Document Grid, Right-to-Left and Asian Options, Asian/complex script fonts, Fit One Page, Markdown Source,
+a paper colour, the recent list's x, and a right-to-left document (Hebrew, Arabic shaped, Japanese drawn
+with IPAGothic, numbers and brackets in place). The menus: 805 entries, none over Intuition's limits
+(`DEBUG=` now logs any). No Enforcer-style hits or GURUs besides the Caption crash below.
+
+Fixed on the branch:
+- Insert Caption crashed (bus error in muimaster): `tr_list` ran past two lists without a NULL.
+- Six Mailings windows never opened on Zune (no Radio class there): `radio()` falls back to a cycle gadget;
+  Labels also read its Print choice with the wrong attribute on MUI. Match Fields (29 rows in a Scrollgroup,
+  which that Zune also lacks) is now two pairs to a row and fits 480 lines.
+- Review showed two Comments and two Tracking groups: groups with one caption on a tab are joined
+  (`put_group`; `tools/ribbonfit.py` models it and fails on two groups with one caption).
+- Group captions cut short (Direction, Create, Table of Authorities...) take spare room when squeezed;
+  ribbonfit lists those still cut (View's Source and Show, Insert's Header & Footer and WordArt at 640).
+- German: Speech and Language were both "Sprache" (Speech is now "Sprachausgabe").
+- Options' General pane put the mini toolbar's box above its first heading; Phonetic Guide's Remove was
+  MUI's SimpleButton.
+
+Not checked, or seen and left:
+- Zune draws frame titles (Filter and Sort, Labels, Merge to New Document) faint, white on the frame: a
+  Zune look; check on MUI 3.8.
+- Save As Text's encoding requester, Paragraph Tools' list, content control properties and form field
+  options (they need a selection or a control at the caret), Compare/Combine and Encrypt actually run,
+  Read Aloud speaking (no narrator.device in the emulator), KeyTips with Alt (Alt doesn't reach the
+  emulated Amiga), merging to PDF.
+- Real hardware still needed: AmigaOS 3.1/3.2 with MUI 3.8 (radio buttons, scroll groups, frame titles as
+  MUI draws them), speed of the merged binary on a real 68040, AGA screens, narrator.device.
+- How to repeat it: `Quill <document> CMD=<id> DEBUG=<log>` runs one command once the document is open (ids
+  are the package enums, from `ID_WP_FIRST_OF(i)` = 4000 + 64 × the package's index in `amiga/ids.h`);
+  the log names any dialog whose window couldn't be made.
+
 ## Started but not finished (branches with work in progress)
 
 Each is a branch `<name>` on GitHub (it was a git worktree in the original session); the last commit on each is a
