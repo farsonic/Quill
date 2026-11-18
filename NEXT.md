@@ -26,6 +26,27 @@ save, close, reopen; the saved file checked on the host. Pitfalls found:
   the link stops with "links libgcc's fpgnulib.o", the core has started using another conversion: add it there.
 - New Mac interface words go in `tools/lang/mac.py` (mklang reads it after the work packages).
 
+**Tool strip and rulers (18 November 2026, same branch).** docs/mac.md has the evaluation against Cornerstone's
+classic-Mac chapter point by point, and the new parts: the tool strip (View › Ribbon, `mac/qm_strip.c`: style, font
+and size pop-ups, B I U, alignment, lists, indents; every item a menu command, one state answer `qm_state()` for
+menus and strip), the rulers (View › Ruler, `mac/qm_ruler.c`, sums in `core/ruler.c`, tests in `tests/test_wpmac.c`),
+Format › Paragraph Style (a submenu: Riptide's mac-port gained `NM_SUB`), Bullets, Numbering, the indents (⌘K, ⌘M),
+File › Revert, "Quill Preferences". Proved in the testbed at 1/4/8/32 bits and 640×480, the saved .docx read back
+on the host. Open, in order:
+
+- The Mac's page kept drawing a bold heading word in the sans face after Liberation Serif was chosen for it (the
+  document had the font; the host draws it serif). Find out whether the font failed to load on the Mac.
+- A .docx with a heading whose word got a direct font (doc_font adding a font, then save and reload) comes back with
+  the whole heading in that font: reproduced on the host without the Mac (core round trip of theme fonts).
+- Balloon Help (`hmnu` from the strings table), alert levels in Riptide's requester (a stop icon for "couldn't be
+  read"), a unit preference, the Amiga's ruler switched to `core/ruler.c` (needs the vbcc build).
+
+Pitfalls found:
+- Riptide's update handler ValidRects the whole window after MUIM_Draw: an InvalRect made while drawing an
+  update is lost. The view sets `d->due` and its timer draws the rulers and page box afterwards.
+- Only the rows of a page whose pixels change are copied after an edit: a selection or caret drawn over rows that
+  stay blank survives a format change. The view now remembers where it drew them (`hl_`, `cdrawn`) and erases there.
+
 ## Merged into master (done)
 
 WP0 scaffolding · WP1 fields · WP5 comments and markup · WP8 proofing · WP9 character formatting ·
