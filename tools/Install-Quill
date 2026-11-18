@@ -1,4 +1,4 @@
-; $VER: Install-Quill 0.14 (26.10.2026)
+; $VER: Install-Quill 0.15 (29.10.2026)
 ;
 ; Installer script for Quill, the word processor (Commodore's Installer 43 or later, or AROS's).
 ; Started from its icon (default tool Installer). It installs or updates Quill in a drawer of your
@@ -16,7 +16,7 @@
 ; in lower case (AROS's Installer doesn't know "IN", only "in").
 
 (set @app-name "Quill")
-(set #version "0.14")
+(set #version "0.15")
 
 ; ------------------------------------------------------------------ install or remove
 

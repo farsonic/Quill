@@ -54,6 +54,8 @@
 #include "lang.h"
 #include "wp_tables.h"                 /* WP21a/WP21b: the table tools and turned text */
 #include "wp_objects.h"            /* WP17/WP18 */
+#include "wp_wordart.h"            /* WP19 */
+#include "../core/wordart.h"
 #include "../core/objfx.h"
 
 /* (not in the public MUI 3.8 headers) */
@@ -512,6 +514,7 @@ static void free_pens(struct Data *d, Object *obj)
   for (i = 0; i < d->ncube; i++) ReleasePen(cm, d->cube[i]);
   d->ncube = 0;
   wp18_flush();                         /* (WP18: drawings made with those pens) */
+  wp19_flush();                         /* (WP19) */
   free_pics(d);
   for (i = 0; i < d->ncol; i++) ReleasePen(cm, d->col[i].pen);
   d->ncol = 0;
@@ -610,6 +613,7 @@ static int lower_l1(u8 c) { return (c >= 'a' && c <= 'z') || (c >= 0xE0 && c != 
 /* box b's text (t: the paragraph's UTF-8, shown as Latin-1 for the Amiga font) at x, on baseline base,
    in its colour and screen font: capitals, small capitals, raised and lowered text, underlines and
    strikes. Expects JAM1 (only the letters' pixels set, what's behind showing through) */
+static void get_cube(struct Data *d, Object *obj);     /* (WP19) */
 static void draw_text(struct Data *d, Object *obj, struct RastPort *rp, const Box *b, const char *t, LONG x, LONG base)
 {
   char buf[512];
@@ -620,6 +624,10 @@ static void draw_text(struct Data *d, Object *obj, struct RastPort *rp, const Bo
   u8 low[512], skip[512];
   LONG dx[3] = { 0, 0, 0 }, dy[3] = { 0, 0, 0 };
   ULONG pens[3];
+  if (WA_RICH(&b->f)) {                 /* (WP19) WordArt: drawn from the letters' outlines with its effects */
+    get_cube(d, obj);
+    if (wp19_draw_run(rp, d->lay, b, t, x, base, d->zoom, d->cube, d->cubelv, d->band0, d->band1)) return;
+  }
   {
     /* (WP10) an optional hyphen isn't drawn (with formatting marks: a not sign), a nonbreaking hyphen
        is a hyphen, a nonbreaking space shows as a degree sign with the marks */
@@ -856,6 +864,7 @@ static int sel_object(struct Data *d, Pos *at)
   if (at) *at = lo;
   return pic_index(d->doc->p[lo.para]->t + lo.off);
 }
+#include "wp_draw_view.h"               /* WP20: freeforms and ink drawn, drawing with the mouse, the eraser, the lasso, Ink Replay */
 /* a polygon (xy: n points, pixels x 16) filled, row by row */
 static void fill_poly(struct RastPort *rp, const LONG *xy, int n)
 {
@@ -1101,6 +1110,7 @@ static void draw_leaf(struct Data *d, Object *obj, struct RastPort *rp, const Ob
   t.cx = part->cx; t.cy = part->cy; t.rot = part->rot; t.flip = part->flip;
   bx = cx - OBJ_W(&t) / 2; by = cy - OBJ_H(&t) / 2;          /* its box's top left */
   if (src->pack) { draw_pack(d, obj, rp, src, pl + tx(d, cx - part->cx / 2), pt + tx(d, cy - part->cy / 2), part->cx, part->cy); return; }   /* (WP15a) */
+  if (dv_leaf(d, obj, rp, part, pl, pt, cx, cy)) return;      /* WP20: a freeform or ink */
   outline = src->lstyle != PB_NONE && src->lwidth;
   th = (int)tx(d, src->lwidth * 5 / 2);
   if (th < 1) th = 1;
@@ -1177,7 +1187,10 @@ text:
   if ((src->text && src->text->np) || src->fx.link) {
     Furn f;
     u32 j, ln;
-    if (lay_textbox(d->lay, src, t.cx, &f) && (t.rot || src->fx.vert)) draw_text_turned(d, obj, rp, src, &t, cx, cy, pl, pt, &f);
+    int laid = lay_textbox(d->lay, src, t.cx, &f);
+    if (laid && src->warp) get_cube(d, obj);
+    if (laid && src->warp && wp19_draw_warped(rp, d->lay, src, &t, cx, cy, pl, pt, d->zoom, d->cube, d->cubelv, d->band0, d->band1)) ;   /* (WP19) bent */
+    else if (laid && (t.rot || src->fx.vert)) draw_text_turned(d, obj, rp, src, &t, cx, cy, pl, pt, &f);
     else if (f.n) {
       Pos none;
       i32 tx0 = cx - t.cx / 2, ty0 = cy - t.cy / 2;
@@ -4688,6 +4701,7 @@ static ULONG handle_event(struct IClass *cl, Object *obj, struct MUIP_HandleEven
   if (im->Class == IDCMP_RAWKEY) return key_grab || ww_passive(d) || !key(d, obj, im) ? 0 : MUI_EventHandlerRC_Eat;
   { ULONG r = ev_mouse(d, obj, im); if (r) return r; }    /* WP14b: dragging in an equation */
   { ULONG r = fv_mouse(d, obj, im); if (r) return r; }    /* WP12: Select Objects */
+  { ULONG r = dv_mouse(d, obj, im); if (r) return r; }    /* WP20: drawing, the eraser, the lasso, Ink Replay */
   { ULONG r = ov_mouse(d, obj, im); if (r) return r; }    /* WP11: the outline symbols */
   if (im->Class == IDCMP_MOUSEBUTTONS) {
     if (im->Code == SELECTDOWN && im->MouseX >= _mleft(obj) && im->MouseX <= _mright(obj) && im->MouseY >= _mtop(obj) && im->MouseY <= _mbottom(obj)) {
