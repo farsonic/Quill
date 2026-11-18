@@ -344,6 +344,17 @@ static void add_recent(const char *path)
     if (f) { for (i = 0; i < nrecent; i++) fprintf(f, "%s\n", recent[i]); fclose(f); }
   }
 }
+/* recent document k taken off the list (-1: every one), and the file written again (WordCraft #2716) */
+static void remove_recent(int k)
+{
+  int i;
+  if (k < 0) nrecent = 0;
+  else if (k < nrecent) { for (i = k; i + 1 < nrecent; i++) strcpy(recent[i], recent[i + 1]); nrecent--; }
+  {
+    FILE *f = fopen("PROGDIR:Quill.recent", "w");
+    if (f) { for (i = 0; i < nrecent; i++) fprintf(f, "%s\n", recent[i]); fclose(f); }
+  }
+}
 /* PROGDIR:Quill.prefs, one key=value a line; unknown lines are skipped and a missing file leaves the
    defaults (tb.units -1: inches or centimetres guessed from the paper, see units_metric). Runs
    before the first window exists, so it fills the first slot's Toolbar */
@@ -371,6 +382,7 @@ static void load_prefs(void)
       if (sscanf(line + 5, "%d,%d,%d,%d", &a[0], &a[1], &a[2], &a[3]) == 4)
         { pref_look[0] = (signed char)a[0]; pref_look[1] = (signed char)a[1]; pref_look[2] = (signed char)a[2]; pref_look[3] = (signed char)a[3]; }
     }
+    else if (!strncmp(line, "paper=", 6)) { wp25_paper = atoi(line + 6); if (wp25_paper < 0 || wp25_paper > 3) wp25_paper = 0; }   /* (WP25) */
     else if (!strncmp(line, "windowbox=", 10)) {
       long b[4] = { 0, 0, 0, 0 };
       if (sscanf(line + 10, "%ld,%ld,%ld,%ld", &b[0], &b[1], &b[2], &b[3]) == 4 && b[2] >= 100 && b[3] >= 60)
@@ -387,6 +399,7 @@ static void save_prefs(void)
   fprintf(f, "units=%d\nname=%s\ngrid=%d\ndarkpage=%d\ntheme=%s\n", tb.units, username, pref_grid, pref_darkpage, pref_dark ? "dark" : "light");
   if (pref_lang >= 0) fprintf(f, "language=%s\n", lang_code(pref_lang));
   fprintf(f, "textsize=%s\n", pref_large ? "large" : "normal");
+  if (wp25_paper) fprintf(f, "paper=%d\n", wp25_paper);         /* (WP25: the screen paper colour) */
   fprintf(f, "screen=%s\nwindow=%s\n", pub_screen, pref_win == WIN_LAST ? "last" : pref_win == WIN_FIXED ? "fixed" : "fill");
   if (pref_noaa) fprintf(f, "aatext=off\n");
   if (pref_nohint) fprintf(f, "hinting=off\n");
@@ -4354,6 +4367,7 @@ static void backstage_command(ULONG id)
     win_new(doc_template((int)v), "");
     break;
   case ID_RECENT:
+    if (v >= 0x1000) { remove_recent(v >= 0x2000 ? -1 : (int)(v - 0x1000)); break; }   /* (off the list: that one, or all) */
     backstage_show(0, 0);
     if (v >= 0 && v < nrecent) { char path[256]; strcpy(path, recent[v]); open_path(path); }
     break;
@@ -4702,6 +4716,7 @@ static void win_title_doc(Doc *d)
   for (i = 0; i < MAXWIN; i++) if (wins[i].used && wins[i].doc == d && i != curwin) win_title_slot(i);
 }
 /* (wp_windows.h) */
+void wp25_paper_save(void) { save_prefs(); }
 int wp_win_get(int slot, WpWin *o)
 {
   if (slot < 0 || slot >= MAXWIN || !wins[slot].used) return 0;
@@ -5009,7 +5024,7 @@ int main(int argc, char **argv)
              id == ID_TSTYLEDD || id == ID_PENSTYLE || id == ID_PENWIDTH || id == ID_PENCOLOR || id == ID_TBORDERSDD || id == ID_TSELECTDD ||
              id == ID_AUTOFITDD || id == ID_ROWH || id == ID_COLW || (id >= ID_SHAPESDD && id <= ID_OBJROTDD && id != ID_TEXTBOX) ||
              (id >= ID_PASTESPECDD && id <= ID_PSPACINGDD) || (id >= ID_PASTEDD && id <= ID_FINDDD) || (id >= ID_FORWARDDD && id <= ID_COVERDD) || (id >= ID_THEMEDD && id <= ID_PAGECOLORDD) || id == ID_UNDERLINEDD || wp_is_list(id) ||
-             id == ID_C_EFFECTS || id == ID_C_ULCOLOR || id == ID_C_SHADE || id == ID_P_BULLETLIB || id == ID_P_NUMLIB) ribbon_choice(id);   /* (WP9/WP10's lists in Quill's own groups) */
+             id == ID_C_EFFECTS || id == ID_C_ULCOLOR || id == ID_C_SHADE || id == ID_P_BULLETLIB || id == ID_P_NUMLIB || id == ID_P_PTOOLS) ribbon_choice(id);   /* (WP9/WP10's lists in Quill's own groups) */
     else if (id == ID_TITLE) set_title();
     else if (id == ID_OUTLINECHG) rebuild_nav(0);
     else if (id) {

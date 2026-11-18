@@ -15,7 +15,7 @@ for ln in lines:
         if k>=0: counts[sec][k]+=1
 for sname in order: print(sname, counts[sname])
 if len(sys.argv) > 2 and sys.argv[2] == '--write':
-    out=[]; T=[0,0,0,0]
+    out=[]; T=[0,0,0,0]; seen_all=0
     for sname in order:
         c=counts[sname]; n=sum(c); T=[T[i]+c[i] for i in range(4)]
     for ln in lines:
@@ -25,11 +25,12 @@ if len(sys.argv) > 2 and sys.argv[2] == '--write':
         m=re.match(r'^\| (.+?) \| (\d+) \| (\d+) \| (\d+) \| (\d+) \| (\d+) \|$',ln)
         if m and m.group(1) in counts:
             c=counts[m.group(1)]; ln='| %s | %d | %d | %d | %d | %d |'%(m.group(1),sum(c),c[0],c[1],c[2],c[3])
-        if ln.startswith('| **All** | **531**'):
+        if ln.startswith('| **All** |') and 'Commands' not in ln and seen_all == 0:
+            seen_all = 1
             ln='| **All** | **%d** | **%d** | **%d** | **%d** | **%d** |'%(sum(T),T[0],T[1],T[2],T[3])
         if ln.startswith('- **Ribbon commands:**'):
             app=sum(T)-T[3]
-            ln=('- **Ribbon commands:** %d in WordCraft (the 520 of its catalogue plus Zotero and Help), %d of them applicable to Quill. '
+            ln=('- **Ribbon commands:** %d in WordCraft (its catalogue, the Zotero and Help tabs plus the Paragraph Tools and Markdown Source of its ribbon), %d of them applicable to Quill. '
                 'Quill has **%d** (✅), **%d** partly (🟨) and lacks **%d** (⬜); %d are ➖. So Quill covers %d%% of the applicable commands fully and %d%% at least in part.'
                 %(sum(T),app,T[0],T[1],T[2],T[3],round(100*T[0]/app),round(100*(T[0]+T[1])/app)))
         out.append(ln)

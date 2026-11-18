@@ -18,6 +18,17 @@ WP21a/b tables · WP22a pages and columns · WP22b note options · WP23 template
 WP24 AutoSave/recovery/properties/accessibility · WP25 views and windows · WP28a RTF · WP28b ODT ·
 WP28c HTML and Markdown · WP29 PDF depth and page images · WP31 proofing languages.
 
+## WordCraft sync of 2026-11-18 (branch `wcsync`)
+
+`docs/wordcraft-gap.md` was compared again with WordCraft's `main` at `22a73d9` (2026-11-17): twelve new ribbon
+commands (Emphasis Mark, Fit One Page, the nine Paragraph Tools, Markdown Source) and View Side by Side /
+Synchronous Scrolling, which WordCraft now has, plus nine section-2 features. Done on the branch: Paragraph Tools
+(core/paratools.c, WP10), Fit One Page (core/fitpage.c, WP22a), Side by Side, Synchronous Scrolling and the
+screen paper colours (WP25), removing recent documents (backstage.c), RTF comments (WP28a), line numbers in the
+Line Number style. Still open from that report: Emphasis Mark (WP27), Markdown Source view, tracking style
+changes (styles carry no tracked change in WP5's model), Delete Previous Sentence. Not checked on an Amiga yet:
+the new ribbon items' fit at 640 px (Home's Paragraph group gained a list, View's Window group two buttons).
+
 ## Started but not finished (branches with work in progress)
 
 Each is a branch `<name>` on GitHub (it was a git worktree in the original session); the last commit on each is a

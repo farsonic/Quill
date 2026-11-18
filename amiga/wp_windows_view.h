@@ -31,7 +31,11 @@ typedef struct {
   int darkset, darkwas;         /* the dark page put on for an inverse page colour, and what it was */
   int passive;                  /* a split window's other pane is the working one */
   Object *twin;                 /* the other view of a split window */
+  Object *syncwith;             /* Synchronous Scrolling: the view scrolled along with this one */
+  LONG synced;                  /* this one's scroll position when last passed on */
 } WwState;
+int wp25_paper;                 /* (wp_windows.h) */
+static const ULONG paper_rgb[4] = { 0xFFFFFF, 0xCCE8CF, 0xFAF0DC, 0xE8EAED };
 static Object *ww_clicked;      /* the view last clicked into of a split window (for main.c) */
 
 static WwState *ww(struct Data *d)
@@ -61,6 +65,12 @@ static void ww_laid(struct Data *d)
 static void ww_sync(struct Data *d, Object *obj, int redraw)
 {
   WwState *s = (WwState *)d->wp25;
+  if (s && s->syncwith && d->scrolly != s->synced) {
+    /* Synchronous Scrolling: the other view moves as far as this one did */
+    LONG by = d->scrolly - s->synced;
+    s->synced = d->scrolly;
+    DoMethod(s->syncwith, MUIM_Quill_Command, CMD_WW_SYNCBY, (ULONG)by);
+  }
   if (!s || !s->seenok || !d->doc || !d->lay || d->stale || d->doc->ver == s->seenver) return;
   relayout(d, obj);
   d->caret = pos_clamp(d->doc, d->caret);
@@ -124,6 +134,11 @@ static void ww_prepare(struct Data *d)
 static void ww_pens(struct Data *d, Object *obj)
 {
   WwState *s = (WwState *)d->wp25;
+  if (wp25_paper > 0 && wp25_paper < 4 && !d->darkpage && !(d->doc && d->doc->pagecolor)) {
+    /* the screen paper colour (the document's own page colour comes first) */
+    ULONG c = paper_rgb[wp25_paper];
+    d->pen_page = best(obj, (c >> 16) & 255, (c >> 8) & 255, c & 255);
+  }
   if (!s || !s->reading || s->rd.color != 1) return;
   d->pen_page = best(obj, 0xF4, 0xEC, 0xD8);
   d->pen_text = best(obj, 0x5B, 0x46, 0x36);
@@ -220,6 +235,12 @@ static int ww_command(struct Data *d, Object *obj, struct MUIP_Quill_Command *m)
     return 1; }
   case CMD_WW_TWIN: s->twin = (Object *)m->arg; if (!s->twin) s->passive = 0; return 1;
   case CMD_WW_PASSIVE: if (m->arg && _win(obj)) caret_hide(d, obj); s->passive = (int)m->arg; return 1;
+  case CMD_WW_PAPER: ww_repen(d, obj); if (_win(obj) && d->bw) { caret_hide(d, obj); MUI_Redraw(obj, MADF_DRAWOBJECT); } return 1;
+  case CMD_WW_SYNC: s->syncwith = (Object *)m->arg; s->synced = d->scrolly; return 1;
+  case CMD_WW_SYNCBY:
+    if (_win(obj) && d->bw) { caret_hide(d, obj); scroll_to(d, obj, d->scrolly + (LONG)m->arg); update_prop(d); }
+    s->synced = d->scrolly;
+    return 1;
   case CMD_WW_SIDE: s->side = (int)m->arg; s->many = 0; break;
   case CMD_WW_MANY:
     s->many = (int)(m->arg & 255); s->rows = (int)((m->arg >> 8) & 255);
