@@ -8,6 +8,7 @@
 #define QUILL_WP_CUSTOM_H
 
 #include "wphooks.h"
+#include "../core/custom.h"
 
 /* ---- wp_custom.c, asked by ribbon.c (English names: tabs' and groups' as ribbon.c writes them) */
 int  wp26_tab_hidden(const char *tab);
@@ -48,6 +49,7 @@ Object *wp26_pane(int pane);               /* the pane's contents, made when the
 void wp26_pane_load(void);                 /* the panes show the current choices (the window opening) */
 void wp26_pane_save(void);                 /* OK: the panes' choices kept and saved */
 int  wp26_pane_command(ULONG id);          /* a gadget of the panes (one of WP26's ids): 1 if it was one */
+PrefStore *wp_prefs_store(void);           /* (wp_options.c) Quill.prefs' lines main.c doesn't read (core/custom.h); wp_save_prefs() after a change */
 void wp_prefs_each(const char *prefix, void (*fn)(const char *key, const char *val));   /* Quill.prefs lines starting so */
 void wp_options_drop(void);
 int  wp_options_command(ULONG id);         /* the window's OK (1 if it was) */                /* the language changed: the Options window goes */

@@ -4013,6 +4013,9 @@
   { { "Remove", "Entfernen", "Supprimer", "Quitar", "Rimuovi" } },
   { { "More Options", "Weitere Optionen", "Plus d'options", "M\341s opciones", "Altre opzioni" } },
   { { "Every setting, the ribbon, quick access and keys", "Alle Einstellungen, Men\374band, Schnellzugriff und Tasten", "Tous les param\350tres, le ruban, l'acc\350s rapide et les touches", "Todas las opciones, la cinta, el acceso r\341pido y las teclas", "Tutte le impostazioni, barra multifunzione, accesso rapido e tasti" } },
+  { { "Show on the screen", "Auf dem Bildschirm anzeigen", "Afficher \340 l'\351cran", "Mostrar en la pantalla", "Mostra sullo schermo" } },
+  { { "These switch at once, as in the View menu.", "Diese schalten sofort um, wie im Men\374 Ansicht.", "Ces boutons agissent tout de suite, comme dans le menu Affichage.", "Se activan al momento, como en el men\372 Vista.", "Si attivano subito, come nel menu Visualizza." } },
+  { { "Spelling and grammar as you type: Review > Proofing.", "Rechtschreibung und Grammatik w\344hrend der Eingabe: \334berpr\374fen > Dokumentpr\374fung.", "Orthographe et grammaire pendant la frappe : R\351vision > V\351rification.", "Ortograf\355a y gram\341tica mientras escribe: Revisar > Revisi\363n.", "Ortografia e grammatica durante la digitazione: Revisione > Strumenti di correzione." } },
 /* ---- end WP26 */
 /* ---- begin WP27 (tools/lang/wp27.py) */
 /* ---- end WP27 */

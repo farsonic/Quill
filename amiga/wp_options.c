@@ -41,6 +41,7 @@ static PrefStore store;
 void wp_prefs_keep(const char *line) { pstore_line(&store, line); }
 void wp_prefs_write(FILE *f) { pstore_write(&store, f); }
 const char *wp_pref(const char *key) { return pstore_get(&store, key); }
+PrefStore *wp_prefs_store(void) { return &store; }
 long wp_pref_num(const char *key, long def) { const char *v = pstore_get(&store, key); return v ? atol(v) : def; }
 void wp_pref_set(const char *key, const char *value)
 {

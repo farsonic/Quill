@@ -55,5 +55,50 @@ int  fold_latin1(int c);
 /* how well name matches query (both Latin-1): 0 not at all; higher is better (every word of the
    query found in the name, a word's start better than its middle, the name's start best) */
 int  cmd_match(const char *name, const char *query);
+/* the command catalogue searched: names[i] in the language shown, alt[i] (NULL, or an entry NULL:
+   none) the English name, which counts half. The best max indexes into out, best first (equal
+   scores in catalogue order); how many. Nothing typed: 0 */
+int  cmd_search(const char *const *names, const char *const *alt, int n, const char *query, int *out, int max);
+
+/* ---- the key map: Quill's default keys, with the user's changes over them. Kept in prefs as
+   "key.<name>=<command>" lines ("key.Ctrl+Shift+D=4512|Double Underline"), one for each key whose
+   command differs from the default ("0": the key does nothing) */
+typedef struct { u16 code; u8 mods; u32 id; } KeyBind;
+typedef struct { const KeyBind *def; int ndef; KeyBind *k; int n, cap; } KeyMap;
+int  keymap_init(KeyMap *km, const KeyBind *def, int ndef);      /* the defaults (def is kept: static). 0 out of memory */
+void keymap_free(KeyMap *km);
+int  keymap_set(KeyMap *km, u16 code, u8 mods, u32 id);          /* id 0: the key does nothing. 0 out of memory */
+u32  keymap_get(const KeyMap *km, u16 code, u8 mods);            /* the key's command (0: none) */
+u32  keymap_default(const KeyMap *km, u16 code, u8 mods);
+int  keymap_changed(const KeyMap *km, u16 code, u8 mods);        /* the user's command differs from the default */
+int  keymap_keys_of(const KeyMap *km, u32 id, KeyBind *out, int max);   /* the keys that run id (out may be NULL) */
+void keymap_unbind(KeyMap *km, u32 id);                          /* every key of id does nothing */
+void keymap_reset(KeyMap *km);                                   /* the defaults again */
+/* the key.* lines of ps over the defaults; resolve finds a command from prefs (0: gone), by name first */
+void keymap_load(KeyMap *km, const PrefStore *ps, u32 (*resolve)(const CmdRef *r, void *u), void *u);
+/* every key.* line of ps replaced by the changed keys; name fills a command's CmdRef (its English name) */
+void keymap_save(const KeyMap *km, PrefStore *ps, void (*name)(u32 id, CmdRef *r, void *u), void *u);
+
+/* ---- what the user changed on the ribbon, as prefs lines:
+     ribbon.hide=Insert;Home/Editing        tabs and groups (Tab/Group) hidden, English names
+     ribbon.tab=My Tab                      the user's own tab's name (none: "My Tab")
+     ribbon.group1=Group name:12|Bold,...   its groups (up to RC_MAXGROUP) and their commands
+     qat=3|Save,8|Undo                      the Quick Access Toolbar (none: Quill's defaults) */
+#define RC_MAXHIDE 64
+#define RC_MAXGROUP 6
+#define RC_MAXCMD 24
+#define RC_MAXQAT 16
+typedef struct { char name[40]; CmdRef cmd[RC_MAXCMD]; int n; } RcGroup;
+typedef struct {
+  char hide[RC_MAXHIDE][64]; int nhide;
+  char tabname[40];
+  RcGroup group[RC_MAXGROUP]; int ngroup;
+  CmdRef qat[RC_MAXQAT]; int nqat, qatset;     /* qatset 0: the default toolbar */
+} RibbonCustom;
+void rcustom_read(RibbonCustom *rc, const PrefStore *ps);
+int  rcustom_write(const RibbonCustom *rc, PrefStore *ps);       /* 0 out of memory */
+int  rcustom_hidden(const RibbonCustom *rc, const char *tab, const char *group);   /* group NULL: the tab */
+void rcustom_set_hidden(RibbonCustom *rc, const char *tab, const char *group, int hide);
+void rcustom_clean_name(char *s);            /* a group's or tab's name made safe for the lines (: ; , | = become spaces) */
 
 #endif

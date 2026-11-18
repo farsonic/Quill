@@ -287,3 +287,181 @@ int cmd_match(const char *name, const char *query)
   /* shorter names first among equals: "Bold" before "Bold Italic Underline" */
   return total * 4 + (40 - (int)(strlen(name) > 40 ? 40 : strlen(name))) / 8 + 1;
 }
+int cmd_search(const char *const *names, const char *const *alt, int n, const char *query, int *out, int max)
+{
+  int score[64], i, j, got = 0;
+  if (max > 64) max = 64;
+  if (!query || max <= 0) return 0;
+  for (i = 0; i < n; i++) {
+    int s = names[i] ? cmd_match(names[i], query) : 0;
+    if (!s && alt && alt[i]) s = cmd_match(alt[i], query) / 2;
+    if (!s) continue;
+    for (j = got; j > 0 && score[j - 1] < s; j--) if (j < max) { score[j] = score[j - 1]; out[j] = out[j - 1]; }
+    if (j < max) { score[j] = s; out[j] = i; if (got < max) got++; }
+  }
+  return got;
+}
+
+/* ------------------------------------------------------------------ */
+/* the key map */
+int keymap_init(KeyMap *km, const KeyBind *def, int ndef)
+{
+  km->def = def; km->ndef = ndef; km->k = NULL; km->n = km->cap = 0;
+  keymap_reset(km);
+  return km->n == ndef;
+}
+void keymap_free(KeyMap *km) { free(km->k); km->k = NULL; km->n = km->cap = 0; }
+static int kfind(const KeyMap *km, u16 code, u8 mods)
+{
+  int i;
+  for (i = 0; i < km->n; i++) if (km->k[i].code == code && km->k[i].mods == mods) return i;
+  return -1;
+}
+int keymap_set(KeyMap *km, u16 code, u8 mods, u32 id)
+{
+  int i = kfind(km, code, mods);
+  if (i >= 0) { km->k[i].id = id; return 1; }
+  if (km->n == km->cap) {
+    int nc = km->cap ? km->cap * 2 : 64;
+    KeyBind *nk = (KeyBind *)realloc(km->k, (size_t)nc * sizeof *nk);
+    if (!nk) return 0;
+    km->k = nk; km->cap = nc;
+  }
+  km->k[km->n].code = code; km->k[km->n].mods = mods; km->k[km->n].id = id;
+  km->n++;
+  return 1;
+}
+u32 keymap_get(const KeyMap *km, u16 code, u8 mods)
+{
+  int i = kfind(km, code, mods);
+  return i >= 0 ? km->k[i].id : 0;
+}
+u32 keymap_default(const KeyMap *km, u16 code, u8 mods)
+{
+  int i;
+  for (i = 0; i < km->ndef; i++) if (km->def[i].code == code && km->def[i].mods == mods) return km->def[i].id;
+  return 0;
+}
+int keymap_changed(const KeyMap *km, u16 code, u8 mods) { return keymap_get(km, code, mods) != keymap_default(km, code, mods); }
+int keymap_keys_of(const KeyMap *km, u32 id, KeyBind *out, int max)
+{
+  int i, n = 0;
+  if (!id) return 0;
+  for (i = 0; i < km->n; i++) if (km->k[i].id == id) { if (out && n < max) out[n] = km->k[i]; n++; }
+  return out && n > max ? max : n;
+}
+void keymap_unbind(KeyMap *km, u32 id)
+{
+  int i;
+  for (i = 0; i < km->n; i++) if (km->k[i].id == id) km->k[i].id = 0;
+}
+void keymap_reset(KeyMap *km)
+{
+  int i;
+  km->n = 0;
+  for (i = 0; i < km->ndef; i++) keymap_set(km, km->def[i].code, km->def[i].mods, km->def[i].id);
+}
+void keymap_load(KeyMap *km, const PrefStore *ps, u32 (*resolve)(const CmdRef *r, void *u), void *u)
+{
+  int i;
+  for (i = 0; i < ps->n; i++) {
+    u16 code; u8 mods;
+    CmdRef r;
+    if (strncmp(ps->kv[i].k, "key.", 4) || !key_parse(ps->kv[i].k + 4, &code, &mods)) continue;
+    keymap_set(km, code, mods, cmdlist_parse(ps->kv[i].v, &r, 1) == 1 ? resolve(&r, u) : 0);
+  }
+}
+void keymap_save(const KeyMap *km, PrefStore *ps, void (*name)(u32 id, CmdRef *r, void *u), void *u)
+{
+  int i;
+  for (i = ps->n - 1; i >= 0; i--) if (!strncmp(ps->kv[i].k, "key.", 4)) pstore_set(ps, ps->kv[i].k, NULL);
+  for (i = 0; i < km->n; i++) {
+    char k[48], v[80];
+    CmdRef r;
+    if (!keymap_changed(km, km->k[i].code, km->k[i].mods)) continue;
+    strcpy(k, "key.");
+    key_format(km->k[i].code, km->k[i].mods, k + 4, sizeof k - 4);
+    if (km->k[i].id) { memset(&r, 0, sizeof r); r.id = km->k[i].id; name(km->k[i].id, &r, u); cmdlist_format(&r, 1, v, sizeof v); }
+    else strcpy(v, "0");
+    pstore_set(ps, k, v);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* the ribbon's customization */
+static void copyn(char *d, const char *s, size_t n, size_t cap)
+{
+  if (n >= cap) n = cap - 1;
+  memcpy(d, s, n); d[n] = 0;
+}
+void rcustom_clean_name(char *s) { for (; *s; s++) if (*s == ':' || *s == ';' || *s == ',' || *s == '|' || *s == '=' || *s == '\n' || *s == '\r') *s = ' '; }
+void rcustom_read(RibbonCustom *rc, const PrefStore *ps)
+{
+  const char *s;
+  int g;
+  memset(rc, 0, sizeof *rc);
+  if ((s = pstore_get(ps, "ribbon.hide")))
+    while (*s && rc->nhide < RC_MAXHIDE) {
+      size_t l = strcspn(s, ";");
+      if (l && l < sizeof rc->hide[0]) { copyn(rc->hide[rc->nhide], s, l, sizeof rc->hide[0]); rc->nhide++; }
+      s += l; if (*s) s++;
+    }
+  if ((s = pstore_get(ps, "ribbon.tab"))) copyn(rc->tabname, s, strlen(s), sizeof rc->tabname);
+  for (g = 0; g < RC_MAXGROUP; g++) {
+    char key[32];
+    const char *colon;
+    RcGroup *gr = &rc->group[rc->ngroup];
+    sprintf(key, "ribbon.group%d", g + 1);
+    if (!(s = pstore_get(ps, key)) || !(colon = strchr(s, ':'))) continue;
+    copyn(gr->name, s, (size_t)(colon - s), sizeof gr->name);
+    gr->n = cmdlist_parse(colon + 1, gr->cmd, RC_MAXCMD);
+    rc->ngroup++;
+  }
+  if ((s = pstore_get(ps, "qat"))) { rc->qatset = 1; rc->nqat = cmdlist_parse(s, rc->qat, RC_MAXQAT); }
+}
+int rcustom_write(const RibbonCustom *rc, PrefStore *ps)
+{
+  char buf[RC_MAXHIDE * 64 + 16], key[32];
+  int i, g, ok = 1;
+  size_t o = 0;
+  buf[0] = 0;
+  for (i = 0; i < rc->nhide; i++) {
+    size_t l = strlen(rc->hide[i]);
+    if (o + l + 2 >= sizeof buf) break;
+    if (o) buf[o++] = ';';
+    memcpy(buf + o, rc->hide[i], l + 1); o += l;
+  }
+  ok &= pstore_set(ps, "ribbon.hide", rc->nhide ? buf : NULL);
+  ok &= pstore_set(ps, "ribbon.tab", rc->tabname[0] ? rc->tabname : NULL);
+  for (g = 0; g < RC_MAXGROUP; g++) {
+    sprintf(key, "ribbon.group%d", g + 1);
+    if (g >= rc->ngroup) { ok &= pstore_set(ps, key, NULL); continue; }
+    snprintf(buf, sizeof buf, "%s:", rc->group[g].name);
+    cmdlist_format(rc->group[g].cmd, rc->group[g].n, buf + strlen(buf), sizeof buf - strlen(buf));
+    ok &= pstore_set(ps, key, buf);
+  }
+  if (rc->qatset) { cmdlist_format(rc->qat, rc->nqat, buf, sizeof buf); ok &= pstore_set(ps, "qat", buf); }
+  else ok &= pstore_set(ps, "qat", NULL);
+  return ok;
+}
+static void hide_key(const char *tab, const char *group, char *out, size_t cap)
+{
+  if (group) snprintf(out, cap, "%s/%s", tab, group); else snprintf(out, cap, "%s", tab);
+}
+int rcustom_hidden(const RibbonCustom *rc, const char *tab, const char *group)
+{
+  char t[100];
+  int i;
+  hide_key(tab, group, t, sizeof t);
+  for (i = 0; i < rc->nhide; i++) if (!strcmp(rc->hide[i], t)) return 1;
+  return 0;
+}
+void rcustom_set_hidden(RibbonCustom *rc, const char *tab, const char *group, int hide)
+{
+  char t[100];
+  int i;
+  hide_key(tab, group, t, sizeof t);
+  for (i = 0; i < rc->nhide && strcmp(rc->hide[i], t); i++) ;
+  if (hide && i == rc->nhide && rc->nhide < RC_MAXHIDE && strlen(t) < sizeof rc->hide[0]) strcpy(rc->hide[rc->nhide++], t);
+  if (!hide && i < rc->nhide) { memmove(rc->hide[i], rc->hide[i + 1], (size_t)(rc->nhide - i - 1) * sizeof rc->hide[0]); rc->nhide--; }
+}

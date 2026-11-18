@@ -731,6 +731,7 @@ struct RData {
   LONG tabpad, tabcap;           /* the room round each tab's name (16, less when crowded); a cut-short name's width (0: none) */
   RBox qa[MAXQA];                /* the quick access Save, Undo and Redo buttons in the tab strip (hot: 200 up) */
   RBox qamore, tell;             /* (WP26) the Quick Access arrow and the Tell Me box (-1: not shown) */
+  int showtell, showqa;          /* (WP26) whether the box shows, how many Quick Access buttons (room left by the tabs) */
   RBox item[MAXI]; int nitem;     /* the shown tab's items, in order */
   RBox group[MAXG]; int ngroup;
   /* (WP26) the shown tab's placed items: each one's tool (NULL: a collapsed group's button) and group;
@@ -913,11 +914,12 @@ static LONG strip_right(struct RData *d, Object *obj, LONG tabs_end)
   d->qamore.x0 = (WORD)(x1 - 11); d->qamore.x1 = (WORD)x1; d->qamore.y0 = (WORD)y0; d->qamore.y1 = (WORD)y1;
   x1 -= 13;
   for (t = nqa - 1; t >= 0; t--) {
+    if (t >= d->showqa) { d->qa[t].x0 = d->qa[t].x1 = -1; continue; }   /* (no room: left out) */
     d->qa[t].x0 = (WORD)(x1 - 21); d->qa[t].x1 = (WORD)x1; d->qa[t].y0 = (WORD)y0; d->qa[t].y1 = (WORD)y1;
     x1 -= 24;
   }
   d->tell.x0 = d->tell.x1 = -1;
-  if (wp26_tellme_box()) {
+  if (wp26_tellme_box() && d->showtell) {
     /* the box: a magnifier, and "Tell me" when there is room for it */
     LONG tw = theme_textlen(_rp(obj), theme_font(), "Tell me"), w = 22;
     room = x1 - tabs_end - 4;
@@ -935,8 +937,23 @@ static void layout_ribbon(struct RData *d, Object *obj)
   const Tab *tab;
   LONG gw[MAXG];
   d->width = _mwidth(obj);
-  /* the right end first (its least: the Tell Me box without its words), the tabs in what is left */
-  right = strip_right(d, obj, _mright(obj));       /* (as narrow as it goes) */
+  /* the right end first (its least: the Tell Me box without its words), the tabs in what is left.
+     When the tabs' names wouldn't fit with 6 pixels round each, the Tell Me box goes (the Help key
+     still opens it); when they wouldn't fit even cut to 36 pixels, Quick Access buttons from the end */
+  {
+    LONG need = 0, need6 = 0;
+    for (t = 0; t < NTABS; t++)
+      if (tab_visible(d, t)) { LONG w = theme_textlen(rp, theme_font(), tabs[t].name); need6 += w + 6; need += (w < 36 ? w : 36) + 6; }
+    d->showtell = 1; d->showqa = nqa;
+    for (;;) {
+      right = strip_right(d, obj, _mright(obj));
+      if (need6 <= _mwidth(obj) - 4 - right) break;
+      if (d->showtell && wp26_tellme_box()) { d->showtell = 0; continue; }
+      if (need <= _mwidth(obj) - 4 - right) break;
+      else if (d->showqa > 0) d->showqa--;
+      else break;
+    }
+  }
   /* the tab strip. Each tab has 16 pixels round its name; when that doesn't fit the window (more tabs
      from the work packages, a language with long words) the room round the names shrinks to 6, then
      the longest names are cut short (tabcap, drawn ending in a dot) */
@@ -1004,12 +1021,19 @@ static void layout_ribbon(struct RData *d, Object *obj)
       need += cw - gw[g]; total += cw - gw[g]; gw[g] = cw; d->collapsed[g] = 1;
     }
     if (need > _mwidth(obj) - 4) {
-      /* even so (many groups with long names): every group a button, all as wide, the names cut short */
+      /* even so (many groups with long names): the widest groups narrowed to one width, as buttons
+         with their names cut short, the narrow ones left as they are */
       int ng = tab->n < MAXG ? tab->n : MAXG;
-      LONG each = (_mwidth(obj) - 4) / (ng ? ng : 1);
-      if (each < 30) each = 30;
+      LONG lo = 30, hi = 400;
+      for (g = 0; g < ng; g++)
+        if (tab->groups[g].mode == G_GALLERY && !d->collapsed[g]) { gw[g] = group_button_w(rp, &tab->groups[g]) + 8; d->collapsed[g] = 1; }
+      while (lo < hi) {
+        LONG mid = (lo + hi + 1) / 2, tot = 0;
+        for (g = 0; g < ng; g++) tot += gw[g] < mid ? gw[g] : mid;
+        if (tot <= _mwidth(obj) - 4) lo = mid; else hi = mid - 1;
+      }
       total = 0;
-      for (g = 0; g < ng; g++) { gw[g] = each; d->collapsed[g] = 1; total += each; }
+      for (g = 0; g < ng; g++) { if (gw[g] > lo) { gw[g] = lo; d->collapsed[g] = 1; } total += gw[g]; }
     }
   }
   extra = _mwidth(obj) - total;

@@ -34,6 +34,7 @@
 #include "wp_custom.h"
 #include "wp_charpara.h"
 #include "wp_info.h"
+#include "wp_proof.h"                  /* (WP31_LANGWIN_ID) */
 #include "theme.h"
 #include "lang.h"
 #include "../core/custom.h"
@@ -145,111 +146,64 @@ static void cmd_line(int i, char *out, size_t cap)
 }
 
 /* ------------------------------------------------------------------ */
-/* what the user customized (from Quill.prefs, read on first use) */
-#define MAXHIDE 64
-#define MAXCG 6
-#define MAXCI 24
-static char hides[MAXHIDE][64]; static int nhide;
-static char ctabname[40];
-static char cgname[MAXCG][40]; static ULONG cgids[MAXCG][MAXCI]; static int cgn[MAXCG], ncg;
-static ULONG qat[24]; static int nqat;
+/* what the user customized (from Quill.prefs, read on first use; core/custom.c reads and writes the
+   lines). Each command kept is resolved to this Quill's number once read; those gone are left out */
+static RibbonCustom rc;
 static int custom_loaded;
-static Group cgroups[MAXCG]; static Item citems[MAXCG][MAXCI];
+static Group cgroups[RC_MAXGROUP]; static Item citems[RC_MAXGROUP][RC_MAXCMD];
 static LONG opt_tellme = 1, opt_minibar = 1;
+static const ULONG qat_default[] = { ID_INFO_AUTOSAVE, ID_SAVE, ID_UNDO, ID_REDO };
+static void qat_defaults(RibbonCustom *c)
+{
+  int i;
+  c->nqat = 0;
+  for (i = 0; i < (int)(sizeof qat_default / sizeof qat_default[0]); i++) cmd_ref(qat_default[i], &c->qat[c->nqat++]);
+}
+static int resolve_list(CmdRef *r, int n)
+{
+  int i, k = 0;
+  for (i = 0; i < n; i++) { ULONG id = cmd_resolve(&r[i]); if (id) cmd_ref(id, &r[k++]); }
+  return k;
+}
 static void load_custom(void)
 {
-  const char *s;
-  CmdRef r[32];
-  int i, n, g;
+  int g;
   if (custom_loaded) return;
   custom_loaded = 1;
-  nhide = 0;
-  if ((s = wp_pref("ribbon.hide")))
-    while (*s && nhide < MAXHIDE) {
-      size_t l = strcspn(s, ";");
-      if (l && l < sizeof hides[0]) { memcpy(hides[nhide], s, l); hides[nhide][l] = 0; nhide++; }
-      s += l; if (*s) s++;
-    }
-  s = wp_pref("ribbon.tab");
-  strncpy(ctabname, s ? s : "", sizeof ctabname - 1); ctabname[sizeof ctabname - 1] = 0;
-  ncg = 0;
-  for (g = 0; g < MAXCG; g++) {
-    char key[20];
-    const char *colon;
-    sprintf(key, "ribbon.group%d", g + 1);
-    if (!(s = wp_pref(key)) || !(colon = strchr(s, ':'))) continue;
-    n = (int)(colon - s);
-    if (n >= (int)sizeof cgname[0]) n = sizeof cgname[0] - 1;
-    memcpy(cgname[ncg], s, (size_t)n); cgname[ncg][n] = 0;
-    n = cmdlist_parse(colon + 1, r, MAXCI);
-    cgn[ncg] = 0;
-    for (i = 0; i < n; i++) { ULONG id = cmd_resolve(&r[i]); if (id) cgids[ncg][cgn[ncg]++] = id; }
-    ncg++;
-  }
-  nqat = 0;
-  if ((s = wp_pref("qat"))) {
-    n = cmdlist_parse(s, r, 24);
-    for (i = 0; i < n; i++) { ULONG id = cmd_resolve(&r[i]); if (id) qat[nqat++] = id; }
-  } else { qat[0] = ID_INFO_AUTOSAVE; qat[1] = ID_SAVE; qat[2] = ID_UNDO; qat[3] = ID_REDO; nqat = 4; }
+  rcustom_read(&rc, wp_prefs_store());
+  for (g = 0; g < rc.ngroup; g++) rc.group[g].n = resolve_list(rc.group[g].cmd, rc.group[g].n);
+  if (rc.qatset) rc.nqat = resolve_list(rc.qat, rc.nqat); else qat_defaults(&rc);
 }
 static void save_custom(void)
 {
-  char buf[1600], key[20];
-  CmdRef r[32];
-  int i, g;
-  buf[0] = 0;
-  for (i = 0; i < nhide; i++) { if (strlen(buf) + strlen(hides[i]) + 2 >= sizeof buf) break; if (i) strcat(buf, ";"); strcat(buf, hides[i]); }
-  wp_pref_set("ribbon.hide", nhide ? buf : NULL);
-  wp_pref_set("ribbon.tab", ctabname[0] ? ctabname : NULL);
-  for (g = 0; g < MAXCG; g++) {
-    sprintf(key, "ribbon.group%d", g + 1);
-    if (g >= ncg) { wp_pref_set(key, NULL); continue; }
-    for (i = 0; i < cgn[g]; i++) cmd_ref(cgids[g][i], &r[i]);
-    snprintf(buf, sizeof buf, "%s:", cgname[g]);
-    cmdlist_format(r, cgn[g], buf + strlen(buf), sizeof buf - strlen(buf));
-    wp_pref_set(key, buf);
-  }
-  for (i = 0; i < nqat; i++) cmd_ref(qat[i], &r[i]);
-  cmdlist_format(r, nqat, buf, sizeof buf);
-  wp_pref_set("qat", buf);
+  if (rcustom_write(&rc, wp_prefs_store())) wp_save_prefs();
 }
-static int hidden(const char *what)
-{
-  int i;
-  for (i = 0; i < nhide; i++) if (!strcmp(hides[i], what)) return 1;
-  return 0;
-}
-int wp26_tab_hidden(const char *tab) { load_custom(); return hidden(tab); }
-int wp26_group_hidden(const char *tab, const char *group)
-{
-  char t[100];
-  load_custom();
-  snprintf(t, sizeof t, "%s/%s", tab, group);
-  return hidden(t);
-}
+int wp26_tab_hidden(const char *tab) { load_custom(); return rcustom_hidden(&rc, tab, NULL); }
+int wp26_group_hidden(const char *tab, const char *group) { load_custom(); return rcustom_hidden(&rc, tab, group); }
 int wp26_custom_tab(const char **name, const Group **groups)
 {
   int g, i, n = 0;
   load_custom();
-  for (g = 0; g < ncg; g++) {
+  for (g = 0; g < rc.ngroup; g++) {
     int k = 0;
-    for (i = 0; i < cgn[g]; i++) {
-      const Item *it = ribbon_item_of(cgids[g][i]);
+    for (i = 0; i < rc.group[g].n; i++) {
+      ULONG id = rc.group[g].cmd[i].id;
+      const Item *it = ribbon_item_of(id);
       Item *c = &citems[n][k];
       if (it) *c = *it;
-      else { memset(c, 0, sizeof *c); c->kind = K_BUTTON; c->id = (UWORD)cgids[g][i]; }
+      else { memset(c, 0, sizeof *c); c->kind = K_BUTTON; c->id = (UWORD)id; }
       c->size = S_SMALL; c->flags &= (u8)~(F_ROW1 | F_NEWCOL);
       if (c->kind == K_GALLERY) c->kind = K_DROP;
       if (c->kind == K_LABEL) continue;
-      if (!c->label) c->label = wp26_cmd_name(cgids[g][i]);
+      if (!c->label) c->label = wp26_cmd_name(id);
       if (c->kind == K_FIELD && !c->fieldw) c->fieldw = 60;
       k++;
     }
     if (!k) continue;
-    cgroups[n].name = cgname[g]; cgroups[n].mode = G_COLS; cgroups[n].items = citems[n]; cgroups[n].n = k;
+    cgroups[n].name = rc.group[g].name; cgroups[n].mode = G_COLS; cgroups[n].items = citems[n]; cgroups[n].n = k;
     n++;
   }
-  *name = ctabname[0] ? ctabname : "My Tab";
+  *name = rc.tabname[0] ? rc.tabname : "My Tab";
   *groups = cgroups;
   return n;
 }
@@ -257,7 +211,7 @@ int wp26_qat(ULONG *ids, int max)
 {
   int i;
   load_custom();
-  for (i = 0; i < nqat && i < max; i++) ids[i] = qat[i];
+  for (i = 0; i < rc.nqat && i < max; i++) ids[i] = rc.qat[i].id;
   return i;
 }
 int wp26_tellme_box(void) { return opt_tellme != 0; }
@@ -271,7 +225,7 @@ static void tell_fill(void)
 {
   static char lines[12][120];
   char *q = NULL, ql[80];
-  int score[12], i, k;
+  int i, k;
   ntm = 0;
   get(tmstr, MUIA_String_Contents, &q);
   strncpy(ql, q ? q : "", sizeof ql - 1); ql[sizeof ql - 1] = 0;
@@ -281,14 +235,11 @@ static void tell_fill(void)
   if (!ql[0]) {
     /* nothing typed: the commands used from here lately */
     for (i = 0; i < ntmrecent && ntm < 12; i++) { k = cmd_index(tmrecent[i]); if (k >= 0) tmidx[ntm++] = k; }
-  } else
-    for (i = 0; i < ncmd; i++) {
-      int s = cmd_match(tr(cmds[i].name), ql), j;
-      if (!s) s = cmd_match(cmds[i].name, ql) / 2;       /* (the English name too) */
-      if (!s) continue;
-      for (j = ntm; j > 0 && score[j - 1] < s; j--) if (j < 12) { score[j] = score[j - 1]; tmidx[j] = tmidx[j - 1]; }
-      if (j < 12) { score[j] = s; tmidx[j] = i; if (ntm < 12) ntm++; }
-    }
+  } else {
+    static const char *shown[MAXCMD], *eng[MAXCMD];
+    for (i = 0; i < ncmd; i++) { shown[i] = tr(cmds[i].name); eng[i] = cmds[i].name; }
+    ntm = cmd_search(shown, eng, ncmd, ql, tmidx, 12);
+  }
   for (i = 0; i < ntm; i++) { cmd_line(tmidx[i], lines[i], sizeof lines[i]); DoMethod(tmlist, MUIM_List_InsertSingle, (ULONG)lines[i], MUIV_List_Insert_Bottom); }
   if (ntm) set(tmlist, MUIA_List_Active, 0);
   set(tmlist, MUIA_List_Quiet, FALSE);
@@ -361,7 +312,6 @@ static void tell_run(void)
 
 /* ------------------------------------------------------------------ */
 /* keys: the defaults (Word's, section 2.7, those the Amiga allows and no package took) and the user's */
-typedef struct { u16 code; u8 mods; ULONG id; } KeyBind;
 static const KeyBind defkeys[] = {
   { 0x22, KM_CTRL, ID_FONTDLG },                    /* Ctrl+D Font */
   { 0x20, KM_CTRL | KM_SHIFT, ID_CAPS },            /* Ctrl+Shift+A All Caps */
@@ -403,72 +353,35 @@ static const KeyBind defkeys[] = {
   { 0x21, KM_CTRL | KM_ALT, ID_WP25_FIRST + 2 },    /* Ctrl+Alt+S Split (WP25's ID_WW_SPLIT) */
 };
 #define NDEFKEYS ((int)(sizeof defkeys / sizeof defkeys[0]))
-/* the user's map: the defaults with the user's changes (id 0: a default taken off) */
-#define MAXKEYS 160
+/* the user's map (core/custom.c's KeyMap): the defaults with the user's changes, from Quill.prefs */
 #define MAXG_NAMES 40
-static KeyBind ukeys[MAXKEYS]; static int nukeys, keys_loaded;
-void wp26_key_pref(const char *key, const char *val);
+static KeyMap km; static int keys_loaded;
+static u32 resolve_cb(const CmdRef *r, void *u) { return cmd_resolve(r); }
+static void name_cb(u32 id, CmdRef *r, void *u) { cmd_ref(id, r); }
 static void load_keys(void)
 {
-  int i;
   if (keys_loaded) return;
   keys_loaded = 1;
-  nukeys = 0;
-  for (i = 0; i < NDEFKEYS && nukeys < MAXKEYS; i++) ukeys[nukeys++] = defkeys[i];
-  wp_prefs_each("key.", wp26_key_pref);        /* the user's changes */
+  keymap_init(&km, defkeys, NDEFKEYS);
+  keymap_load(&km, wp_prefs_store(), resolve_cb, NULL);
 }
-/* the user's changes are in Quill.prefs as key.<name>=<command> lines; wp_options.c's store hands
-   them over one by one (wp26_key_pref) */
-static void key_set(u16 code, u8 mods, ULONG id)
-{
-  int i;
-  load_keys();
-  for (i = 0; i < nukeys; i++) if (ukeys[i].code == code && ukeys[i].mods == mods) { ukeys[i].id = id; return; }
-  if (nukeys < MAXKEYS) { ukeys[nukeys].code = code; ukeys[nukeys].mods = mods; ukeys[nukeys].id = id; nukeys++; }
-}
-void wp26_key_pref(const char *key, const char *val)
-{
-  u16 code; u8 mods;
-  CmdRef r;
-  if (strncmp(key, "key.", 4) || !key_parse(key + 4, &code, &mods)) return;
-  if (cmdlist_parse(val, &r, 1) == 1) key_set(code, mods, cmd_resolve(&r));
-  else key_set(code, mods, 0);
-}
-static int key_default(u16 code, u8 mods)
-{
-  int i;
-  for (i = 0; i < NDEFKEYS; i++) if (defkeys[i].code == code && defkeys[i].mods == mods) return (int)defkeys[i].id;
-  return 0;
-}
-/* the map back into Quill.prefs: each key that differs from the default */
 static void save_keys(void)
 {
-  int i;
-  for (i = 0; i < nukeys; i++) {
-    char k[48], v[80];
-    CmdRef r;
-    strcpy(k, "key.");
-    key_format(ukeys[i].code, ukeys[i].mods, k + 4, sizeof k - 4);
-    if ((ULONG)key_default(ukeys[i].code, ukeys[i].mods) == ukeys[i].id) { wp_pref_set(k, NULL); continue; }
-    if (ukeys[i].id) { cmd_ref(ukeys[i].id, &r); cmdlist_format(&r, 1, v, sizeof v); } else strcpy(v, "0");
-    wp_pref_set(k, v);
-  }
+  keymap_save(&km, wp_prefs_store(), name_cb, NULL);
+  wp_save_prefs();
 }
 static u8 mods_of(UWORD qual)
 {
   return (u8)(((qual & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? KM_SHIFT : 0) | ((qual & IEQUALIFIER_CONTROL) ? KM_CTRL : 0) |
               ((qual & (IEQUALIFIER_LALT | IEQUALIFIER_RALT)) ? KM_ALT : 0));
 }
+/* the command of a key: user_only, only where the user changed it (those come before every package's keys) */
 static ULONG key_lookup(u16 code, u8 mods, int user_only)
 {
-  int i;
   load_keys();
-  for (i = 0; i < nukeys; i++)
-    if (ukeys[i].code == code && ukeys[i].mods == mods) {
-      if (user_only && (ULONG)key_default(code, mods) == ukeys[i].id) return 0;
-      return ukeys[i].id;
-    }
-  return 0;
+  if (user_only && !keymap_changed(&km, code, mods)) return 0;
+  if (user_only && !keymap_get(&km, code, mods)) return ID_CU_NOP;     /* (a default the user took off) */
+  return keymap_get(&km, code, mods);
 }
 /* ------------------------------------------------------------------ */
 /* the mini toolbar: a row of buttons over the selection, in a borderless window that doesn't take
@@ -680,28 +593,13 @@ static Object *r_tree, *r_cmds, *r_filter, *r_tabname, *r_grpname, *r_cust;
 static Object *q_cmds, *q_filter, *q_list;
 static Object *k_cmds, *k_filter, *k_cur, *k_new, *k_note;
 /* the copies */
-static char w_hides[MAXHIDE][64]; static int w_nhide;
-static char w_cgname[MAXCG][40]; static ULONG w_cgids[MAXCG][MAXCI]; static int w_cgn[MAXCG], w_ncg;
-static ULONG w_qat[24]; static int w_nqat;
-static KeyBind w_keys[MAXKEYS]; static int w_nkeys;
+static RibbonCustom wrc;
+static KeyMap wkm; static int wkm_made;
 static u16 cap_code; static u8 cap_mods; static int cap_ok;
 /* the rows of the ribbon list: a tab (group -1) or a group of it */
 static struct { int tab, group; char line[80]; } rrow[300];
 static int nrrow;
 static int fil_idx[3][MAXCMD], nfil[3];          /* each pane's command list, filtered */
-static int w_hidden(const char *what)
-{
-  int i;
-  for (i = 0; i < w_nhide; i++) if (!strcmp(w_hides[i], what)) return 1;
-  return 0;
-}
-static void w_sethidden(const char *what, int on)
-{
-  int i;
-  for (i = 0; i < w_nhide && strcmp(w_hides[i], what); i++) ;
-  if (on && i == w_nhide && w_nhide < MAXHIDE) { strncpy(w_hides[w_nhide], what, 63); w_hides[w_nhide][63] = 0; w_nhide++; }
-  if (!on && i < w_nhide) { memmove(w_hides[i], w_hides[i + 1], (size_t)(w_nhide - i - 1) * sizeof w_hides[0]); w_nhide--; }
-}
 static void fill_cmds(int which, Object *list, Object *filter)
 {
   static char lines[3][MAXCMD][90];
@@ -739,13 +637,11 @@ static void fill_tree(void)
   for (t = 0; t < ribbon_tab_count() && nrrow < 300; t++) {
     const char *tn = ribbon_tab_name(t);
     if (!tn) continue;
-    snprintf(rrow[nrrow].line, sizeof rrow[0].line, "[%c] %s%s", w_hidden(tn) ? ' ' : 'x', tr(tn), ribbon_tab_contextual(t) ? "  *" : "");
+    snprintf(rrow[nrrow].line, sizeof rrow[0].line, "[%c] %s%s", rcustom_hidden(&wrc, tn, NULL) ? ' ' : 'x', tr(tn), ribbon_tab_contextual(t) ? "  *" : "");
     rrow[nrrow].tab = t; rrow[nrrow].group = -1; nrrow++;
     n = ribbon_tab_groups(t, gn, MAXG_NAMES);
     for (g = 0; g < n && nrrow < 300; g++) {
-      char w[100];
-      snprintf(w, sizeof w, "%s/%s", tn, gn[g]);
-      snprintf(rrow[nrrow].line, sizeof rrow[0].line, "      [%c] %s", w_hidden(w) ? ' ' : 'x', tr(gn[g]));
+      snprintf(rrow[nrrow].line, sizeof rrow[0].line, "      [%c] %s", rcustom_hidden(&wrc, tn, gn[g]) ? ' ' : 'x', tr(gn[g]));
       rrow[nrrow].tab = t; rrow[nrrow].group = g; nrrow++;
     }
   }
@@ -755,15 +651,15 @@ static void fill_tree(void)
 }
 static void fill_cust(void)
 {
-  static char lines[MAXCG * (MAXCI + 1)][80];
+  static char lines[RC_MAXGROUP * (RC_MAXCMD + 1)][80];
   int g, i, n = 0;
   set(r_cust, MUIA_List_Quiet, TRUE);
   DoMethod(r_cust, MUIM_List_Clear);
-  for (g = 0; g < w_ncg; g++) {
-    snprintf(lines[n], sizeof lines[0], "%s:", w_cgname[g]);
+  for (g = 0; g < wrc.ngroup; g++) {
+    snprintf(lines[n], sizeof lines[0], "%s:", wrc.group[g].name);
     DoMethod(r_cust, MUIM_List_InsertSingle, (ULONG)lines[n], MUIV_List_Insert_Bottom); n++;
-    for (i = 0; i < w_cgn[g]; i++) {
-      snprintf(lines[n], sizeof lines[0], "    %s", tr(wp26_cmd_name(w_cgids[g][i])));
+    for (i = 0; i < wrc.group[g].n; i++) {
+      snprintf(lines[n], sizeof lines[0], "    %s", tr(wp26_cmd_name(wrc.group[g].cmd[i].id)));
       DoMethod(r_cust, MUIM_List_InsertSingle, (ULONG)lines[n], MUIV_List_Insert_Bottom); n++;
     }
   }
@@ -776,22 +672,22 @@ static int cust_pos(int *g, int *i)
   int gg, row = 0;
   get(r_cust, MUIA_List_Active, &a);
   if (a < 0) return 0;
-  for (gg = 0; gg < w_ncg; gg++) {
+  for (gg = 0; gg < wrc.ngroup; gg++) {
     if (row == a) { *g = gg; *i = -1; return 1; }
     row++;
-    if (a < row + w_cgn[gg]) { *g = gg; *i = (int)(a - row); return 1; }
-    row += w_cgn[gg];
+    if (a < row + wrc.group[gg].n) { *g = gg; *i = (int)(a - row); return 1; }
+    row += wrc.group[gg].n;
   }
   return 0;
 }
 static void fill_qat(void)
 {
-  static char lines[24][64];
+  static char lines[RC_MAXQAT][64];
   int i;
   set(q_list, MUIA_List_Quiet, TRUE);
   DoMethod(q_list, MUIM_List_Clear);
-  for (i = 0; i < w_nqat; i++) {
-    strncpy(lines[i], tr(wp26_cmd_name(w_qat[i])), sizeof lines[i] - 1); lines[i][sizeof lines[i] - 1] = 0;
+  for (i = 0; i < wrc.nqat; i++) {
+    strncpy(lines[i], tr(wp26_cmd_name(wrc.qat[i].id)), sizeof lines[i] - 1); lines[i][sizeof lines[i] - 1] = 0;
     DoMethod(q_list, MUIM_List_InsertSingle, (ULONG)lines[i], MUIV_List_Insert_Bottom);
   }
   set(q_list, MUIA_List_Quiet, FALSE);
@@ -801,21 +697,22 @@ static void show_keys(void)
   static char t[200], nt[160];
   int i = chosen_cmd(2, k_cmds), j;
   t[0] = 0;
-  if (i >= 0)
-    for (j = 0; j < w_nkeys; j++)
-      if (w_keys[j].id == cmds[i].id) {
-        char k[32];
-        key_format(w_keys[j].code, w_keys[j].mods, k, sizeof k);
-        if (strlen(t) + strlen(k) + 3 < sizeof t) { if (t[0]) strcat(t, ", "); strcat(t, k); }
-      }
+  if (i >= 0) {
+    KeyBind kb[8];
+    int nk = keymap_keys_of(&wkm, cmds[i].id, kb, 8);
+    for (j = 0; j < nk; j++) {
+      char k[32];
+      key_format(kb[j].code, kb[j].mods, k, sizeof k);
+      if (strlen(t) + strlen(k) + 3 < sizeof t) { if (t[0]) strcat(t, ", "); strcat(t, k); }
+    }
+  }
   set(k_cur, MUIA_Text_Contents, (ULONG)(t[0] ? t : tr("(none)")));
   nt[0] = 0;
   if (cap_ok) {
     char k[32];
     key_format(cap_code, cap_mods, k, sizeof k);
     set(k_new, MUIA_Text_Contents, (ULONG)k);
-    for (j = 0; j < w_nkeys; j++)
-      if (w_keys[j].code == cap_code && w_keys[j].mods == cap_mods && w_keys[j].id) snprintf(nt, sizeof nt, tr("Currently assigned to: %s"), tr(wp26_cmd_name(w_keys[j].id)));
+    if (keymap_get(&wkm, cap_code, cap_mods)) snprintf(nt, sizeof nt, tr("Currently assigned to: %s"), tr(wp26_cmd_name(keymap_get(&wkm, cap_code, cap_mods))));
   } else set(k_new, MUIA_Text_Contents, (ULONG)tr("(click here, then press the keys)"));
   set(k_note, MUIA_Text_Contents, (ULONG)nt);
 }
@@ -949,15 +846,15 @@ Object *wp26_pane(int pane)
 void wp26_pane_load(void)
 {
   load_custom(); load_keys();
-  memcpy(w_hides, hides, sizeof hides); w_nhide = nhide;
-  memcpy(w_cgname, cgname, sizeof cgname); memcpy(w_cgids, cgids, sizeof cgids); memcpy(w_cgn, cgn, sizeof cgn); w_ncg = ncg;
-  memcpy(w_qat, qat, sizeof qat); w_nqat = nqat;
-  memcpy(w_keys, ukeys, sizeof ukeys); w_nkeys = nukeys;
+  wrc = rc;
+  if (!wkm_made) { wkm_made = 1; keymap_init(&wkm, defkeys, NDEFKEYS); }
+  wkm.n = 0;
+  { int i; for (i = 0; i < km.n; i++) keymap_set(&wkm, km.k[i].code, km.k[i].mods, km.k[i].id); }
   cap_ok = 0;
   if (r_tree) {
     fill_tree(); fill_cmds(0, r_cmds, r_filter); fill_cust();
-    set(r_tabname, MUIA_String_Contents, (ULONG)(ctabname[0] ? ctabname : tr("My Tab")));
-    set(r_grpname, MUIA_String_Contents, (ULONG)(w_ncg ? w_cgname[w_ncg - 1] : tr("My Group")));
+    set(r_tabname, MUIA_String_Contents, (ULONG)(rc.tabname[0] ? rc.tabname : tr("My Tab")));
+    set(r_grpname, MUIA_String_Contents, (ULONG)(wrc.ngroup ? wrc.group[wrc.ngroup - 1].name : tr("My Group")));
   }
   if (q_list) { fill_cmds(1, q_cmds, q_filter); fill_qat(); }
   if (k_cmds) { fill_cmds(2, k_cmds, k_filter); show_keys(); }
@@ -965,60 +862,58 @@ void wp26_pane_load(void)
 void wp26_pane_save(void)
 {
   char *s = NULL;
-  memcpy(hides, w_hides, sizeof hides); nhide = w_nhide;
-  memcpy(cgname, w_cgname, sizeof cgname); memcpy(cgids, w_cgids, sizeof cgids); memcpy(cgn, w_cgn, sizeof cgn); ncg = w_ncg;
-  memcpy(qat, w_qat, sizeof qat); nqat = w_nqat;
-  memcpy(ukeys, w_keys, sizeof ukeys); nukeys = w_nkeys;
+  rc = wrc;
+  km.n = 0;
+  { int i; for (i = 0; i < wkm.n; i++) keymap_set(&km, wkm.k[i].code, wkm.k[i].mods, wkm.k[i].id); }
   if (r_tabname) {
     get(r_tabname, MUIA_String_Contents, &s);
-    strncpy(ctabname, s ? s : "", sizeof ctabname - 1); ctabname[sizeof ctabname - 1] = 0;
-    if (!strcmp(ctabname, tr("My Tab"))) ctabname[0] = 0;
+    strncpy(rc.tabname, s ? s : "", sizeof rc.tabname - 1); rc.tabname[sizeof rc.tabname - 1] = 0;
+    rcustom_clean_name(rc.tabname);
+    if (!strcmp(rc.tabname, tr("My Tab"))) rc.tabname[0] = 0;
   }
   save_custom();
   save_keys();
   ribbon_rebuild();
 }
-static void clean_name(char *s) { for (; *s; s++) if (*s == ':' || *s == ';' || *s == ',' || *s == '|' || *s == '=') *s = ' '; }
 int wp26_pane_command(ULONG id)
 {
   int i, g, e;
   switch (id) {
   case ID_CU_R_TREE: case ID_CU_R_SHOW: case ID_CU_R_HIDE: {
     LONG a = -1;
-    char w[100];
-    const char *gn[MAXG_NAMES];
+    const char *gn[MAXG_NAMES], *tn, *grp = NULL;
     get(r_tree, MUIA_List_Active, &a);
     if (a < 0 || a >= nrrow) break;
-    if (rrow[a].group < 0) strcpy(w, ribbon_tab_name(rrow[a].tab));
-    else { ribbon_tab_groups(rrow[a].tab, gn, MAXG_NAMES); snprintf(w, sizeof w, "%s/%s", ribbon_tab_name(rrow[a].tab), gn[rrow[a].group]); }
-    w_sethidden(w, id == ID_CU_R_HIDE ? 1 : id == ID_CU_R_SHOW ? 0 : !w_hidden(w));
+    tn = ribbon_tab_name(rrow[a].tab);
+    if (!tn) break;
+    if (rrow[a].group >= 0) { ribbon_tab_groups(rrow[a].tab, gn, MAXG_NAMES); grp = gn[rrow[a].group]; }
+    rcustom_set_hidden(&wrc, tn, grp, id == ID_CU_R_HIDE ? 1 : id == ID_CU_R_SHOW ? 0 : !rcustom_hidden(&wrc, tn, grp));
     fill_tree();
     break; }
   case ID_CU_R_FILTER: fill_cmds(0, r_cmds, r_filter); break;
   case ID_CU_R_NEWGROUP: {
     char *s = NULL;
-    if (w_ncg >= MAXCG) break;
+    RcGroup *ng = &wrc.group[wrc.ngroup];
+    if (wrc.ngroup >= RC_MAXGROUP) break;
     get(r_grpname, MUIA_String_Contents, &s);
-    strncpy(w_cgname[w_ncg], s && s[0] ? s : tr("My Group"), sizeof w_cgname[0] - 1); w_cgname[w_ncg][sizeof w_cgname[0] - 1] = 0;
-    clean_name(w_cgname[w_ncg]);
-    w_cgn[w_ncg] = 0; w_ncg++;
+    strncpy(ng->name, s && s[0] ? s : tr("My Group"), sizeof ng->name - 1); ng->name[sizeof ng->name - 1] = 0;
+    rcustom_clean_name(ng->name);
+    ng->n = 0; wrc.ngroup++;
     fill_cust();
     set(r_cust, MUIA_List_Active, MUIV_List_Active_Bottom);
     break; }
   case ID_CU_R_ADD:
     if ((i = chosen_cmd(0, r_cmds)) < 0) break;
-    if (!w_ncg) { strncpy(w_cgname[0], tr("My Group"), sizeof w_cgname[0] - 1); w_cgn[0] = 0; w_ncg = 1; }
-    if (!cust_pos(&g, &e)) g = w_ncg - 1;
-    if (w_cgn[g] >= MAXCI) break;
-    w_cgids[g][w_cgn[g]++] = cmds[i].id;
+    if (!wrc.ngroup) { strncpy(wrc.group[0].name, tr("My Group"), sizeof wrc.group[0].name - 1); rcustom_clean_name(wrc.group[0].name); wrc.group[0].n = 0; wrc.ngroup = 1; }
+    if (!cust_pos(&g, &e)) g = wrc.ngroup - 1;
+    if (wrc.group[g].n >= RC_MAXCMD) break;
+    cmd_ref(cmds[i].id, &wrc.group[g].cmd[wrc.group[g].n++]);
     fill_cust();
     break;
   case ID_CU_R_REMOVE:
     if (!cust_pos(&g, &e)) break;
-    if (e < 0) { memmove(&w_cgname[g], &w_cgname[g + 1], (size_t)(w_ncg - g - 1) * sizeof w_cgname[0]);
-                 memmove(&w_cgids[g], &w_cgids[g + 1], (size_t)(w_ncg - g - 1) * sizeof w_cgids[0]);
-                 memmove(&w_cgn[g], &w_cgn[g + 1], (size_t)(w_ncg - g - 1) * sizeof w_cgn[0]); w_ncg--; }
-    else { memmove(&w_cgids[g][e], &w_cgids[g][e + 1], (size_t)(w_cgn[g] - e - 1) * sizeof(ULONG)); w_cgn[g]--; }
+    if (e < 0) { memmove(&wrc.group[g], &wrc.group[g + 1], (size_t)(wrc.ngroup - g - 1) * sizeof wrc.group[0]); wrc.ngroup--; }
+    else { memmove(&wrc.group[g].cmd[e], &wrc.group[g].cmd[e + 1], (size_t)(wrc.group[g].n - e - 1) * sizeof(CmdRef)); wrc.group[g].n--; }
     fill_cust();
     break;
   case ID_CU_R_UP: case ID_CU_R_DOWN: {
@@ -1027,66 +922,62 @@ int wp26_pane_command(ULONG id)
     if (!cust_pos(&g, &e)) break;
     get(r_cust, MUIA_List_Active, &a);
     if (e < 0) {
-      char tn[40]; ULONG ti[MAXCI]; int tc;
-      if (g + d < 0 || g + d >= w_ncg) break;
-      memcpy(tn, w_cgname[g], sizeof tn); memcpy(ti, w_cgids[g], sizeof ti); tc = w_cgn[g];
-      memcpy(w_cgname[g], w_cgname[g + d], sizeof tn); memcpy(w_cgids[g], w_cgids[g + d], sizeof ti); w_cgn[g] = w_cgn[g + d];
-      memcpy(w_cgname[g + d], tn, sizeof tn); memcpy(w_cgids[g + d], ti, sizeof ti); w_cgn[g + d] = tc;
+      RcGroup t;
+      if (g + d < 0 || g + d >= wrc.ngroup) break;
+      t = wrc.group[g]; wrc.group[g] = wrc.group[g + d]; wrc.group[g + d] = t;
       fill_cust();
     } else {
-      ULONG t;
-      if (e + d < 0 || e + d >= w_cgn[g]) break;
-      t = w_cgids[g][e]; w_cgids[g][e] = w_cgids[g][e + d]; w_cgids[g][e + d] = t;
+      CmdRef t;
+      if (e + d < 0 || e + d >= wrc.group[g].n) break;
+      t = wrc.group[g].cmd[e]; wrc.group[g].cmd[e] = wrc.group[g].cmd[e + d]; wrc.group[g].cmd[e + d] = t;
       fill_cust();
       set(r_cust, MUIA_List_Active, a + d);
     }
     break; }
   case ID_CU_R_RESET:
-    w_nhide = 0; w_ncg = 0;
+    wrc.nhide = 0; wrc.ngroup = 0;
     set(r_tabname, MUIA_String_Contents, (ULONG)tr("My Tab"));
     fill_tree(); fill_cust();
     break;
   case ID_CU_Q_FILTER: fill_cmds(1, q_cmds, q_filter); break;
   case ID_CU_Q_ADD:
-    if ((i = chosen_cmd(1, q_cmds)) < 0 || w_nqat >= 16) break;
-    for (g = 0; g < w_nqat; g++) if (w_qat[g] == cmds[i].id) break;
-    if (g < w_nqat) break;
-    w_qat[w_nqat++] = cmds[i].id;
+    if ((i = chosen_cmd(1, q_cmds)) < 0 || wrc.nqat >= RC_MAXQAT) break;
+    for (g = 0; g < wrc.nqat; g++) if (wrc.qat[g].id == cmds[i].id) break;
+    if (g < wrc.nqat) break;
+    cmd_ref(cmds[i].id, &wrc.qat[wrc.nqat++]); wrc.qatset = 1;
     fill_qat();
     break;
   case ID_CU_Q_REMOVE: case ID_CU_Q_UP: case ID_CU_Q_DOWN: {
     LONG a = -1;
     get(q_list, MUIA_List_Active, &a);
-    if (a < 0 || a >= w_nqat) break;
-    if (id == ID_CU_Q_REMOVE) { memmove(&w_qat[a], &w_qat[a + 1], (size_t)(w_nqat - a - 1) * sizeof(ULONG)); w_nqat--; fill_qat(); break; }
+    if (a < 0 || a >= wrc.nqat) break;
+    wrc.qatset = 1;
+    if (id == ID_CU_Q_REMOVE) { memmove(&wrc.qat[a], &wrc.qat[a + 1], (size_t)(wrc.nqat - a - 1) * sizeof(CmdRef)); wrc.nqat--; fill_qat(); break; }
     {
       LONG b = a + (id == ID_CU_Q_UP ? -1 : 1);
-      ULONG t;
-      if (b < 0 || b >= w_nqat) break;
-      t = w_qat[a]; w_qat[a] = w_qat[b]; w_qat[b] = t;
+      CmdRef t;
+      if (b < 0 || b >= wrc.nqat) break;
+      t = wrc.qat[a]; wrc.qat[a] = wrc.qat[b]; wrc.qat[b] = t;
       fill_qat();
       set(q_list, MUIA_List_Active, b);
     }
     break; }
-  case ID_CU_Q_RESET: w_qat[0] = ID_INFO_AUTOSAVE; w_qat[1] = ID_SAVE; w_qat[2] = ID_UNDO; w_qat[3] = ID_REDO; w_nqat = 4; fill_qat(); break;
+  case ID_CU_Q_RESET: qat_defaults(&wrc); wrc.qatset = 0; fill_qat(); break;
   case ID_CU_K_FILTER: fill_cmds(2, k_cmds, k_filter); show_keys(); break;
   case ID_CU_K_CMDS: show_keys(); break;
   case ID_CU_K_ASSIGN:
     if ((i = chosen_cmd(2, k_cmds)) < 0 || !cap_ok) break;
-    for (g = 0; g < w_nkeys; g++) if (w_keys[g].code == cap_code && w_keys[g].mods == cap_mods) break;
-    if (g == w_nkeys && w_nkeys < MAXKEYS) w_nkeys++;
-    if (g < w_nkeys) { w_keys[g].code = cap_code; w_keys[g].mods = cap_mods; w_keys[g].id = cmds[i].id; }
+    keymap_set(&wkm, cap_code, cap_mods, cmds[i].id);
     cap_ok = 0;
     show_keys();
     break;
   case ID_CU_K_REMOVE:
     if ((i = chosen_cmd(2, k_cmds)) < 0) break;
-    for (g = 0; g < w_nkeys; g++) if (w_keys[g].id == cmds[i].id) w_keys[g].id = 0;
+    keymap_unbind(&wkm, cmds[i].id);
     show_keys();
     break;
   case ID_CU_K_RESET:
-    w_nkeys = 0;
-    for (g = 0; g < NDEFKEYS; g++) w_keys[w_nkeys++] = defkeys[g];
+    keymap_reset(&wkm);
     show_keys();
     break;
   default: return 0;
@@ -1098,6 +989,17 @@ int wp26_pane_command(ULONG id)
 /* the package's settings in the Options window */
 static const WpOption options[] = {
   { OP_GENERAL, OT_CHECK, "Show the mini toolbar on a selection", "minibar", NULL, 0, 1, 1, &opt_minibar },
+  { OP_DISPLAY, OT_HEAD, "Show on the screen" },
+  { OP_DISPLAY, OT_TEXT, "These switch at once, as in the View menu." },
+  { OP_DISPLAY, OT_BUTTON, "Formatting Marks", NULL, NULL, 0, 0, 0, NULL, NULL, NULL, NULL, 0, NULL, ID_MARKS },
+  { OP_DISPLAY, OT_BUTTON, "Ruler", NULL, NULL, 0, 0, 0, NULL, NULL, NULL, NULL, 0, NULL, ID_RULER },
+  { OP_DISPLAY, OT_BUTTON, "Dark Mode", NULL, NULL, 0, 0, 0, NULL, NULL, NULL, NULL, 0, NULL, ID_DARKPAGE },
+  { OP_PROOFING, OT_HEAD, "Proofing" },
+  { OP_PROOFING, OT_BUTTON, "AutoCorrect Options...", NULL, NULL, 0, 0, 0, NULL, NULL, NULL, NULL, 0, NULL, ID_WP8_FIRST + 3 },   /* (WP8's ID_PR_ACOPTS) */
+  { OP_PROOFING, OT_BUTTON, "Set Proofing Language...", NULL, NULL, 0, 0, 0, NULL, NULL, NULL, NULL, 0, NULL, WP31_LANGWIN_ID },
+  { OP_PROOFING, OT_TEXT, "Spelling and grammar as you type: Review > Proofing." },
+  { OP_ACCESSIBILITY, OT_HEAD, "Accessibility" },
+  { OP_ACCESSIBILITY, OT_BUTTON, "Check Accessibility", NULL, NULL, 0, 0, 0, NULL, NULL, NULL, NULL, 0, NULL, ID_INFO_ACC },
   { OP_ADVANCED, OT_HEAD, "Finding commands" },
   { OP_ADVANCED, OT_CHECK, "Tell Me box on the tab strip (the Help key opens it too)", "tellme", NULL, 0, 1, 1, &opt_tellme, NULL, NULL, NULL, 0, ribbon_rebuild },
   { OP_ADVANCED, OT_TEXT, "F10 shows KeyTips: letters for the tabs and tools. Esc goes back." },
@@ -1147,9 +1049,10 @@ int wp26_command(ULONG id, LONG value)
     int i;
     load_custom();
     if (!c) break;
-    for (i = 0; i < nqat && qat[i] != c; i++) ;
-    if (id == ID_CU_QAADD && i == nqat && nqat < 16) qat[nqat++] = c;
-    if (id == ID_CU_QAREMOVE && i < nqat) { memmove(&qat[i], &qat[i + 1], (size_t)(nqat - i - 1) * sizeof(ULONG)); nqat--; }
+    for (i = 0; i < rc.nqat && rc.qat[i].id != c; i++) ;
+    if (id == ID_CU_QAADD && i == rc.nqat && rc.nqat < RC_MAXQAT) cmd_ref(c, &rc.qat[rc.nqat++]);
+    if (id == ID_CU_QAREMOVE && i < rc.nqat) { memmove(&rc.qat[i], &rc.qat[i + 1], (size_t)(rc.nqat - i - 1) * sizeof(CmdRef)); rc.nqat--; }
+    rc.qatset = 1;
     save_custom();
     ribbon_rebuild();
     break; }

@@ -117,6 +117,135 @@ static void tellme(void)
   ok("tell me: fold", fold_latin1(0xC9) == 'e' && fold_latin1('Q') == 'q' && fold_latin1(0xDF) == 's');
 }
 
+static void search(void)
+{
+  static const char *const names[] = { "Fett", "Kursiv", "Tabelle einf\374gen", "Tabelle", "Fettdruck aus" };
+  static const char *const en[] = { "Bold", "Italic", "Insert Table", "Table", NULL };
+  int out[8], n;
+  n = cmd_search(names, en, 5, "tab", out, 8);
+  ok("search: both tables, the shorter name first", n == 2 && out[0] == 3 && out[1] == 2);
+  n = cmd_search(names, en, 5, "bold", out, 8);
+  ok("search: by the English name too", n == 1 && out[0] == 0);
+  n = cmd_search(names, en, 5, "fett", out, 8);
+  ok("search: the shown name beats the English", n == 2 && out[0] == 0 && out[1] == 4);
+  ok("search: at most max", cmd_search(names, en, 5, "t", out, 1) == 1);
+  ok("search: nothing typed", cmd_search(names, en, 5, "", out, 8) == 0 && cmd_search(names, NULL, 5, "zz", out, 8) == 0);
+}
+
+static const KeyBind defs[] = { { 0x22, KM_CTRL, 100 }, { 0x22, KM_CTRL | KM_SHIFT, 101 }, { 0x52, KM_SHIFT, 102 }, { 0x35, KM_CTRL, 103 } };
+static u32 resolve(const CmdRef *r, void *u)
+{
+  (void)u;
+  if (!strcmp(r->name, "Renamed")) return 200;       /* (found by its name: a later Quill numbers it differently) */
+  return r->id >= 100 && r->id < 300 ? r->id : 0;
+}
+static void namer(u32 id, CmdRef *r, void *u)
+{
+  (void)u;
+  sprintf(r->name, "Cmd%lu", (unsigned long)id);
+}
+static void keymap(void)
+{
+  KeyMap km;
+  PrefStore ps;
+  KeyBind kb[4];
+  memset(&ps, 0, sizeof ps);
+  ok("keymap: defaults", keymap_init(&km, defs, 4) && keymap_get(&km, 0x22, KM_CTRL) == 100 && keymap_get(&km, 0x22, KM_ALT) == 0);
+  keymap_set(&km, 0x22, KM_CTRL, 150);              /* Ctrl+D to another */
+  keymap_set(&km, 0x10, KM_CTRL | KM_ALT, 101);     /* a second key for 101 */
+  keymap_unbind(&km, 102);
+  ok("keymap: changed", keymap_changed(&km, 0x22, KM_CTRL) && !keymap_changed(&km, 0x35, KM_CTRL) && keymap_get(&km, 0x52, KM_SHIFT) == 0);
+  ok("keymap: keys of a command", keymap_keys_of(&km, 101, kb, 4) == 2 && keymap_keys_of(&km, 102, NULL, 0) == 0);
+  pstore_line(&ps, "key.Ctrl+Q=999|Gone");           /* (a stale line: replaced) */
+  pstore_line(&ps, "theme=dark");
+  keymap_save(&km, &ps, namer, NULL);
+  ok("keymap: saved the changes only", ps.n == 4 && pstore_get(&ps, "theme") && !pstore_get(&ps, "key.Ctrl+Q")
+     && !strcmp(pstore_get(&ps, "key.Ctrl+D"), "150|Cmd150") && !strcmp(pstore_get(&ps, "key.Ctrl+Alt+Q"), "101|Cmd101")
+     && !strcmp(pstore_get(&ps, "key.Shift+F3"), "0"));
+  keymap_free(&km);
+  keymap_init(&km, defs, 4);
+  pstore_line(&ps, "key.Ctrl+B=7|Renamed");
+  pstore_line(&ps, "key.Nonsense+X=100");
+  keymap_load(&km, &ps, resolve, NULL);
+  ok("keymap: loaded", keymap_get(&km, 0x22, KM_CTRL) == 150 && keymap_get(&km, 0x10, KM_CTRL | KM_ALT) == 101 && keymap_get(&km, 0x52, KM_SHIFT) == 0
+     && keymap_get(&km, 0x35, KM_CTRL) == 200);
+  keymap_reset(&km);
+  ok("keymap: reset", km.n == 4 && keymap_get(&km, 0x52, KM_SHIFT) == 102 && !keymap_changed(&km, 0x22, KM_CTRL));
+  keymap_free(&km);
+  pstore_free(&ps);
+}
+
+/* the default keys of amiga/wp_custom.c (read from its source): no key twice, every one has a name */
+static void default_keys(void)
+{
+  FILE *f = fopen("amiga/wp_custom.c", "r");
+  char line[400];
+  int inside = 0, n = 0, dup = 0, unnamed = 0, k;
+  unsigned codes[200], mods[200];
+  if (!f) { ok("default keys: amiga/wp_custom.c read", 0); return; }
+  while (fgets(line, sizeof line, f)) {
+    char *p = line;
+    if (strstr(line, "static const KeyBind defkeys[]")) { inside = 1; continue; }
+    if (!inside) continue;
+    if (!strncmp(line, "};", 2)) break;
+    while ((p = strstr(p, "{ 0x"))) {
+      unsigned c = (unsigned)strtoul(p + 2, &p, 16), m = 0;
+      char *e = strchr(p, '}');
+      if (!e) break;
+      {
+        char seg[120];
+        size_t l = (size_t)(e - p) < sizeof seg - 1 ? (size_t)(e - p) : sizeof seg - 1;
+        memcpy(seg, p, l); seg[l] = 0;
+        if (strstr(seg, "KM_SHIFT")) m |= KM_SHIFT;
+        if (strstr(seg, "KM_CTRL")) m |= KM_CTRL;
+        if (strstr(seg, "KM_ALT")) m |= KM_ALT;
+      }
+      for (k = 0; k < n; k++) if (codes[k] == c && mods[k] == m) { if (!dup) printf("  key twice: %02X/%u\n", c, m); dup++; }
+      if (!key_name((u16)c)) unnamed++;
+      if (n < 200) { codes[n] = c; mods[n] = m; n++; }
+      p = e;
+    }
+  }
+  fclose(f);
+  ok("default keys: read", n > 40);
+  ok("default keys: no key twice", !dup);
+  ok("default keys: each with a name", !unnamed);
+}
+
+static void ribbon_custom(void)
+{
+  RibbonCustom rc, back;
+  PrefStore ps;
+  memset(&ps, 0, sizeof ps);
+  memset(&rc, 0, sizeof rc);
+  rcustom_set_hidden(&rc, "Insert", NULL, 1);
+  rcustom_set_hidden(&rc, "Home", "Editing", 1);
+  rcustom_set_hidden(&rc, "Home", "Editing", 1);
+  rcustom_set_hidden(&rc, "Mailings", NULL, 1);
+  rcustom_set_hidden(&rc, "Mailings", NULL, 0);
+  ok("ribbon: hidden", rc.nhide == 2 && rcustom_hidden(&rc, "Insert", NULL) && rcustom_hidden(&rc, "Home", "Editing") && !rcustom_hidden(&rc, "Home", NULL));
+  strcpy(rc.tabname, "Mine");
+  strcpy(rc.group[0].name, "Odd: name, really");
+  rcustom_clean_name(rc.group[0].name);
+  rc.group[0].n = cmdlist_parse("12|Bold,4500|Insert Field", rc.group[0].cmd, RC_MAXCMD);
+  strcpy(rc.group[1].name, "Empty");
+  rc.ngroup = 2;
+  rc.qatset = 1; rc.nqat = cmdlist_parse("3|Save", rc.qat, RC_MAXQAT);
+  pstore_line(&ps, "ribbon.group5=stale:1");
+  ok("ribbon: written", rcustom_write(&rc, &ps) && !strcmp(pstore_get(&ps, "ribbon.hide"), "Insert;Home/Editing")
+     && !strcmp(pstore_get(&ps, "ribbon.group1"), "Odd  name  really:12|Bold,4500|Insert Field") && !pstore_get(&ps, "ribbon.group5")
+     && !strcmp(pstore_get(&ps, "qat"), "3|Save"));
+  rcustom_read(&back, &ps);
+  ok("ribbon: read back", back.nhide == 2 && !strcmp(back.tabname, "Mine") && back.ngroup == 2 && back.group[0].n == 2
+     && back.group[0].cmd[1].id == 4500 && !strcmp(back.group[0].cmd[1].name, "Insert Field") && back.group[1].n == 0
+     && back.qatset && back.nqat == 1 && back.qat[0].id == 3);
+  memset(&rc, 0, sizeof rc);
+  rcustom_write(&rc, &ps);
+  rcustom_read(&back, &ps);
+  ok("ribbon: reset leaves nothing", ps.n == 0 && !back.nhide && !back.ngroup && !back.qatset);
+  pstore_free(&ps);
+}
+
 void test_wp26(void)
 {
   prefs_store();
@@ -124,4 +253,8 @@ void test_wp26(void)
   cmdlists();
   keytips();
   tellme();
+  search();
+  keymap();
+  default_keys();
+  ribbon_custom();
 }

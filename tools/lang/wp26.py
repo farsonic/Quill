@@ -97,4 +97,7 @@ W = [
 # the File page
 ("More Options", "Weitere Optionen", "Plus d'options", "Más opciones", "Altre opzioni"),
 ("Every setting, the ribbon, quick access and keys", "Alle Einstellungen, Menüband, Schnellzugriff und Tasten", "Tous les paramètres, le ruban, l'accès rapide et les touches", "Todas las opciones, la cinta, el acceso rápido y las teclas", "Tutte le impostazioni, barra multifunzione, accesso rapido e tasti"),
+("Show on the screen", "Auf dem Bildschirm anzeigen", "Afficher à l'écran", "Mostrar en la pantalla", "Mostra sullo schermo"),
+("These switch at once, as in the View menu.", "Diese schalten sofort um, wie im Menü Ansicht.", "Ces boutons agissent tout de suite, comme dans le menu Affichage.", "Se activan al momento, como en el menú Vista.", "Si attivano subito, come nel menu Visualizza."),
+("Spelling and grammar as you type: Review > Proofing.", "Rechtschreibung und Grammatik während der Eingabe: Überprüfen > Dokumentprüfung.", "Orthographe et grammaire pendant la frappe : Révision > Vérification.", "Ortografía y gramática mientras escribe: Revisar > Revisión.", "Ortografia e grammatica durante la digitazione: Revisione > Strumenti di correzione."),
 ]
