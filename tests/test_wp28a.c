@@ -316,8 +316,34 @@ static void rtf_details(void)
   ok("rtf: the format is known by its first bytes and its name", fmt_rtf.sniff((const u8 *)"{\\rtf1", 6) && doc_format_for_name("A.RTF", 1) == &fmt_rtf);
 }
 
+/* comments read and written (WordCraft #1053): a range, its author, initials, date and text */
+static void rtf_comments(void)
+{
+  Doc *d = doc_new(), *e;
+  Pos c = doc_start(d), a, b;
+  char *out = NULL;
+  int k;
+  add(d, &c, "Before the commented words after.");
+  k = doc_comment(d, P(0, 11), P(0, 25), "Check this.", "Ann Example", "AE", "2026-11-18T10:30:00Z");
+  e = rtf_again(d, NULL, &out);
+  ok("rtf comments: written as atrfstart, annotation", k == 0 && out && strstr(out, "{\\*\\atrfstart 0}") && strstr(out, "{\\*\\atnauthor Ann Example}") &&
+     strstr(out, "\\chatn") && strstr(out, "{\\*\\annotation{\\*\\atnref 0}"));
+  ok("rtf comments: read back with author, initials and date", e && e->ncomments == 1 && !strcmp(e->comments[0].author, "Ann Example") &&
+     !strcmp(e->comments[0].initials, "AE") && !strcmp(e->comments[0].date, "2026-11-18T10:30:00Z") && e->comments[0].text.np == 1 &&
+     !strcmp(e->comments[0].text.p[0]->t, "Check this."));
+  ok("rtf comments: the same range", e && doc_comment_mark(e, 0, 0, &a) && doc_comment_mark(e, 0, 1, &b) && a.para == 0 &&
+     doc_comment_mark(d, 0, 0, &c) && a.off == c.off && doc_comment_mark(d, 0, 1, &c) && b.off == c.off);
+  free(out); doc_free(e); doc_free(d);
+  /* Word's form, with no range: the comment marks its place */
+  e = rtf_str("{\\rtf1\\ansi{\\fonttbl{\\f0 Times;}}\\pard Text{\\*\\atnid JD}{\\*\\atnauthor John Doe}\\chatn{\\*\\annotation{\\*\\atndate 1240588044}\\pard\\plain {\\chatn }Note.}\\par}", NULL);
+  ok("rtf comments: Word's point comment", e && e->ncomments == 1 && !strcmp(e->comments[0].author, "John Doe") && !strcmp(e->comments[0].initials, "JD") &&
+     e->comments[0].text.np >= 1 && !strcmp(e->comments[0].text.p[0]->t, "Note.") && strncmp(e->p[0]->t, "Text", 4) == 0 && e->comments[0].date[0] == '2');
+  doc_free(e);
+}
+
 void test_wp28a(void)
 {
+  rtf_comments();
   rtf_everything();
   rtf_docx_files();
   rtf_from_libreoffice();

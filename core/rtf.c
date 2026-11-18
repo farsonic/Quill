@@ -19,8 +19,9 @@
  * \info's title and author.
  *
  * Writing: the same, as Word would write it (ANSI code page 1252, every other character as \uN with a
- * code page 1252 or '?' fallback). Objects other than pictures (shapes, text boxes) and comments are
- * left out; floating pictures are written in line; nested tables are written flattened.
+ * code page 1252 or '?' fallback). Comments on the body's text are read and written (\atrfstart,
+ * \atrfend, \atnid, \atnauthor, \annotation with \atnref and \atndate; WordCraft #1053); objects other
+ * than pictures (shapes, text boxes) are left out; floating pictures are written in line; nested tables are written flattened.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,7 +37,8 @@
 
 enum { D_BODY, D_SKIP, D_FONTTBL, D_COLORTBL, D_STYLESHEET, D_INFO, D_TITLE, D_AUTHOR, D_PICT, D_FLDINST,
        D_LISTTABLE, D_LIST, D_LEVEL, D_LEVELTEXT, D_LSOVERRIDE, D_BKSTART, D_BKEND, D_REVTBL, D_PN, D_PNTEXT,
-       D_SHPINST, D_SV, D_SN, D_LISTNAME };
+       D_SHPINST, D_SV, D_SN, D_LISTNAME,
+       D_ATNSTART, D_ATNEND, D_ATNID, D_ATNAUTHOR, D_ATNREF, D_ATNDATE };   /* comments (\atrfstart ... \annotation) */
 
 typedef struct {
   CharFmt cf;
@@ -84,7 +86,7 @@ typedef struct {
 
 /* a story being read: the body, a header or footer, a note */
 typedef struct {
-  int kind;                 /* 0 body, 1 header/footer, 2 note */
+  int kind;                 /* 0 body, 1 header/footer, 2 note, 3 comment (\annotation) */
   int which;                /* header/footer: k (0..2*HF_N-1) */
   int depth;                /* the group it ends with */
   int endnote;
@@ -152,6 +154,10 @@ typedef struct {
   int oom;
   u8 nested_lost;
   u8 facingp, titlepg_doc;
+  /* comments: each \atrfstart's name and the comment made for it; the next comment's initials,
+     author, and (inside \annotation) the range it names and its date */
+  struct { char name[24]; int k; } *atn; int natn, atncap;
+  char atnid[12], atnauthor[64], atnref[24]; u32 atndate;
 } R;
 
 enum { BT_NONE, BT_PARA = 1, BT_CELL = 10, BT_PAGE = 20, BT_CHAR = 21, BT_BOX = 22 };
@@ -175,6 +181,15 @@ static void flush(R *r)
   r->pend.len = 0; r->pend.data[0] = 0;
 }
 /* the character format text gets now */
+/* a DTTM date (\revdttm, \atndate) as Word's ISO form, "" for 0 */
+static void dttm_iso(u32 dttm, char *date)
+{
+  date[0] = 0;
+  if (dttm) {
+    int mi = (int)(dttm & 63), h = (int)((dttm >> 6) & 31), dd = (int)((dttm >> 11) & 31), mo = (int)((dttm >> 16) & 15), y = (int)((dttm >> 20) & 511) + 1900;
+    sprintf(date, "%04d-%02d-%02dT%02d:%02d:00Z", y % 10000, mo, dd, h, mi);
+  }
+}
 /* the revision table's author k (the \revauth number) and a \revdttm date as a Doc revision */
 static int rev_of(R *r, int k, u32 dttm)
 {
@@ -274,6 +289,7 @@ static void put_cp(R *r, u32 cp)
     return;
   case D_STYLESHEET: case D_TITLE: case D_AUTHOR: case D_FLDINST: case D_BKSTART: case D_BKEND: case D_REVTBL:
   case D_SN: case D_SV: case D_PN:
+  case D_ATNSTART: case D_ATNEND: case D_ATNID: case D_ATNAUTHOR: case D_ATNREF: case D_ATNDATE:
     break;
   default:
     return;
@@ -325,7 +341,7 @@ static void para_end(R *r)
     p->pf.cell.col = (u8)(s->cell < RTF_MAXCELLS ? s->cell : RTF_MAXCELLS - 1);
   }
   /* a note's first space after its number goes (Quill draws the number) */
-  if (s->kind == 2 && s->chftn == 1 && p->len && p->t[0] == ' ') {
+  if ((s->kind == 2 || s->kind == 3) && s->chftn == 1 && p->len && p->t[0] == ' ') {
     Para *q = para_new(&p->pf, &p->r[0].f);
     u32 k, start = 0;
     if (q) {
@@ -333,7 +349,7 @@ static void para_end(R *r)
       para_free(p); p = q;
     }
   }
-  if (s->kind == 2) s->chftn = 2;
+  if (s->kind == 2 || s->kind == 3) s->chftn = 2;
   if (!pl_add(&s->l, p)) r->oom = 1;
 }
 static void cell_end(R *r)
@@ -485,9 +501,62 @@ static void sto_pop(R *r)
     if (s->endnote) enote_utf8(ref, k); else note_utf8(ref, k);
     body_utf8_at(r, ref, 4, r->depth > 0 ? r->depth - 1 : 0);   /* (in the text round the note) */
     return;
+  } else if (s->kind == 3) {
+    int k = -1, i;
+    char m[8], date[24];
+    r->nsto--;
+    for (i = 0; i < r->natn; i++) if (r->atnref[0] && !strcmp(r->atn[i].name, r->atnref)) { k = r->atn[i].k; break; }
+    if (k < 0 && (k = doc_add_comment(r->d, "", "", "")) >= 0) {
+      /* no range named: the comment marks the place it is at */
+      cmark_utf8(m, k, 0); body_utf8_at(r, m, 4, r->depth > 0 ? r->depth - 1 : 0);
+      cmark_utf8(m, k, 1); body_utf8_at(r, m, 4, r->depth > 0 ? r->depth - 1 : 0);
+    }
+    if (k < 0) { pl_free(&s->l); return; }
+    {
+      Comment *c = &r->d->comments[k];
+      strncpy(c->author, r->atnauthor[0] ? r->atnauthor : "Unknown", sizeof c->author - 1);
+      strncpy(c->initials, r->atnid, sizeof c->initials - 1);
+      dttm_iso(r->atndate, date);
+      strncpy(c->date, date, sizeof c->date - 1);
+      story_free(&c->text);
+      pl_to_story(&s->l, &c->text);
+    }
+    r->atnid[0] = r->atnauthor[0] = r->atnref[0] = 0; r->atndate = 0;
+    return;
   }
   pl_free(&s->l);
   r->nsto--;
+}
+
+/* ---- comments: a destination's text read */
+static void atn_done(R *r, int dst, const char *t)
+{
+  char m[8];
+  int i, k;
+  while (*t == ' ') t++;
+  switch (dst) {
+  case D_ATNID: strncpy(r->atnid, t, sizeof r->atnid - 1); r->atnid[sizeof r->atnid - 1] = 0; break;
+  case D_ATNAUTHOR: strncpy(r->atnauthor, t, sizeof r->atnauthor - 1); r->atnauthor[sizeof r->atnauthor - 1] = 0; break;
+  case D_ATNREF: strncpy(r->atnref, t, sizeof r->atnref - 1); r->atnref[sizeof r->atnref - 1] = 0; break;
+  case D_ATNDATE: r->atndate = (u32)strtoul(t, NULL, 10); break;
+  case D_ATNSTART:
+    if (top(r)->kind != 0) break;                   /* (comments on the body's text only) */
+    if (r->natn == r->atncap) {
+      int nc = r->atncap ? r->atncap * 2 : 8;
+      void *na = realloc(r->atn, (size_t)nc * sizeof r->atn[0]);
+      if (!na) { r->oom = 1; break; }
+      r->atn = na; r->atncap = nc;
+    }
+    if ((k = doc_add_comment(r->d, "", "", "")) < 0) break;
+    strncpy(r->atn[r->natn].name, t, sizeof r->atn[0].name - 1); r->atn[r->natn].name[sizeof r->atn[0].name - 1] = 0;
+    r->atn[r->natn++].k = k;
+    cmark_utf8(m, k, 0); body_utf8_at(r, m, 4, r->depth > 0 ? r->depth - 1 : 0);
+    break;
+  case D_ATNEND:
+    if (top(r)->kind != 0) break;
+    for (i = 0; i < r->natn; i++) if (!strcmp(r->atn[i].name, t)) { cmark_utf8(m, r->atn[i].k, 1); body_utf8_at(r, m, 4, r->depth > 0 ? r->depth - 1 : 0); break; }
+    break;
+  }
 }
 
 /* ---- sections */
@@ -939,12 +1008,24 @@ static void control(R *r, const char *w, int has, long v, int star)
     return;
   }
   if (kw(w, "shppict")) { return; }                          /* its \pict is read where it is */
+  /* comments: {\*\atrfstart N}text{\*\atrfend N}{\*\atnid AB}{\*\atnauthor Name}\chatn{\*\annotation{\*\atnref N}
+     {\*\atndate DTTM} text} */
+  if (kw(w, "atrfstart") || kw(w, "atrfend") || kw(w, "atnid") || kw(w, "atnauthor") || kw(w, "atnref") || kw(w, "atndate")) {
+    dest(r, g, kw(w, "atrfstart") ? D_ATNSTART : kw(w, "atrfend") ? D_ATNEND : kw(w, "atnid") ? D_ATNID : kw(w, "atnauthor") ? D_ATNAUTHOR :
+         kw(w, "atnref") ? D_ATNREF : D_ATNDATE);
+    r->tb.len = 0; if (r->tb.data) r->tb.data[0] = 0;
+    return;
+  }
+  if (kw(w, "annotation")) {
+    if (top(r)->kind != 0) { dest(r, g, D_SKIP); return; }
+    sto_push(r, 3, 0); g->dest = D_BODY; pard(r, g); plain(r, g); return;
+  }
+  if (kw(w, "chatn")) { Sto *t = top(r); if (t->kind == 3 && !t->chftn) t->chftn = 1; return; }   /* (in the comment: its first space goes) */
   if (kw(w, "nonshppict") || kw(w, "shprslt") || kw(w, "pntext") || kw(w, "listtext") || kw(w, "pntxta") || kw(w, "pntxtb") ||
       kw(w, "fldtype") || kw(w, "datafield") || kw(w, "objdata") || kw(w, "objclass") || kw(w, "themedata") ||
       kw(w, "colorschememapping") || kw(w, "latentstyles") || kw(w, "datastore") || kw(w, "xmlnstbl") || kw(w, "rsidtbl") ||
       kw(w, "generator") || kw(w, "filetbl") || kw(w, "mmathPr") || kw(w, "userprops") || kw(w, "pgdsctbl") || kw(w, "xe") ||
-      kw(w, "tc") || kw(w, "txe") || kw(w, "annotation") || kw(w, "atnid") || kw(w, "atnauthor") || kw(w, "atndate") ||
-      kw(w, "atnref") || kw(w, "atnparent") || kw(w, "atrfstart") || kw(w, "atrfend") || kw(w, "nesttableprops") ||
+      kw(w, "tc") || kw(w, "txe") || kw(w, "atnparent") || kw(w, "atntime") || kw(w, "atnicn") || kw(w, "nesttableprops") ||
       kw(w, "template") || kw(w, "docvar") || kw(w, "ftnsep") || kw(w, "ftnsepc") || kw(w, "aftnsep") || kw(w, "aftnsepc") ||
       kw(w, "ftncn") || kw(w, "aftncn") || kw(w, "private") || kw(w, "wgrffmtfilter") || kw(w, "listpicture") || kw(w, "hlinkbase") ||
       kw(w, "keywords") || kw(w, "subject") || kw(w, "doccomm") || kw(w, "comment") || kw(w, "operator") || kw(w, "company") ||
@@ -1454,6 +1535,10 @@ static void group_close(R *r)
         r->tb.len = 0;
       }
       break;
+    case D_ATNSTART: case D_ATNEND: case D_ATNID: case D_ATNAUTHOR: case D_ATNREF: case D_ATNDATE:
+      atn_done(r, g->dest, r->tb.data ? r->tb.data : (char *)"");
+      r->tb.len = 0;
+      break;
     case D_PN:
       pn_done(r);
       break;
@@ -1584,7 +1669,7 @@ static void r_free(R *r)
   while (r->nsto > 0) { pl_free(&r->sto[r->nsto - 1].l); para_free(r->sto[r->nsto - 1].cur); free(r->sto[r->nsto - 1].rows); r->nsto--; }
   for (k = 0; k < 2 * HF_N; k++) story_free(&r->sechf[k]);
   for (k = 0; k < r->nfld; k++) buf_free(&r->fld[k].inst);
-  free(r->g); free(r->fonts); free(r->styles); free(r->stymap); free(r->rlists); free(r->revauth);
+  free(r->g); free(r->fonts); free(r->styles); free(r->stymap); free(r->rlists); free(r->revauth); free(r->atn);
   buf_free(&r->pict); buf_free(&r->tb); buf_free(&r->pend);
 }
 
@@ -1857,6 +1942,13 @@ static void wpict(W *w, const Image *im)
   buf_adds(b, "}}");
   w->col = 0;
 }
+/* Word's ISO date ("2026-11-18T10:30:00Z") as a DTTM, 0 if it isn't one */
+static u32 iso_dttm(const char *t)
+{
+  int y = 0, mo = 0, dd = 0, h = 0, mi = 0;
+  if (sscanf(t, "%d-%d-%dT%d:%d", &y, &mo, &dd, &h, &mi) < 3 || y < 1900 || y > 2411 || mo < 1 || mo > 12 || dd < 1 || dd > 31) return 0;
+  return (u32)mi | ((u32)h << 6) | ((u32)dd << 11) | ((u32)mo << 16) | ((u32)(y - 1900) << 20);
+}
 static void wbmark(W *w, u16 to)
 {
   if (to == w->bmark) return;
@@ -1938,7 +2030,34 @@ static void wpara_runs(W *w, const Para *p, int note_ok)
         buf_adds(b, "}");
         continue;
       }
-      i += 4;                    /* a comment's mark: left out */
+      if (IS_MARK(p->t + i) && note_ok) {
+        /* a comment: its range as \atrfstart ... \atrfend, its text in \annotation after the end */
+        int used;
+        u32 cp = utf8_get(p->t + i, 4, &used);
+        int n = (int)(cp & 0x3FFF), end = IS_CEND(p->t + i);
+        i += 4;
+        if (n < 0 || n >= w->d->ncomments) continue;
+        if (!end) { buf_printf(b, "{\\*\\atrfstart %d}", n); continue; }
+        {
+          const Comment *c = &w->d->comments[n];
+          u32 q;
+          buf_printf(b, "{\\*\\atrfend %d}{\\*\\atnid ", n); wtext(w, c->initials, (u32)strlen(c->initials));
+          buf_adds(b, "}{\\*\\atnauthor "); wtext(w, c->author, (u32)strlen(c->author));
+          buf_adds(b, "}{\\plain"); wcf(w, f); buf_adds(b, "\\chatn}");
+          buf_printf(b, "{\\*\\annotation{\\*\\atnref %d}", n);
+          if (c->date[0]) buf_printf(b, "{\\*\\atndate %lu}", (unsigned long)iso_dttm(c->date));
+          for (q = 0; q < c->text.np; q++) {
+            const Para *np = c->text.p[q];
+            buf_adds(b, "\\pard\\plain "); wpf(w, &np->pf, 0);
+            if (q == 0) { buf_adds(b, "{\\plain"); wcf(w, &np->r[0].f); buf_adds(b, "\\chatn }"); }
+            wpara_runs(w, np, 0);
+            if (q + 1 < c->text.np) buf_adds(b, "\\par\n");
+          }
+          buf_adds(b, "}");
+        }
+        continue;
+      }
+      i += 4;                    /* a comment's mark in a note or header: left out */
     }
     start = end;
   }
