@@ -180,7 +180,18 @@ static void make_window(void)
   Object *ok, *cancel;
   int p;
   if (owin) return;
-  if (!own_added) { own_added = 1; wp_options_add(own, (int)(sizeof own / sizeof own[0])); }
+  if (!own_added) {
+    /* Quill's own rows first: each pane's headings and settings ahead of the packages' (which were
+       added as they started; the General pane showed the mini toolbar's box above its first heading) */
+    static Row tmp[MAXROWS];
+    int k = nrows, n;
+    own_added = 1;
+    wp_options_add(own, (int)(sizeof own / sizeof own[0]));
+    n = nrows - k;
+    memcpy(tmp, rows + k, (size_t)n * sizeof *tmp);
+    memmove(rows + n, rows, (size_t)k * sizeof *rows);
+    memcpy(rows, tmp, (size_t)n * sizeof *tmp);
+  }
   built_rows = nrows;
   for (p = 0; p < UI_NLANG; p++) langs[p] = ui_languages[p];
   langs[UI_NLANG] = NULL;

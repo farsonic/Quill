@@ -155,7 +155,7 @@ static void open_phonetic(void)
         Child, QLabel(tr("Font"), MUIO_Label_DoubleFrame), Child, ph_font = str_obj(47),
       End,
       Child, TextObject, MUIA_Text_Contents, (ULONG)tr("Characters beyond Latin-1 as U+XXXX (U+304B: ka)"), End,
-      Child, HGroup, Child, rem = SimpleButton(tr("_Remove")), Child, HSpace(0), End,
+      Child, HGroup, Child, rem = QButton(tr("_Remove")), Child, HSpace(0), End,
     End;
     if (!c || !(phwin = wp_dialog("Phonetic Guide", MAKE_ID('W','2','7','P'), c, "_OK", ID_I_PH_OK))) return;
     DoMethod(rem, MUIM_Notify, MUIA_Pressed, FALSE, (ULONG)wp_app(), 2, MUIM_Application_ReturnID, ID_I_PH_REMOVE);

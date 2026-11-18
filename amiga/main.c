@@ -5003,6 +5003,18 @@ int main(int argc, char **argv)
   if (!view_class() || !ruler_class() || !ribbon_class() || !nav_class() || !status_class() || !flatscroll_class() || !backstage_class()) goto done;
   menubar = wp_menus(menus);                        /* the work packages' items added (wphooks.h) */
   wp_menu_english(menubar);                         /* (WP26: Tell Me and the customizing lists know them) */
+  if (qlog) {
+    /* (testing) Intuition takes at most 64 items to a menu and 32 to a submenu */
+    int ni = 0, ns = 0, k;
+    const char *title = "", *item = "";
+    for (k = 0; menubar[k].nm_Type != NM_END; k++) {
+      if (menubar[k].nm_Type == NM_TITLE) { title = (const char *)menubar[k].nm_Label; ni = 0; ns = 0; }
+      else if (menubar[k].nm_Type == NM_ITEM) { item = menubar[k].nm_Label == NM_BARLABEL ? "-" : (const char *)menubar[k].nm_Label; ns = 0;
+        if (++ni == 65) fprintf(qlog, "menu %s: more than 64 items\n", title); }
+      else if (menubar[k].nm_Type == NM_SUB && ++ns == 33) fprintf(qlog, "menu %s > %s: more than 32 subitems\n", title, item);
+    }
+    fprintf(qlog, "menus: %d entries\n", k); fflush(qlog);
+  }
   for (i = 0; menubar[i].nm_Type != NM_END; i++)    /* the menus in the language chosen (titles have words of their own) */
     if (menubar[i].nm_Label && menubar[i].nm_Label != NM_BARLABEL)
       menubar[i].nm_Label = (STRPTR)(menubar[i].nm_Type == NM_TITLE ? tr_ctx("menu", (const char *)menubar[i].nm_Label) : tr((const char *)menubar[i].nm_Label));
