@@ -1050,3 +1050,30 @@ int fx_toggle_unicode(Doc *d, Pos a, Pos b, Pos *caret)
   if (caret) *caret = a;
   return 1;
 }
+
+/* ---- (WP28e) Delete Previous Sentence */
+static int sent_end(char ch) { return ch == '.' || ch == '!' || ch == '?'; }
+static int closer(char ch) { return ch == '"' || ch == '\'' || ch == ')' || ch == ']'; }
+Pos fx_sentence_back(Doc *d, Pos c)
+{
+  const char *t;
+  u32 i;
+  if (c.para >= d->np) return c;
+  if (c.off > d->p[c.para]->len) c.off = d->p[c.para]->len;
+  if (!c.off && c.para) { c.para--; c.off = d->p[c.para]->len; }
+  t = d->p[c.para]->t;
+  i = c.off;
+  while (i && (t[i - 1] == ' ' || t[i - 1] == '\t')) i--;
+  while (i && (closer(t[i - 1]) || sent_end(t[i - 1]))) i--;        /* (the end of the sentence to go) */
+  while (i) {
+    if (t[i - 1] == ' ' || t[i - 1] == '\t') {
+      u32 k = i - 1;
+      while (k && (t[k - 1] == ' ' || t[k - 1] == '\t')) k--;
+      while (k && closer(t[k - 1])) k--;
+      if (k && sent_end(t[k - 1])) break;
+    }
+    i--;
+  }
+  c.off = i;
+  return c;
+}

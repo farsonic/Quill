@@ -615,6 +615,21 @@ static void repeat(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* (WP28e) Delete Previous Sentence: from the start of the sentence before the caret to the caret (a
+   selection: deleted, as Backspace does) */
+static void delete_sentence(void)
+{
+  Doc *d = wp_doc();
+  Pos a = get_pos(MUIA_Quill_Anchor), c = get_pos(MUIA_Quill_Caret), ab[2];
+  if (!d) return;
+  if (pos_cmp(a, c)) { DoMethod(wp_view(), MUIM_Quill_Command, CMD_DELETE, 0); return; }
+  ab[0] = fx_sentence_back(d, c); ab[1] = c;
+  if (!pos_cmp(ab[0], c)) { beep(); return; }
+  DoMethod(wp_view(), MUIM_Quill_Command, CMD_SELECT, (ULONG)ab);
+  DoMethod(wp_view(), MUIM_Quill_Command, CMD_DELETE, 0);
+}
+
+/* ------------------------------------------------------------------ */
 /* Spike */
 static void spike_cut(void)
 {
@@ -749,6 +764,7 @@ int wp12_command(ULONG id, LONG value)
   case ID_FX_SPIKE: spike_cut(); break;
   case ID_FX_INSSPIKE: spike_insert(); break;
   case ID_FX_UNICODE: toggle_unicode(); break;
+  case ID_FX_DELSENT: delete_sentence(); break;
   case ID_FX_UNDOLIST: case ID_FX_REDOLIST: open_undolist(id == ID_FX_REDOLIST); return uwin ? WPR_KEEPFOCUS : WPR_DONE;
   case ID_FX_ULOK: undolist_done(); break;
   }
@@ -769,6 +785,7 @@ static ULONG key(UWORD code, UWORD qual, const WpCtx *c)
   case 0x52: return ct && !al ? (sh ? ID_FX_INSSPIKE : ID_FX_SPIKE) : 0;
   case 0x32: return ct && !al && !sh ? ID_FX_UNICODE : 0;
   case 0x31: return ct && al && !sh ? ID_FX_GOBACK : 0;
+  case 0x41: return ct && sh && !al ? ID_FX_DELSENT : 0;          /* (WP28e) Ctrl-Shift-Backspace */
   }
   return 0;
 }
@@ -801,6 +818,7 @@ static const WpMenu menus[] = {
   { WM_EDIT, { NM_SUB, (STRPTR)"Spike (Ctrl-F3)", 0, 0, 0, (APTR)ID_FX_SPIKE } },
   { WM_EDIT, { NM_SUB, (STRPTR)"Insert Spike (Ctrl-Shift-F3)", 0, 0, 0, (APTR)ID_FX_INSSPIKE } },
   { WM_EDIT, { NM_SUB, (STRPTR)"Toggle Unicode Character (Ctrl-X)", 0, 0, 0, (APTR)ID_FX_UNICODE } },
+  { WM_EDIT, { NM_SUB, (STRPTR)"Delete Previous Sentence (Ctrl-Shift-Backspace)", 0, 0, 0, (APTR)ID_FX_DELSENT } },
 };
 
 /* the package: its tag, id block, hooks (command, state, field, ctxmenu, key, init, cleanup), ribbon

@@ -2515,6 +2515,7 @@
   { { "A ) has no ( before it.", "Zu ) fehlt die \366ffnende (.", "Il manque le ( ouvrant.", "Falta el ( de apertura.", "Manca la ( di apertura." } },
   { { "\\1 to \\9 belong in Replace with, not in Find what.", "\\1 bis \\9 geh\366ren in Ersetzen durch, nicht in Suchen nach.", "\\1 \340 \\9 vont dans Remplacer par, pas dans Rechercher.", "\\1 a \\9 van en Reemplazar con, no en Buscar.", "Da \\1 a \\9 vanno in Sostituisci con, non in Trova." } },
   { { "A ( needs a closing ).", "Zu ( fehlt die schlie\337ende ).", "Il manque le ) fermant.", "Falta el ) de cierre.", "Manca la ) di chiusura." } },
+  { { "Delete Previous Sentence (Ctrl-Shift-Backspace)", "Vorherigen Satz l\366schen (Strg-Umschalt-R\374cktaste)", "Supprimer la phrase pr\351c\351dente (Ctrl-Maj-Retour arri\350re)", "Eliminar la oraci\363n anterior (Ctrl-May\372s-Retroceso)", "Elimina la frase precedente (Ctrl-Maiusc-Backspace)" } },
 /* ---- end WP12 */
 /* ---- begin WP13 (tools/lang/wp13.py) */
   { { "Styles Pane", "Formatvorlagenbereich", "Volet Styles", "Panel Estilos", "Riquadro Stili" } },

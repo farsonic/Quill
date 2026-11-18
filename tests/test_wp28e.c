@@ -15,6 +15,7 @@
 #include "../core/review.h"
 #include "../core/blocks.h"
 #include "../core/keep.h"
+#include "../core/findx.h"
 
 extern const DocFormat fmt_wordxml, fmt_markdown;
 int  wordxml_kind(const u8 *b, size_t n);
@@ -491,8 +492,26 @@ static void doc_marks(void)
   }
 }
 
+/* ---- Delete Previous Sentence (core/findx.c fx_sentence_back) */
+static void sentence_back(void)
+{
+  Doc *d = doc_new();
+  Pos c = doc_start(d), s;
+  doc_insert(d, &c, "One here. Two \"there!\" Three is long\nNext", 41, NULL);
+  s = fx_sentence_back(d, P(0, 30));
+  ok("sentence back: from inside a sentence to its start", s.para == 0 && s.off == 23);
+  s = fx_sentence_back(d, P(0, 23));
+  ok("sentence back: at a sentence's start, the one before (closing quote after its mark)", s.off == 10);
+  s = fx_sentence_back(d, P(0, 10));
+  ok("sentence back: to the paragraph's start", s.off == 0);
+  s = fx_sentence_back(d, P(1, 0));
+  ok("sentence back: at a paragraph's start, in the one before", s.para == 0 && s.off == 23);
+  doc_free(d);
+}
+
 void test_wp28e(void)
 {
+  sentence_back();
   doc_marks();
   docm();
   strict();

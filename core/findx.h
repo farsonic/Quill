@@ -106,4 +106,8 @@ char *fx_block_text(Doc *d, const Pos *r, u32 n, u32 *len);
    selection is read the same way. One undo step; *caret: after the result. 0 if nothing to do */
 int  fx_toggle_unicode(Doc *d, Pos a, Pos b, Pos *caret);
 
+/* (WP28e) Delete Previous Sentence: where the sentence before the caret c starts (at a sentence's start
+   already, the one before it; at a paragraph's start, in the paragraph before) */
+Pos fx_sentence_back(Doc *d, Pos c);
+
 #endif

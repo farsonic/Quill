@@ -9,7 +9,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 ## Summary
 
 - **Ribbon commands:** 543 in WordCraft (its catalogue, the Zotero and Help tabs plus the Paragraph Tools and Markdown Source of its ribbon), 515 of them applicable to Quill. Quill has **512** (✅), **3** partly (🟨) and lacks **0** (⬜); 28 are ➖. So Quill covers 99% of the applicable commands fully and 100% at least in part.
-- **Beyond the ribbon (section 2):** 162 features: ✅ 84, 🟨 41, ⬜ 18, ➖ 19 (2026-11: nine added from WordCraft's new work).
+- **Beyond the ribbon (section 2):** 162 features: ✅ 87, 🟨 40, ⬜ 16, ➖ 19 (2026-11: nine added from WordCraft's new work).
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
 - **Missing whole:** nothing: every ribbon tab is covered (References, Mailings and Developer since WP2, WP3, WP4 and WP16). No ribbon command is missing any more (Drawing Canvas and Markdown Source were the last, 2026-11).
 - **Biggest risks for documents people send:** OLE objects and VML-only pictures; .doc files' pictures and text boxes (WP28d reads text, formatting, tables, notes, headers and fields, WP28e bookmarks and comments).
@@ -51,7 +51,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | 2.1 File formats | 11 | 4 | 1 | 3 |
 | 2.2 DOCX features | 17 | 13 | 7 | 1 |
 | 2.3 Layout | 21 | 2 | 3 | 0 |
-| 2.4 Editing | 15 | 10 | 5 | 7 |
+| 2.4 Editing | 18 | 9 | 3 | 7 |
 | 2.5 Interface: panes, toolbars and the window | 16 | 2 | 1 | 3 |
 | 2.6 The Options dialog | 1 | 7 | 0 | 1 |
 | 2.7 Keyboard shortcuts | 3 | 0 | 1 | 0 |
@@ -59,7 +59,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | 2.9 Zotero | 0 | 0 | 0 | 1 |
 | 2.10 Control protocol, MCP, command line, scripting | 0 | 0 | 0 | 1 |
 | 2.11 Network and cloud features (left out on purpose) | 0 | 0 | 0 | 1 |
-| **All** | **84** | **41** | **18** | **19** |
+| **All** | **87** | **40** | **16** | **19** |
 
 ## Work packages
 
@@ -907,13 +907,13 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ✅ **Templates** — five built-in templates on the File page (core/template.c); WP23: user .dotx/.dotm opened as templates (a new untitled document attached to them), Save as Template, a personal templates folder on the File page's New list, Templates and Add-ins (attached template) (see File › Save as Template, Developer › Document Template).
 - ➖ **Printing and print preview** — left out on purpose: PDF export instead (Quill has an untested printer.device path, `print_doc()`).
 - ✅ **Several documents at once** — up to eight windows (`win_new()`).
-- 🟨 **Undo and redo** — ✅, typing undone a word at a time; no undo list, no Repeat (F4).
+- ✅ **Undo and redo** — ✅, typing undone a word at a time; the Undo and Redo lists and Repeat (F4) came with WP12 (Edit › Find and Select › Undo List..., Redo List..., Repeat; `ID_FX_UNDOLIST`, `ID_FX_REDOLIST`, `ID_FX_REPEAT`, amiga/wp_find.c).
 - 🟨 **Clipboard** — Quill's own formatted clipboard between Quill documents, text through clipboard.device to other programs (amiga/clip.c). Missing: formatted paste from other programs (WordCraft takes RTF/HTML from the system clipboard), pasting pictures, the Clipboard pane.
 - ⬜ **Tracking style property changes** — (new 2026-11, #2697) WordCraft records a style's changed formatting as a revision (`w:rPrChange`/`w:pPrChange` inside `w:style`) while tracking; Quill's tracked formatting changes are per run and paragraph only (WP5 `CharFmt.frev`, `ParaFmt.prev`): styles carry none, so a style changed while tracking is changed untracked.
 - ✅ **Proofing pane with clickable suggestions** — (new 2026-11, #4471) the Spelling and Grammar window (WP8 `ID_PR_SPELLGRAM`, F7) lists each mistake's suggestions; a double-click changes to one (`ID_PR_SG_CHANGE`). A window, not docked beside the page.
-- ⬜ **Delete Previous Sentence** — (new 2026-11) WordCraft's `text.deleteSentenceBack`; Quill deletes by character and word only.
+- ✅ **Delete Previous Sentence** — (new 2026-11, WordCraft's `text.deleteSentenceBack`; WP28e) Ctrl-Shift-Backspace and Edit › Find and Select › Delete Previous Sentence (`ID_FX_DELSENT`, amiga/wp_find.c): from the start of the sentence before the caret (the one before when at a sentence's start; after `.`, `!`, `?` and closing quotes; into the paragraph before at a paragraph's start) to the caret, one undo step (`fx_sentence_back`, core/findx.c). Evidence: tests/test_wp28e.c `sentence_back`.
 - 🟨 **Format painter** — `ID_BRUSH` one shot; no double-click to keep it on, no Ctrl+Shift+C/V.
-- ⬜ **Spike, Go Back, Extend Selection (F8), column (block) selection, Alt+X** — see the Editing tab.
+- ✅ **Spike, Go Back, Extend Selection (F8), column (block) selection, Alt+X** — WP12 (amiga/wp_find.c): Spike and Insert Spike (Ctrl-F3, Ctrl-Shift-F3), Go Back (Shift-F5), Extend Selection (F8, Shift-F8 shrinks), Column Selection (Ctrl-Shift-F8, `fx_block`), Toggle Unicode Character (Ctrl-X: Alt types characters on the Amiga); see the Editing tab.
 - 🟨 **Right-click menus** — Quill (`ID_CTXPICK`): misspelled word, picture/shape/group, text (with table Insert/Delete/Merge/Split/Properties), link, field (Update Field, Edit Field, Toggle Field Codes: WP1). Synonyms ✅ (WP8, with grammar suggestions and an AutoCorrect submenu). Missing against WordCraft: Paste options on the text menu, table of contents menu (Update, Remove), picture menu's Change Picture, Reset Picture, Insert Caption, table menu's Distribute, AutoFit, Text Direction and Insert Caption, equation menu. (the equation menu has Edit Equation... since WP14a)
 
 ### 2.5 Interface: panes, toolbars and the window
@@ -961,7 +961,7 @@ WordCraft binds 126 commands to keys (counted from the `.key(...)` of every `Com
 
 - ✅ **Present in Quill:** cursor movement by character, word (Alt), line end (Ctrl or Home/End), paragraph (Alt-Up/Down), screen, document; Backspace/Del and by word; Return, Shift-Return; Tab and Shift-Tab (lists, cells); Esc; New, Open, Save, Save As, Close, Quit, Next Window; Export PDF; Undo, Redo, Cut, Copy, Paste, Select All; Find, Find Next; Bold, Italic, Underline, Superscript, Subscript; Align left, centre, right, justify; single, 1.5 and double spacing; indent and outdent; page break; grow and shrink font; formatting marks; spelling; insert table; edit header; fit page width.
 - ✅ **Added by WP26 (its default key map, amiga/wp_custom.c `defkeys`, each changeable in Options › Keyboard):** Font dialog Ctrl+D, All Caps Ctrl+Shift+A, Strikethrough Ctrl+Shift+X, Double Underline Ctrl+Shift+D, Word Underline Ctrl+Shift+W, Hidden Ctrl+Shift+H, Bold/Italic/Underline Ctrl+B/I/U, Subscript Ctrl+= and Superscript Ctrl+Shift+=, grow/shrink Ctrl+Shift+. and , and by 1 pt Ctrl+] and Ctrl+[, Change Case Shift+F3, the font name and size boxes Ctrl+Shift+F/P, Apply Styles Ctrl+Shift+S, Styles Ctrl+Alt+Shift+S, Heading 1-3 Ctrl+Alt+1-3, Normal Ctrl+Shift+N, Bullets Ctrl+Shift+L, alignment Ctrl+L/E/R/J, indent Ctrl+M and Ctrl+Shift+M, spacing Ctrl+1/2/5, page break Ctrl+Return, Column Break Ctrl+Shift+Return, Link Ctrl+K, Bookmark Ctrl+Shift+F5, Footnote Ctrl+Alt+F and Endnote Ctrl+Alt+D, Track Changes Ctrl+Shift+E, New Comment Ctrl+Alt+M, Word Count Ctrl+Shift+G, Paste Special Ctrl+Alt+V, Paste Text Only Ctrl+Shift+Alt+V, Replace Ctrl+H, © ® ™ … — – (Ctrl+Alt+C/R/T/., Ctrl+Alt+-, Ctrl+keypad -), Draft/Outline/Print Layout Ctrl+Alt+N/O/P, Split Ctrl+Alt+S, Collapse the Ribbon Ctrl+F1, KeyTips F10, Tell Me Help (WordCraft's Alt+Q: Alt types characters on the Amiga). Keys are positional (raw key codes named as on an English keyboard); the menus show them (Format › Quick Formatting, Insert › Typographic Symbols). Copy/Paste Formatting, Repeat F4, Go To and the field keys came with WP10, WP12 and WP1.
-- ⬜ **Still missing:** Go Back Shift+F5, Spike and Insert Spike (Ctrl+F3, Ctrl+Shift+F3), outline keys (Alt+Shift+1-9, A, +, -), Add Space Before Ctrl+0, Distributed Ctrl+Shift+J, Hanging Indent Ctrl+T and Remove Hanging Ctrl+Shift+T, Read Aloud, Thesaurus Shift+F7, Style Inspector Shift+F1, Nonbreaking Hyphen and Space, Optional Hyphen, Move paragraph up/down and promote/demote (Alt+Shift+arrows); Macros Alt+F8 ➖. Any command can be given one of these keys in Options › Keyboard.
+- ⬜ **Still missing:** outline keys (Alt+Shift+1-9, A, +, -), Add Space Before Ctrl+0, Distributed Ctrl+Shift+J, Hanging Indent Ctrl+T and Remove Hanging Ctrl+Shift+T, Read Aloud, Thesaurus Shift+F7, Style Inspector Shift+F1, Nonbreaking Hyphen and Space, Optional Hyphen, Move paragraph up/down and promote/demote (Alt+Shift+arrows); Macros Alt+F8 ➖. Any command can be given one of these keys in Options › Keyboard.
 - ✅ **Customize Keyboard** — WordCraft keeps a user key map (engine/src/keymap.rs); Quill (WP26) too: Options › Keyboard, `key.*` lines in Quill.prefs (core/custom.c `KeyMap`). See Tools › Customize Keyboard.
 
 ### 2.8 Interface and proofing languages

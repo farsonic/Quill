@@ -143,4 +143,5 @@ W = [
 ("A ) has no ( before it.", "Zu ) fehlt die öffnende (.", "Il manque le ( ouvrant.", "Falta el ( de apertura.", "Manca la ( di apertura."),
 ("\\\\1 to \\\\9 belong in Replace with, not in Find what.", "\\\\1 bis \\\\9 gehören in Ersetzen durch, nicht in Suchen nach.", "\\\\1 à \\\\9 vont dans Remplacer par, pas dans Rechercher.", "\\\\1 a \\\\9 van en Reemplazar con, no en Buscar.", "Da \\\\1 a \\\\9 vanno in Sostituisci con, non in Trova."),
 ("A ( needs a closing ).", "Zu ( fehlt die schließende ).", "Il manque le ) fermant.", "Falta el ) de cierre.", "Manca la ) di chiusura."),
+("Delete Previous Sentence (Ctrl-Shift-Backspace)", "Vorherigen Satz löschen (Strg-Umschalt-Rücktaste)", "Supprimer la phrase précédente (Ctrl-Maj-Retour arrière)", "Eliminar la oración anterior (Ctrl-Mayús-Retroceso)", "Elimina la frase precedente (Ctrl-Maiusc-Backspace)"),
 ]
