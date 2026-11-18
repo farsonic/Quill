@@ -181,8 +181,8 @@ static void icon(const char *s, int ox, int oy, int colour, int pen)
 			}
 			break;
 		case 'B': case 'I': case 'U': {
-			/* letters in Times 12, centred (Geneva's italic I is a bare stroke); they keep their
-			   size, as Cornerstone's do */
+			/* letters in Times 12 bold, centred, slanted or underlined as their command (a thin
+			   italic I at 12 pixels reads as a slash); they keep their size, as Cornerstone's do */
 			char t[8];
 			int k = 0, w;
 			while (*s == ' ')
@@ -191,7 +191,7 @@ static void icon(const char *s, int ox, int oy, int colour, int pen)
 				t[k++] = *s++;
 			TextFont(TIMES);
 			TextSize(12);
-			TextFace(op == 'B' ? 1 : op == 'I' ? 2 : 4);          /* bold, italic, underline */
+			TextFace(op == 'B' ? 1 : op == 'I' ? 1 | 2 : 1 | 4);  /* bold; and italic, underline */
 			TextMode(1);                                          /* srcOr */
 			w = TextWidth(t, 0, k);
 			MoveTo(ox + 8 - w / 2, oy + 12);

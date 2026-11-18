@@ -83,6 +83,9 @@ struct qv_data {
 	void *vbar, *hbar;          /* ControlHandles */
 	int bar_scale;              /* scroll bar value = pixels / bar_scale (controls are 16-bit) */
 	int caret_on, blink_off;    /* drawn now; hidden until the next blink */
+	int cdrawn;                 /* the caret as drawn: page cpage, column cx, rows cy..cy+ch-1 (page */
+	u32 cpage;                  /* pixels), so it is taken away there even after the text under it */
+	long cx, cy, ch;            /* has changed (a command from a menu or the strip) */
 	unsigned long blink_at;
 	int dragging;
 	unsigned long last_click;
@@ -96,6 +99,12 @@ struct qv_data {
 	RulerGeom rgh, rgv;         /* what each ruler shows now, the page's left (top) edge in the */
 	long rgh_x, rgv_y;          /* window and the resolution it was drawn at (0: not drawn yet) */
 	int rgh_dpi, rgv_dpi;
+	int hl_on;                  /* the selection as last drawn: from page hl_pa's row hl_y0 to page */
+	u32 hl_pa, hl_pb;           /* hl_pb's row hl_y1, so that after a relayout its old rows are drawn */
+	long hl_y0, hl_y1;          /* again even where the page's pixels did not change */
+	int due;                    /* the rulers or the page box changed outside an update's area: the
+	                               timer draws them (Riptide validates the whole window after an
+	                               update, so an InvalRect made while drawing one is lost) */
 };
 
 static struct MUI_CustomClass *qv_mcc;
@@ -627,11 +636,10 @@ static void draw_status(struct qv_data *d, Object *obj)
 }
 
 /* after a scroll or a new layout: the page box again if what it says has changed. Called while an
-   update is being drawn, drawing outside the updated area would be clipped away; the box is then
-   marked for the next update instead. */
+   update is being drawn, drawing outside the updated area would be clipped away; the timer draws
+   the box instead, once the update is over (d->due). */
 static void status_check(struct qv_data *d, Object *obj, int in_update)
 {
-	Rect st;
 	u32 n = qd.lay->npages ? qd.lay->npages : 1;
 	if (page_in_view(d, obj) == d->status_page && n == d->status_of)
 		return;
@@ -639,9 +647,7 @@ static void status_check(struct qv_data *d, Object *obj, int in_update)
 		draw_status(d, obj);
 		return;
 	}
-	parts(obj, NULL, NULL, NULL, &st);
-	SetPort(mm_win_of(obj)->macwin);       /* (InvalRect works on the current port) */
-	InvalRect(&st);
+	d->due = 1;
 }
 
 /* ---- scroll bars ---- */
@@ -812,9 +818,9 @@ static void rulers_sync(struct qv_data *d, Object *obj, int force, const Rect *a
 	vneed = force || d->rgv_dpi != d->dpi || y != d->rgv_y || g.page != d->rgv.page || g.pageh != d->rgv.pageh ||
 	        g.mtop != d->rgv.mtop || g.mbottom != d->rgv.mbottom || g.metric != d->rgv.metric;
 	SetPort(port);
-	/* (a changed ruler only partly in the update's area: all of it in the next update) */
+	/* (a changed ruler not wholly in the update's area: all of it again from the timer) */
 	if (area && hneed && !inside_rect(&h, area))
-		InvalRect(&h);
+		d->due = 1;
 	if (area ? meets(&h, area) : hneed) {
 		qr_draw_h(port, &h, &g, x, d->dpi);
 		d->rgh = g;
@@ -822,7 +828,7 @@ static void rulers_sync(struct qv_data *d, Object *obj, int force, const Rect *a
 		d->rgh_dpi = d->dpi;
 	}
 	if (area && vneed && !inside_rect(&v, area))
-		InvalRect(&v);
+		d->due = 1;
 	if (area ? meets(&v, area) : vneed) {
 		qr_draw_v(port, &v, &g, y, d->dpi);
 		d->rgv = g;
@@ -907,6 +913,34 @@ static void redraw_between(struct qv_data *d, Object *obj, Pos a, Pos b)
 		redraw_rows(d, obj, k, k == ka ? ya : 0, k == kb ? yb + hb - 1 : page_h(k, d->dpi) - 1);
 }
 
+/* where the selection is drawn now, noted (hl_) */
+static void hl_note(struct qv_data *d)
+{
+	Sel s;
+	sel_now(d, &s);
+	d->hl_on = s.on;
+	if (s.on) {
+		d->hl_pa = s.pa;
+		d->hl_y0 = s.ya;
+		d->hl_pb = s.pb;
+		d->hl_y1 = s.yb + s.hb - 1;
+	}
+}
+
+/* After a relayout with a selection: its rows where it was drawn and where it is now, drawn again.
+   A format change (Bold, an alignment) moves the text under a selection, but rows of the page that
+   are blank before and after do not change, and would keep the old highlight. */
+static void hl_redraw(struct qv_data *d, Object *obj)
+{
+	u32 k;
+	if (d->hl_on)
+		for (k = d->hl_pa; k <= d->hl_pb && k < qd.lay->npages; k++)
+			redraw_rows(d, obj, k, k == d->hl_pa ? d->hl_y0 : 0, k == d->hl_pb ? d->hl_y1 : page_h(k, d->dpi) - 1);
+	if (has_sel())
+		redraw_between(d, obj, qd.anchor, qd.caret);
+	hl_note(d);
+}
+
 /* The document changed (or only the selection): laid out, the visible pages drawn again, the
    rows that changed copied. Typing calls this once the keys stop coming (the timer), so a burst
    of typing costs one drawing of the page, not one per key. */
@@ -954,6 +988,8 @@ static void refresh(struct qv_data *d, Object *obj)
 			mm_fill(mm_win_of(obj)->macwin, &r, DESK);
 		}
 	}
+	if (d->hl_on || has_sel())
+		hl_redraw(d, obj);
 	clip_end(save);
 	status_check(d, obj, 0);
 	d->stale = 0;
@@ -961,20 +997,40 @@ static void refresh(struct qv_data *d, Object *obj)
 }
 
 /* the caret shown or hidden: its column copied again */
-static void caret_show(struct qv_data *d, Object *obj, int on)
+/* the caret taken away where it was drawn: its column copied again from the page as kept (which,
+   after an edit, is still the picture the caret was drawn over) */
+static void caret_erase(struct qv_data *d, Object *obj)
 {
-	u32 k;
-	long x, y, h, ppx, ppy;
 	void *save;
-	if (d->caret_on == on || has_sel() || !d->shown || d->stale)
+	d->caret_on = 0;
+	if (!d->cdrawn)
 		return;
-	d->caret_on = on;
-	caret_px(d, qd.caret, &k, &x, &y, &h);
-	page_at(d, obj, k, &ppx, &ppy);
-	if (!cache_find(d, k))
+	d->cdrawn = 0;
+	if (!d->shown || !cache_find(d, d->cpage))
 		return;
 	save = clip_pages(obj);
-	blit(d, obj, k, x, x, y, y + h - 1);
+	blit(d, obj, d->cpage, d->cx, d->cx, d->cy, d->cy + d->ch - 1);
+	clip_end(save);
+}
+
+static void caret_show(struct qv_data *d, Object *obj, int on)
+{
+	void *save;
+	if (d->caret_on == on || !d->shown)
+		return;
+	if (!on) {
+		caret_erase(d, obj);
+		return;
+	}
+	if (has_sel() || d->stale)
+		return;
+	d->caret_on = 1;
+	caret_px(d, qd.caret, &d->cpage, &d->cx, &d->cy, &d->ch);
+	if (!cache_find(d, d->cpage))
+		return;
+	d->cdrawn = 1;
+	save = clip_pages(obj);
+	blit(d, obj, d->cpage, d->cx, d->cx, d->cy, d->cy + d->ch - 1);
 	clip_end(save);
 }
 
@@ -1029,6 +1085,7 @@ static void move_to(struct qv_data *d, Object *obj, Pos p, int extend)
 			redraw_between(d, obj, lo, hi);
 	}
 	clip_end(save);
+	hl_note(d);
 	d->blink_at = qm_ticks() + LM_CARETTIME;
 	follow_caret(d, obj);
 	caret_show(d, obj, 1);
@@ -1040,7 +1097,7 @@ static void move_to(struct qv_data *d, Object *obj, Pos p, int extend)
 void qv_changed(Object *view, int scroll_to_caret)
 {
 	struct qv_data *d = INST_DATA(qv_mcc->mcc_Class, view);
-	d->caret_on = 0;
+	caret_erase(d, view);
 	d->stale = 1;
 	d->changed_at = qm_ticks();
 	if (scroll_to_caret)
@@ -1288,6 +1345,12 @@ static void tick(struct qv_data *d, Object *obj)
 			drag(d, obj, m.h, m.v);
 		}
 	}
+	if (d->due && !d->stale) {
+		d->due = 0;
+		d->rgh_dpi = d->rgv_dpi = 0;
+		rulers_sync(d, obj, 0, NULL);
+		status_check(d, obj, 0);
+	}
 	if (d->stale) {
 		/* keys still waiting: they are taken first, unless the page has not shown for a second */
 		if (EventAvail(0x0028 /* keyDownMask | autoKeyMask */, &ev) && now - d->changed_at < 60)
@@ -1427,6 +1490,7 @@ DISPATCHER(qv_dispatch)
 				draw_status(d, obj);
 		}
 		status_check(d, obj, 1);
+		hl_note(d);
 		chrome_draw(d, obj, &area);
 		return 0;
 	}
@@ -1475,6 +1539,7 @@ void qv_zoom(Object *view, int percent)
 	struct qv_data *d = INST_DATA(qv_mcc->mcc_Class, view);
 	d->zoom = percent;
 	d->follow = 1;
+	d->caret_on = d->cdrawn = 0;    /* (everything is drawn again) */
 	cache_drop_all(d);
 	if (d->shown)
 		MUI_Redraw(view, MADF_DRAWOBJECT);
@@ -1485,8 +1550,9 @@ void qv_reset(Object *view)
 	struct qv_data *d = INST_DATA(qv_mcc->mcc_Class, view);
 	cache_drop_all(d);
 	d->sx = d->sy = 0;
-	d->caret_on = 0;
+	d->caret_on = d->cdrawn = 0;
 	d->stale = 0;
+	d->hl_on = 0;
 	d->want_x = -1;
 	if (d->shown) {
 		void *port = mm_win_of(view)->macwin;
