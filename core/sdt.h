@@ -149,6 +149,10 @@ int  sdt_item_remove(Doc *d, Pos item);
    group round p taken out */
 int  sdt_group(Doc *d, Pos a, Pos b);
 int  sdt_ungroup(Doc *d, Pos p);
+/* typing is about to start at *at in a control: a placeholder showing is taken out (the typing takes
+   its place) and a temporary control ("remove when edited") is taken out, its content kept; *at moves
+   to where the typing goes. 1 if anything changed (each its own undo step) */
+int  sdt_typing(Doc *d, Pos *at);
 
 /* ---- the checks the edit paths make (core/doc.c) */
 extern int sdt_bypass;                           /* > 0: no checks (Quill's own changes to controls) */

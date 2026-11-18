@@ -514,6 +514,79 @@ static void inserting(void)
   doc_free(d);
 }
 
+/* Properties: a new title, tag and locks written; typing in a control: the placeholder goes, and a
+   temporary one ("remove when edited") goes with it, its text kept; a combo box takes typing, a
+   drop-down list doesn't */
+static void props_and_typing(void)
+{
+  Doc *d = doc_new();
+  Pos s, e, at;
+  Sdt nr;
+  char t[256];
+  int k;
+  size_t n;
+  doc_insert(d, &(Pos){ 0, 0 }, "Name: ", 6, NULL);
+  k = sdt_insert(d, (Pos){ 0, 6 }, (Pos){ 0, 6 }, SDT_RICH, 0);
+  nth(d, 0, &s);
+  memset(&nr, 0, sizeof nr);
+  sdt_copy(&nr, sdt_get(d, k));
+  free(nr.alias); free(nr.tag);
+  nr.alias = (char *)malloc(8); strcpy(nr.alias, "Surname");
+  nr.tag = (char *)malloc(8); strcpy(nr.tag, "sname");
+  nr.lock = SLK_DEL;
+  ok("properties: changed", sdt_set_props(d, s, &nr));
+  sdt_rec_free(&nr);
+  nth(d, 0, &s);
+  {
+    char *x = part_of(d, "word/document.xml", &n);
+    ok("properties: title, tag and lock written", has(x, "<w:alias w:val=\"Surname\"/><w:tag w:val=\"sname\"/>") && has(x, "<w:lock w:val=\"sdtLocked\"/>"));
+    free(x);
+  }
+  doc_undo(d, &undo_at);
+  nth(d, 0, &s);
+  ok("properties: undone", sdt_get(d, smark_index(d->p[0]->t + s.off))->alias == NULL);
+  /* typing over the placeholder */
+  at = s; at.off += 6;
+  ok("typing: the placeholder taken out", sdt_typing(d, &at) && at.para == 0 && at.off == s.off + 4 && sdt_end(d, s, &e) && e.off == s.off + 4);
+  doc_insert(d, &at, "Ada", 3, NULL);
+  content(d, s, t, sizeof t);
+  ok("typing: the text in the control", !strcmp(t, "Ada"));
+  {
+    char *x = part_of(d, "word/document.xml", &n);
+    ok("typing: no placeholder written now", x && !has(x, "<w:showingPlcHdr/>") && has(x, ">Ada</w:t>"));
+    free(x);
+  }
+  /* a temporary control goes when typed in */
+  k = sdt_insert(d, (Pos){ 0, d->p[0]->len }, (Pos){ 0, d->p[0]->len }, SDT_TEXT, 0);
+  nth(d, 1, &s);
+  memset(&nr, 0, sizeof nr);
+  sdt_copy(&nr, sdt_get(d, k));
+  nr.temporary = 1;
+  sdt_set_props(d, s, &nr);
+  sdt_rec_free(&nr);
+  {
+    char *x = part_of(d, "word/document.xml", &n);
+    ok("temporary: written", has(x, "<w:temporary/>"));
+    free(x);
+  }
+  nth(d, 1, &s);
+  at = s; at.off += 4;
+  ok("temporary: typed in, the control goes", sdt_typing(d, &at) && sdt_all(d, &s, 0) == 1 && at.off == d->p[0]->len);
+  doc_insert(d, &at, " Lovelace", 9, NULL);
+  ok("temporary: its text plain now", strstr(d->p[0]->t, "Ada") && !strcmp(d->p[0]->t + d->p[0]->len - 9, " Lovelace"));
+  /* combo box and drop-down list */
+  k = sdt_insert(d, (Pos){ 0, d->p[0]->len }, (Pos){ 0, d->p[0]->len }, SDT_COMBO, 0);
+  nth(d, 1, &s);
+  sdt_end(d, s, &e);
+  ok("combo box: typing allowed", sdt_insert_ok(d, (Pos){ 0, s.off + 4 }));
+  k = sdt_insert(d, (Pos){ 0, d->p[0]->len }, (Pos){ 0, d->p[0]->len }, SDT_DROP, 0);
+  nth(d, 2, &s);
+  at = s; at.off += 4;
+  ok("drop-down list: typing refused", !sdt_insert_ok(d, at) && !sdt_typing(d, &at));
+  ok("props and typing: runs sane", runs_sane(d));
+  doc_free(d);
+}
+
 void test_wp16(void)
 {
   size_t len;
@@ -547,4 +620,5 @@ void test_wp16(void)
   }
   free(b);
   inserting();
+  props_and_typing();
 }

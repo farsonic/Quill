@@ -1023,6 +1023,35 @@ int sdt_item_remove(Doc *d, Pos item)
 /* the checks the edit paths make */
 /* the kinds whose content isn't typed in (chosen, toggled or picked) */
 static int fixed_kind(int t) { return t == SDT_CHECK || t == SDT_DROP || t == SDT_PICTURE; }
+int sdt_typing(Doc *d, Pos *at)
+{
+  Pos s, e, a;
+  int k, done = 0;
+  Sdt *r;
+  char t[512];
+  if (!sdt_count(d) || (k = sdt_at(d, *at, &s, &e)) < 0) return 0;
+  r = &d->sdt->r[k];
+  if ((r->lock & SLK_EDIT) || fixed_kind(r->type) || r->type == SDT_GROUP) return 0;
+  a = s; a.off += 4;
+  if (r->plctext) {
+    /* the placeholder showing: the typing takes its place */
+    sdt_text(d, s, e, t, sizeof t);
+    if (!strcmp(t, r->plctext) && pos_cmp(a, e) < 0) {
+      sdt_bypass++;
+      doc_begin(d, a);
+      doc_delete(d, a, e);
+      doc_end(d, a);
+      sdt_bypass--;
+      *at = a; e = a; done = 1;
+    }
+  }
+  if (r->temporary && !(r->lock & SLK_DEL) && sdt_remove(d, s, 1)) {
+    /* "remove when edited": the control goes, its content stays */
+    if (at->para == s.para && at->off >= s.off + 4) at->off -= 4;
+    done = 1;
+  }
+  return done;
+}
 int sdt_insert_ok(Doc *d, Pos at)
 {
   int depth;

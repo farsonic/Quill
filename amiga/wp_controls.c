@@ -1076,23 +1076,10 @@ static ULONG key(UWORD code, UWORD qual, const WpCtx *c)
   if (code == 0x4D && alt) { if (wp16_click(d, c->caret)) return ID_CC_CLICK; return 0; }
   if (!sdt_count(d) || (k = sdt_at(d, c->caret, &s, &e)) < 0) return 0;
   if (code == 0x40 && !ctrl && !alt && d->sdt->r[k].type == SDT_CHECK) return ID_CC_CLICK;
-  if (!ctrl && !alt && code < 0x40 && code != 0x00 && !(d->sdt->r[k].lock & SLK_EDIT)) {
-    /* a character typed in a control showing its placeholder: the placeholder goes first */
-    Sdt *r = &d->sdt->r[k];
-    char t[512];
-    if (r->showplc && r->plctext && r->type != SDT_CHECK && r->type != SDT_DROP && r->type != SDT_PICTURE) {
-      sdt_text(d, s, e, t, sizeof t);
-      if (!strcmp(t, r->plctext)) {
-        Pos a = s;
-        a.off += 4;
-        sdt_bypass++;
-        doc_begin(d, a);
-        if (pos_cmp(a, e) < 0) doc_delete(d, a, e);
-        doc_end(d, a);
-        sdt_bypass--;
-        select_range(a, a);
-      }
-    }
+  if (!ctrl && !alt && code < 0x40 && code != 0x00) {
+    /* a character typed: a placeholder showing goes first; a temporary control goes, its content kept */
+    Pos a = c->caret;
+    if (sdt_typing(d, &a)) select_range(a, a);
   }
   return 0;
 }
