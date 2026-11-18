@@ -351,8 +351,27 @@ static void markdown_source(void)
   doc_free(d); doc_free(s); doc_free(e);
 }
 
+/* ---- Strict Open XML (tools/mkstrict.py's copies of the test documents) */
+static void strict(void)
+{
+  static const char *const names[] = { "word", "tables", "pictures" };
+  int i;
+  for (i = 0; i < 3; i++) {
+    char p1[80], p2[80], what[120];
+    unsigned l1 = 0, l2 = 0;
+    Doc *a, *b;
+    snprintf(p1, sizeof p1, "tests/data/%s.docx", names[i]);
+    snprintf(p2, sizeof p2, "tests/data/strict-%s.docx", names[i]);
+    a = load(p1, &l1); b = load(p2, &l2);
+    snprintf(what, sizeof what, "Strict: %s.docx in Strict Open XML (units, start/end, true/false) reads as the Transitional one", names[i]);
+    ok(what, a && b && same_doc(a, b) && l1 == l2 && !memcmp(&a->page, &b->page, sizeof a->page) && a->nimages == b->nimages && a->ntables == b->ntables);
+    doc_free(a); doc_free(b);
+  }
+}
+
 void test_wp28e(void)
 {
+  strict();
   markdown_source();
   text_encodings();
   flat_opc();

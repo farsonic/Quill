@@ -4,6 +4,7 @@
 #include <string.h>
 #include "pages.h"
 #include "image.h"
+#include "docx.h"     /* (docx_num: Strict measures) */
 #include "hyph.h"
 #include "objfx.h"
 
@@ -503,13 +504,7 @@ int pages_next_manual(Layout *L, Pos from, Pos *at, u32 *len, u8 *brk, u32 *sugg
 static int num(Xml *x, const char *a, i32 *v)
 {
   const char *s = xml_attr(x, a);
-  char *e;
-  long n;
-  if (!s || !*s) return 0;
-  n = strtol(s, &e, 10);
-  if (e == s) return 0;
-  *v = (i32)n;
-  return 1;
+  return s && *s && docx_num(s, v);      /* (Strict's measures with units too) */
 }
 static int onoff(Xml *x)
 {

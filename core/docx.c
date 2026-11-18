@@ -131,17 +131,49 @@ static int onoff(Xml *x)
   return !v || !(!strcmp(v, "0") || str_ieq(v, "false") || str_ieq(v, "off") || str_ieq(v, "none"));
 }
 /* parse a decimal integer (leading spaces and a sign allowed) into *out; 0, leaving *out alone, if
-   s is NULL or has no digits. Digits past nine are dropped so hostile input cannot overflow. */
-static int num(const char *s, i32 *out)
+   s is NULL or has no digits. Digits past nine are dropped so hostile input cannot overflow.
+   Strict Open XML's measures with a unit (ISO 29500 ST_UniversalMeasure: "72pt", "1.5in", "2.54cm",
+   "25mm", "6pc"/"6pi") come out in twips, and percentages ("50%") in WordprocessingML's fiftieths of a
+   per cent, or DrawingML's thousandths while num_dml is set (integers only: vbcc's maths) */
+static int num_dml;
+int docx_num(const char *s, i32 *out)
 {
   i32 v = 0;
+  long frac = 0, fd = 1;
   int neg = 0, any = 0;
   if (!s) return 0;
   while (*s == ' ') s++;
   if (*s == '-') { neg = 1; s++; } else if (*s == '+') s++;
   while (*s >= '0' && *s <= '9') { if (v < 100000000) v = v * 10 + (*s - '0'); s++; any = 1; }
-  if (any) *out = neg ? -v : v;
-  return any;
+  if (*s == '.') { s++; while (*s >= '0' && *s <= '9') { if (fd < 10000) { frac = frac * 10 + (*s - '0'); fd *= 10; } s++; any = 1; } }
+  if (!any) return 0;
+  if (*s && v < 1000000) {
+    /* a unit: thousandths of a twip per unit */
+    long per = 0, t;
+    if (s[0] == 'p' && s[1] == 't') per = 20000;
+    else if (s[0] == 'i' && s[1] == 'n') per = 1440000;
+    else if (s[0] == 'c' && s[1] == 'm') per = 566929;
+    else if (s[0] == 'm' && s[1] == 'm') per = 56693;
+    else if (s[0] == 'p' && (s[1] == 'c' || s[1] == 'i')) per = 240000;
+    else if (s[0] == '%') per = num_dml ? 1000000 : 50000;
+    if (per) {
+      t = (long)(((long long)v * per + (long long)frac * per / fd + 500) / 1000);
+      if (t > 100000000L) t = 100000000L;
+      v = (i32)t;
+    }
+  }
+  *out = neg ? -v : v;
+  return 1;
+}
+static int num(const char *s, i32 *out) { return docx_num(s, out); }
+/* a half-point size (w:sz, w:kern): a Strict measure with a unit ("12pt") from num's twips */
+static int hps_num(const char *s, i32 *out)
+{
+  const char *e;
+  if (!num(s, out)) return 0;
+  for (e = s; *e && *e != 'p' && *e != 'i' && *e != 'c' && *e != 'm'; e++) ;
+  if (*e) *out = (*out + 5) / 10;
+  return 1;
 }
 /* the current tag's attribute as a number; 0 (and *out untouched) if absent or not a number */
 static int attr_num(Xml *x, const char *name, i32 *out) { return num(xml_attr(x, name), out); }
@@ -244,7 +276,7 @@ static void parse_rpr(Xml *x, Ctx *c, RPr *r, char *rstyle)
       set_flag(r, CF_SUPER, !strcmp(v, "superscript"));
       set_flag(r, CF_SUB, !strcmp(v, "subscript"));
     }
-    else if (!strcmp(n, "sz") && num(v, &k) && k > 0 && k < 3277) { r->set |= CM_SIZE; r->cf.size = (u16)k; }
+    else if (!strcmp(n, "sz") && hps_num(v, &k) && k > 0 && k < 3277) { r->set |= CM_SIZE; r->cf.size = (u16)k; }
     else if (!strcmp(n, "rFonts")) {
       /* (WP13) a theme font wins over a named one, as in Word, and is remembered as the theme's */
       const char *tt = xml_attr(x, "asciiTheme"), *f;
@@ -1348,6 +1380,7 @@ static u32 dml_color(Xml *x, Ctx *c)
     for (k = 0; k < 12; k++) if (!strcmp(m, clrnames[k])) col = c->clr[k];
   } else if (!strcmp(n, "prstClr") && v) col = !strcmp(v, "white") ? 0xFFFFFF : !strcmp(v, "red") ? 0xFF0000 : !strcmp(v, "blue") ? 0x0000FF : 0;
   if (x->pending_end) { xml_skip(x); if (sc >= 0) dml_ref = THR(sc, THM_NONE, 0, 0); return col; }
+  num_dml = 1;                       /* (Strict's "75%") */
   while (xml_next(x) != XT_EOF) {
     if (x->type == XT_END && x->depth < d0) break;
     if (x->type != XT_START) continue;
@@ -1358,6 +1391,7 @@ static u32 dml_color(Xml *x, Ctx *c)
       else if (!strcmp(x->name, "lumOff")) loff = t;
     }
   }
+  num_dml = 0;
   if (sc >= 0) {                     /* (WP13) the reference, in the form it was given */
     if (lmod != 100000 || loff) dml_ref = THR(sc, THM_LUM, lmod / 1000 > 255 ? 255 : lmod / 1000 < 0 ? 0 : lmod / 1000, loff / 1000 > 255 ? 255 : loff / 1000 < 0 ? 0 : loff / 1000);
     else if (shade != 100000) dml_ref = THR(sc, THM_DSHADE, shade / 1000 > 100 ? 100 : shade / 1000, 0);

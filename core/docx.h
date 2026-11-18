@@ -44,6 +44,10 @@ u8  *txt_save_enc(Doc *d, int enc, size_t *len);
 /* latin1: write Latin-1 (for Amiga editors), else UTF-8 */
 u8  *txt_save(Doc *d, int latin1, size_t *len);
 
+/* a WordprocessingML number: an integer, or a Strict measure with a unit ("72pt", "1in", "2.5cm", "25mm")
+   in twips, a percentage in fiftieths of a per cent; 0 if s is NULL or has no digits */
+int  docx_num(const char *s, i32 *out);
+
 u8  *file_read(const char *path, size_t *len);           /* NULL if it can't be read */
 int  file_write(const char *path, const void *data, size_t len);   /* 0 if it couldn't be written */
 /* the file formats Quill reads and writes (docx.c's doc_formats[]: .docx, the old .doc, plain text,
