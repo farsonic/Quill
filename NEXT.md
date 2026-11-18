@@ -30,7 +30,7 @@ build, finish the package as its entry in the gap document describes, test, merg
 | cite | WP3 citations and bibliography | 9 | partly built |
 | refs | WP2 captions, table of figures, index, authorities, TOC as a field | 6 | partly built |
 | custom | WP26 Options panes, Customize Ribbon/QAT/Keyboard, command search, KeyTips, ribbon group collapsing at 640 px | 5 | partly built |
-| controls | WP16 content controls, Developer tab, legacy form fields | 3 | early |
+| controls | WP16 content controls, Developer tab, legacy form fields | 7 | finished (all 11 Developer commands ✅, master merged in, native tests and the vbcc build pass); ready to merge into master, then an emulator check of the Developer tab (View › Developer Tab turns it on), its windows (Properties, list, calendar, Form Field Options, XML Mapping) and the controls' frames. When `protect` is merged, WP7 sets `sdt_forms_protected` and calls `sdt_form_at` (core/sdt.h) |
 | mailings | WP4 mail merge, envelopes, labels | 5 | finished (all 22 Mailings commands ✅, master merged in, native tests and the vbcc build pass); ready to merge into master, then an emulator check of the tab and its windows |
 | intl | WP27 right-to-left (bidi) and East Asian | 2 | early |
 

@@ -1076,7 +1076,7 @@ static ULONG key(UWORD code, UWORD qual, const WpCtx *c)
   if (code == 0x4D && alt) { if (wp16_click(d, c->caret)) return ID_CC_CLICK; return 0; }
   if (!sdt_count(d) || (k = sdt_at(d, c->caret, &s, &e)) < 0) return 0;
   if (code == 0x40 && !ctrl && !alt && d->sdt->r[k].type == SDT_CHECK) return ID_CC_CLICK;
-  if (!ctrl && !alt && code < 0x40 && code != 0x00) {
+  if (!ctrl && !alt && code <= 0x40 && code != 0x00) {          /* (0x40: Space) */
     /* a character typed: a placeholder showing goes first; a temporary control goes, its content kept */
     Pos a = c->caret;
     if (sdt_typing(d, &a)) select_range(a, a);

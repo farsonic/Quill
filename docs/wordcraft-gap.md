@@ -6,11 +6,11 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 ## Summary
 
-- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **454** (✅), **4** partly (🟨) and lacks **43** (⬜); 30 are ➖. So Quill covers 91% of the applicable commands fully and 91% at least in part.
-- **Beyond the ribbon (section 2):** 152 features: ✅ 55, 🟨 43, ⬜ 37, ➖ 17.
+- **Ribbon commands:** 531 in WordCraft (the 520 of its catalogue plus Zotero and Help), 501 of them applicable to Quill. Quill has **465** (✅), **4** partly (🟨) and lacks **32** (⬜); 30 are ➖. So Quill covers 93% of the applicable commands fully and 94% at least in part.
+- **Beyond the ribbon (section 2):** 152 features: ✅ 57, 🟨 43, ⬜ 35, ➖ 17.
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
-- **Missing whole:** Developer/content controls (11), Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
-- **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; content controls, charts, SmartArt, equations, OLE objects and VML pictures are dropped (formatting revisions are kept since WP5); no AutoSave or recovery (WP24 adds them). These are in priority 1 below.
+- **Missing whole:** Draw/ink (10), SmartArt (8) and charts (6), and almost all of References beyond the TOC and notes (citations, captions, index, authorities).
+- **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; charts, SmartArt, equations, OLE objects and VML pictures are dropped (formatting revisions are kept since WP5); no AutoSave or recovery (WP24 adds them). These are in priority 1 below.
 - **Other formats:** Quill reads and writes .docx and plain text and exports PDF; WordCraft also reads .doc and reads/writes .rtf, .odt, .html, .md, .tex and Word XML (WP28a-d).
 
 | Tab | Commands | ✅ | 🟨 | ⬜ | ➖ |
@@ -42,12 +42,12 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Chart Design | 5 | 5 | 0 | 0 | 0 |
 | Editing | 41 | 41 | 0 | 0 | 0 |
 | Tools | 7 | 4 | 0 | 3 | 0 |
-| **All** | **531** | **454** | **4** | **43** | **30** |
+| **All** | **531** | **465** | **4** | **32** | **30** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
-| 2.1 File formats | 6 | 5 | 5 | 3 |
-| 2.2 DOCX features | 9 | 15 | 13 | 1 |
+| 2.1 File formats | 6 | 6 | 4 | 3 |
+| 2.2 DOCX features | 11 | 14 | 12 | 1 |
 | 2.3 Layout | 17 | 2 | 5 | 0 |
 | 2.4 Editing | 11 | 11 | 5 | 7 |
 | 2.5 Interface: panes, toolbars and the window | 10 | 2 | 5 | 2 |
@@ -57,7 +57,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | 2.9 Zotero | 0 | 0 | 0 | 1 |
 | 2.10 Control protocol, MCP, command line, scripting | 0 | 0 | 0 | 1 |
 | 2.11 Network and cloud features (left out on purpose) | 0 | 0 | 0 | 1 |
-| **All** | **55** | **43** | **37** | **17** |
+| **All** | **57** | **43** | **35** | **17** |
 
 ## Work packages
 
@@ -533,9 +533,11 @@ The tab fits 640 pixels in all five languages: Start Mail Merge, Preview Results
 
 ### Developer (11: ✅ 11 · 🟨 0 · ⬜ 0 · ➖ 0)
 
-- ✅ Rich Text Content Control (Controls) `developer.richText` — WP16: Developer › Controls (`ID_CC_RICH`, amiga/wp_controls.c; core/sdt.c `sdt_insert`): inline with its placeholder in the Placeholder Text style, or round whole paragraphs at block level; read and written at every level (tests/test_wp16.c) [WP16]
+As in WordCraft the Developer tab is hidden until turned on: View › Developer Tab (ticked) or File › Options › Developer Tab, remembered in `ENVARC:Quill/DeveloperTab` (WP16's state bit `WP16_ST_DEVTAB`, read by ribbon.c `tab_visible`). Every command is also in the menus (Insert › Content Control, Legacy Form Fields, Content Control Tools). The tab (Controls, Mapping and WP23's Templates) is about 450-500 px wide in all five languages.
+
+- ✅ Rich Text Content Control (Controls) `developer.richText` — WP16: Developer › Controls (`ID_CC_RICH`, amiga/wp_controls.c; core/sdt.c `sdt_insert`): inline with its placeholder in the Placeholder Text style, or round whole paragraphs at block level; read and written at every level; typing over the placeholder replaces it (`sdt_typing`); plain in PDF, HTML, Markdown, RTF, ODT and text (tests/test_wp16.c: "controls:", "insert:", "typing:", "plain elsewhere:", "pdf:") [WP16]
 - ✅ Plain Text Content Control (Controls) `developer.plainText` — WP16 (`ID_CC_PLAIN`; `w:text w:multiLine` in the Properties window) [WP16]
-- ✅ Picture Content Control (Controls) `developer.picture` — WP16 (`ID_CC_PICTURE`): a click on it asks for a picture (PNG, JPEG, GIF, BMP, ILBM), which takes the content's place no wider than the column (`sdt_set_picture`) [WP16]
+- ✅ Picture Content Control (Controls) `developer.picture` — WP16 (`ID_CC_PICTURE`): a click on it asks for a picture (PNG, JPEG, GIF, BMP, ILBM), which takes the content's place no wider than the column (`sdt_set_picture`; written inside the `w:sdt`, undo brings the placeholder back: tests "picture:") [WP16]
 - ✅ Building Block Gallery Content Control (Controls) `developer.buildingBlock` — WP16 (`ID_CC_GALLERY`; `w:docPartObj`/`w:docPartList` gallery, category, unique kept and edited); choosing a building block from it needs WP23's glossary, so its content is edited as rich text [WP16]
 - ✅ Check Box Content Control (Controls) `developer.checkBox` — WP16 (`ID_CC_CHECK`): a click or Space toggles it between its `w14:checkedState` and `w14:uncheckedState` symbols (`sdt_toggle`, one undo step; `w14:checked` written from the symbol shown); drawn as a box on the screen [WP16]
 - ✅ Combo Box Content Control (Controls) `developer.comboBox` — WP16 (`ID_CC_COMBO`): a click or Alt-Down lists its entries, typing stays possible; `w:lastValue` written from the content [WP16]
@@ -543,7 +545,7 @@ The tab fits 640 pixels in all five languages: Start Mail Merge, Preview Results
 - ✅ Date Picker Content Control (Controls) `developer.datePicker` — WP16 (`ID_CC_DATE`): a click opens a calendar (month by month, Today); the date is written in the control's `w:dateFormat` and kept as `w:fullDate` (`sdt_set_date`) [WP16]
 - ✅ Repeating Section Content Control (Controls) `developer.repeatingSection` — WP16 (`ID_CC_REPEAT`): `w15:repeatingSection` round paragraphs or table rows with its `w15:repeatingSectionItem`s; Insert Item Before/After and Delete Item on the right button and the Insert menu (`sdt_item_add`, `sdt_item_remove`; rows copied with their cells' text), `w15:doNotAllowInsertDeleteSection` honoured [WP16]
 - ✅ Design Mode (Controls) `developer.designMode` — WP16 (`ID_CC_DESIGN`): every control's start and end tags drawn, titles shown on their tabs [WP16]
-- ✅ Properties (Controls) `developer.properties` — WP16 (`ID_CC_PROPS`): title, tag, show as (bounding box, tags, none), colour, remove when edited, both locks, and a page for the kind (plain text multiline; check box symbols and fonts; list entries add/modify/remove/move; date format, locale, calendar, storage; gallery and category; section title and add/remove); for a legacy form field, Form Field Options. Also on the Developer tab: Legacy Tools (text, check box, drop-down form fields, options), Group/Ungroup (`w:group`: its own text locked, its controls not) and the XML Mapping Pane (custom XML parts as a read-only tree, the binding of the control at the cursor) [WP16]
+- ✅ Properties (Controls) `developer.properties` — WP16 (`ID_CC_PROPS`): title, tag, show as (bounding box, tags, none), colour, remove when edited (the control goes when typed in, `sdt_typing`), both locks, and a page for the kind (plain text multiline; check box symbols and fonts; list entries add/modify/remove/move; date format, locale, calendar, storage; gallery and category; section title and add/remove); for a legacy form field, Form Field Options. Also on the Developer tab: Legacy Tools (text, check box, drop-down form fields, options), Group/Ungroup (`w:group`: its own text locked, its controls not) and the XML Mapping Pane (custom XML parts as a read-only tree, the binding of the control at the cursor); `sdt_set_props` is one undo step (tests "properties:", "temporary:") [WP16]
 
 ### Zotero (7: ✅ 0 · 🟨 0 · ⬜ 0 · ➖ 7)
 
@@ -801,7 +803,7 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - 🟨 **Formatting revisions (`w:rPrChange`, `w:pPrChange`, `w:sectPrChange`, table ones, `w:numberingChange`)** — WP5: a run's and a paragraph's (`CharFmt.frev`, `ParaFmt.prev`, core/review.c) read with the old formatting (and its XML kept verbatim), shown (balloons, bars, Original), accepted and rejected, recorded while tracking (every formatting command) and written; `w:tblPrChange`, `w:tblGridChange`, `w:trPrChange`, `w:tcPrChange`, inserted and deleted rows and cells, `w:sectPrChange` kept verbatim with their table, row, cell or section (accepted by dropping them; rejecting them is refused). Missing: the legacy `w:numberingChange` and revisions inside style definitions (styles.xml) are dropped; a paragraph mark's own insertion, deletion and formatting change are not kept.
 - ✅ **Move tracking (`w:moveFrom`/`w:moveTo`)** — WP5: read as a deletion and an insertion that are one move (`CharFmt.move`, by the name of its `w:moveFromRangeStart`/`w:moveToRangeStart`), drawn in the move colour and marks, written back as `w:moveFrom`/`w:moveTo` inside named ranges (LibreOffice reads them as a move). Quill's own cut and paste while tracking is recorded as a deletion and an insertion, not a move.
 - ✅ **Fields** — WP1 (core/field.h): every field is kept with its code and cached result (marks round the result in the text, `Doc.fields`), from `w:fldChar`/`w:instrText` and `w:fldSimple`, nested (in results and in codes), with `w:fldLock`, `w:dirty`, no separator (XE, TC) and `w:ffData` verbatim, in the body, headers, footers, notes, comments and text boxes, and written back as complex fields: DATE, SEQ, MERGEFIELD, ADDIN (Zotero ZOTERO_ITEM/ZOTERO_BIBL, Mendeley, EndNote), IF, DOCPROPERTY, INDEX, XE, TC, REF, PAGEREF, HYPERLINK... survive a save; most are evaluated (see Update Fields); the TOC keeps its code; docProps core.xml, app.xml and custom.xml are read for the properties fields show, and core.xml's are written back. Checked: tests/test_wp1.c (82 checks), a document with 18 kinds of field round-tripped twice byte-stable and opened in LibreOffice with the same results.
-- ✅ **Content controls (`w:sdt`)** — WP16 (core/sdt.h): kept at block, inline, row and cell level (marks round their content like fields', records in `Doc.sdt`), in the body, tables, headers, footers, notes, comments and text boxes; every `w:sdtPr` child kept: title, tag, id, lock, placeholder, temporary, showing placeholder, `w15:appearance`, `w15:color`, every type and its settings modelled, `w:rPr`, `w:dataBinding` (its custom XML part kept by core/keep.c) and unknown children verbatim with the namespaces they need, `w:sdtEndPr` verbatim; ids kept unique. Checked: tests/test_wp16.c (Word-style sample of every kind, 2 saves byte-stable; edits, locks, undo), LibreOffice opens Quill's file with the same text and keeps 13 of its 14 body controls as content controls when it saves it again.
+- ✅ **Content controls (`w:sdt`)** — WP16 (core/sdt.h): kept at block, inline, row and cell level (marks round their content like fields', records in `Doc.sdt`), in the body, tables, headers, footers, notes, comments and text boxes; every `w:sdtPr` child kept: title, tag, id, lock, placeholder, temporary, showing placeholder, `w15:appearance`, `w15:color`, every type and its settings modelled, `w:rPr`, `w:dataBinding` (its custom XML part kept by core/keep.c) and unknown children verbatim with the namespaces they need, `w:sdtEndPr` verbatim; ids kept unique. Checked: tests/test_wp16.c (Word-style sample of every kind, 2 saves byte-stable; edits, locks, undo), LibreOffice opens Quill's file with the same text and keeps 13 of its 14 body controls as content controls when it saves it again. Shown with Word's boundaries and title tabs on the screen; plain when exported (PDF: the content only, check boxes the fonts lack drawn as boxes; the HTML and Markdown writers leave the marks out).
 - ⬜ **Restrict Editing (`w:documentProtection`, `w:permStart`/`w:permEnd`, locked styles)** — not read or kept.
 - ✅ **Legacy form fields (`w:ffData`: FORMTEXT, FORMCHECKBOX, FORMDROPDOWN)** — WP1 keeps them as fields with their `w:ffData` verbatim and their results; WP16 draws them (text fields shaded, check boxes as boxes, drop-downs showing their chosen entry), fills them (a click toggles a check box or lists a drop-down's entries; `ff_toggle`, `ff_choose` rewrite `w:checked`/`w:result`), inserts them (Legacy Tools) and edits their options (Form Field Options: bookmark, default text, maximum length, default value, entries). With Restrict Editing's "filling in forms" (WP7) only form fields and controls are editable (`sdt_forms_ok`) and Tab goes from field to field (`sdt_forms_next`), once WP7 sets `sdt_forms_protected`.
 - 🟨 **DrawingML pictures, inline and anchored, wrapping** — ✅ for square, tight (with `wp:wrapPolygon`), top and bottom, behind, in front; `wrapThrough` is read as tight (docx.c line 1264); `wrapText` sides (left/right/largest) not kept.
