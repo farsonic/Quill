@@ -61,7 +61,7 @@ typedef struct { const char *name; u8 mode; const Item *items; int n; } Group;
    the contextual TAB_OUTLINING, TAB_EQUATION, TAB_CHARTDESIGN and TAB_SMARTART show while their
    package's state word has WPS_TAB on (WP11, WP14b, WP15b, WP15c) */
 enum { TAB_FILE, TAB_HOME, TAB_INSERT, TAB_DRAW, TAB_DESIGN, TAB_LAYOUT, TAB_REFERENCES, TAB_MAILINGS, TAB_REVIEW, TAB_VIEW,
-       TAB_DEVELOPER, TAB_TABLEDESIGN, TAB_TABLELAYOUT, TAB_PICTURE, TAB_SHAPE, TAB_HEADFOOT, TAB_EDITTEXT,
+       TAB_DEVELOPER, TAB_CUSTOM /* (WP26: the user's own tab, Customize Ribbon) */, TAB_TABLEDESIGN, TAB_TABLELAYOUT, TAB_PICTURE, TAB_SHAPE, TAB_HEADFOOT, TAB_EDITTEXT,
        TAB_EQUATION, TAB_CHARTDESIGN, TAB_SMARTART, TAB_OUTLINING, TAB_N };
 #define WPS_TAB 0                /* bit 0 of a package's state word: its contextual tab is shown */
 

@@ -8,8 +8,8 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 ## Summary
 
-- **Ribbon commands:** 543 in WordCraft (its catalogue, the Zotero and Help tabs plus the Paragraph Tools and Markdown Source of its ribbon), 515 of them applicable to Quill. Quill has **502** (✅), **3** partly (🟨) and lacks **10** (⬜); 28 are ➖. So Quill covers 97% of the applicable commands fully and 98% at least in part.
-- **Beyond the ribbon (section 2):** 161 features: ✅ 69, 🟨 42, ⬜ 31, ➖ 19 (2026-11: nine added from WordCraft's new work).
+- **Ribbon commands:** 543 in WordCraft (its catalogue, the Zotero and Help tabs plus the Paragraph Tools and Markdown Source of its ribbon), 515 of them applicable to Quill. Quill has **505** (✅), **3** partly (🟨) and lacks **7** (⬜); 28 are ➖. So Quill covers 98% of the applicable commands fully and 99% at least in part.
+- **Beyond the ribbon (section 2):** 162 features: ✅ 75, 🟨 43, ⬜ 25, ➖ 19 (2026-11: nine added from WordCraft's new work).
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
 - **Missing whole:** Draw/ink (10), SmartArt (8) and charts (6) (References, Mailings and Developer are complete since WP2, WP3, WP4 and WP16).
 - **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; charts, SmartArt, equations, OLE objects and VML pictures are dropped (formatting revisions are kept since WP5); no AutoSave or recovery (WP24 adds them). These are in priority 1 below.
@@ -19,7 +19,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 |---|---|---|---|---|---|
 | File | 23 | 19 | 1 | 1 | 2 |
 | Quick Access | 5 | 5 | 0 | 0 | 0 |
-| Title Bar | 1 | 0 | 0 | 1 | 0 |
+| Title Bar | 1 | 1 | 0 | 0 | 0 |
 | Home | 115 | 113 | 1 | 0 | 1 |
 | Insert | 53 | 47 | 0 | 0 | 6 |
 | Draw | 11 | 9 | 0 | 1 | 1 |
@@ -43,8 +43,8 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | SmartArt Design | 7 | 7 | 0 | 0 | 0 |
 | Chart Design | 5 | 5 | 0 | 0 | 0 |
 | Editing | 41 | 41 | 0 | 0 | 0 |
-| Tools | 7 | 4 | 0 | 3 | 0 |
-| **All** | **543** | **502** | **3** | **10** | **28** |
+| Tools | 7 | 6 | 0 | 1 | 0 |
+| **All** | **543** | **505** | **3** | **7** | **28** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
@@ -52,14 +52,14 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | 2.2 DOCX features | 16 | 13 | 8 | 1 |
 | 2.3 Layout | 21 | 2 | 3 | 0 |
 | 2.4 Editing | 12 | 11 | 7 | 7 |
-| 2.5 Interface: panes, toolbars and the window | 12 | 2 | 5 | 3 |
-| 2.6 The Options dialog | 1 | 5 | 2 | 1 |
-| 2.7 Keyboard shortcuts | 1 | 0 | 2 | 0 |
+| 2.5 Interface: panes, toolbars and the window | 16 | 2 | 1 | 3 |
+| 2.6 The Options dialog | 1 | 6 | 1 | 1 |
+| 2.7 Keyboard shortcuts | 3 | 0 | 1 | 0 |
 | 2.8 Interface and proofing languages | 0 | 3 | 0 | 1 |
 | 2.9 Zotero | 0 | 0 | 0 | 1 |
 | 2.10 Control protocol, MCP, command line, scripting | 0 | 0 | 0 | 1 |
 | 2.11 Network and cloud features (left out on purpose) | 0 | 0 | 0 | 1 |
-| **All** | **69** | **42** | **31** | **19** |
+| **All** | **75** | **43** | **25** | **19** |
 
 ## Work packages
 
@@ -185,9 +185,9 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Repeat (Toolbar) `edit.repeat` — F4 (`ID_FX_REPEAT`): the last command that made an undo step again (main.c `wp12_note`/`wp12_replay`, lists with their entry), or the text typed since it (`doc_undo_typed()`) [WP12]
 - ✅ AutoSave (Toolbar) `file.autosave` — `ID_INFO_AUTOSAVE`: switch on the quick access bar, File › Info › AutoSave and File › Options; saves a document with a .docx of its own 3 s after typing stops (at most every 30 s) [WP24]
 
-### Title Bar (1: ✅ 0 · 🟨 0 · ⬜ 1 · ➖ 0)
+### Title Bar (1: ✅ 1 · 🟨 0 · ⬜ 0 · ➖ 0)
 
-- ⬜ Search (Tell Me) (Search) `tools.search` — no command search [WP26]
+- ✅ Search (Tell Me) (Search) `tools.search` — the Tell Me box at the right of the tab strip (magnifier, "Tell me" when there is room), the Help key or View › Customize › Tell Me...: a field and the 12 best commands as you type, found by their name in the language shown (accents and case ignored, every word, word starts first) or in English, each with its tab and group; Return or a double-click runs it (a list opens on the ribbon); the recent ones show before anything is typed. Every ribbon tool and menu item, the packages' included (amiga/wp_custom.c; ranking core/custom.c `cmd_search`/`cmd_match`, tests/test_wp26.c) [WP26]
 
 ### Home (115: ✅ 113 · 🟨 1 · ⬜ 0 · ➖ 1)
 
@@ -769,12 +769,12 @@ As in WordCraft the Developer tab is hidden until turned on: View › Developer 
 - ✅ Next Field (Fields) `fields.next` — WP1: `ID_FLD_NEXT` (References › Fields, Insert › Fields submenu; F11 where the keyboard has one: Amiga keyboards stop at F10) selects it [WP1]
 - ✅ Previous Field (Fields) `fields.previous` — WP1: `ID_FLD_PREV` (Shift-F11 likewise) [WP1]
 
-### Tools (7: ✅ 4 · 🟨 0 · ⬜ 3 · ➖ 0)
+### Tools (7: ✅ 6 · 🟨 0 · ⬜ 1 · ➖ 0)
 
 - ✅ AutoCorrect Options (Proofing) `tools.autocorrect` — Review > Proofing > AutoCorrect Options: the AutoCorrect and AutoFormat As You Type pages, the replacement list, Exceptions (core/autocorrect.c, PROGDIR:Quill.autocorrect) [WP8]
 - ✅ Set Proofing Language (Proofing) `review.language` — the Language window (mark the selection, do not check, Set As Default), also from the status bar's language [WP31]
-- ⬜ Customize Ribbon (Customize) `tools.customizeRibbon` [WP26]
-- ⬜ Customize Keyboard (Customize) `tools.customizeKeyboard` [WP26]
+- ✅ Customize Ribbon (Customize) `tools.customizeRibbon` — Options › Customize Ribbon (View › Customize): tick or untick each tab and group (contextual tabs too), a tab of the user's own (named, after Developer) with up to 6 groups of up to 24 commands chosen from every command (filtered by name), ordered with Up/Down; Reset All. Saved as `ribbon.hide`, `ribbon.tab`, `ribbon.group1..6` in Quill.prefs with each command's English name beside its number, so a later Quill still finds it (core/custom.c `RibbonCustom`, tests/test_wp26.c); `ribbon_rebuild()` redraws every window's ribbon [WP26]
+- ✅ Customize Keyboard (Customize) `tools.customizeKeyboard` — Options › Keyboard (View › Customize): a command's current keys, click the key field and press the new keys ("currently assigned to" shown), Assign, Remove, Reset All. Quill's default keys (§2.7) with the user's changes over them, as `key.Ctrl+Shift+D=<command>` lines (core/custom.c `KeyMap`, `key_parse`/`key_format`: raw key codes by their English keyboard names; tests/test_wp26.c, which also checks the default table for clashes); the user's changed keys come before every package's [WP26]
 - ⬜ Encrypt with Password (Protection) `file.encrypt` [WP7]
 - ✅ Templates and Add-ins (Templates) `tools.templates` — Developer › Templates › Document Template and File › Templates and Add-ins… (`ID_TP_TEMPLATES`): the attached template (`w:attachedTemplate` with its settings relationship, app.xml Template), Attach…, Automatically update document styles (`w:linkStyles`: the template's styles copied in, also on opening), the personal templates listed, Organizer; global add-ins ➖ (no macros) [WP23]
 - ✅ Full Screen View (Views) `view.fullScreenView` — `ID_FOCUS` hides the ribbon, rulers, pane and status bar (`chrome()`)
@@ -918,11 +918,11 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 ### 2.5 Interface: panes, toolbars and the window
 
 - ✅ **Ribbon with contextual tabs, split buttons, galleries, bubble help** — amiga/ribbon.c. (Quill also has an Amiga menu bar, and a Header & Footer and an Edit Text contextual tab where WordCraft puts those tools on Insert.)
-- ✅ **Quick access buttons** — Save, Undo, Redo on the tab strip (`g_undo`); not customizable.
-- ⬜ **Ribbon collapse** — WordCraft `ui.collapseRibbon`; Quill only hides everything with Focus.
-- ⬜ **KeyTips (Alt/F10 letters on the ribbon)** — WordCraft crates/ui-egui/src/keytips.
-- ⬜ **Mini toolbar on a selection** — WordCraft crates/ui-egui/src/mini_toolbar.
-- ⬜ **Command search (Tell Me, Alt+Q)** — WordCraft `tools.search`.
+- ✅ **Quick access buttons** — AutoSave, Save, Undo, Redo on the tab strip by default; customizable (WP26): any command, up to 16, from Options › Quick Access Toolbar, the arrow after the buttons, or a ribbon tool's right-button menu (Add to / Remove from Quick Access Toolbar); a command without an icon shows its first two letters. Kept as `qat=` in Quill.prefs. When a language's tab names don't fit a 640-pixel window the Tell Me box goes first, then buttons from the end (tools/ribbonfit.py).
+- ✅ **Ribbon collapse** — (WP26) a tab double-clicked, Ctrl-F1 or View › Customize › Collapse the Ribbon: the tab strip alone; a tab's click brings the tools back. Also the groups: when a tab doesn't fit the window even squeezed, groups from the right become one button each (their first tool's icon, their name and an arrow; their tools in its list, a list tool's list opening after), so every tab fits 640 pixels in all five languages (measured with QuillSans 11 by tools/ribbonfit.py, the model of layout_ribbon(); on the Amiga SetEnv QUILLFIT 1 writes the same check to PROGDIR:Quill.fit). NEXT.md integration item 3.
+- ✅ **KeyTips (Alt/F10 letters on the ribbon)** — (WP26) F10 (Alt types characters on the Amiga): a letter on each tab in the language shown, 1-9 on the Quick Access buttons, Q the Tell Me box; then letters on the tab's tools (collapsed groups too); a code acts as a click (a tab shown, a button pressed, a list opened), Esc goes back a level, a click or F10 ends it. Codes are unique and none starts another (core/custom.c `keytips_assign`/`keytips_match`, tests/test_wp26.c).
+- ✅ **Mini toolbar on a selection** — (WP26) after a selection made with the mouse, or a right-button menu closed with nothing chosen: grow/shrink, bold, italic, underline, highlight, font colour, Format Painter, bullets, numbering, styles, new comment, Font...; it goes when the pointer moves away or a key is pressed; Options › General turns it off.
+- ✅ **Command search (Tell Me, Alt+Q)** — (WP26) the Help key or the box on the tab strip; see Title Bar › Search.
 - ✅ **Status bar** — page, words, language (the caret's: WP31, a click opens the Language window), Focus, view buttons, zoom slider (panes.c).
 - ✅ **Rulers** — horizontal and vertical, indents, tab stops, table column edges, margins.
 - ✅ **Navigation pane** — Headings, Pages, Results.
@@ -944,13 +944,13 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 
 WordCraft's Options has eight panes (crates/ui-egui/src/options.rs). Quill's Options is one page on the File page (amiga/backstage.c `BP_OPTIONS`) plus Window and screen (`open_winprefs()`) and Quill.prefs keys (`hinting=off`, `aatext=off`).
 
-- 🟨 **General** — WordCraft: mini toolbar, dark page, community button, start screen, user name and initials, interface theme, interface size. Quill: user name ✅, theme ✅, text size ✅, dark page (View) ✅; initials ⬜ (comments get them only from files), start screen choice ⬜, mini toolbar ➖ (no mini toolbar).
-- ⬜ **Display** — which formatting marks show even when ¶ is off (tabs, spaces, paragraph marks, hidden text), show rulers by default, print page colour, update fields before printing. Quill: rulers are remembered (`ID_RULER`), the rest ⬜ (printing ones ➖).
+- 🟨 **General** — WordCraft: mini toolbar, dark page, community button, start screen, user name and initials, interface theme, interface size. Quill (the Options window's General pane, WP26): user name ✅, theme ✅, text size ✅, mini toolbar on/off ✅, Window and screen ✅, dark page (Display pane and View) ✅; initials ⬜ (comments get them only from files), start screen choice ⬜.
+- 🟨 **Display** — which formatting marks show even when ¶ is off (tabs, spaces, paragraph marks, hidden text), show rulers by default, print page colour, update fields before printing. Quill: the Display pane (WP26) switches formatting marks, the ruler (remembered) and the dark page; marks one by one ⬜ (printing ones ➖).
 - 🟨 **Proofing** — AutoCorrect Options ✅, check spelling as you type and mark grammar errors on/off ✅ (Review > Proofing, PROGDIR:Quill.proof), style checks ✅ (Spelling and Grammar window), which languages have a dictionary ✅ (the Language window). Missing: ignore capitals/addresses, a custom dictionary editor (Quill.words is a text file).
 - 🟨 **Save** — AutoSave ✅ (File › Options, WP24); personal information removed through Inspect Document ✅, not automatically on each save ⬜.
 - 🟨 **Language** — interface language ✅ (5 languages); proofing language ✅ (WP31: the Language window's Set As Default, PROGDIR:Quill.lang); region ⬜.
-- ⬜ **Accessibility** — animation effects, Read Aloud voice and speed, skip citations.
-- 🟨 **Advanced** — measurement units: Quill cm/in ✅ (WordCraft also mm, pt, pi); alignment guides ⬜; recent documents count ⬜ (Quill keeps a fixed number); region and decimal separator ⬜; KeyTips ⬜; caret animation ➖; user templates folder ⬜; customize keyboard and ribbon ⬜.
+- ⬜ **Accessibility** — animation effects, Read Aloud voice and speed, skip citations. (Quill's pane has Check Accessibility only.)
+- 🟨 **Advanced** — measurement units: Quill cm/in ✅ (WordCraft also mm, pt, pi); alignment guides ⬜; recent documents count ⬜ (Quill keeps a fixed number); region and decimal separator ⬜; KeyTips ✅ (F10, explained in the pane), the Tell Me box on/off ✅; caret animation ➖; user templates folder ⬜; customize keyboard and ribbon ✅ (their own panes, WP26).
 - ➖ **Agents** — MCP and control channel: left out on purpose.
 - ✅ **Window and screen (Quill only)** — public screen and window placement; nothing to match in WordCraft.
 
@@ -959,8 +959,9 @@ WordCraft's Options has eight panes (crates/ui-egui/src/options.rs). Quill's Opt
 WordCraft binds 126 commands to keys (counted from the `.key(...)` of every `CommandSpec` in crates/engine/src); Quill has about 45 (README "Keys", menu shortcuts in main.c `menus[]`, view.c `key()`). Amiga conventions differ (Amiga-L selects all, Amiga-A is Save As, Ctrl-Left/Right go to the line's ends, Alt-Left/Right by words), so this lists functions, not identical keys.
 
 - ✅ **Present in Quill:** cursor movement by character, word (Alt), line end (Ctrl or Home/End), paragraph (Alt-Up/Down), screen, document; Backspace/Del and by word; Return, Shift-Return; Tab and Shift-Tab (lists, cells); Esc; New, Open, Save, Save As, Close, Quit, Next Window; Export PDF; Undo, Redo, Cut, Copy, Paste, Select All; Find, Find Next; Bold, Italic, Underline, Superscript, Subscript; Align left, centre, right, justify; single, 1.5 and double spacing; indent and outdent; page break; grow and shrink font; formatting marks; spelling; insert table; edit header; fit page width.
-- ⬜ **Missing (by WordCraft command):** Copy/Paste Formatting (`edit.copyFormat`/`edit.pasteFormat`), Paste Special (`edit.pasteSpecial`), Paste Text (`edit.pasteText`), Repeat F4 (`edit.repeat`), Go Back Shift+F5 (`edit.goBack`), Go To F5 (`edit.goto`, the command exists without a key), Spike and Insert Spike (Ctrl+F3, Ctrl+Shift+F3), field keys (done by WP1: F9 update, Shift+F9 toggle, Ctrl+F9 the Field window, Alt+F9 all codes, Ctrl+Shift+F9 and Ctrl+6 unlink, Ctrl+3/Ctrl+4 lock/unlock, F11/Shift+F11/Ctrl+F11/Ctrl+Shift+F11 where the keyboard sends F11), Change Case Shift+F3, Double Underline, Word Underline, Small Caps, All Caps (command exists without a key), Strikethrough (exists without a key), Hidden, Font dialog Ctrl+D (exists without a key), font name and size boxes (Ctrl+Shift+F/P), grow/shrink by 1 pt (Ctrl+]/[), Bookmark Ctrl+Shift+F5, Link Ctrl+K, outline keys (Alt+Shift+1-9, A, +, -), Add Space Before Ctrl+0, Bullets Ctrl+Shift+L, Distributed Ctrl+Shift+J, Hanging Indent Ctrl+T and Remove Hanging Ctrl+Shift+T, Heading 1-3 Ctrl+Alt+1-3, Normal Ctrl+Shift+N, Footnote Ctrl+Alt+F, Read Aloud, Thesaurus Shift+F7, Track Changes Ctrl+Shift+E, Column Selection Ctrl+Shift+F8, Extend Selection F8, Style Inspector Shift+F1, Styles pane, Column Break Ctrl+Shift+Return, © ® ™ … — (Ctrl+Alt+C/R/T/., Ctrl+Alt+-), Nonbreaking Hyphen and Space, Optional Hyphen, Draft/Outline/Print Layout views (Ctrl+Alt+N/O/P), Split Ctrl+Alt+S, Macros Alt+F8 (➖), Search Alt+Q, Move paragraph up/down and promote/demote (Alt+Shift+arrows).
-- ⬜ **Customize Keyboard** — WordCraft keeps a user key map (engine/src/keymap.rs). Quill none.
+- ✅ **Added by WP26 (its default key map, amiga/wp_custom.c `defkeys`, each changeable in Options › Keyboard):** Font dialog Ctrl+D, All Caps Ctrl+Shift+A, Strikethrough Ctrl+Shift+X, Double Underline Ctrl+Shift+D, Word Underline Ctrl+Shift+W, Hidden Ctrl+Shift+H, Bold/Italic/Underline Ctrl+B/I/U, Subscript Ctrl+= and Superscript Ctrl+Shift+=, grow/shrink Ctrl+Shift+. and , and by 1 pt Ctrl+] and Ctrl+[, Change Case Shift+F3, the font name and size boxes Ctrl+Shift+F/P, Apply Styles Ctrl+Shift+S, Styles Ctrl+Alt+Shift+S, Heading 1-3 Ctrl+Alt+1-3, Normal Ctrl+Shift+N, Bullets Ctrl+Shift+L, alignment Ctrl+L/E/R/J, indent Ctrl+M and Ctrl+Shift+M, spacing Ctrl+1/2/5, page break Ctrl+Return, Column Break Ctrl+Shift+Return, Link Ctrl+K, Bookmark Ctrl+Shift+F5, Footnote Ctrl+Alt+F and Endnote Ctrl+Alt+D, Track Changes Ctrl+Shift+E, New Comment Ctrl+Alt+M, Word Count Ctrl+Shift+G, Paste Special Ctrl+Alt+V, Paste Text Only Ctrl+Shift+Alt+V, Replace Ctrl+H, © ® ™ … — – (Ctrl+Alt+C/R/T/., Ctrl+Alt+-, Ctrl+keypad -), Draft/Outline/Print Layout Ctrl+Alt+N/O/P, Split Ctrl+Alt+S, Collapse the Ribbon Ctrl+F1, KeyTips F10, Tell Me Help (WordCraft's Alt+Q: Alt types characters on the Amiga). Keys are positional (raw key codes named as on an English keyboard); the menus show them (Format › Quick Formatting, Insert › Typographic Symbols). Copy/Paste Formatting, Repeat F4, Go To and the field keys came with WP10, WP12 and WP1.
+- ⬜ **Still missing:** Go Back Shift+F5, Spike and Insert Spike (Ctrl+F3, Ctrl+Shift+F3), outline keys (Alt+Shift+1-9, A, +, -), Add Space Before Ctrl+0, Distributed Ctrl+Shift+J, Hanging Indent Ctrl+T and Remove Hanging Ctrl+Shift+T, Read Aloud, Thesaurus Shift+F7, Style Inspector Shift+F1, Nonbreaking Hyphen and Space, Optional Hyphen, Move paragraph up/down and promote/demote (Alt+Shift+arrows); Macros Alt+F8 ➖. Any command can be given one of these keys in Options › Keyboard.
+- ✅ **Customize Keyboard** — WordCraft keeps a user key map (engine/src/keymap.rs); Quill (WP26) too: Options › Keyboard, `key.*` lines in Quill.prefs (core/custom.c `KeyMap`). See Tools › Customize Keyboard.
 
 ### 2.8 Interface and proofing languages
 

@@ -37,6 +37,15 @@
  *  Words     Every string through tr(), with its row in tools/lang/wp<n>.py (see tools/mklang.py);
  *            run python3 tools/mklang.py (it writes them into your section of amiga/lang_table.h)
  *            and python3 tools/langcheck.py amiga/wp_<name>.c to find strings without a row.
+ *  Language  wpN_package.drop (after menus; leave it out if you have no windows of your own): close and
+ *            dispose of your windows (OM_REMMEMBER from wp_app(), then MUI_DisposeObject, pointers NULL),
+ *            as main.c's drop_windows() does with its own when the interface language changes, so they
+ *            are made again in the new language the next time they open.
+ *  Options   (WP26) Settings of yours go into the Options window's panes: wp_options_add() a static
+ *            table of WpOption rows from your init hook (below); keep your own values in Quill.prefs
+ *            with wp_pref() / wp_pref_set(), or let a row's key do it. Every command (yours too) can
+ *            be put on the Quick Access Toolbar, a custom ribbon tab and a key by the user, and Tell
+ *            Me finds it by its label in the current language: nothing to do for that.
  *  Tests     tests/test_wp<n>.c: your checks in test_wp<n>() with ok() from tests/testutil.h.
  *  Formats   (WP28a-d) core/docx.c's doc_formats[] has your row already; fill in its functions in
  *            your own core file (core/rtf.c, odt.c, html.c, markdown.c, docbin.c).
@@ -91,6 +100,7 @@ typedef struct {
   void  (*cleanup)(void);
   const WpGroup *groups; int ngroups;                /* ribbon groups to add */
   const WpMenu *menus; int nmenus;                   /* menu items to add */
+  void  (*drop)(void);                               /* (WP26) the interface language changed: dispose of your windows */
 } WpPackage;
 
 /* the packages by WPI_ (NULL if out of range) */
@@ -104,6 +114,7 @@ void  wp_field_text(ULONG id, const struct MUIP_Ribbon_State *st, char *out, siz
 void  wp_ctxmenu(Object *menu, const WpCtx *c);      /* view.c: the right-button menu */
 ULONG wp_key(UWORD code, UWORD qual, const WpCtx *c);   /* view.c: a package's command for a key, or 0 */
 void  wp_init(void), wp_cleanup(void);               /* main.c */
+void  wp_drop(void);                                 /* main.c's drop_windows(): every package's drop hook */
 /* main.c: the menu bar's items with every package's added (malloc'd once and kept; base itself if
    no package adds any or memory is short) */
 struct NewMenu *wp_menus(struct NewMenu *base);
@@ -131,5 +142,40 @@ void    wp_refresh(void);                            /* the ribbon, status bar a
 /* the ASL file requester (title tr()'d), starting at path, which becomes the choice; pattern: an
    AmigaDOS pattern for the files shown ("#?.(png|jpg)"), NULL none. 1 if a file was chosen */
 int     wp_file_request(int save, const char *title, char *path, size_t cap, const char *pattern);
+
+/* ---- (WP26, amiga/wp_options.c) settings in the Options window (File > Options > More Options, or
+   Tools in the View menu). A package adds a table of rows, usually from its init hook; the table must
+   stay (static const). Rows show in their pane in the order added, each a check box, a cycle of
+   choices, a number, a text field, a button or a heading/line of text. The window's OK writes every
+   changed value (to *var or through setv), then calls changed and saves Quill.prefs */
+enum { OP_GENERAL, OP_DISPLAY, OP_PROOFING, OP_SAVE, OP_LANGUAGE, OP_ACCESSIBILITY, OP_ADVANCED, OP_NSETTINGS };
+enum { OT_HEAD, OT_TEXT, OT_CHECK, OT_CYCLE, OT_NUMBER, OT_STRING, OT_BUTTON };
+typedef struct {
+  UBYTE pane, type;                 /* OP_, OT_ */
+  const char *label;                /* English, tr()'d when shown (OT_HEAD: a section title, OT_TEXT: a line) */
+  const char *key;                  /* the Quill.prefs key the framework keeps the value under (read when the
+                                       row is added), or NULL: var or get/set keep it themselves */
+  const char *const *choices;       /* OT_CYCLE: the choices, NULL-terminated (tr()'d) */
+  LONG min, max, def;               /* OT_NUMBER's range; the default (with key: when Quill.prefs hasn't it) */
+  LONG *var;                        /* the value (CHECK 0/1, CYCLE the choice, NUMBER), or NULL ... */
+  LONG (*getv)(void);               /* ... then these read and write it */
+  void (*setv)(LONG v);
+  char *str; int cap;               /* OT_STRING: the text (Latin-1) and its buffer's size */
+  void (*changed)(void);            /* after OK changed it (NULL: nothing more) */
+  ULONG id;                         /* OT_BUTTON: the command it runs */
+} WpOption;
+void wp_options_add(const WpOption *rows, int n);
+void wp_options_open(int pane);                      /* the window on a pane (OP_, or 7-9: the customizing panes) */
+/* Quill.prefs lines for the packages ("key=value"; main.c keeps the lines it doesn't read itself) */
+const char *wp_pref(const char *key);                /* NULL: not set */
+void wp_pref_set(const char *key, const char *value);   /* saved at once; NULL removes it */
+long wp_pref_num(const char *key, long def);
+/* (main.c) Quill.prefs written now; the menu bar's items in English, before main.c translates them */
+void wp_save_prefs(void);
+void wp_menu_english(const struct NewMenu *nm);
+/* (view.c) a selection made with the mouse, let go at screen point x, y: the mini toolbar */
+void wp_minibar(LONG x, LONG y);
+/* (wphooks.c) before every package's key hook: KeyTips and the user's own keys (0: not one) */
+ULONG wp26_prekey(UWORD code, UWORD qual, const WpCtx *c);
 
 #endif

@@ -55,6 +55,7 @@ static const struct { int icon; const char *title, *sub; ULONG id; } infobtn[] =
   { IC_OPEN, "Recover Unsaved", "Documents Quill kept when it ended", ID_INFO_RECOVER } };
 #define NINFOBTN ((int)(sizeof infobtn / sizeof infobtn[0]))
 enum { H_WP29_IMAGE = 200, H_WP29_OPTIONS };      /* (WP29: Export Image, Export Options: its first two ids) */
+#define H_WP26_MORE 210                               /* (WP26: the Options window, ID_WP26_FIRST + 3) */
 enum { H_WP23_TPL = 220, H_WP23_SAVETPL = 240 };   /* (WP23: a personal template on the New page; Save as Template) */
 typedef struct { BBox b; int kind, n; } Hot;
 /* the File page's instance data. hot: the clickable areas found while drawing, which the events
@@ -392,7 +393,8 @@ static void back_draw(struct BData *d, Object *obj)
     }
     add_hot(d, x, y, x + bw - 1, y + fh() + 7, H_NAME, 0);
     y += fh() + 20;
-    big_button(d, rp, x, y, r - x - 16 < 320 ? r - x - 16 : 320, IC_OPTIONS, "Window and screen", "Where Quill's window opens, and on which screen", H_WINDOW);
+    y = big_button(d, rp, x, y, r - x - 16 < 320 ? r - x - 16 : 320, IC_OPTIONS, "Window and screen", "Where Quill's window opens, and on which screen", H_WINDOW);
+    big_button(d, rp, x, y, r - x - 16 < 320 ? r - x - 16 : 320, IC_OPTIONS, "More Options", "Every setting, the ribbon, quick access and keys", H_WP26_MORE);   /* (WP26) */
     break; }
   case BP_ABOUT: {
     static const char *const lines[] = {
@@ -462,6 +464,7 @@ static ULONG back_events(struct IClass *cl, Object *obj, struct MUIP_HandleEvent
     case H_TEXT: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_SAVETXT); break;
     case H_WP29_IMAGE: case H_WP29_OPTIONS: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_WP29_FIRST + (ht->kind - H_WP29_IMAGE)); break;
     case H_WINDOW: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_WINPREFS); break;
+    case H_WP26_MORE: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_WP26_FIRST + 3); break;
     case H_WP23_SAVETPL: DoMethod(_app(obj), MUIM_Application_ReturnID, ID_TP_SAVEAS); break;   /* (WP23) */
     case H_AUTOSAVE: wp24_autosave_set(ht->n); MUI_Redraw(obj, MADF_DRAWOBJECT); break;   /* (WP24) */
     case H_DEVTAB: wp16_devtab_set(ht->n); MUI_Redraw(obj, MADF_DRAWOBJECT); break;       /* (WP16) */

@@ -45,6 +45,16 @@ const char *tr(const char *english)
   w = (const Words *const *)bsearch(english, byen, (size_t)nby, sizeof byen[0], cmp_key);
   return w && (*w)->s[cur] ? (*w)->s[cur] : english;
 }
+/* (see lang.h) a row of its own for words used in two senses: "menu:Format" */
+const char *tr_ctx(const char *ctx, const char *english)
+{
+  char key[96];
+  const Words *const *w;
+  if (cur == LANG_EN || !english || !*english || !nby || strlen(ctx) + strlen(english) + 2 > sizeof key) return tr(english);
+  strcpy(key, ctx); strcat(key, ":"); strcat(key, english);
+  w = (const Words *const *)bsearch(key, byen, (size_t)nby, sizeof byen[0], cmp_key);
+  return w && (*w)->s[cur] ? (*w)->s[cur] : tr(english);
+}
 /* the two-letter code Quill.prefs keeps (language=de); English's for a number out of range */
 const char *lang_code(int lang) { return codes[lang >= 0 && lang < UI_NLANG ? lang : 0]; }
 /* the LANG_ for a code from lang_code (as read back from Quill.prefs), -1 if it isn't one */

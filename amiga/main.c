@@ -74,6 +74,9 @@ extern struct WBStartup *_WBenchMsg;
 #include "wp_find.h"                  /* WP12: its ids, for Find's, Select's and Go To's entries */
 #include "wp_windows.h"               /* WP25: New Window, the window list */
 void wp12_note(ULONG id, LONG v);       /* WP12 (wp_find.c): each command as it starts, for Repeat */
+void wp_prefs_keep(const char *line);   /* WP26 (wp_options.c): Quill.prefs lines main.c doesn't read, kept */
+void wp_prefs_write(FILE *f);           /* ... and written back */
+void wp_ui_set(int metric, int dark, int lang, int large, const char *name);   /* (WP26: below backstage_command) */
 
 static struct NewMenu menus[] = {
   { NM_TITLE, (STRPTR)"File", 0, 0, 0, 0 },
@@ -388,6 +391,7 @@ static void load_prefs(void)
       if (sscanf(line + 10, "%ld,%ld,%ld,%ld", &b[0], &b[1], &b[2], &b[3]) == 4 && b[2] >= 100 && b[3] >= 60)
         { win_box[0] = b[0]; win_box[1] = b[1]; win_box[2] = b[2]; win_box[3] = b[3]; }
     }
+    else wp_prefs_keep(line);              /* (WP26) the work packages' settings, kept and written back */
   }
   fclose(f);
 }
@@ -406,8 +410,10 @@ static void save_prefs(void)
   if (pref_look[0] >= 0 || pref_look[1] >= 0 || pref_look[2] >= 0 || pref_look[3] >= 0)
     fprintf(f, "look=%d,%d,%d,%d\n", pref_look[0], pref_look[1], pref_look[2], pref_look[3]);
   if (win_box[2]) fprintf(f, "windowbox=%ld,%ld,%ld,%ld\n", (long)win_box[0], (long)win_box[1], (long)win_box[2], (long)win_box[3]);
+  wp_prefs_write(f);                       /* (WP26) */
   fclose(f);
 }
+void wp_save_prefs(void) { save_prefs(); }     /* (WP26, wphooks.h) */
 /* a new blank document with the look Set as Default chose (nothing to undo, nothing to save) */
 static Doc *blank_doc(void)
 {
@@ -4309,6 +4315,7 @@ static void drop_windows(void)
       MUI_DisposeObject(*w[i]);
       *w[i] = NULL;
     }
+  wp_drop();                               /* (WP26) the work packages' windows too */
 }
 /* the File page: shown over the ribbon, the page and the status bar */
 static int back_shown;
@@ -4375,20 +4382,33 @@ static void backstage_command(ULONG id)
     ULONG m = 1, dk = 0, lg = 0, lgt = 0;
     char *n = NULL;
     get(backstage, MUIA_Back_Metric, &m); get(backstage, MUIA_Back_UserName, &n);
-    tb.units = (int)m;
-    win_share_units();
-    if (n) { strncpy(username, n, sizeof username - 1); username[sizeof username - 1] = 0; }
     get(backstage, MUIA_Back_Dark, &dk); get(backstage, MUIA_Back_Language, &lg); get(backstage, MUIA_Back_Large, &lgt);
-    if ((int)dk != pref_dark || (int)lg != lang_current() || (int)lgt != pref_large) {
-      /* a new look or language: the window again, its parts set up with the new pens and words */
-      pref_dark = (int)dk;
-      if ((int)lg != lang_current()) { pref_lang = (int)lg; lang_set(pref_lang); drop_windows(); }
-      pref_large = (int)lgt;
-      win_reopen_all();
-    }
-    save_prefs();
+    wp_ui_set((int)m, (int)dk, (int)lg, (int)lgt, n);
     break; }
   }
+}
+/* the File page's options, also set from the Options window (WP26, wp_options.c): units (1 cm, 0
+   inches), the dark interface, the language (LANG_), large text, the user's name (Latin-1; NULL as it
+   is). A new look or language makes every window again, so the caller mustn't use its own windows after */
+void wp_ui_get(int *metric, int *dark, int *lang, int *large, char *name, size_t cap)
+{
+  *metric = tb.units >= 0 ? tb.units : doc->page.width != 12240;
+  *dark = pref_dark; *lang = lang_current(); *large = pref_large;
+  if (cap) { strncpy(name, username, cap - 1); name[cap - 1] = 0; }
+}
+void wp_ui_set(int metric, int dark, int lang, int large, const char *name)
+{
+  tb.units = metric;
+  win_share_units();
+  if (name) { strncpy(username, name, sizeof username - 1); username[sizeof username - 1] = 0; }
+  if (dark != pref_dark || lang != lang_current() || large != pref_large) {
+    /* a new look or language: the window again, its parts set up with the new pens and words */
+    pref_dark = dark;
+    if (lang != lang_current()) { pref_lang = lang; lang_set(pref_lang); drop_windows(); }
+    pref_large = large;
+    win_reopen_all();
+  }
+  save_prefs();
 }
 
 /* ------------------------------------------------------------------ */
@@ -4950,8 +4970,10 @@ int main(int argc, char **argv)
   splash_step(6, tr("Preparing"));
   if (!view_class() || !ruler_class() || !ribbon_class() || !nav_class() || !status_class() || !flatscroll_class() || !backstage_class()) goto done;
   menubar = wp_menus(menus);                        /* the work packages' items added (wphooks.h) */
-  for (i = 0; menubar[i].nm_Type != NM_END; i++)    /* the menus in the language chosen */
-    if (menubar[i].nm_Label && menubar[i].nm_Label != NM_BARLABEL) menubar[i].nm_Label = (STRPTR)tr((const char *)menubar[i].nm_Label);
+  wp_menu_english(menubar);                         /* (WP26: Tell Me and the customizing lists know them) */
+  for (i = 0; menubar[i].nm_Type != NM_END; i++)    /* the menus in the language chosen (titles have words of their own) */
+    if (menubar[i].nm_Label && menubar[i].nm_Label != NM_BARLABEL)
+      menubar[i].nm_Label = (STRPTR)(menubar[i].nm_Type == NM_TITLE ? tr_ctx("menu", (const char *)menubar[i].nm_Label) : tr((const char *)menubar[i].nm_Label));
   load_recent();
   splash_step(8, tr("Loading the spelling dictionary"));
   load_spelling();

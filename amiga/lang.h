@@ -11,6 +11,9 @@ enum { LANG_EN, LANG_DE, LANG_FR, LANG_ES, LANG_IT, UI_NLANG };
 extern const char *const ui_languages[UI_NLANG];   /* each language's name in itself */
 
 const char *tr(const char *english);                /* the words in the language chosen (or as given) */
+/* the same words where they mean something else (the Format menu's title, not the Format Painter):
+   the row "ctx:english" if the table has it, else tr(english). (WP26) */
+const char *tr_ctx(const char *ctx, const char *english);
 void lang_set(int lang);                            /* the interface in language lang (LANG_) */
 int  lang_current(void);                            /* the language chosen */
 int  lang_system(void);                             /* the language Locale prefs prefer, if Quill has it */
