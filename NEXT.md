@@ -22,6 +22,8 @@ save, close, reopen; the saved file checked on the host. Pitfalls found:
   `long` is meant), so the host harness (core + mac/libc.c on Linux, see docs/mac.md "Tested") stays usable.
 - A control moved or sized inside MUIM_Draw invalidates itself: the next update draws again, for ever.
 - Save must FlushVol, or a crash (or the testbed stopping) loses the file's catalog entry.
+- `mac/softfp.c` replaces libgcc's `fpgnulib.o`, which is 68881 code (docs/mac.md, "Floating point"). If
+  the link stops with "links libgcc's fpgnulib.o", the core has started using another conversion: add it there.
 - New Mac interface words go in `tools/lang/mac.py` (mklang reads it after the work packages).
 
 ## Merged into master (done)

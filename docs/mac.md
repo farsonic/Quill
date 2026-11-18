@@ -25,6 +25,7 @@ ask. The same Riptide tree builds RiptidePrefs and Lagoon for the Mac.
 | `mac/qm_lang.c` | `tr()`: Quill's interface words (`amiga/lang_table.h`) in Mac Roman, the language from the System's region |
 | `mac/qm_text.c` | Mac Roman to and from UTF-8 and Latin-1 |
 | `mac/libc.c`, `mac/include/` | the C library the core needs (allocator, stdio over the File Manager, time, strings, sorting) |
+| `mac/softfp.c` | integer and float conversions without an FPU, in place of libgcc's 68881 ones ("Floating point" below) |
 | `mac/qm_mac.c` | the File Manager by path, file types and creator, FlushVol, the clock, the log, the System's region |
 | `mac/qm_thunks.S` | the class dispatcher's register entry and 32-bit QuickDraw's offscreen calls |
 | `mac/traps.txt` | the Toolbox calls Quill adds to Riptide's list (CopyBits, Draw1Control, EventAvail, resources) |
@@ -73,6 +74,23 @@ The Mac build is compiled `-msoft-float` with libgcc's routines, not `-m68881`. 
 
 libgcc's soft-float code (built position-independent for Linux) reaches its rounding-mode variable through
 a global offset table; Riptide's `tools/mac_elf.py` now relocates that table's entries.
+
+**libgcc's conversions are FPU code (found 18 November 2026).** Debian's and Ubuntu's `m68k-linux-gnu`
+compiler has one libgcc, built for a 68020 with a 68881 (`-print-multi-lib` shows only `.`). Its double
+arithmetic and comparisons (`_double.o`, from `lb1sf68.S`) are integer code that take and give doubles in
+D0/D1, as `-msoft-float` code expects. Its conversions are not: `fpgnulib.o` (`__floatsidf`, `__fixdfsi`,
+`__extendsfdf2`, `__truncdfsf2` and six more) is C compiled for the 68881. It uses FMOVE and returns in FP0. So
+every `(double)i` in the core gave whatever D0/D1 held. Charts showed it first: a chart's 4.3 was read as
+2.7e+153 and every chart was drawn as an empty box. With an FPU (the testbed's 68040) the result was wrong. On
+a Mac without one, the FMOVE would have stopped Quill with an F-line exception. `mac/softfp.c` now defines all
+ten functions in integer arithmetic, rounding to nearest, ties to even. Makefile.mac fails the build if the map
+shows `fpgnulib.o` linked again. Tested:
+- natively, against a PC's FPU, 20 million random and edge values, all identical (the file compiles for either
+  byte order);
+- the core built `-m68020 -msoft-float` with it, run under qemu-m68k: charts.docx's first page is identical,
+  pixel for pixel, to the native build.
+
+The earlier check with word.docx had passed only because nothing on that page converts an integer to a double.
 
 ### Speed
 
