@@ -10,6 +10,8 @@
 #include "../core/toc.h"
 #include "../core/table.h"
 #include "../core/pdf.h"
+#include "../core/zip.h"
+#include "../core/docx.h"
 
 /* a document of paragraphs ('\n' between them); heading paragraphs given Heading 1 or 2 by a leading "#" or "##" */
 static Doc *mk(const char *text)
@@ -364,6 +366,48 @@ static void authorities(void)
   doc_free(d);
 }
 
+/* where bytes s are in paragraph p's text (-1 not there) */
+static long has_bytes(const Para *p, const char *s)
+{
+  u32 o, n = (u32)strlen(s);
+  for (o = 0; o + n <= p->len; o++) if (!memcmp(p->t + o, s, n)) return (long)o;
+  return -1;
+}
+/* a table of contents as LibreOffice writes it: each entry's text inside its PAGEREF field's result,
+   before the tab and the number; the text stays, the number becomes the live page placeholder */
+static void lo_toc(void)
+{
+  static const char *body =
+    "<?xml version=\"1.0\"?><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
+    "<w:p><w:pPr><w:pStyle w:val=\"TOC1\"/></w:pPr><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>"
+    "<w:r><w:instrText xml:space=\"preserve\"> TOC \\o \"1-3\" \\h</w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>"
+    "<w:hyperlink w:anchor=\"_Toc1\"><w:r><w:t>1 One</w:t><w:tab/><w:t>1</w:t></w:r></w:hyperlink></w:p>"
+    "<w:p><w:pPr><w:pStyle w:val=\"TOC1\"/></w:pPr><w:hyperlink w:anchor=\"_Toc2\"><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>"
+    "<w:r><w:instrText xml:space=\"preserve\">PAGEREF _Toc2 \\h</w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>"
+    "<w:r><w:t>2 Two</w:t><w:tab/><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:hyperlink>"
+    "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>"
+    "<w:p><w:pPr><w:pStyle w:val=\"Heading1\"/></w:pPr><w:bookmarkStart w:id=\"1\" w:name=\"_Toc1\"/><w:bookmarkEnd w:id=\"1\"/><w:r><w:t>One</w:t></w:r></w:p>"
+    "<w:p><w:pPr><w:pStyle w:val=\"Heading1\"/></w:pPr><w:bookmarkStart w:id=\"2\" w:name=\"_Toc2\"/><w:bookmarkEnd w:id=\"2\"/><w:r><w:t>Two</w:t></w:r></w:p>"
+    "<w:p><w:r><w:t>See page </w:t></w:r><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText> PAGEREF _Toc2 </w:instrText></w:r>"
+    "<w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r><w:r><w:t>.</w:t></w:r></w:p>"
+    "</w:body></w:document>";
+  ZipWriter z;
+  Doc *d = NULL;
+  unsigned lost;
+  char err[200];
+  long pi;
+  zip_begin(&z);
+  zip_add(&z, "word/document.xml", body, strlen(body));
+  if (zip_finish(&z)) d = docx_load((const u8 *)z.out.data, z.out.len, &lost, err, sizeof err);
+  zip_free(&z);
+  ok("toc: LibreOffice's entries read", d && find_para(d, "1 One") == 0 && (pi = find_para(d, "2 Two")) == 1);
+  if (!d) return;
+  ok("toc: its PAGEREF after the entry's text, with the page placeholder",
+     has_bytes(d->p[1], "2 Two\t") >= 0 && has_bytes(d->p[1], FIELD_PAGEREF) > has_bytes(d->p[1], "\t") && has_bytes(d->p[1], "\t1") < 0);
+  ok("toc: a plain PAGEREF's number still the placeholder", find_para(d, "See page ") == 4 && has_bytes(d->p[4], FIELD_PAGEREF) > 0 && has_bytes(d->p[4], "1.") < 0);
+  doc_free(d);
+}
+
 static void cross_references(void)
 {
   Doc *d = mk("#Intro\nSee here.\n#Method\nText\n\nEnd"), *e;
@@ -536,4 +580,5 @@ void test_wp2(void)
   index_tests();
   authorities();
   cross_references();
+  lo_toc();
 }
