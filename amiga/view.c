@@ -591,6 +591,7 @@ static i32 line_x(Layout *L, ParaLay *pl, Line *ln, u32 off)
 #include "wp_windows_view.h"            /* WP25: views shared by windows, Split, page movement, Read Mode's options */
 static int shown_mode(struct Data *d) { return ov_on(d) ? VM_OUTLINE : ww_reading(d) ? VM_READ : d->vmode; }
 #include "wp_proof.h"                  /* WP8, WP31: grammar marks, AutoCorrect while typing, languages */
+#include "wp_intl_view.h"              /* WP27: text beyond Latin-1, right to left, phonetic guides, the cursor keys in it */
 #include "../core/proflang.h"
 /* an underline or strike line of a kind (UL_) from x, w pixels wide, at y */
 static void deco_line(struct RastPort *rp, int kind, LONG x, LONG y, LONG w)
@@ -1511,6 +1512,9 @@ static void draw_turned(struct Data *d, Object *obj, struct RastPort *rp, ParaLa
     Box *b = &pl->boxes[k], nb = *b;
     char num[24];
     if (LAY_HIDDEN(d->lay, b)) continue;                   /* (WP9: hidden text, formatting marks off) */
+    wp27_turned = pc->turn == TD_DOWN;                     /* (WP27: East Asian characters upright in vertical text) */
+    if (b->kind == BX_TEXT && wp27_draw_box(d, obj, &trp, b, pl->p->t, sh + tx(d, b->x), tx(d, ln->ascent))) { wp27_turned = 0; continue; }
+    wp27_turned = 0;
     if (b->kind == BX_TEXT) draw_text(d, obj, &trp, b, pl->p->t, sh + tx(d, b->x), tx(d, ln->ascent));
     else if (b->kind == BX_NOTE || b->kind == BX_ENOTE || b->kind == BX_FIELD) {
       if (b->kind == BX_FIELD) lay_field_text(d->lay, pl->p, b, pc->page, num); else lay_note_label(pl, k, num);
@@ -1590,7 +1594,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     u32 ls = ln->start, le = pc->line + 1 < pl->nlines ? pl->lines[pc->line + 1].start : pl->p->len;
     if (s < ls) s = ls;
     if (e > le) e = le;
-    if (e > s || (pc->para < shi.para && pc->line + 1 == pl->nlines)) {
+    if ((e > s || (pc->para < shi.para && pc->line + 1 == pl->nlines)) && !wp27_draw_sel(d, rp, pl, ln, lx, top, s, e)) {   /* (WP27: mixed directions box by box) */
       LONG x0 = lx + tx(d, line_x(L, pl, ln, s)), x1 = lx + tx(d, line_x(L, pl, ln, e));
       if (pc->para < shi.para && pc->line + 1 == pl->nlines) x1 += tx(d, 120);     /* the paragraph mark */
       if (x1 > x0) { SetAPen(rp, d->pen_sel); RectFill(rp, x0, top, x1 - 1, top + tx(d, ln->height) - 1); }
@@ -1602,7 +1606,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     memset(&lb, 0, sizeof lb);
     lb.f = pl->p->r[0].f; lb.f.flags &= ~(CF_UNDERLINE | CF_STRIKE);
     lb.kind = BX_TEXT; lb.off = 0; lb.len = (u16)strlen(pl->label);
-    draw_text(d, obj, rp, &lb, pl->label, lx, base);
+    draw_text(d, obj, rp, &lb, pl->label, lx + tx(d, ln->labelx), base);   /* (WP27: right to left on the right) */
   }
   if (pc->lnum) {
     /* the line number, its right edge pc->lnd left of its column, in the Line Number style's font */
@@ -1622,6 +1626,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     Box *b = &pl->boxes[k];
     if (LAY_HIDDEN(L, b)) continue;                       /* (WP9: hidden text, formatting marks off) */
     if (b->kind == BX_TEXT && ENCLOSURE(&b->f)) { draw_enclosed(d, obj, rp, b, pl->p->t, lx + tx(d, b->x), base); continue; }   /* (WP9) */
+    if (b->kind == BX_TEXT && !b->nspace && wp27_draw_box(d, obj, rp, b, pl->p->t, lx + tx(d, b->x), base)) continue;   /* (WP27) */
     if (b->kind == BX_DROP) draw_text(d, obj, rp, b, pl->p->t, lx + tx(d, b->x), base + tx(d, lay_drop_dy(pl, b)));
     if (b->kind == BX_TEXT && b->nspace) {
       /* hyphenated at the line's end: the text, then the hyphen */
@@ -1732,6 +1737,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
       }
     }
   }
+  wp27_draw_marks(d, obj, rp, pl, ln, lx, base);         /* (WP27: phonetic guides, emphasis marks) */
   if (d->marks && pc->line + 1 == pl->nlines && (pl->nboxes == 0 || pl->boxes[pl->nboxes - 1].kind != BX_BREAK || ln->nbox == 0)) {
     /* the paragraph mark after its last line */
     LONG x = lx + tx(d, ln->nbox ? pl->boxes[ln->box0 + ln->nbox - 1].x + pl->boxes[ln->box0 + ln->nbox - 1].w : 0) + 1;
@@ -4653,6 +4659,7 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
   if (fv_key(d, obj, im, &shift)) return 1;    /* WP12: Extend Selection, column selection */
   caret_hide(d, obj);
   if (d->stale && ((code >= 0x4C && code <= 0x4F) || code == 0x70 || code == 0x71 || code == 0x48 || code == 0x49)) { relayout(d, obj); d->stale = 0; }   /* the cursor keys need the layout */
+  if (ctrl || alt) code = wp27_arrow(d, code);  /* (WP27: Ctrl/Alt Left and Right as seen in right-to-left text; plain ones step in visual order) */
   switch (code) {
   /* a PC keyboard's Home, End, Page Up and Page Down (as AROS and most adapters send them) */
   case 0x70: move_to(d, ctrl ? doc_start(doc) : lay_line_start(d->lay, d->caret), shift); break;
@@ -4665,8 +4672,8 @@ static int key(struct Data *d, Object *obj, struct IntuiMessage *im)
     move_to(d, p, shift);
     vert = 1;
     break; }
-  case 0x4F: move_to(d, ctrl ? lay_line_start(d->lay, d->caret) : alt ? pos_word_left(doc, d->caret) : (!shift && has_sel(d)) ? sel_lo(d) : pos_left(doc, d->caret), shift); break;
-  case 0x4E: move_to(d, ctrl ? lay_line_end(d->lay, d->caret) : alt ? pos_word_right(doc, d->caret) : (!shift && has_sel(d)) ? sel_hi(d) : pos_right(doc, d->caret), shift); break;
+  case 0x4F: move_to(d, ctrl ? lay_line_start(d->lay, d->caret) : alt ? pos_word_left(doc, d->caret) : (!shift && has_sel(d)) ? sel_lo(d) : lay_visual_step(d->lay, d->caret, -1), shift); break;
+  case 0x4E: move_to(d, ctrl ? lay_line_end(d->lay, d->caret) : alt ? pos_word_right(doc, d->caret) : (!shift && has_sel(d)) ? sel_hi(d) : lay_visual_step(d->lay, d->caret, 1), shift); break;
   case 0x4C: case 0x4D: {
     int dir = code == 0x4C ? -1 : 1;
     if (ctrl && alt) { move_to(d, dir < 0 ? doc_start(doc) : doc_end_pos(doc), shift); break; }

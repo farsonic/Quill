@@ -19,6 +19,7 @@
 #include "ink.h"      /* WP20 */
 #include "review.h"
 #include "outline.h"                  /* (WP11) heading_style_level */
+#include "intl.h"                     /* (WP27) */
 #include "cite.h"                     /* (WP3) cite_free */
 
 /* ------------------------------------------------------------------ */
@@ -401,7 +402,9 @@ static int cf_eq(const CharFmt *a, const CharFmt *b)
          a->thcolor == b->thcolor && a->thfont == b->thfont &&     /* (WP13) */
          a->fx2 == b->fx2 && a->ulcolor == b->ulcolor && a->shade == b->shade && a->rx == b->rx &&   /* (WP9's) */
          a->lang == b->lang && a->langea == b->langea && a->langbidi == b->langbidi && a->noproof == b->noproof &&   /* (WP31's) */
-         a->frev == b->frev && a->move == b->move;       /* (WP5) */
+         a->frev == b->frev && a->move == b->move &&       /* (WP5) */
+         a->rtl == b->rtl && a->cs == b->cs && a->fontcs == b->fontcs && a->fontea == b->fontea && a->sizecs == b->sizecs &&   /* (WP27's) */
+         a->em == b->em && a->eal == b->eal && a->ealid == b->ealid && a->ruby == b->ruby && a->hint == b->hint;
 }
 /* the run covering byte off (past the end: the last run). Points into the paragraph, so it is good
    until the paragraph next changes */
@@ -682,6 +685,23 @@ void cf_apply(CharFmt *c, unsigned mask, const CharFmt *v)
   /* WP31's: the language (with w:lang's other two) and "do not check" (proflang.h) */
   if (mask & 0x04000000U) { c->lang = v->lang; c->langea = v->langea; c->langbidi = v->langbidi; }
   if (mask & 0x02000000U) c->noproof = v->noproof;
+  /* WP27's (intl.h): CM_CS, CM_EA (the fields v->intl_mask names, 0 all of them), CM_RUBY */
+  if (mask & 0x01800000U) {
+    u8 m = v->intl_mask ? v->intl_mask : 0xFF;
+    if (mask & 0x00800000U) {
+      if (m & 1) c->rtl = v->rtl;
+      if (m & 2) c->cs = v->cs;
+      if (m & 4) c->fontcs = v->fontcs;
+      if (m & 8) c->sizecs = v->sizecs;
+      if (m & 16) c->hint = v->hint;
+    }
+    if (mask & 0x01000000U) {
+      if (m & 32) c->fontea = v->fontea;
+      if (m & 64) c->em = v->em;
+      if (m & 128) { c->eal = v->eal; c->ealid = v->ealid; }
+    }
+  }
+  if (mask & 0x80000000U) c->ruby = v->ruby;
 }
 /* the CM_ fields mask names set from val on a..b (either order), runs split at the ends; an empty
    paragraph's one run takes it too. One undo step; 0 if the range is empty */
@@ -963,6 +983,8 @@ void pf_apply(ParaFmt *p, unsigned mask, const ParaFmt *v)
   if (mask & PM_CONTEXT) p->contextual = v->contextual;
   if (mask & PM_PREV) p->prev = v->prev;       /* (WP5) */
   if (mask & PM_OUTLINE) p->outlvl = v->outlvl;                    /* (WP11) */
+  if (mask & 0x200000U) p->bidi = v->bidi;                         /* (WP27: PM_BIDI) */
+  if (mask & 0x400000U) { p->asian = v->asian; p->talign = v->talign; }   /* (WP27: PM_ASIAN) */
 }
 /* the PM_ groups mask names set from val on paragraphs pa..pb (either order, pb clamped to the
    last). One undo step */
@@ -2068,6 +2090,10 @@ static CharFmt paste_cf(Doc *d, const Fragment *f, const CharFmt *src, const Cha
   c.link = link;
   if (!same) {
     c.font = (u8)(src->font < f->nfonts ? doc_font(d, f->fonts[src->font]) : 0);
+    /* (WP27) the complex script and East Asian fonts found again; a phonetic guide stays in its own document */
+    c.fontcs = (u8)(src->fontcs && src->fontcs <= f->nfonts ? doc_font(d, f->fonts[src->fontcs - 1]) + 1 : 0);
+    c.fontea = (u8)(src->fontea && src->fontea <= f->nfonts ? doc_font(d, f->fonts[src->fontea - 1]) + 1 : 0);
+    c.ruby = 0;
     if (src->cstyle && src->cstyle < f->nstyles) { int k = doc_style(d, f->styles[src->cstyle].id); c.cstyle = (u8)(k > 0 && d->styles[k].type == ST_CHAR ? k : 0); }
   }
   c.rev = 0; c.rid = 0;
@@ -2234,10 +2260,12 @@ int doc_add_style(Doc *d, const Style *s)
 /* ------------------------------------------------------------------ */
 /* styles: what they set themselves, and what that comes to */
 static const unsigned pf_groups[] = { PM_ALIGN, PM_INDENT, PM_SPACING, PM_LINE, PM_TABS, PM_KEEP, PM_LIST, PM_BREAK, PM_BORDER, PM_SHADE,
-                                      PM_PAGINATION, PM_CONTEXT, PM_OUTLINE };
+                                      PM_PAGINATION, PM_CONTEXT, PM_OUTLINE,
+                                      0x200000U, 0x400000U };    /* (WP27's PM_BIDI, PM_ASIAN) */
 static const unsigned cf_fields[] = { CM_BOLD, CM_ITALIC, CM_UNDERLINE, CM_STRIKE, CM_SUPER, CM_SUB, CM_CAPS, CM_FONT, CM_SIZE, CM_COLOR, CM_HL,
                                       CM_SMALLCAPS, CM_DSTRIKE, CM_UL, CM_SPACING, CM_SCALE, CM_POSITION, CM_CBORDER,
-                                      CM_FX2, CM_ULCOLOR, CM_SHADE, CM_RX };
+                                      CM_FX2, CM_ULCOLOR, CM_SHADE, CM_RX,
+                                      0x00800000U, 0x01000000U };    /* (WP27's CM_CS, CM_EA) */
 #define NGROUPS (sizeof pf_groups / sizeof pf_groups[0])
 #define NFIELDS (sizeof cf_fields / sizeof cf_fields[0])
 /* a and b agree in PM_ group g */
@@ -2259,6 +2287,8 @@ static int pf_same(const ParaFmt *a, const ParaFmt *b, unsigned g)
   case PM_PAGINATION: return a->keeplines == b->keeplines && a->nowidow == b->nowidow;
   case PM_CONTEXT: return a->contextual == b->contextual;
   case PM_OUTLINE: return a->outlvl == b->outlvl;                  /* (WP11) */
+  case 0x200000U: return a->bidi == b->bidi;                         /* (WP27: PM_BIDI) */
+  case 0x400000U: return a->asian == b->asian && a->talign == b->talign;   /* (WP27: PM_ASIAN) */
   }
   return 1;
 }
@@ -2271,6 +2301,9 @@ static int cf_same(const CharFmt *a, const CharFmt *b, unsigned f)
   if (f == CM_ULCOLOR) return a->ulcolor == b->ulcolor;
   if (f == CM_SHADE) return a->shade == b->shade;
   if (f == CM_RX) return a->rx == b->rx;
+  /* (WP27's CM_CS, CM_EA) */
+  if (f == 0x00800000U) return a->rtl == b->rtl && a->cs == b->cs && a->fontcs == b->fontcs && a->sizecs == b->sizecs && a->hint == b->hint;
+  if (f == 0x01000000U) return a->fontea == b->fontea && a->em == b->em && a->eal == b->eal && a->ealid == b->ealid;
   switch (f) {
   case CM_FONT: return a->font == b->font && a->thfont == b->thfont;
   case CM_SIZE: return a->size == b->size;
@@ -2763,6 +2796,7 @@ void doc_free(Doc *d)
   undo_free(d->undo);
   keep_free(d);
   field_free_all(d);
+  intl_free(d);                             /* (WP27) */
   refs_free(d);                  /* (WP2) */
   sdt_free_all(d);               /* (WP16) */
   free(d->wm.pic);          /* (WP22a) */

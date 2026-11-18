@@ -8,8 +8,8 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 ## Summary
 
-- **Ribbon commands:** 543 in WordCraft (its catalogue, the Zotero and Help tabs plus the Paragraph Tools and Markdown Source of its ribbon), 515 of them applicable to Quill. Quill has **492** (✅), **3** partly (🟨) and lacks **20** (⬜); 28 are ➖. So Quill covers 96% of the applicable commands fully and 96% at least in part.
-- **Beyond the ribbon (section 2):** 161 features: ✅ 63, 🟨 42, ⬜ 37, ➖ 19 (2026-11: nine added from WordCraft's new work).
+- **Ribbon commands:** 543 in WordCraft (its catalogue, the Zotero and Help tabs plus the Paragraph Tools and Markdown Source of its ribbon), 515 of them applicable to Quill. Quill has **502** (✅), **3** partly (🟨) and lacks **10** (⬜); 28 are ➖. So Quill covers 97% of the applicable commands fully and 98% at least in part.
+- **Beyond the ribbon (section 2):** 161 features: ✅ 69, 🟨 42, ⬜ 31, ➖ 19 (2026-11: nine added from WordCraft's new work).
 - **Strongest:** Home (formatting, lists, styles), Table Layout, Header & Footer, Layout, Design, the views and the core editing keys.
 - **Missing whole:** Draw/ink (10), SmartArt (8) and charts (6) (References, Mailings and Developer are complete since WP2, WP3, WP4 and WP16).
 - **Biggest risks for documents people send:** fields other than page numbers and cross-references lose their codes on save; charts, SmartArt, equations, OLE objects and VML pictures are dropped (formatting revisions are kept since WP5); no AutoSave or recovery (WP24 adds them). These are in priority 1 below.
@@ -17,14 +17,14 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 
 | Tab | Commands | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|---|
-| File | 23 | 18 | 1 | 2 | 2 |
+| File | 23 | 19 | 1 | 1 | 2 |
 | Quick Access | 5 | 5 | 0 | 0 | 0 |
 | Title Bar | 1 | 0 | 0 | 1 | 0 |
-| Home | 115 | 108 | 1 | 5 | 1 |
+| Home | 115 | 113 | 1 | 0 | 1 |
 | Insert | 53 | 47 | 0 | 0 | 6 |
 | Draw | 11 | 9 | 0 | 1 | 1 |
 | Design | 10 | 10 | 0 | 0 | 0 |
-| Layout | 23 | 20 | 0 | 3 | 0 |
+| Layout | 23 | 23 | 0 | 0 | 0 |
 | References | 25 | 24 | 0 | 0 | 1 |
 | Mailings | 23 | 22 | 0 | 0 | 1 |
 | Review | 31 | 25 | 1 | 3 | 2 |
@@ -34,7 +34,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Zotero | 7 | 0 | 0 | 0 | 7 |
 | Help | 4 | 1 | 0 | 0 | 3 |
 | Table Design | 8 | 8 | 0 | 0 | 0 |
-| Table Layout | 33 | 32 | 0 | 1 | 0 |
+| Table Layout | 33 | 33 | 0 | 0 | 0 |
 | Picture Format | 14 | 14 | 0 | 0 | 0 |
 | Shape Format | 13 | 13 | 0 | 0 | 0 |
 | Header & Footer | 5 | 5 | 0 | 0 | 0 |
@@ -44,13 +44,13 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | Chart Design | 5 | 5 | 0 | 0 | 0 |
 | Editing | 41 | 41 | 0 | 0 | 0 |
 | Tools | 7 | 4 | 0 | 3 | 0 |
-| **All** | **543** | **492** | **3** | **20** | **28** |
+| **All** | **543** | **502** | **3** | **10** | **28** |
 
 | Area | ✅ | 🟨 | ⬜ | ➖ |
 |---|---|---|---|---|
 | 2.1 File formats | 6 | 6 | 4 | 3 |
-| 2.2 DOCX features | 12 | 13 | 12 | 1 |
-| 2.3 Layout | 19 | 2 | 5 | 0 |
+| 2.2 DOCX features | 16 | 13 | 8 | 1 |
+| 2.3 Layout | 21 | 2 | 3 | 0 |
 | 2.4 Editing | 12 | 11 | 7 | 7 |
 | 2.5 Interface: panes, toolbars and the window | 12 | 2 | 5 | 3 |
 | 2.6 The Options dialog | 1 | 5 | 2 | 1 |
@@ -59,7 +59,7 @@ Marks: ✅ Quill has it · 🟨 partly (what is missing is said) · ⬜ missing 
 | 2.9 Zotero | 0 | 0 | 0 | 1 |
 | 2.10 Control protocol, MCP, command line, scripting | 0 | 0 | 0 | 1 |
 | 2.11 Network and cloud features (left out on purpose) | 0 | 0 | 0 | 1 |
-| **All** | **63** | **42** | **37** | **19** |
+| **All** | **69** | **42** | **31** | **19** |
 
 ## Work packages
 
@@ -121,7 +121,7 @@ Sizes are for one engineer-agent; "ribbon" counts the ⬜ and 🟨 commands of s
 - **WP19 WordArt and signature line** (ribbon 6; 3-4 h; after WP9 and WP18). WordArt text effects (`w14:textFill`, `textOutline`, `shadow`, `glow`, `reflection`), Insert WordArt, Quick Styles, Text Fill, Text Outline, a few Transform warps; Signature Line. Files: core/doc.h, core/docx.c, amiga/view.c, core/pdf.c, new amiga/wp_wordart.c. **Done** (branch wordart): the 6 lines ✅. Model: the w14 effects stay in WP9's `CharFmt.rx` (one place, written once), parsed into a `TextFx` per rx number for drawing and rewritten part by part in the schema's order by `wa_set`; `Image.warp`, `Image.sig` (struct SigLine). Files: core/wordart.c/.h, core/sigline.c, amiga/wp_wordart.c/.h; small hooks in core/docx.c (signature line reader and writer, warp reader), core/objdocx.c (warp in bodyPr), core/pdf.c (WordArt runs and bent text), core/docx_charfx.c (w14:shadow no longer taken for w:shadow), core/doc.c (SigLine copied and freed), amiga/view.c (drawing). Tests in tests/test_wp19.c.
 - **WP20 Draw tab and drawing canvas** (ribbon 12; 4-6 h). Pens, pencil, highlighter, eraser, lasso, Add Pen, Ink to Shape, Ink Replay, Hide Ink; ink saved as freeform shapes (`a:custGeom`, which also reads Word's freeforms); Drawing Canvas (`wpc:`, README roadmap). Files: core/doc.h (OBJ_INK, OBJ_CANVAS), core/docx.c, amiga/view.c (pen input), core/pdf.c, new amiga/wp_draw.c, amiga/ribbon.c (its tab from WP0). **Done** (branch draw): all 12 lines ✅. Model: `Image.ff` (a `Freeform`: paths, pen, drawing order, Word's own ink kept), `Image.canvas`, `SH_FREEFORM` (core/ink.h, core/ink.c): `a:custGeom` read (lines, Béziers, arcs, several paths each in its own space: Word's freeforms) and written; Word's ink (`w14:contentPart` in a drawing, a group or a canvas, its `mc:Fallback` picture left out) kept as written with its InkML part (kept by WP0's customXml keeping) and drawn from the part's traces (InkML differences decoded, brush colour and width); drawing canvases `wpc:wpc`. UI: amiga/wp_draw.c (Draw tab, Review › Ink, Insert and Review menu items, right-button items), amiga/wp_draw_view.h (included by view.c: drawing, eraser, lasso, replay). Ink to Text ➖: handwriting recognition needs a recogniser Quill doesn't have (and Word's uses a cloud service). Tests in tests/test_wp20.c.
 - **WP26 Customization and discoverability** (ribbon 4; 4-5 h). Options in panes (General, Display, Proofing, Save, Language, Advanced) for the settings the other packages add; Customize Ribbon and the quick access buttons; Customize Keyboard (a key map in Quill.prefs); command search (Tell Me); KeyTips; a mini toolbar; the missing keyboard shortcuts of section 2.7 where Amiga keys allow. Files: amiga/ribbon.c, amiga/main.c, amiga/backstage.c, new amiga/wp_custom.c.
-- **WP27 Right-to-left and East Asian** (ribbon 9; 8+ h, split into bidi and East Asian). UAX #9 bidi, right-to-left paragraphs, sections and tables, Arabic and Hebrew shaping, numerals; vertical text, document grid, Asian typography, ruby (Phonetic Guide). Needs fonts and an interface encoding beyond Latin-1; lowest priority for an Amiga word processor. Files: core/layout.c, core/doc.h, core/docx.c, core/fonts.c, core/ttraster.c, amiga/view.c.
+- **WP27 Right-to-left and East Asian** (ribbon 9; 8+ h, split into bidi and East Asian). UAX #9 bidi, right-to-left paragraphs, sections and tables, Arabic and Hebrew shaping, numerals; vertical text, document grid, Asian typography, ruby (Phonetic Guide). Needs fonts and an interface encoding beyond Latin-1; lowest priority for an Amiga word processor. Files: core/layout.c, core/doc.h, core/docx.c, core/fonts.c, core/ttraster.c, amiga/view.c. **Done** (branch intl): all 9 lines ✅, plus Numerals and Emphasis Mark. Model: core/bidi.c/bidi.h/bidi_tab.h (UAX #9, mirroring, brackets, joining, widths, kinsoku: tables made by tools/mkbidi.py from the UCD), core/intl.c/intl.h (ruby, settings, the edits), core/docx_intl.c (w:bidi, w:rtl, w:cs, w:szCs, w:bCs, w:iCs, w:eastAsia, w:hint, w:em, w:eastAsianLayout, w:ruby, w:dir/w:bdo, w:bidiVisual, w:textDirection, w:docGrid, Asian typography, settings.xml line breaking), core/layout_intl.h (levels per paragraph, visual order per line, shaping, fonts for other scripts, the grid, vertical sections, guides and marks; `lay_visual`, `lay_visual_step`), core/pdf_intl.h, amiga/wp_intl.c, amiga/wp_intl_view.h (text beyond Latin-1 drawn from the TrueType faces); tests/test_wp27.c with tests/data/BidiCharacterTest-sample.txt (QUILL_BIDI_TEST=BidiCharacterTest.txt and QUILL_BIDI_CLASSTEST=BidiTest.txt run the whole files). Left as it is: Arabic needs a font with the presentation forms (DejaVu Sans, Amiri...; Quill's own fonts have Hebrew but not Arabic); `btLr` sections are laid out across; no OpenType GSUB/GPOS shaping (Indic scripts are shown unshaped); the interface itself stays Latin-1.
 - **WP28b ODT** (beyond-ribbon 1; 4-5 h). Read and write .odt (styles, lists, tables, pictures, headers and footers, notes). Files: new core/odt.c (core/zip.c already reads deflated entries), a row in the format table. **Done** (§2.1): core/odt.c (reading, rows `fmt_odt` and `fmt_fodt`), core/odtw.c (writing), core/odtx.h, core/mathml.c (MathML equations), amiga/wp_odt.c (File > Save As OpenDocument Text...), tests/test_wp28b.c, tests/data/lo-*.odt and lo-tables.fodt.
 - **WP28d Word 97-2003 .doc reader** (beyond-ribbon 1; 8-12 h, two agents: text/formatting/styles, then tables/pictures/notes/fields). Files: new core/docbin.c, core/cfb.c (from WP7, or written here first).
 - **WP30 More interface languages** (beyond-ribbon 1; 2-3 h for Latin-1 ones). Dutch, Swedish, Danish, Brazilian Portuguese first (Latin-1 fonts suffice); then Latin-2 screen fonts (tools/mkamigafonts.py) for Polish, Czech, Hungarian, Croatian, Slovenian, Romanian. Files: amiga/lang_table.h, amiga/lang.c, tools/mklang.py, tools/mkamigafonts.py, fonts-amiga/.
@@ -151,7 +151,7 @@ core/docx.c is touched by most lanes. Each package should add its reading and wr
 
 In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help tabs from its ribbon code. Each line: the mark, WordCraft's command (its group) and command id, Quill's evidence or what is missing, and the work package. WordCraft has no separate Header & Footer tab (those tools are in its catalogue as a pseudo-tab, shown here as such); Quill has Header & Footer and Edit Text contextual tabs of its own. Editing and Tools are WordCraft's keyboard and dialog commands that have no ribbon button.
 
-### File (23: ✅ 18 · 🟨 1 · ⬜ 2 · ➖ 2)
+### File (23: ✅ 19 · 🟨 1 · ⬜ 1 · ➖ 2)
 
 - ✅ New (Backstage) `file.new` — `ID_NEW` (File menu Amiga-N, File page New)
 - ✅ Open (Backstage) `file.open` — `ID_OPEN`
@@ -165,7 +165,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Export PDF (Backstage) `file.exportPdf` — `ID_PDF` (Amiga-D, `export_pdf()`)
 - ✅ Export Image (Backstage) `file.exportPng` — WP29: amiga/wp_pdf.c `export_image()` (File page › Export › Export Image, File menu), core/pngwrite.c `page_images_save()`: each page (or the Export Options range) as PNG (core/zip.c's deflate) or 24-plane IFF ILBM, 72-300 dpi, drawn by core/raster.c from the page's PDF content (compared side by side with poppler's rendering of the same PDF: the same; the 68040 build's PNG is byte-identical to the native one). Tests: tests/test_wp29.c [WP29]
 - 🟨 Options (Backstage) `file.options` — `BP_OPTIONS` page: units (cm/in), theme, text size, language, user name, Window and screen; most of WordCraft's Options panes missing (see "Options") [WP26]
-- ⬜ Numerals (Options) `view.numeral` — no Arabic/Hindi numeral choice [WP27]
+- ✅ Numerals (Options) `view.numeral` — WP27: File › Right-to-Left and Asian Options... › Numeral: Arabic, Hindi (Arabic-Indic digits), Context (Arabic-Indic after Arabic letters) or System, kept in Quill.prefs; digits shown and exported in that shape (core/bidi.c `bidi_numeral`, tests "numerals:") [WP27]
 - ✅ Share (Backstage) `file.share` — WordCraft's Share only opens Save As with a hint; Quill's Save As / Export cover it
 - ⬜ Protect Document (Backstage) `file.protect` — no password encryption [WP7]
 - ✅ Inspect Document (Backstage) `file.inspect` — `ID_INFO_INSPECT`: Document Inspector (comments, tracked changes, properties and personal information, headers/footers/watermarks, custom XML; Remove Checked), core/inspect.c; hidden text once WP9 models it [WP24]
@@ -189,7 +189,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 
 - ⬜ Search (Tell Me) (Search) `tools.search` — no command search [WP26]
 
-### Home (115: ✅ 108 · 🟨 1 · ⬜ 5 · ➖ 1)
+### Home (115: ✅ 113 · 🟨 1 · ⬜ 0 · ➖ 1)
 
 - ✅ Paste (Clipboard) `edit.paste` — `ID_PASTEDD` split button / `ID_PASTE`
 - ✅ Paste Keep Text Only (Clipboard) `edit.pasteText` — `ID_PASTETEXT` (`CMD_PASTEAS`)
@@ -224,7 +224,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Font Dialog (Font) `format.fontDialog` — `ID_FONTDLG` (`open_font()`)
 - ✅ Double Strikethrough (Font) `format.doubleStrikethrough` — Font window `fo_dstrike` (`FX_DSTRIKE`)
 - ✅ Small Caps (Font) `format.smallCaps` — Font window `fo_small` (`FX_SMALLCAPS`)
-- ⬜ Emphasis Mark (Font) `format.emphasisMark` — (new 2026-11) East Asian emphasis dots (`w:em`) not read, drawn or offered [WP27]
+- ✅ Emphasis Mark (Font) `format.emphasisMark` — (new 2026-11) WP27: Home › Direction › Asian Layout list and Format › Asian Layout: dot, comma, circle, under dot or none (`w:em`, read and written), room made above the line and the marks drawn over (under) each character on the screen and in PDFs (tests "em:", "docx asian") [WP27]
 - ✅ All Caps (Font) `format.allCaps` — `ID_CAPS`
 - ✅ Hidden (Font) `format.hidden` — `FX2_HIDDEN` (`w:vanish`): Font window, Text Effects list, Format menu; takes no room unless formatting marks show (then a dotted underline: `Layout.showhidden`, layout.c `LAY_HIDDEN`), left out of the PDF [WP9]
 - ✅ Emboss (Font) `format.emboss` — `FX2_EMBOSS` (`w:emboss`): white letters, a grey edge below right [WP9]
@@ -233,7 +233,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Character Scale (Font) `format.scale` — Font window `fo_scale`
 - ✅ Character Position (Font) `format.position` — Font window `fo_pos`/`fo_posby`
 - ✅ Character Border (Font) `format.border` — `ID_CBORDER` (`FX_BORDER`)
-- ⬜ Phonetic Guide (Font) `format.phonetic` — no ruby text (w:ruby is not read) [WP27]
+- ✅ Phonetic Guide (Font) `format.phonetic` — WP27: the Phonetic Guide window (guide text, alignment, offset, size, Remove); `w:ruby` read onto its base text (CharFmt.ruby, core/intl.h) and written back, the guide drawn centred or distributed over its base on the screen and in PDFs, the line made taller for it (tests "ruby:", "docx ruby") [WP27]
 - ✅ Enclose Characters (Font) `format.enclose` — the Enclose Characters window (`ID_C_ENCLOSE`; Text Effects list, Format menu): one or two characters in a circle, square, triangle or diamond, text shrunk or symbol enlarged; saved as Word's `eq \o\ac(○,字)` field with the symbol and text in runs of their own sizes, read back (also LibreOffice's), drawn on screen and in the PDF [WP9]
 - ✅ Bullets (Paragraph) `para.bullets` — `ID_BULLETS`
 - ✅ Numbering (Paragraph) `para.numbering` — `ID_NUMBERS`
@@ -277,9 +277,9 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Indent Leading Spaces (Paragraph Tools) `para.spacesToIndent` — (new 2026-11, #5043) `ID_P_PTOOLS` list beside Sort (Home › Paragraph) and Format › Paragraph Tools (`ID_P_PT0`+n), amiga/wp_para.c `para_tools()` → core/paratools.c `para_tool()` PT_SPACESTOINDENT: a space counts a quarter of an em (60 twips at 12 pt; WordCraft takes 72 pt) of first-line indent; one undo step, deletions and inserted spaces tracked while Track Changes is on (indents as formatting changes). Tests: tests/test_wp10.c `paratools` [WP10]
 - ✅ Indents to Leading Spaces (Paragraph Tools) `para.indentToSpaces` — (new 2026-11, #5043) `ID_P_PTOOLS` list beside Sort (Home › Paragraph) and Format › Paragraph Tools (`ID_P_PT0`+n), amiga/wp_para.c `para_tools()` → core/paratools.c `para_tool()` PT_INDENTTOSPACES: left and first-line indents become spaces at the same rate (list paragraphs left alone); one undo step, deletions and inserted spaces tracked while Track Changes is on (indents as formatting changes). Tests: tests/test_wp10.c `paratools` [WP10]
 - ✅ Join Lines (Paragraph Tools) `para.removeLineBreaks` — (new 2026-11, #5043) `ID_P_PTOOLS` list beside Sort (Home › Paragraph) and Format › Paragraph Tools (`ID_P_PT0`+n), amiga/wp_para.c `para_tools()` → core/paratools.c `para_tool()` PT_JOINLINES: every live line break deleted; one undo step, deletions and inserted spaces tracked while Track Changes is on (indents as formatting changes). Tests: tests/test_wp10.c `paratools` [WP10]
-- ⬜ Right-to-Left Text Direction (Paragraph) `para.rtl` — no bidi [WP27]
-- ⬜ Left-to-Right Text Direction (Paragraph) `para.ltr` — no bidi [WP27]
-- ⬜ Asian Typography (Paragraph) `para.asianTypography` [WP27]
+- ✅ Right-to-Left Text Direction (Paragraph) `para.rtl` — WP27: Home › Direction and Format › Text Direction; `w:bidi`, the paragraph's indents and alignment from the right, each line in visual order by the Unicode Bidirectional Algorithm (core/bidi.c: UAX #9 with embeddings, overrides, isolates, paired brackets and mirroring; all 91,707 lines of Unicode 18's BidiCharacterTest.txt and 770,241 cases of BidiTest.txt pass, a sample in tests/data), Arabic shaped to its presentation forms with lam-alif ligatures, the cursor keys moving in visual order (`lay_visual_step`), selection drawn box by box, PDFs with the visual glyphs (tests "bidi:", "rtl:", "arabic:", "shaping:") [WP27]
+- ✅ Left-to-Right Text Direction (Paragraph) `para.ltr` — WP27: as Right-to-Left, back to left to right (and Format › Text Direction › Right-to-Left Text (Run) for `w:rtl` on a run) [WP27]
+- ✅ Asian Typography (Paragraph) `para.asianTypography` — WP27: the Asian Typography window (Layout › Direction & Grid, Format menu): kinsoku, word wrap, hanging punctuation, top-of-line punctuation, spacing between Asian and Latin text and digits, text alignment, snap to grid (`w:kinsoku`...`w:textAlignment`, read and written in schema order), laid out (East Asian line breaking, hanging full stops, autospace) (tests "kinsoku:", "cjk:", "docx asian") [WP27]
 - ✅ Styles Gallery (Styles) `para.style` — `ID_STYLEPICK` (paragraph and character styles)
 - ✅ Normal (Styles) `para.normal` — from the gallery (`ID_STYLEPICK`); no Ctrl+Shift+N key
 - ✅ Heading 1 (Styles) `para.heading1` — from the gallery; no Ctrl+Alt+1 key
@@ -390,7 +390,7 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Page Color (Page Background) `design.pageColor` — `ID_PAGECOLORDD`
 - ✅ Page Borders (Page Background) `design.pageBorders` — `ID_BORDERDD` and WP22a's Page Borders window (`ID_PG_BORDERS`): each side on or off with its own space, Word's 25 art-free line kinds and art borders (drawn as a pattern, kept by name), colour, width, measured from the text or the page's edge, whole document / this section / its first page only / all but its first, surround header and footer, in front or behind (core/pages.c `pages_border_rects`, `w:pgBorders` with `w:display`, `w:zOrder`) [WP22a]
 
-### Layout (23: ✅ 20 · 🟨 0 · ⬜ 3 · ➖ 0)
+### Layout (23: ✅ 23 · 🟨 0 · ⬜ 0 · ➖ 0)
 
 - ✅ Margins (Page Setup) `layout.margins` — `ID_MARGINSDD` (5 presets + custom)
 - ✅ Orientation (Page Setup) `layout.orientation` — `ID_ORIENTDD`
@@ -402,9 +402,9 @@ In WordCraft's catalogue order (tab, then its groups), then the Zotero and Help 
 - ✅ Page Setup Dialog (Page Setup) `layout.pageSetup` — `ID_PAGESETUPDLG` → WP22a's Page Setup (`ID_PG_SETUP`): Margins (gutter left/top, inside/outside, orientation, multiple pages: normal, mirror margins, 2 pages per sheet, book fold with sheets per booklet), Paper, Layout (section start, different odd/even and first page, header/footer distance, vertical alignment), Apply to whole document / this section / this point forward; laid out mirrored and halved (core/pages.c `pages_effective`) [WP22a]
 - ✅ Fit One Page (Page Setup) `layout.fitOnePage` — (new 2026-11, #6433) `ID_PG_FITPAGE` (Layout › Page Setup, Layout menu), core/fitpage.c `fit_one_page()`: WordCraft's ten steps (paragraph and line spacing to 94-88 %, then text 0.5-2 pt smaller, never under 8.5 pt, line spacing never under 94 %) each laid out on copies of the paragraphs, the first that saves a page made as one undo step; refuses on one page, with page/column/next-page section breaks, a last page over 12 lines or 30 % full, or while tracking. Tests: tests/test_wp22a.c `fit_tests` [WP22a]
 - ✅ Vertical Alignment (Page Setup) `layout.verticalAlign` — `ID_PAGEALIGNDD` (top, centre, bottom, justified: WP22a, layout.c `justify_page`, `w:vAlign w:val="both"`)
-- ⬜ Document Grid (Page Setup) `layout.documentGrid` [WP27]
-- ⬜ Section Direction (Page Setup) `layout.sectionRtl` [WP27]
-- ⬜ Text Direction (Page Setup) `layout.textDirection` [WP27]
+- ✅ Document Grid (Page Setup) `layout.documentGrid` — WP27: the Document Grid window (no grid, lines only, lines and characters, snap to characters; lines per page, characters per line, text direction); `w:docGrid` read and written, lines laid out on the line pitch and East Asian characters on the character pitch (tests "grid:") [WP27]
+- ✅ Section Direction (Page Setup) `layout.sectionRtl` — WP27: Layout › Direction & Grid › Section Direction and the Layout menu; the section's `w:bidi`, its columns laid out from the right (tests "docx section") [WP27]
+- ✅ Text Direction (Page Setup) `layout.textDirection` — WP27: Layout › Direction & Grid › Text Direction and the Layout menu: Horizontal, Vertical (`tbRl`: lines laid out top to bottom from the right of the page, East Asian characters upright with the vertical forms of punctuation, on the screen and in PDFs) or Rotate All Text 270° (`btLr`, kept and written; laid out across); `w:textDirection` read and written (tests "docx section") [WP27]
 - ✅ Indent (Paragraph) `para.indents` — `ID_INDENTL`, `ID_INDENTR`
 - ✅ Spacing (Paragraph) `para.spacing` — `ID_SPACEB`, `ID_SPACEA`
 - ✅ Position (Arrange) `arrange.position` — `ID_OBJPOSDD`
@@ -589,7 +589,7 @@ As in WordCraft the Developer tab is hidden until turned on: View › Developer 
 - ✅ Borders (Borders) `table.borders` — `ID_TBORDERSDD` with pen `ID_PENSTYLE`/`ID_PENWIDTH`/`ID_PENCOLOR`
 - ✅ Border Painter (Borders) `table.borderPainter` — WP21a: Table Design › Paint › Border Painter, a mouse tool: a click puts the Borders group's pen (style, weight, colour) on the nearest cell edge (both cells' sides), a stroke on every edge along it; Esc ends it (core/tbldraw.c `tbl_paint_stroke`, tests "border painter") [WP21a]
 
-### Table Layout (33: ✅ 32 · 🟨 0 · ⬜ 1 · ➖ 0)
+### Table Layout (33: ✅ 33 · 🟨 0 · ⬜ 0 · ➖ 0)
 
 - ✅ Select Table (Table) `table.selectTable` — `ID_TSELECTDD` (`CMD_TSELECT` 3)
 - ✅ Select Row (Table) `table.selectRow` — `ID_TSELECTDD`
@@ -598,7 +598,7 @@ As in WordCraft the Developer tab is hidden until turned on: View › Developer 
 - ✅ View Gridlines (Table) `table.viewGridlines` — `ID_TGRID`
 - ✅ Properties (Table) `table.properties` — `ID_TPROPS` (`open_tprops()`)
 - ✅ Alt Text (Table) `table.altText` — WP21b: Table Layout › Cells › Alt Text, Table › Alt Text..., right-button menu: title and description read and written as `w:tblCaption`/`w:tblDescription` (tests "alt text and floating") [WP21b]
-- ⬜ Table Direction (Table) `table.rtl` [WP27]
+- ✅ Table Direction (Table) `table.rtl` — WP27: Table Layout › Direction and the Table menu; `w:bidiVisual` read and written, the first column on the right (tests "docx table") [WP27]
 - ✅ Draw Table (Draw) `table.draw` — WP21b: Table Layout › Cells › Draw Table (see Insert) [WP21b]
 - ✅ Eraser (Draw) `table.eraser` — WP21b: Table Layout › Cells › Eraser, Table › Eraser, a mouse tool: the edge between two cells nearest the click goes (the cells merged), an outside edge loses its line (core/tbldraw.c `tbl_erase_stroke`, tests "eraser") [WP21b]
 - ✅ Delete Cells (Rows & Columns) `table.deleteCells` — WP21b: Table Layout › Cells › Delete Cells, Table › Delete Cells..., right-button menu: shift cells left (rows end short, as in Word), shift cells up (empty cells at the bottom), entire row, entire column, on the selected block (core/table.c `tbl_delete_cells`, tests "delete cells") [WP21b]
@@ -807,9 +807,9 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 
 ### 2.2 DOCX features
 
-- 🟨 **Run and paragraph properties, styles, numbering, sections** — Quill reads and writes the common set (core/docx.c). Missing: complex-script properties (`w:rtl`, `w:cs`, `w:szCs`, `w:bCs`) and East Asian font slots (`w:eastAsia`), every `ST_NumberFormat` beyond decimal/letters/roman (`NF_` in doc.h), indents in characters, more than 8 tab stops a paragraph (`ParaFmt.tabs[8]`), hidden, emboss, imprint, outline, shadow, underline colour, `w:outlineLvl`.
+- 🟨 **Run and paragraph properties, styles, numbering, sections** — Quill reads and writes the common set (core/docx.c). Complex-script properties (`w:rtl`, `w:cs`, `w:szCs`, `w:bCs`, `w:iCs`, the `w:cs` font) and East Asian font slots (`w:eastAsia`, `w:hint`) ✅ (WP27). Missing: every `ST_NumberFormat` beyond decimal/letters/roman (`NF_` in doc.h), indents in characters, more than 8 tab stops a paragraph (`ParaFmt.tabs[8]`), hidden, emboss, imprint, outline, shadow, underline colour, `w:outlineLvl`.
 - 🟨 **Positional tabs (`w:ptab`)** — read as an ordinary tab (docx.c line 1355), not placed by alignment/margin.
-- 🟨 **Tables** — widths, merges, borders, shading, styles with conditional formatting, nested tables (one level), cantSplit, heading rows: ✅. Floating tables (`w:tblpPr`) ✅ (WP21b: placed where they say, the text wrapping round them, written back), cells' text direction (`w:textDirection`), own margins (`w:tcMar`) and tables' alt text (`w:tblCaption`, `w:tblDescription`) ✅ (WP21b), custom table styles ✅ (WP21a); row exceptions (`w:tblPrEx`) and right-to-left tables (`w:bidiVisual`) not read; tables in headers and footers come in as their text (README roadmap).
+- 🟨 **Tables** — widths, merges, borders, shading, styles with conditional formatting, nested tables (one level), cantSplit, heading rows: ✅. Floating tables (`w:tblpPr`) ✅ (WP21b: placed where they say, the text wrapping round them, written back), cells' text direction (`w:textDirection`), own margins (`w:tcMar`) and tables' alt text (`w:tblCaption`, `w:tblDescription`) ✅ (WP21b), custom table styles ✅ (WP21a); row exceptions (`w:tblPrEx`) not read; right-to-left tables (`w:bidiVisual`) ✅ (WP27); tables in headers and footers come in as their text (README roadmap).
 - ✅ **Headers/footers, page borders, line numbers, gutter, mirror margins** — first/even/odd, per section, link to previous: ✅. WP22a: `w:pgMar w:gutter`, `w:rtlGutter`, `w:gutterAtTop`, `w:mirrorMargins`, `w:printTwoOnOne`, `w:bookFoldPrinting`/`w:bookFoldRevPrinting`/`w:bookFoldPrintingSheets`, `w:bordersDoNotSurroundHeader/Footer`; page borders per section and per side (`w:pgBorders` every attribute), read and written (tests/test_wp22a.c).
 - ✅ **Hyphenation settings** — `w:autoHyphenation`, `w:hyphenationZone`, `w:doNotHyphenateCaps`, `w:consecutiveHyphenLimit` read, written and laid out (WP22a: core/pages.c `pages_hyph_zone`, `pages_hyph_allowed`).
 - ✅ **Footnotes, endnotes, comments** — read and written. Note options (`w:footnotePr`/`w:endnotePr`) and the document's own separators and continuation notice read and written (WP22b ✅). Comments' replies, resolved state, durable ids and UTC times, and the people (`commentsExtended`, `commentsIds`, `commentsExtensible`, `people.xml`, each person's own entry kept) ✅ (WP5, core/docx.c `wp5_read_parts()`, `wp5_write_parts()`).
@@ -835,11 +835,11 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ✅ **Equations (OMML `m:oMath`)** — WP14a: every ECMA-376 §22.1 element is read into a tree (core/math.c: `m:oMath`, `m:oMathPara` with its justification, fractions bar/skewed/linear/no bar, sub/superscripts and pre-scripts, radicals, n-ary operators with limits, delimiters with separators, functions, accents, bars, group characters, lower and upper limits, matrices with column specs, equation arrays, boxes, border boxes, phantoms, argument sizes, and every property, each kept as absent/on/off), with `m:ctrlPr`, run `w:rPr`, unknown properties and elements (`w:ins` round math...) kept verbatim; written back the same (its m namespace declared on each equation); settings.xml `m:mathPr` kept and used (limits, default justification, small fractions, wrap indent). Laid out TeX-style with Quill's own fonts (core/mathlay.c; math italic, display and text styles, script sizes, TeX spacing) and drawn on screen and in PDFs. Checked: a Word-style sample written from the spec (tests/data/equations.docx, every construct) reads, round trips to identical OMML and a stable document.xml, LibreOffice renders Quill's saved copy exactly as the original, and documents with equations made in Quill open in LibreOffice with them. Left: a display equation too wide for its line isn't broken automatically (only at `m:brk`); block-level `m:oMathPara` outside a paragraph is skipped. WP14b: equations are edited in place (amiga/wp_equation_view.h, core/mathedit.c): the caret inside the tree, the arrow keys through arguments and structures (Up/Down between numerator and denominator, scripts, limits, matrix rows), Home/End, Tab to the next empty argument, typing, Backspace/Delete (a structure selected first, as Word), Shift+arrows and Shift-click selections, Copy/Cut/Paste as linear text, Select All, Esc and Return out, Shift+Return a new line in a display equation, every change one undo step through `doc_set_math`; empty arguments keep a letter's room and show dotted placeholders on the screen; the edited equation is framed.
 - 🟨 **Themes, font table, settings, compatibility mode** — (WP13) the theme part is read into `Doc.theme` (core/doctheme.c: names, colour scheme, fonts, effects) and written back byte for byte, or with the parts changed written afresh (Office's theme for a document that had none); theme colours (`w:themeColor`/`themeTint`/`themeShade`, `w:themeFill…`, `a:schemeClr` with lumMod/lumOff/tint/shade) on runs, paragraph shading and borders, cells and shapes and theme fonts (`w:asciiTheme`…) are kept and follow a new scheme; styles' `w:link`, `w:uiPriority`, `w:semiHidden`, `w:unhideWhenUsed`, `w:locked`, `w:hidden`, `w:autoRedefine`, `w:personal`, `w:aliases`, `w:lang`, `w:framePr`, and shortcut keys (customizations.xml) are kept. Compatibility mode 15 is written; embedded fonts (`w:embedRegular`…) not read; latent styles not kept.
 - ✅ **Custom XML, document properties, bibliography sources** — every core property (core.xml), app.xml (company, manager, hyperlink base, statistics; the rest kept verbatim) and custom properties (custom.xml) read and written ✅ (WP24); customXml parts kept verbatim (WP0); bibliography sources ✅ (WP3: the customXml `b:Sources` part read into the current list, written back byte for byte while unchanged, rewritten when sources change, made with its itemProps when a document gets its first source; tests/test_wp3.c).
-- ⬜ **Section text direction (`w:textDirection`)** — not read.
+- ✅ **Section text direction (`w:textDirection`)** — WP27: read and written (all six values), `tbRl` laid out vertically.
 - 🟨 **Section vertical alignment (`w:vAlign`)** — top, center, bottom ✅; `both` (justified) not.
-- ⬜ **Ruby (`w:ruby`)** — not read (the base text is kept).
-- ⬜ **Document grid (`w:docGrid`, `w:snapToGrid`)** — not read.
-- ⬜ **East Asian layout (`w:eastAsianLayout`), `w:fitText`** — not read (WordCraft keeps the first, neither lays them out; `w:fitText` is ➖ for both).
+- ✅ **Ruby (`w:ruby`)** — WP27: read (guide text, alignment, sizes, raise, language), drawn over its base, written back.
+- ✅ **Document grid (`w:docGrid`, `w:snapToGrid`)** — WP27: read, laid out (line and character pitch) and written.
+- ✅ **East Asian layout (`w:eastAsianLayout`), `w:fitText`** — WP27: `w:eastAsianLayout` read and written, two lines in one (with brackets) laid out at half size and horizontal-in-vertical kept; `w:fitText` is ➖ for both.
 - ⬜ **Glossary document (building blocks, `w:docPart`)** — not read; WordCraft offers them in Quick Parts and AutoText.
 - ➖ **`w:altChunk`, sub-documents** — WordCraft doesn't have them either.
 - ⬜ **Page background picture (`v:background`/`v:fill`)** — not read; the page colour (`w:background`) ✅.
@@ -853,8 +853,8 @@ Same marks as above. WordCraft's side comes from its docs (file-format-parity.md
 - ⬜ **Kerning** — not applied (core/fonts.c measures "without kerning").
 - ⬜ **Ligatures and OpenType features** — none (WordCraft shapes text with HarfRust).
 - ✅ **Widow/orphan control, keep with next, keep lines together, page break before** — layout.c.
-- ⬜ **Bidirectional text (UAX #9), Arabic shaping, right-to-left paragraphs, sections and tables** — none.
-- ⬜ **East Asian: vertical text, kinsoku line breaking, document grid, ruby, two lines in one** — none (WordCraft has vertical text, kinsoku, grid and ruby).
+- ✅ **Bidirectional text (UAX #9), Arabic shaping, right-to-left paragraphs, sections and tables** — WP27: core/bidi.c (conformant with Unicode 18's BidiTest.txt and BidiCharacterTest.txt), shaping by joining type to presentation forms, right-to-left paragraphs, runs (`w:dir`/`w:bdo` as embeddings), sections and tables, numerals; fonts for scripts the text's font lacks found among the installed ones.
+- ✅ **East Asian: vertical text, kinsoku line breaking, document grid, ruby, two lines in one** — WP27: all five, plus emphasis marks, the document's own kinsoku lists and character spacing control (settings.xml) (WordCraft has vertical text, kinsoku, grid and ruby).
 - ✅ **Columns** — 1-6 read and offered, equal or of their own widths, line between, balanced before a continuous break (WP22a; balancing is done for equal columns holding only lines: none with tables, paragraph borders or floating objects anchored in them).
 - ✅ **Section breaks of each kind, each section with its own page setup and headers/footers**.
 - ✅ **Text boxes and shapes with text** — edited in place.

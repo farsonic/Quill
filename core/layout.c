@@ -581,6 +581,7 @@ static void wp10_distribute(Para *p, Work *w, u32 ls, u32 lend, u32 i, i32 extra
   }
   ln->width += add;
 }
+#include "layout_intl.h"           /* WP27: bidi, right-to-left paragraphs, scripts, East Asian line breaking, the grid */
 static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *label, u32 notebase, u32 enotebase)
 {
   Work w;
@@ -619,6 +620,7 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
     pl->labelw = z ? (i32)((fonts_text(z, label, (u32)strlen(label)) + QFINE / 2) / QFINE) : 240;
   }
   if (!make_boxes(L, p, &w, notebase, enotebase)) goto oom;
+  if (!intl_boxes(L, pl, p, &w)) goto oom;           /* (WP27) */
   /* a drop cap: the first letter in its own box, big enough to reach down dropcap lines; the
      lines beside it start after it (or it sits in the margin) */
   if (pf->dropcap >= 2 && w.n && w.b[0].kind == BX_TEXT && !in_table(pf)) {
@@ -678,6 +680,7 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
     for (i = ls; i < w.n; i++) {
       Box *b = &w.b[i];
       if (LAY_HIDDEN(L, b)) { b->x = (i32)x; b->w = 0; continue; }                    /* (WP9: hidden text takes no room) */
+      if (b->brk && i > ls) word = i;                                                  /* (WP27: East Asian text may break before it) */
       if (b->kind == BX_DROP) { b->x = -dropw * QFINE; word = i + 1; continue; }     /* before the line's start */
       if (b->kind == BX_FLOAT) { b->x = (i32)x; continue; }                            /* (placed apart from the text) */
       if (b->kind == BX_SPACE) { b->x = (i32)x; x += b->w; word = i + 1; continue; }
@@ -710,6 +713,7 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
         x = (u32)tx; word = i + 1;
         continue;
       }
+      if (x + b->w > (u32)room * QFINE && i > ls && intl_hang(p, b)) { b->x = (i32)x; x += b->w; word = i + 1; continue; }   /* (WP27: hanging punctuation) */
       if (x + b->w > (u32)room * QFINE) {
         if (word == i && hyphen_break(L, p, &w, i, x, (u32)room * QFINE)) {   /* (WP10: at an optional or ordinary hyphen) */
           b = &w.b[i];
@@ -768,6 +772,7 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
       if (shift > 0) ln.left += shift;      /* centred and right-aligned lines start further in */
     }
     line_metrics(L, p, &w, &ln);
+    intl_line(L, pl, p, &w, ls, i, &ln, left + room + pf->right);   /* (WP27: visual order, from the right, the grid) */
     if (gap) { ln.height += gap; ln.ascent += gap; }       /* below floating objects in its way */
     if (!add_line(&w, &ln)) goto oom;
     if (i >= w.n) {
@@ -775,6 +780,7 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
         memset(&ln, 0, sizeof ln);
         ln.box0 = w.n; ln.left = pf->left; ln.start = ln.end = p->len;
         line_metrics(L, p, &w, &ln);
+        intl_line(L, pl, p, &w, w.n, w.n, &ln, avail);    /* (WP27) */
         if (!add_line(&w, &ln)) goto oom;
       }
       break;
@@ -843,6 +849,7 @@ static i32 table_x(const Table *t, i32 avail)
   i32 sum = 0;
   int k;
   if (t == flt_t) return flt_x;
+  if (t->bidivisual) return intl_table_x(t, avail);        /* (WP27: a right-to-left table, from the right) */
   if (!t->jc) return t->indent;
   for (k = 0; k < t->ncols; k++) sum += t->grid[k];
   return t->jc == AL_CENTER ? (avail - sum) / 2 : avail - sum;
@@ -858,6 +865,7 @@ static void cell_geom(Doc *d, const ParaFmt *pf, i32 avail, i32 *x, i32 *w)
   for (k = 0; k < pf->cell.col && k < t->ncols; k++) *x += t->grid[k];
   for (; k < pf->cell.col + pf->cell.span && k < t->ncols; k++) *w += t->grid[k];
   if (*w < 240) *w = 240;
+  if (t->bidivisual) intl_cell_mirror(t, table_x(t, avail), x, *w);    /* (WP27: columns from the right) */
 }
 /* WP21b: a cell's margin on edge e (E_): its own, or the table's */
 static i32 cmar(const Table *t, const Cell *c, int e)
@@ -939,6 +947,7 @@ static void flow_area(Layout *L, Flow *fl, const SectFmt *s, int web)
     if (h > fl->top) fl->top = h;
     if (pg->height - f < fl->bottom) fl->bottom = pg->height - f;
   }
+  intl_area(pg, s, web, &fl->top, &fl->bottom);    /* (WP27: vertical text: lines go across the page's width) */
   if (fl->bottom - fl->top < 1440) fl->bottom = fl->top + 1440;
 }
 /* fl set up for section s's columns across body twips (their number, gap and width), starting in the
@@ -952,7 +961,8 @@ static void flow_cols(Flow *fl, const SectFmt *s, i32 body, int web)
   fl->gap = fl->ncols > 1 ? fl->cx[1] - fl->cw[0] : 0;
   fl->unequal = 0;
   for (k = 1; k < fl->ncols; k++) if (fl->cw[k] != fl->cw[0]) fl->unequal = 1;
-  fl->col = 0; fl->colx = 0; fl->colw = fl->cw[0];
+  if (s && s->bidi && !web) intl_cols_rtl(fl->cx, fl->cw, fl->ncols, body);   /* (WP27: a right-to-left section's columns from the right) */
+  fl->col = 0; fl->colx = fl->cx[0]; fl->colw = fl->cw[0];
   fl->regfirst = 0xFFFFFFFF;
 }
 /* the columns from coltop to the lowest one got: their lines (a section with lines between columns) */
@@ -969,7 +979,7 @@ static void end_region(Layout *L, Flow *fl)
       L->seps = ns; L->sepcap = nc;
     }
     L->seps[L->nseps].page = fl->page;
-    L->seps[L->nseps].x = (fl->cx[c - 1] + fl->cw[c - 1] + fl->cx[c]) / 2;
+    L->seps[L->nseps].x = fl->cx[c - 1] < fl->cx[c] ? (fl->cx[c - 1] + fl->cw[c - 1] + fl->cx[c]) / 2 : (fl->cx[c] + fl->cw[c] + fl->cx[c - 1]) / 2;   /* (WP27: right to left too) */
     L->seps[L->nseps].y0 = fl->coltop; L->seps[L->nseps].y1 = fl->maxy;
     L->nseps++;
   }
@@ -1008,7 +1018,7 @@ static void new_page(Layout *L, Flow *fl)
   fl->page++;
   if (!page_set(L, fl)) L->oom = 1;
   fl->y = fl->coltop = fl->maxy = fl->top; fl->at_top = 1;
-  fl->col = 0; fl->colx = 0; fl->colw = fl->cw[0]; fl->regfirst = L->nplaced;
+  fl->col = 0; fl->colx = fl->cx[0]; fl->colw = fl->cw[0]; fl->regfirst = L->nplaced;
   fl->pagefirst = L->nplaced; fl->cellfirst = L->ncells; fl->sepfirst = L->nseps;
   if (fl->sec && fl->sec->linenum == LN_PAGE) fl->lnum = 0;
 }
@@ -1159,7 +1169,7 @@ static void flow_jumped(Layout *L, Flow *fl, u32 page)
   u32 k = L->nplaced;
   end_region(L, fl);
   while (fl->page < page) { fl->page++; if (!page_set(L, fl)) L->oom = 1; }
-  fl->col = 0; fl->colx = 0; fl->colw = fl->cw[0]; fl->coltop = fl->maxy = fl->top;
+  fl->col = 0; fl->colx = fl->cx[0]; fl->colw = fl->cw[0]; fl->coltop = fl->maxy = fl->top;
   while (k > 0 && L->placed[k - 1].page == page) k--;
   fl->pagefirst = k; fl->cellfirst = L->ncells; fl->sepfirst = L->nseps; fl->regfirst = k;
 }
@@ -1261,6 +1271,7 @@ static int place_inner_row(Layout *L, u32 i, Table *t, u16 tid, i32 tx0, u32 pag
     for (k = 0; k < pf->cell.col && k < t->ncols; k++) cx += t->grid[k];
     for (; k < pf->cell.col + pf->cell.span && k < t->ncols; k++) cw += t->grid[k];
     if (cw < 240) cw = 240;
+    if (t->bidivisual) intl_cell_mirror(t, tx0, &cx, cw);   /* (WP27) */
     if (pf->cell.valign && m.rowh > m.ch[c] && y + m.rowh <= bottom) cy += pf->cell.valign == 1 ? (m.rowh - m.ch[c]) / 2 : m.rowh - m.ch[c];
     for (j = m.cs[c]; j < m.ce[c]; j++) {
       ParaLay *pl = &L->pl[j];
@@ -2765,9 +2776,10 @@ int lay_update_part(Layout *L, u32 budget)
   /* edits are local: walk old and new together, looking a little ahead for each paragraph */
   for (i = 0; i < d->np; i++) {
     Para *p = d->p[i];
-    u32 k, found = L->npl, notebase = notes, enotebase = enotes;
+    u32 k, found = L->npl, notebase = notes, enotebase = enotes, isig = intl_begin(L, i);   /* (WP27) */
     i32 body = L->webw > 0 ? L->webw : page_body(pages_eff(L, sect_page(d, L->psec[i], i >= L->lastfirst), L->psec[i], 0)), avail;
     if (body < 1440) body = 1440;
+    body = intl_body(L, i, body);                 /* (WP27: vertical text: lines as long as the page is high) */
     avail = para_avail(d, &p->pf, sect_width(L->psec[i], body, L->webw > 0));
     make_label(d, cnt, &p->pf, label, sizeof label);
     if (d->nnotes)
@@ -2788,7 +2800,8 @@ int lay_update_part(Layout *L, u32 budget)
     if (found < L->npl && L->pl[found].laid && L->pl[found].ver == p->ver && L->pl[found].avail == avail && !strcmp(L->pl[found].label, label) &&
         L->pl[found].notebase == notebase && L->pl[found].enotebase == enotebase && L->pl[found].hyph == d->hyphenate && !L->pl[found].shaped &&
         (L->pl[found].hidden == 2 || L->pl[found].hidden == L->showhidden) &&   /* (WP9: hidden text shown or not) */
-        L->pl[found].rvsig == rv_sig(d) && L->pl[found].okey == L->ocur) {   /* (WP11: laid out for Outline view the same) */
+        L->pl[found].rvsig == rv_sig(d) && L->pl[found].okey == L->ocur &&   /* (WP11: laid out for Outline view the same) */
+        L->pl[found].isig == isig) {                                        /* (WP27: the same grid and numerals) */
       npl[i] = L->pl[found];
       memset(&L->pl[found], 0, sizeof(ParaLay));
       j = found + 1;
@@ -2808,6 +2821,7 @@ int lay_update_part(Layout *L, u32 budget)
       }
       npl[i].laid = 1;
       npl[i].rvsig = rv_sig(d);                   /* (WP5) */
+      npl[i].isig = isig;                         /* (WP27) */
       L->laid++;
     }
   }
@@ -2820,6 +2834,7 @@ int lay_update_part(Layout *L, u32 budget)
     if (!paginate(L)) return 0;
     if (floats_settled(L)) break;
   }
+  intl_vertical(L);                               /* (WP27: vertical sections' lines turned onto their pages) */
   return !oom;
 }
 /* see layout.h */
@@ -2874,6 +2889,7 @@ i32 lay_drop_dy(const ParaLay *pl, const Box *b)
 i32 lay_text_x(Layout *L, const Box *b, const char *t, u32 off)
 {
   FaceSize *z;
+  if ((b->lvl & 1) || b->vis) return intl_text_x(L, b, t, off);     /* (WP27) */
   if (off <= b->off) return b->x;
   if (b->kind != BX_TEXT || off >= b->off + b->len) return b->x + b->w;
   z = lay_face(L, &b->f);
@@ -2909,7 +2925,14 @@ void lay_caret(Layout *L, Pos p, u32 *page, i32 *x, i32 *y, i32 *h)
   cx = 0;
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *b = &pl->boxes[k];
-    if (p.off >= b->off && p.off <= b->off + b->len) { cx = lay_text_x(L, b, pl->p->t, p.off); break; }
+    if (p.off >= b->off && p.off <= b->off + b->len) {
+      /* (WP27) where the direction changes, the place before the next character (its box's edge) */
+      if (p.off == b->off + b->len && b->len && k + 1 < ln->box0 + ln->nbox && pl->boxes[k + 1].off == p.off && pl->boxes[k + 1].lvl != b->lvl &&
+          pl->boxes[k + 1].kind == BX_TEXT)
+        b++;
+      cx = lay_text_x(L, b, pl->p->t, p.off);
+      break;
+    }
     cx = b->x + b->w;
   }
   *page = pc->page;
@@ -2933,6 +2956,7 @@ static Pos pos_in_line(Layout *L, u32 para, u32 li, i32 x)     /* x from the tex
   u32 k;
   r.para = para; r.off = ln->start;
   x -= ln->left;
+  if (intl_mixed(pl, ln)) return intl_pos_in_line(L, pl, para, li, x);    /* (WP27: in visual order) */
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *b = &pl->boxes[k];
     if (x < b->x + b->w || k + 1 == ln->box0 + ln->nbox) {
@@ -3050,6 +3074,45 @@ Pos lay_line_end(Layout *L, Pos p)
     p.off = e;
   } else p.off = pl->p->len;
   return p;
+}
+
+/* (WP27) see layout.h */
+Pos lay_visual_step(Layout *L, Pos p, int dir)
+{
+  ParaLay *pl;
+  u32 li, o, end, pg, pg0;
+  i32 x0, y, h, best = 0x7FFFFFFF, x;
+  Pos r = p, q;
+  int found = 0;
+  p = pos_clamp(L->d, p);
+  if (p.para >= L->npl || !L->pl[p.para].nlines) return dir < 0 ? pos_left(L->d, p) : pos_right(L->d, p);
+  pl = &L->pl[p.para];
+  li = line_of(pl, p.off);
+  if (!intl_mixed(pl, &pl->lines[li])) return dir < 0 ? pos_left(L->d, p) : pos_right(L->d, p);
+  end = li + 1 < pl->nlines ? pl->lines[li + 1].start : pl->p->len + 1;
+  lay_caret(L, p, &pg0, &x0, &y, &h);
+  q.para = p.para;
+  /* the caret place on this line nearest x0 on the side dir goes to */
+  for (o = pl->lines[li].start; o < end && o <= pl->p->len; o = (u32)utf8_next(pl->p->t, pl->p->len, o)) {
+    i32 dd;
+    if (o == p.off) { if (o >= pl->p->len) break; continue; }
+    q.off = o;
+    lay_caret(L, q, &pg, &x, &y, &h);
+    dd = dir < 0 ? x0 - x : x - x0;
+    if (pg == pg0 && dd > 0 && dd < best) { best = dd; r = q; found = 1; }
+    if (o >= pl->p->len) break;
+  }
+  if (found) return r;
+  /* at the line's edge: on to the line before or after (a right-to-left paragraph's lines run from the right) */
+  if (pl->rtl & 1) dir = -dir;
+  if (dir > 0) {
+    if (li + 1 < pl->nlines) { r.off = pl->lines[li + 1].start; return r; }
+    if (p.para + 1 < L->d->np) { r.para = p.para + 1; r.off = 0; }
+    return r;
+  }
+  if (li > 0) { r.off = pl->lines[li].start; return pos_left(L->d, r); }
+  if (p.para > 0) { r.para = p.para - 1; r.off = L->d->p[r.para]->len; }
+  return r;
 }
 
 /* AutoFit: the widths a table's columns want for their text. A column's least is its longest word,

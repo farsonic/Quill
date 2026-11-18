@@ -43,7 +43,7 @@ build, finish the package as its entry in the gap document describes, test, merg
 | custom | WP26 Options panes, Customize Ribbon/QAT/Keyboard, command search, KeyTips, ribbon group collapsing at 640 px | 5 | partly built |
 | controls | WP16 content controls, Developer tab, legacy form fields | 7 | merged into master |
 | mailings | WP4 mail merge, envelopes, labels | 5 | merged into master |
-| intl | WP27 right-to-left (bidi) and East Asian | 2 | early |
+| intl | WP27 right-to-left (bidi) and East Asian | 5 | finished on the branch (all WP27 lines ✅, see the gap document), ready to merge; ribbon fit at 640 px and drawing of Arabic/CJK not yet checked on an Amiga |
 
 ## Not started
 
