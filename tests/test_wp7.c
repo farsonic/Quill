@@ -352,6 +352,40 @@ static void settings_order(void)
   doc_free(d);
 }
 
+/* "Limit formatting to a selection of styles" alone: text may change, direct formatting and locked
+   styles may not; kept through .docx */
+static void formatting_limits(void)
+{
+  Doc *d = three(), *e;
+  Pos p = P(1, 0);
+  CharFmt bold;
+  ParaFmt pf;
+  int h1 = doc_style(d, "Heading1"), q = doc_style(d, "Quote");
+  u8 *z;
+  size_t n;
+  char err[200];
+  unsigned lost;
+  memset(&bold, 0, sizeof bold);
+  bold.flags = CF_BOLD;
+  memset(&pf, 0, sizeof pf);
+  pf.align = AL_CENTER;
+  if (h1 < 0 || q < 0) { ok("formatting limits: styles", 0); doc_free(d); return; }
+  d->styles[q].x.flags |= SXF_LOCKED;
+  prot_set_kind(d, PR_NONE, 1);
+  ok("formatting limits: enforced alone", prot_start(d, NULL) && prot_limits_formatting(d) && prot_enforced(d) == PR_NONE);
+  ok("formatting limits: typing allowed", doc_insert(d, &p, "Typed ", 6, NULL) && !strncmp(d->p[1]->t, "Typed Free", 10));
+  ok("formatting limits: bold refused", !doc_format(d, P(1, 0), P(1, 5), CM_BOLD, &bold) && !(d->p[1]->r[0].f.flags & CF_BOLD));
+  ok("formatting limits: paragraph settings refused", !doc_para_format(d, 1, 1, PM_ALIGN, &pf) && d->p[1]->pf.align == AL_LEFT);
+  ok("formatting limits: an allowed style", doc_apply_style(d, 0, 0, h1) && d->p[0]->pf.style == h1);
+  ok("formatting limits: a locked style refused", !doc_apply_style(d, 2, 2, q) && d->p[2]->pf.style != q);
+  z = docx_save(d, &n);
+  e = z ? docx_load(z, n, &lost, err, sizeof err) : NULL;
+  ok("formatting limits: read back", e && e->prot && e->prot->formatting && e->prot->kind == PR_NONE && prot_limits_formatting(e) &&
+     doc_style(e, "Quote") >= 0 && (e->styles[doc_style(e, "Quote")].x.flags & SXF_LOCKED));
+  ok("formatting limits: stopped", prot_stop(d, NULL) == PC_NOPASSWORD && doc_format(d, P(1, 0), P(1, 5), CM_BOLD, &bold));
+  free(z); doc_free(e); doc_free(d);
+}
+
 void test_wp7(void)
 {
   vectors();
@@ -359,4 +393,5 @@ void test_wp7(void)
   encryption();
   restrict_editing();
   settings_order();
+  formatting_limits();
 }

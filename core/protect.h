@@ -81,6 +81,12 @@ int  prot_range_ok(Doc *d, Pos a, Pos b, int format);
 int  prot_resolve_ok(Doc *d);
 int  prot_gate(Doc *d, u32 p0, u32 n);           /* paragraphs [p0, p0 + n) are about to change */
 int  prot_gate_styles(Doc *d);                   /* the style table is about to change */
+/* "Limit formatting to a selection of styles" (w:formatting) enforced, with or without an editing
+   restriction: no direct formatting (character look, paragraph settings), and the styles marked locked
+   (WP13's SXF_LOCKED, Manage Styles > Restrict, w:locked) can't be applied. doc.c's formatting edits ask */
+int  prot_limits_formatting(const Doc *d);
+int  prot_direct_ok(Doc *d);                     /* direct formatting allowed */
+int  prot_style_ok(Doc *d, int style);           /* applying the style (Doc.styles index) allowed */
 /* called whenever an edit is refused (the interface beeps and says why); NULL none */
 extern void (*prot_on_denied)(Doc *d);
 

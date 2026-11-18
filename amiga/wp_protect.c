@@ -172,7 +172,7 @@ static void pd_fill(void)
                                         "Only comments can be added.", "Every change is tracked.", "Only forms can be filled in." };
   if (!pdwin) return;
   set(pdenc, MUIA_Text_Contents, (ULONG)tr(d && prot_password(d) ? "A password is required to open this document." : "Anyone can open this document."));
-  set(pdres, MUIA_Text_Contents, (ULONG)tr(kinds[k <= PR_FORMS ? k : 0]));
+  set(pdres, MUIA_Text_Contents, (ULONG)tr(k == PR_NONE && d && prot_limits_formatting(d) ? "Formatting is limited to a selection of styles." : kinds[k <= PR_FORMS ? k : 0]));
 }
 static void open_pd(void)
 {
@@ -237,6 +237,7 @@ static void pane_fill(void)
     case PR_TRACKED: msg = "You may edit this document, but all changes will be tracked."; break;
     case PR_COMMENTS: msg = free_here ? "You can edit this region." : "You may only insert comments into this region."; break;
     case PR_FORMS: msg = free_here ? "You can edit this region." : "You may only fill in forms in this region."; break;
+    case PR_NONE: msg = "You may edit this document, but formatting is limited to a selection of styles."; break;
     default: msg = free_here ? "You can edit this region." : "You may only view this region."; break;
     }
     {

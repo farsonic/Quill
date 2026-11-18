@@ -3,7 +3,7 @@
 
    The .doc files are LibreOffice 24.2's ("MS Word 97" filter): tests/data/doc-fmt.doc and doc-rich.doc
    from tests/data/doc-fmt.rtf and doc-rich.rtf, lo-word/tables/notes/headers.doc from Quill's own
-   tests/data/*.docx (tools/lo_doc.sh makes them again and compares each with LibreOffice's .docx of it) */
+   tests/data's .docx files (tools/lo_doc.sh makes them again and compares each with LibreOffice's .docx of it) */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

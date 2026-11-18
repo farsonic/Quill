@@ -156,6 +156,17 @@ int prot_gate(Doc *d, u32 p0, u32 n)
   for (i = p0; i < p0 + n && i < d->np; i++) if (!any_free(d, d->p[i])) return deny(d);
   return 1;
 }
+int prot_limits_formatting(const Doc *d)
+{
+  const DocProtect *p = prot_peek(d);
+  return p && p->enforced && !p->bypass && p->formatting;
+}
+int prot_direct_ok(Doc *d) { return prot_limits_formatting(d) ? deny(d) : 1; }
+int prot_style_ok(Doc *d, int style)
+{
+  if (!prot_limits_formatting(d) || style <= 0 || style >= d->nstyles) return 1;
+  return d->styles[style].x.flags & SXF_LOCKED ? deny(d) : 1;
+}
 int prot_gate_styles(Doc *d)
 {
   int k = prot_enforced(d);
@@ -247,7 +258,7 @@ int prot_start(Doc *d, const char *pw)
     b64_put(salt, 16, p->salt, sizeof p->salt);
     crypt_wipe(t, sizeof t); crypt_wipe(h, sizeof h);
   }
-  if (p->kind == PR_NONE) p->kind = PR_READONLY;
+  if (p->kind == PR_NONE && !p->formatting) p->kind = PR_READONLY;     /* (formatting limits alone need no editing restriction) */
   p->enforced = 1;
   d->dirty = 1; d->ver++;
   doc_clear_undo(d);                          /* (what was done before can't be undone past the lock) */

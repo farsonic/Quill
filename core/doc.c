@@ -695,6 +695,8 @@ int doc_format(Doc *d, Pos a, Pos b, unsigned mask, const CharFmt *val)
   a = pos_clamp(d, a); b = pos_clamp(d, b);
   if (!pos_cmp(a, b)) return 0;
   if (!prot_range_ok(d, a, b, 1)) return 0;      /* (WP7) */
+  if ((mask & CM_LOOK) && !prot_direct_ok(d)) return 0;                                  /* (WP7: formatting limited) */
+  if ((mask & CM_CSTYLE) && val && !prot_style_ok(d, val->cstyle)) return 0;
   if (!(st = rec(d, a.para, b.para - a.para + 1, a))) { close_auto(d); return 0; }
   for (pi = a.para; pi <= b.para; pi++) {
     Para *p = d->p[pi];
@@ -975,6 +977,8 @@ int doc_para_format(Doc *d, u32 pa, u32 pb, unsigned mask, const ParaFmt *val)
   u32 i;
   if (pa > pb) { u32 t = pa; pa = pb; pb = t; }
   if (pb >= d->np) pb = d->np - 1;
+  if ((mask & PM_ALL & ~PM_STYLE) && !prot_direct_ok(d)) return 0;                        /* (WP7: formatting limited) */
+  if ((mask & PM_STYLE) && !prot_style_ok(d, val->style)) return 0;
   if (pa > pb || !rec(d, pa, pb - pa + 1, para_pos(pa))) { close_auto(d); return 0; }
   for (i = pa; i <= pb; i++) { pf_apply(&d->p[i]->pf, mask, val); touch(d->p[i]); }
   changed(d);
@@ -987,6 +991,7 @@ int doc_apply_style(Doc *d, u32 pa, u32 pb, int style)
 {
   u32 i, k;
   if (style < 0 || style >= d->nstyles || d->styles[style].type != ST_PARA) return 0;
+  if (!prot_style_ok(d, style)) return 0;        /* (WP7: a locked style while formatting is limited) */
   if (pa > pb) { u32 t = pa; pa = pb; pb = t; }
   if (pb >= d->np) pb = d->np - 1;
   if (pa > pb || !rec(d, pa, pb - pa + 1, para_pos(pa))) { close_auto(d); return 0; }
@@ -2639,6 +2644,7 @@ int doc_char_style(Doc *d, Pos a, Pos b, int k)
 {
   u32 pi;
   if (k && !style_ok(d, k, ST_CHAR)) return 0;
+  if (k && !prot_style_ok(d, k)) return 0;       /* (WP7) */
   if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
   a = pos_clamp(d, a); b = pos_clamp(d, b);
   if (!pos_cmp(a, b)) return 0;
