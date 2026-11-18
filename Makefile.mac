@@ -1,0 +1,119 @@
+# Quill for the classic Mac OS (System 7, 68020 and later; written for the 68030 and 68040):
+# Quill's core (core/, unchanged), a front end of its own in MUI (mac/) and Riptide's MUI for the
+# Mac, which the Riptide tree provides without copies (RIPTIDE, default ../riptide): its app kit
+# (src/mac/app), the MUI for the Mac (src/mac/mui) and the tools that make the Toolbox glue and
+# the application (mac_traps.py, gen_lvos.py, elf2app.py). docs/mac.md tells the story.
+#
+#   make -f Makefile.mac               build/mac/Quill.bin (MacBinary: copy it with `hcopy -m`)
+#   make -f Makefile.mac AURORA68=1    the log also goes to the Pi kernel's log (Aurora68)
+#
+# Needs the m68k ELF toolchain (Debian/Ubuntu: gcc-m68k-linux-gnu, binutils-m68k-linux-gnu) and
+# Python 3. The fonts are not in the application: copy fonts/ beside it as a folder named Fonts.
+#
+# Floating point: -msoft-float, so Quill runs on every 68030 and 68040 Mac, with an FPU or
+# without one (the LC III, the LC 475's 68LC040, the Color Classic II...). Nothing that runs while
+# typing needs it: the layout, the TrueType rasteriser and the page drawing are integer
+# arithmetic (fixed point); only charts and a few file readers use doubles, and those are rare
+# and short. docs/mac.md has the measurements behind the choice.
+RIPTIDE ?= ../riptide
+CROSS   ?= m68k-linux-gnu-
+CC      := $(CROSS)gcc
+LD      := $(CROSS)ld
+PYTHON  ?= python3
+B       ?= build/mac
+GEN     := $(B)/gen
+GCCINC  := $(shell $(CC) -print-file-name=include)
+LIBGCC  := $(shell $(CC) -m68020 -msoft-float -print-libgcc-file-name)
+R       := $(RIPTIDE)
+
+# -m68020: the 68030's and 68040's instructions are the 68020's (the 68040 adds only FPU and MMU
+# ones); -O2 as Riptide is built; -ffixed-a5: A5 is the Mac's application globals pointer
+BASE    := -m68020 -O2 -ffreestanding -fno-builtin -fno-pic -fno-pie -ffixed-a5 -msoft-float \
+           -nostdinc -isystem $(GCCINC) -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-stack-protector \
+           -ffunction-sections -fdata-sections -Wall -Wno-unused-parameter --param=min-pagesize=0
+ifeq ($(AURORA68),1)
+BASE    += -DAURORA68_LOG
+endif
+RT_INC  := -I$(B) -I$(R)/src/mac/app -I$(R)/src/mac -I$(R)/src/mac/prefs -I$(R)/src/amiga/include -I$(R)/src/amiga \
+           -I$(R)/src/amiga/os -I$(R)/include -I$(R)/include/rt
+# Riptide's own files, as Riptide builds them
+RT_CFLAGS := $(BASE) -std=gnu99 $(RT_INC) -DMM_LOG_NAME='"Quill"'
+# Quill's core: C99 with Quill's small C library (mac/include) in place of the system's
+CORE_CFLAGS := $(BASE) -std=gnu99 -Imac/include -Wno-sign-compare -Wno-unused-function
+# Quill's Mac front end: both, Quill's libc headers first (gnu11: core/util.h and Riptide's
+# headers each typedef u8, u32...: the same types, which C11 allows twice)
+FE_CFLAGS := $(BASE) -std=gnu11 -Imac/include $(RT_INC) -Imac
+
+CORE_SRC := $(wildcard core/*.c)
+CORE_OBJ := $(patsubst core/%.c,$(B)/core/%.o,$(CORE_SRC))
+MAC_OBJ  := $(patsubst mac/%.c,$(B)/mac/%.o,mac/qm_main.c mac/qm_view.c mac/qm_lang.c mac/qm_text.c) \
+            $(B)/mac/libc.o $(B)/mac/qm_mac.o $(B)/mac/qm_thunks.o
+# Riptide's app kit and MUI for the Mac, and what they need of its core and libc (as Lagoon)
+RT_OBJ   := $(B)/rt/mac/app/crt0.o $(B)/rt/mac/app/ostraps.o $(B)/rt/gen/toolbox_glue.o $(B)/rt/mac/app/mac_alert.o \
+            $(patsubst %,$(B)/rt/mac/mui/%.o,mm_boopsi mm_app mm_area mm_group mm_gadgets mm_gfx mm_os mm_hig mm_thunks) \
+            $(B)/rt/amiga/prefs/mui_util.o $(B)/rt/amiga/prefs/mui_theme.o \
+            $(B)/rt/core/printf.o $(B)/rt/amiga/libc.o
+GEN_H    := $(patsubst %,$(GEN)/%_calls.h,exec dos timer locale battclock intuition graphics gadtools icon \
+            muimaster openurl bsdsocket riptide usergroup) $(GEN)/toolbox_gen.h
+TRAPS    := $(B)/traps.txt
+HDRS     := $(wildcard core/*.h mac/*.h mac/include/*.h) amiga/lang_table.h amiga/lang.h
+
+all: $(B)/Quill.bin
+
+# Riptide's Toolbox calls and Quill's few more, one list
+$(TRAPS): $(R)/src/mac/app/traps.txt mac/traps.txt
+	@mkdir -p $(B)
+	cat $^ > $@
+$(GEN)/toolbox_gen.h $(GEN)/toolbox_glue.S: $(TRAPS) $(R)/tools/mac_traps.py
+	@mkdir -p $(GEN)
+	$(PYTHON) $(R)/tools/mac_traps.py $(TRAPS) -s $(GEN)/toolbox_glue.S -H $(GEN)/toolbox_gen.h
+$(GEN)/%_calls.h: $(R)/src/amiga/os/os_lvos.txt $(R)/tools/gen_lvos.py $(TRAPS)
+	@mkdir -p $(GEN)
+	$(PYTHON) $(R)/tools/gen_lvos.py call proto $< $* $@ $(TRAPS)
+$(GEN)/muimaster_calls.h: $(R)/src/amiga/prefs/mui_lvos.txt $(R)/tools/gen_lvos.py $(TRAPS)
+	@mkdir -p $(GEN)
+	$(PYTHON) $(R)/tools/gen_lvos.py call proto $< muimaster $@ $(TRAPS)
+$(GEN)/openurl_calls.h: $(R)/src/amiga/prefs/openurl_lvos.txt $(R)/tools/gen_lvos.py $(TRAPS)
+	@mkdir -p $(GEN)
+	$(PYTHON) $(R)/tools/gen_lvos.py call proto $< openurl $@ $(TRAPS)
+$(GEN)/bsdsocket_calls.h $(GEN)/riptide_calls.h $(GEN)/usergroup_calls.h: $(GEN)/%_calls.h: $(R)/src/amiga/lib_lvos.txt $(R)/tools/gen_lvos.py $(TRAPS)
+	@mkdir -p $(GEN)
+	$(PYTHON) $(R)/tools/gen_lvos.py call proto $< $* $@ $(TRAPS)
+
+$(B)/core/%.o: core/%.c $(HDRS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CORE_CFLAGS) -c -o $@ $<
+$(B)/mac/libc.o $(B)/mac/qm_mac.o: $(B)/mac/%.o: mac/%.c $(HDRS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CORE_CFLAGS) -c -o $@ $<
+$(B)/mac/%.o: mac/%.c $(HDRS) $(GEN_H)
+	@mkdir -p $(dir $@)
+	$(CC) $(FE_CFLAGS) -c -o $@ $<
+$(B)/mac/qm_thunks.o: mac/qm_thunks.S
+	@mkdir -p $(dir $@)
+	$(CC) $(BASE) -c -o $@ $<
+$(B)/rt/%.o: $(R)/src/%.c $(GEN_H)
+	@mkdir -p $(dir $@)
+	$(CC) $(RT_CFLAGS) -c -o $@ $<
+$(B)/rt/%.o: $(R)/src/%.S $(GEN_H)
+	@mkdir -p $(dir $@)
+	$(CC) $(RT_CFLAGS) -c -o $@ $<
+$(B)/rt/gen/toolbox_glue.o: $(GEN)/toolbox_glue.S
+	@mkdir -p $(dir $@)
+	$(CC) $(RT_CFLAGS) -c -o $@ $<
+
+# --size: the partition in KB. A US Letter page drawn at 100% is 1.4 MB of RGB and three are kept,
+# a .docx is unzipped in memory, and the fonts in use are loaded whole (one is 0.3-0.8 MB)
+$(B)/Quill.elf: $(RT_OBJ) $(MAC_OBJ) $(CORE_OBJ) $(R)/src/mac/app/app.ld
+	$(LD) -T $(R)/src/mac/app/app.ld --emit-relocs --gc-sections --no-warn-rwx-segments -z noexecstack -o $@ \
+	      $(RT_OBJ) $(MAC_OBJ) $(CORE_OBJ) $(LIBGCC) -Map $(B)/Quill.map
+# the Finder's resources (icons, the bundle, the files Quill opens: mac/mkfinder.py made them)
+FINDER  := $(shell sed 's|\([^:]*:[^:]*:\)|--rsrc \1mac/rsrc/|' mac/rsrc/list.txt)
+$(B)/Quill.bin: $(B)/Quill.elf $(R)/tools/elf2app.py $(wildcard mac/rsrc/*)
+	$(PYTHON) $(R)/tools/elf2app.py $< --name Quill --creator QUIL --size 12288 --bundle $(FINDER) -o $@
+
+clean-mac:
+	@mkdir -p build/old && mv $(B) build/old/mac-$$$$ 2>/dev/null || true
+
+.PHONY: all clean-mac
+.SECONDARY:
