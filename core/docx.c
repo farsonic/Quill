@@ -29,6 +29,7 @@
 #include "docx_intl.h"   /* WP27: right-to-left and East Asian text */
 #include "intl.h"
 #include "review.h"
+#include "protect.h"  /* WP7: Restrict Editing, encryption */
 #include "cite.h"     /* WP3: the bibliography sources part */
 #include "sdt.h"   /* (WP16) */
 
@@ -2546,7 +2547,10 @@ static void parse_sect(Xml *x, Ctx *c, SectFmt *sf, int body)
     v = xml_attr(x, "val");
     if (pages_read_sect(x, c->d, sf, pg, body)) continue;        /* (WP22a: columns, borders, margins with the gutter, vAlign) */
     if (wp27_read_sect(x, sf)) continue;                          /* (WP27: direction, text direction, the document grid) */
-    if (!strcmp(x->name, "type") && v)
+    if (!strcmp(x->name, "formProt"))           /* (WP7: a section left free under forms protection; LibreOffice
+                                                   writes it off everywhere, so only kept when forms are protected) */
+      sf->formfree = (u8)(v && (!strcmp(v, "0") || !strcmp(v, "false") || !strcmp(v, "off")) && c->d->prot && c->d->prot->kind == PR_FORMS);
+    else if (!strcmp(x->name, "type") && v)
       sf->start = (u8)(!strcmp(v, "continuous") ? SB_CONT : !strcmp(v, "evenPage") ? SB_EVEN : !strcmp(v, "oddPage") ? SB_ODD : SB_NEXT);
     else if (!strcmp(x->name, "cols")) {
       const char *sep = xml_attr(x, "sep");
@@ -3285,6 +3289,7 @@ static int docx_read_block_ext(Xml *x, PCtx *pc)
   /* WP5: */
   if (wp5_read_elem(x, pc)) return 1;
   /* WP7: */
+  if (prot_read_perm(pc->c->d, x, pc, pc->out, pc->nout, NULL)) { xml_skip(x); return 1; }
   /* WP9: */
   /* WP10: */
   /* WP11: */
@@ -3320,6 +3325,7 @@ static int docx_read_elem_ext(Xml *x, PCtx *pc)
   /* WP5: */
   if (wp5_read_elem(x, pc)) return 1;
   /* WP7: */
+  if (prot_read_perm(pc->c->d, x, pc, pc->out, pc->nout, pc->p)) return 1;
   /* WP9: */
   /* WP10: */
   /* WP11: */
@@ -3553,6 +3559,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
   /* WP5: */
   wp5_read_setting(c, x);
   /* WP7: */
+  prot_read_setting(c->d, x);
   /* WP9: */
   /* WP10: */
   /* WP11: */
@@ -5061,6 +5068,7 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
 static void w_sectpr(Buf *o, Doc *d, const SectFmt *s, int g, int last);
 static int w_inbody;                  /* writing the body's paragraphs */
 static u16 w_bmark;                   /* the bookmark open in the body (its runs are being written), 0 none */
+static u16 w_perm;                    /* (WP7) the exception to Restrict Editing open in the body, 0 none */
 /* the body's runs move from bookmark w_bmark to k: the one open ended, the new one started (Word
    numbers them by w:id; Quill uses the bookmark's number) */
 static void w_bmark_to(Buf *o, Doc *d, u16 k)
@@ -5181,6 +5189,7 @@ static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tai
       if (w16_is_mark(p->t + start, p->r[k].end - start)) { w_link(o, d, link, 0); link = 0; w16_markrun(o, d, p, start); start = p->r[k].end; continue; }   /* (WP16) */
       { u16 fl = w_fld_nolink() ? 0 : f->link; if (fl != link) { w_link(o, d, link, 0); w_link(o, d, fl, 1); link = fl; } }   /* (WP1: a field's own links) */
       if (w_inbody) w_bmark_to(o, d, f->bmark);
+      if (w_inbody) prot_write_perm(o, d, &w_perm, f->perm);   /* (WP7: Restrict Editing's exceptions) */
       w_runlink = f->link;
       buf_init(&r);
       {
@@ -5474,6 +5483,7 @@ static void w_sectpr(Buf *o, Doc *d, const SectFmt *s, int g, int last)
     buf_adds(o, "/>");
   }
   pages_write_cols(o, s);                           /* (WP22a: columns of their own widths) */
+  if (s->formfree) buf_adds(o, "<w:formProt w:val=\"0\"/>");   /* (WP7) */
   pages_write_valign(o, s);                         /* (WP22a: and Justified) */
   if (sect_titlepg(d, s, last)) buf_adds(o, "<w:titlePg/>");
   wp27_write_sect(o, s, 0);                         /* (WP27: w:textDirection, w:bidi) */
@@ -5504,7 +5514,7 @@ static char *w_document(Doc *d, size_t *len)
   buf_adds(&o, "<w:document "); buf_adds(&o, WNS); buf_adds(&o, ">");
   if (d->pagecolor) buf_printf(&o, "<w:background w:color=\"%06lX\"/>", (unsigned long)(d->pagecolor & 0xFFFFFF));   /* (the page colour) */
   buf_adds(&o, "<w:body>");
-  w_inbody = 1; w_bmark = 0;
+  w_inbody = 1; w_bmark = 0; w_perm = 0;
   for (i = 0; i < d->np; i++) {
     /* a table of contents: Word's TOC field round its entries, so Word can update it */
     int toc = toc_para(d, d->p[i]) && !field_depth_before(d, i) && !(d->p[i]->len >= 4 && IS_FSTART(d->p[i]->t)), first = toc && !(i > 0 && toc_para(d, d->p[i - 1])), last = toc && !(i + 1 < d->np && toc_para(d, d->p[i + 1]));   /* (WP2: not one that is a TOC field's result) */
@@ -5514,6 +5524,7 @@ static char *w_document(Doc *d, size_t *len)
     w_table_close(&o, d, i);
   }
   w_bmark_to(&o, d, 0);
+  prot_write_perm(&o, d, &w_perm, 0);     /* (WP7) */
   w_inbody = 0;
   w_sectpr(&o, d, doc_sect(d, d->np - 1), 0, 1);   /* the last section: the body's */
   buf_adds(&o, "</w:body></w:document>");
@@ -5971,7 +5982,7 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
    (w:writeProtection, w:view, w:zoom ...), 1 after w:displayBackgroundShape and before
    w:defaultTabStop (w:trackRevisions, w:documentProtection ...), 2 after w:autoHyphenation (hyphenation
    zone and limits; w:evenAndOddHeaders comes after), 3 after w:compat (w:docVars, w:rsids, m:mathPr,
-   w:attachedTemplate, w:mailMerge ...), 4 after w:evenAndOddHeaders and before w:footnotePr (w:bookFoldPrinting,
+   w:themeFontLang ...), 4 after w:evenAndOddHeaders and before w:footnotePr (w:bookFoldPrinting,
    w:printTwoOnOne ...; WP22a added it) */
 static void docx_write_settings_ext(Doc *d, Buf *b, int where)
 {
@@ -5988,6 +5999,7 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   /* WP5: */
   wp5_write_settings(d, b, where);
   /* WP7: */
+  if (where == 1) prot_write_setting(d, b);
   /* WP9: */
   /* WP10: */
   /* WP11: */
@@ -6445,6 +6457,10 @@ Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap)
   int i;
   if (lost) *lost = 0;
   if (!data) { snprintf(err, errcap, "Can't read %s.", path); return NULL; }
+  doc_load_path = path;
+  data = prot_load_decrypt(data, &n, err, errcap);   /* (WP7: an encrypted document) */
+  doc_load_path = NULL;
+  if (!data) return NULL;
   for (i = 0; i < doc_nformats && !f; i++) if (doc_formats[i]->load && doc_formats[i]->sniff && doc_formats[i]->sniff(data, n)) f = doc_formats[i];
   for (i = 0; i < doc_nformats && !f; i++) if (doc_formats[i]->load && !doc_formats[i]->sniff && ext_in(path, doc_formats[i]->exts)) f = doc_formats[i];
   if (!f) f = &fmt_txt;
@@ -6452,6 +6468,7 @@ Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap)
   doc_load_path = path;
   d = f->load(data, n, lost, err, errcap);
   doc_load_path = NULL;
+  prot_load_done(d);                     /* (WP7) */
   if (!d && !err[0]) snprintf(err, errcap, "Quill couldn't read %s.", path);
   if (d) field_set_filename(d, path);   /* (WP1: FILENAME) */
   free(data);
@@ -6467,6 +6484,7 @@ int doc_save_file(Doc *d, const char *path)
   field_set_filename(d, path);          /* (WP1: FILENAME) */
   data = (f ? f : &fmt_txt)->save(d, &n);
   int ok;
+  if (data && f == &fmt_docx) data = prot_save_encrypt(d, data, &n);   /* (WP7: encrypted with its password) */
   if (!data) return 0;
   ok = file_write(path, data, n);
   free(data);

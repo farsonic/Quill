@@ -37,7 +37,7 @@ build, finish the package as its entry in the gap document describes, test, merg
 
 | Branch | Package | Commits ahead | State |
 |---|---|---|---|
-| protect | WP6 Compare/Combine, WP7 Restrict Editing + encryption (core/cfb.c, core/crypt.c) | 15 | furthest along; needs finishing checks (LibreOffice/msoffcrypto opening encrypted files) |
+| protect | WP6 Compare/Combine, WP7 Restrict Editing + encryption, WP28d .doc reader | 22 | finished, master merged in, ready to merge: encryption checked both ways with LibreOffice 24.2 and msoffcrypto-tool; Restrict Editing ✅ with WP16's forms (`sdt_form_at`, `sdt_forms_protected`) and sections' `w:formProt`; .doc read 🟨 (no pictures, comments, bookmarks) |
 | cite | WP3 citations and bibliography | 9 | merged into master (WP3 done: 16 citation styles, Source Manager, bibliography field) |
 | refs | WP2 captions, table of figures, index, authorities, TOC as a field | 6 | merged into master (WP2 done: captions, table of figures, index, authorities, TOC field) |
 | custom | WP26 Options panes, Customize Ribbon/QAT/Keyboard, command search, KeyTips, ribbon group collapsing at 640 px | 9 | merged into master |
@@ -47,19 +47,15 @@ build, finish the package as its entry in the gap document describes, test, merg
 
 ## Not started
 
-- **WP28d .doc reader** (Word 97-2003): needs `core/cfb.c` from the `protect` branch first.
 - **WP30 more interface languages** (Dutch, Swedish, Danish, Portuguese first; Latin-2 later): do it last,
   after all strings are in. Rows live in `tools/lang/wp*.py`; `tools/mklang.py` and `tools/langcheck.py`.
 
 ## Integration fixes to make before a release
 
-1. **settings.xml element order**: WP5, WP7 and WP23 all write at hook position 1, so trackRevisions /
-   documentProtection / attachedTemplate can come out of schema order; WP0's comment listing attachedTemplate
-   at position 3 is itself against the schema. Write settings in one schema-ordered place.
+1. **settings.xml element order**: done. docx.c's `docx_write_settings_ext` is the one place; in slot 1 it writes WP23's attachedTemplate group, WP4's mailMerge, WP5's revisionView/doNotTrack*, then WP7's documentProtection, as CT_Settings orders them (tests/test_wp7.c `settings_order`).
 2. **settings.xml.rels**: done on the `mailings` branch: packages add settings.xml's relationships with
    `docx_out_settings_rel` (core/docx.h) and docx_save writes the part once (WP23's attached template and WP4's
-   data source both kept). That branch also writes WP23's slot-1 settings before WP4's and WP5's (schema order);
-   WP7's documentProtection still needs checking when `protect` is merged.
+   data source both kept). That branch also writes WP23's slot-1 settings before WP4's and WP5's (schema order); `protect` added WP7's documentProtection to the same single writer (`docx_write_settings_ext`), tested by `settings_order`.
 3. **Ribbon width**: fixed by WP26 (`custom` branch): groups collapse to one button from the right, so every tab
    fits 618 px (a 640 window) in all five languages; `python3 tools/ribbonfit.py` checks it after a package adds
    groups. Commands that packages put only in menus for lack of room can now go on the ribbon.

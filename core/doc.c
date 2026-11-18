@@ -20,6 +20,7 @@
 #include "review.h"
 #include "outline.h"                  /* (WP11) heading_style_level */
 #include "intl.h"                     /* (WP27) */
+#include "protect.h"  /* WP7 */
 #include "cite.h"                     /* (WP3) cite_free */
 
 /* ------------------------------------------------------------------ */
@@ -122,6 +123,7 @@ static Step *rec(Doc *d, u32 p0, u32 n, Pos where)
   Step *s;
   u32 i;
   if (!g) return NULL;
+  if (!prot_gate(d, p0, n)) return NULL;     /* (WP7: Restrict Editing) */
   if (g->ns >= g->cap) {
     int nc = g->cap ? g->cap * 2 : 4;
     Step *ns = (Step *)realloc(g->s, nc * sizeof(Step));
@@ -141,6 +143,7 @@ static int rec_styles(Doc *d, Pos where)
 {
   Group *g = cur_group(d, where);
   if (!g) return 0;
+  if (!prot_gate_styles(d)) return 0;        /* (WP7) */
   if (g->styles) return 1;
   if (!(g->styles = (Style *)malloc((d->nstyles ? d->nstyles : 1) * sizeof(Style)))) return 0;
   memcpy(g->styles, d->styles, d->nstyles * sizeof(Style));
@@ -404,7 +407,8 @@ static int cf_eq(const CharFmt *a, const CharFmt *b)
          a->lang == b->lang && a->langea == b->langea && a->langbidi == b->langbidi && a->noproof == b->noproof &&   /* (WP31's) */
          a->frev == b->frev && a->move == b->move &&       /* (WP5) */
          a->rtl == b->rtl && a->cs == b->cs && a->fontcs == b->fontcs && a->fontea == b->fontea && a->sizecs == b->sizecs &&   /* (WP27's) */
-         a->em == b->em && a->eal == b->eal && a->ealid == b->ealid && a->ruby == b->ruby && a->hint == b->hint;
+         a->em == b->em && a->eal == b->eal && a->ealid == b->ealid && a->ruby == b->ruby && a->hint == b->hint &&
+         a->perm == b->perm;   /* (WP7's) */
 }
 /* the run covering byte off (past the end: the last run). Points into the paragraph, so it is good
    until the paragraph next changes */
@@ -576,6 +580,7 @@ int doc_insert(Doc *d, Pos *at, const char *s, u32 n, const CharFmt *f)
   if (at->para >= d->np) return 0;
   p = d->p[at->para];
   if (at->off > p->len) at->off = p->len;
+  if (!prot_insert_ok(d, *at, s, n)) return 0;    /* (WP7) */
   fmt = f ? *f : *para_fmt_before(p, at->off);
   if (!sdt_insert_ok(d, *at)) return 0;          /* (WP16: content controls' locks) */
   /* typing one character in a run of typing: no new undo step, the paragraph's copy is saved */
@@ -635,6 +640,7 @@ int doc_delete(Doc *d, Pos a, Pos b)
   a = pos_clamp(d, a); b = pos_clamp(d, b);
   if (!sdt_delete_ok(d, a, b)) return 0;          /* (WP16: content controls' locks) */
   if (!pos_cmp(a, b)) return 0;
+  if (!prot_range_ok(d, a, b, 0)) return 0;      /* (WP7) */
   if (!(st = rec(d, a.para, b.para - a.para + 1, b))) { close_auto(d); return 0; }
   if (a.para == b.para) para_delete_text(d->p[a.para], a.off, b.off);
   else {
@@ -666,7 +672,10 @@ void cf_apply(CharFmt *c, unsigned mask, const CharFmt *v)
   if (mask & CM_FONT) c->thfont = v->thfont;         /* (WP13) */
   if (mask & CM_HL) c->hl = v->hl;
   if (mask & CM_REV) { c->rev = v->rev; c->rid = v->rid; c->move = v->rev ? v->move : 0; }
-  if (mask & CM_FREV) c->frev = v->frev;       /* (WP5) */
+  if (mask & CM_FREV) {                         /* (WP5; WP7's CM_PERM shares the bit: every mask bit is taken) */
+    if (v->perm & PERM_SET) c->perm = (u16)(v->perm & ~PERM_SET);
+    else c->frev = v->frev;
+  }
   if (mask & CM_CSTYLE) c->cstyle = v->cstyle;
   if (mask & CM_SMALLCAPS) c->fx = (u8)((c->fx & ~FX_SMALLCAPS) | (v->fx & FX_SMALLCAPS));
   if (mask & CM_DSTRIKE) c->fx = (u8)((c->fx & ~FX_DSTRIKE) | (v->fx & FX_DSTRIKE));
@@ -712,6 +721,9 @@ int doc_format(Doc *d, Pos a, Pos b, unsigned mask, const CharFmt *val)
   if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
   a = pos_clamp(d, a); b = pos_clamp(d, b);
   if (!pos_cmp(a, b)) return 0;
+  if (!prot_range_ok(d, a, b, 1)) return 0;      /* (WP7) */
+  if ((mask & CM_LOOK) && !prot_direct_ok(d)) return 0;                                  /* (WP7: formatting limited) */
+  if ((mask & CM_CSTYLE) && val && !prot_style_ok(d, val->cstyle)) return 0;
   if (!(st = rec(d, a.para, b.para - a.para + 1, a))) { close_auto(d); return 0; }
   for (pi = a.para; pi <= b.para; pi++) {
     Para *p = d->p[pi];
@@ -757,6 +769,7 @@ static int each_run(Doc *d, Pos a, Pos b, void (*fn)(Doc *, Para *, CharFmt *, v
   if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
   a = pos_clamp(d, a); b = pos_clamp(d, b);
   if (!pos_cmp(a, b)) return 0;
+  if (!prot_range_ok(d, a, b, 1)) return 0;      /* (WP7) */
   if (!rec(d, a.para, b.para - a.para + 1, a)) { close_auto(d); return 0; }
   for (pi = a.para; pi <= b.para; pi++) {
     Para *p = d->p[pi];
@@ -920,7 +933,7 @@ int doc_track_delete(Doc *d, Pos a, Pos b, int rid)
   return any;
 }
 /* see doc.h: WP5's rv_resolve (core/review.c), which also resolves formatting changes */
-int doc_resolve(Doc *d, Pos a, Pos b, int accept) { return rv_resolve(d, a, b, accept, 0); }
+int doc_resolve(Doc *d, Pos a, Pos b, int accept) { return rv_resolve(d, a, b, accept, 0); }   /* (WP7: Restrict Editing checked there) */
 /* see doc.h: WP5's rv_next_change (core/review.c), which finds changes of every kind (a change over
    several runs is found whole) */
 int doc_next_change(Doc *d, Pos p, int dir, Pos *a, Pos *b) { return rv_next_change(d, p, dir, a, b); }
@@ -993,6 +1006,8 @@ int doc_para_format(Doc *d, u32 pa, u32 pb, unsigned mask, const ParaFmt *val)
   u32 i;
   if (pa > pb) { u32 t = pa; pa = pb; pb = t; }
   if (pb >= d->np) pb = d->np - 1;
+  if ((mask & PM_ALL & ~PM_STYLE) && !prot_direct_ok(d)) return 0;                        /* (WP7: formatting limited) */
+  if ((mask & PM_STYLE) && !prot_style_ok(d, val->style)) return 0;
   if (pa > pb || !rec(d, pa, pb - pa + 1, para_pos(pa))) { close_auto(d); return 0; }
   for (i = pa; i <= pb; i++) { pf_apply(&d->p[i]->pf, mask, val); touch(d->p[i]); }
   changed(d);
@@ -1005,6 +1020,7 @@ int doc_apply_style(Doc *d, u32 pa, u32 pb, int style)
 {
   u32 i, k;
   if (style < 0 || style >= d->nstyles || d->styles[style].type != ST_PARA) return 0;
+  if (!prot_style_ok(d, style)) return 0;        /* (WP7: a locked style while formatting is limited) */
   if (pa > pb) { u32 t = pa; pa = pb; pb = t; }
   if (pb >= d->np) pb = d->np - 1;
   if (pa > pb || !rec(d, pa, pb - pa + 1, para_pos(pa))) { close_auto(d); return 0; }
@@ -2097,6 +2113,7 @@ static CharFmt paste_cf(Doc *d, const Fragment *f, const CharFmt *src, const Cha
     if (src->cstyle && src->cstyle < f->nstyles) { int k = doc_style(d, f->styles[src->cstyle].id); c.cstyle = (u8)(k > 0 && d->styles[k].type == ST_CHAR ? k : 0); }
   }
   c.rev = 0; c.rid = 0;
+  c.perm = dst->perm;                  /* (WP7: pasted text is as free to edit as where it goes) */
   return c;
 }
 /* a pasted paragraph's text with its references made right for d: notes and comment marks left out,
@@ -2161,6 +2178,7 @@ int doc_paste(Doc *d, Pos *at, const Fragment *f, int mode)
   Pos where;
   if (!n) return 0;
   where = *at = pos_clamp(d, *at);
+  if (!prot_insert_ok(d, *at, "", 0)) return 0;   /* (WP7) */
   dp = d->p[at->para];
   if (!sdt_insert_ok(d, *at)) return 0;         /* (WP16: content controls' locks) */
   off = at->off;
@@ -2667,6 +2685,7 @@ int doc_char_style(Doc *d, Pos a, Pos b, int k)
 {
   u32 pi;
   if (k && !style_ok(d, k, ST_CHAR)) return 0;
+  if (k && !prot_style_ok(d, k)) return 0;       /* (WP7) */
   if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
   a = pos_clamp(d, a); b = pos_clamp(d, b);
   if (!pos_cmp(a, b)) return 0;
@@ -2806,6 +2825,7 @@ void doc_free(Doc *d)
   blocks_free(d);                /* (WP23) */
   math_doc_free(d);     /* WP14a: equations */
   rv_free(d);                                   /* (WP5) */
+  prot_free(d);         /* WP7 */
   { extern void merge_free(Doc *); merge_free(d); }   /* (WP4) */
   cite_free(d);                                 /* (WP3) */
   free(d);

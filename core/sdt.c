@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "protect.h"
 #include "sdt.h"
 #include "field.h"
 #include "xml.h"
@@ -1414,7 +1415,7 @@ int ff_insert(Doc *d, Pos *at, int kind)
   d->fields[k].dirty = 0;
   return k;
 }
-int (*sdt_forms_protected)(const Doc *d);
+int (*sdt_forms_protected)(const Doc *d) = prot_forms_only;   /* (WP7: Restrict Editing's "filling in forms") */
 char *ff_build(const char *old, const char *name, const char *kindxml)
 {
   Buf a, b, c;

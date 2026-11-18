@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "protect.h"   /* (WP7) */
 #include "review.h"
 #include "layout.h"
 
@@ -669,6 +670,7 @@ int rv_resolve(Doc *d, Pos a, Pos b, int accept, int shownonly)
   u32 pi;
   if (pos_cmp(a, b) > 0) { Pos t = a; a = b; b = t; }
   a = pos_clamp(d, a); b = pos_clamp(d, b);
+  if (!prot_resolve_ok(d)) return 0;             /* (WP7: Restrict Editing's tracked changes only) */
   doc_begin(d, a);
   /* the runs, last first: deleting text only moves what is after it */
   for (pi = b.para + 1; pi-- > a.para; ) {

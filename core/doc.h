@@ -58,6 +58,7 @@ typedef struct {
   u16 ruby;                 /* the base text of a phonetic guide (w:ruby): Doc.rubies index + 1; 0 none */
   u8 hint;                  /* w:rFonts w:hint: HINT_ (which font neutral characters take) */
   u8 intl_mask;             /* (only in a value given to cf_apply: which WP27 fields CM_CS and CM_EA change, IM_; 0 all) */
+  u16 perm;                 /* (WP7) in an exception to Restrict Editing: DocProtect.perms index + 1 (core/protect.h), 0 none */
 } CharFmt;
 enum { REV_NONE, REV_INS, REV_DEL };
 enum { FX_SMALLCAPS = 1, FX_DSTRIKE = 2, FX_BORDER = 4 };   /* FX_BORDER: a box round the characters (w:bdr) */
@@ -385,6 +386,7 @@ typedef struct {
   u8 tdir;                  /* w:textDirection: STD_ (horizontal, tbRl vertical...) */
   u8 grid;                  /* w:docGrid w:type: GRID_ */
   i32 linepitch, charspace; /* its w:linePitch (twips) and w:charSpace (Word's units: 4096ths of a point more than the size) */
+  u8 formfree;              /* (WP7) w:formProt off: free to edit while "filling in forms" is enforced */
 } SectFmt;
 /* s set to a section with no settings of its own: one column from a new page, 720 twips between
    columns, no line numbers */
@@ -656,6 +658,7 @@ typedef struct Doc {
   struct Field *fields; int nfields;
   u8 fieldcodes;
   struct FieldInfo *finfo;
+  struct DocProtect *prot;  /* (WP7) Restrict Editing and the encryption password (core/protect.h), NULL: none */
   struct SdtSet *sdt;       /* (WP16) content controls (core/sdt.h): their records, Design Mode; NULL: none */
   /* WP4 mail merge (core/merge.h): the main document's settings and its recipients, NULL: not one */
   struct MergeInfo *merge;

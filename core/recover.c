@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "protect.h"   /* (WP7) */
 #include "recover.h"
 #include "docx.h"
 
@@ -109,6 +110,7 @@ int rec_save(int id, Doc *d, const char *path, const char *name, const char *sta
   u8 *data = docx_save(d, &n);
   RecEntry e;
   int ok;
+  if (data) data = prot_save_encrypt(d, data, &n);    /* (WP7: an encrypted document's copy is encrypted too) */
   if (!data) return 0;
   rec_file(id, file, sizeof file);
   ok = spit(file, data, n);
