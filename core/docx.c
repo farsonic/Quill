@@ -12,10 +12,13 @@
 #include "image.h"
 #include "tstyle.h"
 #include "keep.h"
+#include "doctheme.h"   /* (WP13) */
+#include "blocks.h"     /* (WP23) */
 #include "field.h"
 #include "objfx.h"
 #include "chart.h"                 /* (WP15a) charts and SmartArt */
 #include "charfx.h"
+#include "wordart.h"   /* (WP19) */
 #include "notes.h"   /* (WP22b) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a: equations */
@@ -38,6 +41,7 @@ typedef struct {
   ParaFmt epf; CharFmt ecf;         /* paragraph styles: effective formatting */
   RPr er;                           /* character styles: what the chain sets */
   TableStyle *ts;                   /* table styles: their lines, fills and parts (NULL for others) */
+  StyleX sx; char link[40];         /* (WP13) its other settings, and its linked style's id */
 } RawStyle;
 
 typedef struct { u16 id; ListLevel lvl[9]; } AbsNum;
@@ -196,6 +200,8 @@ static const char *highlight_name(u32 hl)
    given, gets the character style id (up to 39 bytes). Sizes are in half-points (w:sz), spacing in
    twips, position in half-points, scale in percent (100 is stored as 0, meaning normal). Fonts
    are taken from the ascii slot, falling back to hAnsi and then the theme. Reads up to its END. */
+static StyleFrame *ppr_frame;          /* (WP13) reading a style: its w:framePr goes here, else NULL */
+static void read_style_frame(Xml *x, StyleFrame *f);
 static void parse_rpr(Xml *x, Ctx *c, RPr *r, char *rstyle)
 {
   int d0 = x->depth;
@@ -232,13 +238,19 @@ static void parse_rpr(Xml *x, Ctx *c, RPr *r, char *rstyle)
     }
     else if (!strcmp(n, "sz") && num(v, &k) && k > 0 && k < 3277) { r->set |= CM_SIZE; r->cf.size = (u16)k; }
     else if (!strcmp(n, "rFonts")) {
-      const char *f = xml_attr(x, "ascii");
-      if (!f) f = xml_attr(x, "hAnsi");
-      if (!f) f = theme_font(c, xml_attr(x, "asciiTheme"));
-      if (!f) f = theme_font(c, xml_attr(x, "hAnsiTheme"));
-      if (f && *f) { r->set |= CM_FONT; r->cf.font = (u8)doc_font(c->d, f); }
+      /* (WP13) a theme font wins over a named one, as in Word, and is remembered as the theme's */
+      const char *tt = xml_attr(x, "asciiTheme"), *f;
+      u8 thf;
+      if (!tt) tt = xml_attr(x, "hAnsiTheme");
+      thf = (u8)(!tt ? 0 : !strncmp(tt, "major", 5) ? THF_MAJOR : !strncmp(tt, "minor", 5) ? THF_MINOR : 0);
+      f = thf ? theme_font(c, tt) : NULL;
+      if (!f) { thf = 0; f = xml_attr(x, "ascii"); if (!f) f = xml_attr(x, "hAnsi"); }
+      if (f && *f) { r->set |= CM_FONT; r->cf.font = (u8)doc_font(c->d, f); r->cf.thfont = thf; }
     }
-    else if (!strcmp(n, "color") && v) { r->set |= CM_COLOR; r->cf.color = hexcolor(v); }
+    else if (!strcmp(n, "color") && v) {
+      r->set |= CM_COLOR; r->cf.color = hexcolor(v);
+      r->cf.thcolor = thr_from_word(xml_attr(x, "themeColor"), xml_attr(x, "themeTint"), xml_attr(x, "themeShade"));   /* (WP13) */
+    }
     else if (!strcmp(n, "highlight") && v) { r->set |= CM_HL; r->cf.hl = highlight_rgb(v); }
     else if (!strcmp(n, "rPrChange") && rstyle) { wp5_read_rprchange(x, c); continue; }   /* (WP5: a run's) */
     xml_skip(x);
@@ -295,12 +307,14 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
       u32 col = fill ? hexcolor(fill) : COLOR_AUTO;
       p->set |= PM_SHADE;
       p->pf.shade = col == COLOR_AUTO ? 0 : HL_ON | col;
+      p->pf.thshade = thr_from_word(xml_attr(x, "themeFill"), xml_attr(x, "themeFillTint"), xml_attr(x, "themeFillShade"));   /* (WP13) */
     }
     else if (!strcmp(n, "pBdr")) {
       int d1 = x->depth;
       p->set |= PM_BORDER;
       memset(p->pf.bstyle, 0, sizeof p->pf.bstyle); memset(p->pf.bwidth, 0, sizeof p->pf.bwidth); memset(p->pf.bspace, 0, sizeof p->pf.bspace);
       memset(p->pf.bcolor, 0, sizeof p->pf.bcolor);
+      memset(p->pf.thbcolor, 0, sizeof p->pf.thbcolor);
       while (xml_next(x) != XT_EOF) {
         const char *bn;
         int e;
@@ -313,6 +327,7 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
           TBorder tb;
           parse_line(x, &tb);
           p->pf.bstyle[e] = tb.style; p->pf.bwidth[e] = tb.width; p->pf.bcolor[e] = tb.color;
+          p->pf.thbcolor[e] = thr_from_word(xml_attr(x, "themeColor"), xml_attr(x, "themeTint"), xml_attr(x, "themeShade"));   /* (WP13) */
           p->pf.bspace[e] = attr_num(x, "space", &k) && k >= 0 && k <= 31 ? (u8)k : 0;
         }
       }
@@ -361,7 +376,7 @@ static void parse_ppr(Xml *x, Ctx *c, PPr *p, char *pstyle, RPr *mark)
       if (dc && (!strcmp(dc, "drop") || !strcmp(dc, "margin"))) {
         p->dropcap = attr_num(x, "lines", &k) && k >= 2 && k <= 10 ? (u8)k : 3;
         p->dropmargin = (u8)(dc[0] == 'm');
-      }
+      } else if (ppr_frame) read_style_frame(x, ppr_frame);     /* (WP13) a style's frame */
     }
     xml_skip(x);
   }
@@ -661,6 +676,46 @@ static void parse_tcond(Xml *x, Ctx *c, TableStyle *ts, TCond *tc, RawStyle *rs)
    written into c->st, unresolved (basedOn is followed later, by resolve). Table styles also get
    their TableStyle with the whole-table part and each conditional part. A style without an id is
    skipped; one without a name is named after its id. */
+/* (WP13) a style's own elements Quill keeps beside its formatting: 1 if x was one */
+static int read_style_x(Xml *x, RawStyle *s)
+{
+  const char *n = x->name, *v = xml_attr(x, "val");
+  i32 k;
+  if (!strcmp(n, "link")) copy_attr(x, "val", s->link, sizeof s->link);
+  else if (!strcmp(n, "uiPriority")) { if (num(v, &k) && k >= 0 && k < 255) s->sx.priority = (u8)(k + 1); }
+  else if (!strcmp(n, "semiHidden")) { if (onoff(x)) s->sx.flags |= SXF_SEMIHIDDEN; }
+  else if (!strcmp(n, "unhideWhenUsed")) { if (onoff(x)) s->sx.flags |= SXF_UNHIDE; }
+  else if (!strcmp(n, "locked")) { if (onoff(x)) s->sx.flags |= SXF_LOCKED; }
+  else if (!strcmp(n, "hidden")) { if (onoff(x)) s->sx.flags |= SXF_HIDDEN; }
+  else if (!strcmp(n, "autoRedefine")) { if (onoff(x)) s->sx.flags |= SXF_AUTOREDEFINE; }
+  else if (!strcmp(n, "personal")) { if (onoff(x)) s->sx.flags |= SXF_PERSONAL; }
+  else if (!strcmp(n, "aliases")) copy_attr(x, "val", s->sx.aliases, sizeof s->sx.aliases);
+  else return 0;
+  return 1;
+}
+/* (WP13) w:framePr's settings (a style's frame) */
+static void read_style_frame(Xml *x, StyleFrame *f)
+{
+  static const char *const wraps[] = { "auto", "around", "none", "tight", "through", "notBeside" };
+  static const char *const anch[] = { "text", "margin", "page" };
+  static const char *const xal[] = { "", "left", "center", "right", "inside", "outside" }, *const yal[] = { "", "top", "center", "bottom", "inside", "outside" };
+  const char *v;
+  i32 k;
+  int i;
+  memset(f, 0, sizeof *f);
+  f->set = 1;
+  if ((v = xml_attr(x, "wrap"))) for (i = 0; i < 6; i++) if (!strcmp(v, wraps[i])) f->wrap = (u8)i;
+  if ((v = xml_attr(x, "hAnchor"))) for (i = 0; i < 3; i++) if (!strcmp(v, anch[i])) f->hanchor = (u8)i;
+  if ((v = xml_attr(x, "vAnchor"))) for (i = 0; i < 3; i++) if (!strcmp(v, anch[i])) f->vanchor = (u8)i;
+  if ((v = xml_attr(x, "xAlign"))) for (i = 1; i < 6; i++) if (!strcmp(v, xal[i])) f->xalign = (u8)i;
+  if ((v = xml_attr(x, "yAlign"))) for (i = 1; i < 6; i++) if (!strcmp(v, yal[i])) f->yalign = (u8)i;
+  if (attr_num(x, "w", &k)) f->w = k;
+  if (attr_num(x, "h", &k)) { const char *r = xml_attr(x, "hRule"); f->h = r && !strcmp(r, "exact") ? -k : k; }
+  if (attr_num(x, "x", &k)) f->x = k;
+  if (attr_num(x, "y", &k)) f->y = k;
+  if (attr_num(x, "hSpace", &k)) f->hspace = k;
+  if (attr_num(x, "vSpace", &k)) f->vspace = k;
+}
 static void parse_styles(Ctx *c, const char *xml, size_t n)
 {
   Xml x;
@@ -701,6 +756,7 @@ static void parse_styles(Ctx *c, const char *xml, size_t n)
         else if (!strcmp(x.name, "basedOn")) copy_attr(&x, "val", s->based, sizeof s->based);
         else if (!strcmp(x.name, "next")) copy_attr(&x, "val", s->next, sizeof s->next);
         else if (!strcmp(x.name, "qFormat")) s->quick = 1;
+        else if (read_style_x(&x, s)) ;                     /* (WP13) */
         else if (s->ts && (!strcmp(x.name, "pPr") || !strcmp(x.name, "rPr") || !strcmp(x.name, "tblPr") || !strcmp(x.name, "tcPr"))) {
           parse_tcond(&x, c, s->ts, &s->ts->c[TC_WHOLE], s);
           continue;
@@ -714,7 +770,7 @@ static void parse_styles(Ctx *c, const char *xml, size_t n)
           }
           continue;
         }
-        else if (!strcmp(x.name, "pPr")) { parse_ppr(&x, c, &s->p, NULL, NULL); continue; }
+        else if (!strcmp(x.name, "pPr")) { ppr_frame = &s->sx.frame; parse_ppr(&x, c, &s->p, NULL, NULL); ppr_frame = NULL; continue; }
         else if (!strcmp(x.name, "rPr")) { parse_rpr(&x, c, &s->r, NULL); continue; }
         xml_skip(&x);
       }
@@ -754,6 +810,8 @@ static void install_styles(Ctx *c)
     if (s->type == 0 && s->p.has_list) { ds.pmask |= PM_LIST; ds.opf.list = (u16)list_for(c, s->p.numid); ds.opf.level = s->p.pf.level; }
     ds.cmask = s->r.set & CM_LOOK; ds.ocf = s->r.cf;
     ds.pf = s->epf; ds.cf = s->ecf;
+    ds.x = s->sx;                                         /* (WP13; the link by index below) */
+    ds.x.link = 0;
     if (i == def) { ds.builtin = 1; d->styles[0] = ds; continue; }
     k = doc_style(d, s->id);
     if (k >= 0 && d->styles[k].type != ds.type) { strncat(ds.id, ds.type == ST_CHAR ? "Char" : "Para", sizeof ds.id - 1 - strlen(ds.id)); }
@@ -770,6 +828,10 @@ static void install_styles(Ctx *c)
       int rb = raw_find(c, s->based, s->type);
       b = rb == def && s->type == 0 ? 0 : doc_style(d, s->based);
       if (b >= 0 && b != me && d->styles[b].type == d->styles[me].type) d->styles[me].based = (u8)b;
+    }
+    if (s->link[0]) {                                     /* (WP13) the linked style */
+      int lk = raw_find(c, s->link, -1) == def ? 0 : doc_style(d, s->link);
+      if (lk >= 0 && lk != me && d->styles[lk].type != d->styles[me].type) d->styles[me].x.link = (u8)(lk + 1);
     }
     if (s->type != 0) continue;
     nx = s->next[0] ? (raw_find(c, s->next, 0) == def ? 0 : doc_style(d, s->next)) : me;
@@ -1095,19 +1157,22 @@ static int parse_watermark(Xml *x, Ctx *c)
    shade darkens towards black, tint lightens towards white, lumMod and lumOff scale and offset
    the brightness (done here per channel, close enough to Word's HSL maths for theme colours).
    COLOR_AUTO for a colour it can't work out. */
+static u32 dml_ref;                    /* (WP13) the theme colour dml_color last read (a THR_ reference), 0 none */
 static u32 dml_color(Xml *x, Ctx *c)
 {
-  int d0 = x->depth, k;
+  int d0 = x->depth, k, sc = -1;
   const char *n = x->name, *v = xml_attr(x, "val");
   u32 col = COLOR_AUTO, r, g, b;
   i32 shade = 100000, tint = 100000, lmod = 100000, loff = 0, t;
+  dml_ref = 0;
+  if (!strcmp(n, "schemeClr")) sc = thc_from_dml(v);
   if (!strcmp(n, "srgbClr")) col = hexcolor(v);
   else if (!strcmp(n, "sysClr")) col = hexcolor(xml_attr(x, "lastClr"));
   else if (!strcmp(n, "schemeClr") && v) {
     const char *m = !strcmp(v, "tx1") ? "dk1" : !strcmp(v, "bg1") ? "lt1" : !strcmp(v, "tx2") ? "dk2" : !strcmp(v, "bg2") ? "lt2" : v;
     for (k = 0; k < 12; k++) if (!strcmp(m, clrnames[k])) col = c->clr[k];
   } else if (!strcmp(n, "prstClr") && v) col = !strcmp(v, "white") ? 0xFFFFFF : !strcmp(v, "red") ? 0xFF0000 : !strcmp(v, "blue") ? 0x0000FF : 0;
-  if (x->pending_end) { xml_skip(x); return col; }
+  if (x->pending_end) { xml_skip(x); if (sc >= 0) dml_ref = THR(sc, THM_NONE, 0, 0); return col; }
   while (xml_next(x) != XT_EOF) {
     if (x->type == XT_END && x->depth < d0) break;
     if (x->type != XT_START) continue;
@@ -1117,6 +1182,12 @@ static u32 dml_color(Xml *x, Ctx *c)
       else if (!strcmp(x->name, "lumMod")) lmod = t;
       else if (!strcmp(x->name, "lumOff")) loff = t;
     }
+  }
+  if (sc >= 0) {                     /* (WP13) the reference, in the form it was given */
+    if (lmod != 100000 || loff) dml_ref = THR(sc, THM_LUM, lmod / 1000 > 255 ? 255 : lmod / 1000 < 0 ? 0 : lmod / 1000, loff / 1000 > 255 ? 255 : loff / 1000 < 0 ? 0 : loff / 1000);
+    else if (shade != 100000) dml_ref = THR(sc, THM_DSHADE, shade / 1000 > 100 ? 100 : shade / 1000, 0);
+    else if (tint != 100000) dml_ref = THR(sc, THM_DTINT, tint / 1000 > 100 ? 100 : tint / 1000, 0);
+    else dml_ref = THR(sc, THM_NONE, 0, 0);
   }
   if (col == COLOR_AUTO) return col;
   r = (col >> 16) & 255; g = (col >> 8) & 255; b = col & 255;
@@ -1164,6 +1235,7 @@ typedef struct {
   Image im;
   int havefill, haveline, lnfill, inln, insp, instyle, inxfrm, xfrmdone;
   u32 stylefill, styleline;
+  u32 stylefillref, stylelineref;   /* (WP13) their theme colours */
   char embed[40];
   i32 offx, offy, extx, exty, choffx, choffy, chextx, chexty;   /* its a:xfrm (EMU) */
   ObjRead ox;                       /* WP17/WP18: adjustments, fills, effects, text settings (objdocx.c) */
@@ -1247,6 +1319,7 @@ static int dshape_elem(Xml *x, PCtx *pc, DShape *s)
   i32 v;
   int k;
   if (objfx_read(x, im, &s->ox, objfx_colour, c)) return 1;     /* WP17/WP18 */
+  if (wa_read_shape(x, im)) return 1;                          /* WP19: a WordArt warp */
   if (!strcmp(n, "blip") && !s->embed[0]) copy_attr(x, "embed", s->embed, sizeof s->embed);
   else if (!strcmp(n, "srcRect")) {
     if (attr_num(x, "l", &v)) im->crop[0] = v;
@@ -1286,7 +1359,7 @@ static int dshape_elem(Xml *x, PCtx *pc, DShape *s)
     int d1 = x->depth, line = s->inln;
     while (xml_next(x) != XT_EOF) {
       if (x->type == XT_END && x->depth < d1) break;
-      if (x->type == XT_START && is_color(x->name)) { u32 col = dml_color(x, c); if (line) { im->lcolor = col; s->lnfill = 1; } else { im->fill = col; s->havefill = 1; } }
+      if (x->type == XT_START && is_color(x->name)) { u32 col = dml_color(x, c); if (line) { im->lcolor = col; im->thline = dml_ref; s->lnfill = 1; } else { im->fill = col; im->thfill = dml_ref; s->havefill = 1; } }
     }
     return 1;
   }
@@ -1294,7 +1367,7 @@ static int dshape_elem(Xml *x, PCtx *pc, DShape *s)
     int d1 = x->depth, line = n[0] == 'l', ref = attr_num(x, "idx", &v) ? (int)v : 1;
     while (xml_next(x) != XT_EOF) {
       if (x->type == XT_END && x->depth < d1) break;
-      if (x->type == XT_START && is_color(x->name)) { u32 col = dml_color(x, c); if (ref) { if (line) s->styleline = col; else s->stylefill = col; } }
+      if (x->type == XT_START && is_color(x->name)) { u32 col = dml_color(x, c); if (ref) { if (line) { s->styleline = col; s->stylelineref = dml_ref; } else { s->stylefill = col; s->stylefillref = dml_ref; } } }
     }
     return 1;
   }
@@ -1324,9 +1397,9 @@ static void dshape_finish(DShape *s)
 {
   Image *im = &s->im;
   if (im->kind != OBJ_PICTURE && im->kind != OBJ_GROUP) {
-    if (!s->havefill) im->fill = s->stylefill;
-    if (!s->haveline && s->styleline != COLOR_AUTO) { im->lstyle = PB_SINGLE; im->lwidth = 6; im->lcolor = s->styleline; }
-    else if (s->haveline && s->lnfill < 0 && s->styleline != COLOR_AUTO) im->lcolor = s->styleline;
+    if (!s->havefill) { im->fill = s->stylefill; im->thfill = s->stylefillref; }
+    if (!s->haveline && s->styleline != COLOR_AUTO) { im->lstyle = PB_SINGLE; im->lwidth = 6; im->lcolor = s->styleline; im->thline = s->stylelineref; }
+    else if (s->haveline && s->lnfill < 0 && s->styleline != COLOR_AUTO) { im->lcolor = s->styleline; im->thline = s->stylelineref; }
     if (im->shape == SH_LINE || im->shape == SH_ARROW) im->fill = COLOR_AUTO;
   }
   if (s->lnfill == 0) im->lstyle = PB_NONE;
@@ -1488,6 +1561,32 @@ static void parse_drawing(Xml *x, PCtx *pc, const CharFmt *f)
   if (k < 0) img_release(im);
   if (k >= 0) { char t[8]; pic_utf8(t, k); run_text(pc, t, 4, f); }
   else c->lost |= LOST_PICTURES;
+}
+/* (WP19) a w:pict (x at its START, read to its END here): a signature line becomes an in-line picture
+   with its setup (core/sigline.c), its picture Quill's own drawing when it has the fonts, else the
+   file's PNG or JPEG; anything else is a picture Quill doesn't read. 1 always */
+static int wp19_read_pict(Xml *x, PCtx *pc, const CharFmt *f)
+{
+  Ctx *c = pc->c;
+  const char *raw;
+  size_t len = xml_raw(x, &raw);
+  struct SigLine sl;
+  char relid[64], t[8];
+  i32 cx, cy;
+  Image im;
+  int k;
+  if (!sig_parse_vml(raw, len, &sl, relid, sizeof relid, &cx, &cy)) { c->lost |= LOST_PICTURES; return 1; }
+  img_defaults(&im);
+  im.dl = im.dr = 0;
+  im.cx = cx > 0 ? cx : 3840; im.cy = cy > 0 ? cy : 1920;
+  if (!(sig_fonts && sig_make(&im, &sl, sig_fonts))) {
+    if (!load_blip(c, relid, &im) || !(im.sig = sig_copy(&sl))) { img_release(&im); c->lost |= LOST_PICTURES; return 1; }
+  }
+  im.cx = cx > 0 ? cx : 3840; im.cy = cy > 0 ? cy : 1920;
+  if ((k = doc_take_object(c->d, &im)) < 0) { img_release(&im); c->lost |= LOST_PICTURES; return 1; }
+  pic_utf8(t, k);
+  run_text(pc, t, 4, f);
+  return 1;
 }
 /* ---- WP1: fields (core/field.h). Complex fields (w:fldChar begin, code in w:instrText, separate,
    result, end) may nest, and may sit in another's code; each one in the text gets its marks round its
@@ -1770,6 +1869,7 @@ static void parse_run(Xml *x, PCtx *pc)
     else if (!strcmp(n, "Fallback")) { xml_skip(x); continue; }        /* mc:AlternateContent: the drawing (Choice), not its VML copy */
     else if (!strcmp(n, "AlternateContent") || !strcmp(n, "Choice")) continue;
     else if (!strcmp(n, "pict") && c->story && parse_watermark(x, c)) continue;
+    else if (!strcmp(n, "pict") && wp19_read_pict(x, pc, &f)) continue;     /* (WP19) a signature line */
     else if (!strcmp(n, "pict") || !strcmp(n, "object")) c->lost |= LOST_PICTURES;
     else if (!strcmp(n, "footnoteReference")) {
       i32 id;
@@ -2068,7 +2168,10 @@ static void parse_table_body(Xml *x, PCtx *pc)
                 if (!strcmp(x->name, "gridSpan") && num(val, &v) && v > 1 && v < MAX_COLS) cl.span = (u8)v;
                 else if (!strcmp(x->name, "vMerge")) cl.vmerge = (u8)(val && !strcmp(val, "restart") ? VM_START : VM_CONT);
                 else if (!strcmp(x->name, "vAlign") && val) { cl.valign = (u8)(!strcmp(val, "center") ? 1 : !strcmp(val, "bottom") ? 2 : 0); valn = 1; }
-                else if (!strcmp(x->name, "shd")) { cl.shade = hexcolor(xml_attr(x, "fill")); shd = 1; }
+                else if (!strcmp(x->name, "shd")) {
+                  cl.shade = hexcolor(xml_attr(x, "fill")); shd = 1;
+                  cl.thshade = thr_from_word(xml_attr(x, "themeFill"), xml_attr(x, "themeFillTint"), xml_attr(x, "themeFillShade"));   /* (WP13) */
+                }
                 else if (!strcmp(x->name, "tcBorders")) { parse_borders(x, cb); continue; }
                 else if (read_tcpr_wp21(x, &cl)) continue;           /* WP21b: text direction, own margins */
                 xml_skip(x);
@@ -3178,6 +3281,7 @@ static void docx_read_setting_ext(Ctx *c, Xml *x)
   /* WP22b: */
   read_notes_setting(c, x);
   /* WP23: */
+  blocks_read_setting(c->d, x);
   /* WP24: */
   /* WP27: */
   /* WP31: */
@@ -3315,6 +3419,28 @@ static void read_info_parts(Doc *d, ZipReader *z, const char *pkgrels, size_t pn
     keep_remove(d, rels);
   }
 }
+/* (WP13) the theme part as the document's theme, and the styles' shortcut keys (customizations.xml) */
+static void read_theme_part(Ctx *c, ZipReader *z, const char *docrels, size_t rn, const char *base)
+{
+  char path[300] = "", *xml;
+  size_t n;
+  if (docrels) rel_target(docrels, rn, "/theme", base, path, sizeof path);
+  if (!path[0]) snprintf(path, sizeof path, "%stheme/theme1.xml", base);
+  if ((xml = part(z, path, &n))) { DocTheme *t = theme_get(c->d); if (t) theme_parse(t, xml, n); free(xml); }
+  path[0] = 0;
+  if (docrels) rel_target(docrels, rn, "/keyMapCustomizations", base, path, sizeof path);
+  if (path[0] && (xml = part(z, path, &n))) { stylekeys_read(c->d, xml, n); free(xml); }
+}
+/* (WP23) a template's kind, the attached template (settings.xml's relationships) and the building blocks */
+static void read_template_parts(Ctx *c, ZipReader *z, const char *ct, size_t ctn, const char *base)
+{
+  char path[300], *rels;
+  size_t n = 0;
+  snprintf(path, sizeof path, "%s_rels/settings.xml.rels", base);
+  rels = part(z, path, &n);
+  blocks_read_parts(c->d, ct, ctn, rels, n);
+  free(rels);
+}
 /* after everything Quill reads has been read: the parts kept verbatim, then the packages' own parts.
    docrels: the main part's relationships (base its folder, "word/") */
 static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_t rn, const char *base, const char *mainpart)
@@ -3336,6 +3462,7 @@ static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_
   /* WP10: */
   /* WP11: */
   /* WP13: */
+  read_theme_part(c, z, docrels, rn, base);
   /* WP14a: */
   /* WP15a: */
   /* WP15b: */
@@ -3351,6 +3478,7 @@ static void docx_read_parts_ext(Ctx *c, ZipReader *z, const char *docrels, size_
   pages_read_done(c->d);
   /* WP22b: */
   /* WP23: */
+  read_template_parts(c, z, ct, ctn, base);
   /* WP24: */
   read_info_parts(c->d, z, pkgrels, pn);
   /* WP27: */
@@ -3494,6 +3622,7 @@ Doc *docx_load(const u8 *data, size_t len, unsigned *lost, char *err, size_t err
 /* ------------------------------------------------------------------ */
 /* writing */
 static const char *w_rstyle;           /* the next run's character style (its id), written by w_rpr */
+static const StyleFrame *w_pframe;     /* (WP13) a style's frame, written by w_ppr_body */
 /* append a w:rPr for f: with full, every field that isn't at its plain value (for styles and
    docDefaults), else only what differs from base (the paragraph style's character format), with
    explicit "off" values where f turns off something base has. A pending w_rstyle goes in first.
@@ -3506,9 +3635,9 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
   buf_init(&b);
   if (!full) {
     diff = (unsigned)(f->flags ^ base->flags) & 0x7F;
-    if (f->font != base->font) diff |= CM_FONT;
+    if (f->font != base->font || (theme_font_ok(d, f->thfont, f->font) != theme_font_ok(d, base->thfont, base->font))) diff |= CM_FONT;
     if (f->size != base->size) diff |= CM_SIZE;
-    if (f->color != base->color) diff |= CM_COLOR;
+    if (f->color != base->color || (f->thcolor != base->thcolor && theme_ref_ok(d, f->thcolor, f->color))) diff |= CM_COLOR;
     if (f->hl != base->hl) diff |= CM_HL;
     if ((f->fx ^ base->fx) & FX_SMALLCAPS) diff |= CM_SMALLCAPS;
     if ((f->fx ^ base->fx) & FX_DSTRIKE) diff |= CM_DSTRIKE;
@@ -3525,7 +3654,10 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
     w_rstyle = NULL;
   }
   if (!diff && !b.len) return;
-  if ((diff & CM_FONT) && f->font < d->nfonts) {
+  if ((diff & CM_FONT) && f->font < d->nfonts && theme_font_ok(d, f->thfont, f->font)) {      /* (WP13) the theme's font */
+    const char *cl = f->thfont == THF_MAJOR ? "major" : "minor";
+    buf_printf(&b, "<w:rFonts w:asciiTheme=\"%sHAnsi\" w:eastAsiaTheme=\"%sEastAsia\" w:hAnsiTheme=\"%sHAnsi\" w:cstheme=\"%sBidi\"/>", cl, cl, cl, cl);
+  } else if ((diff & CM_FONT) && f->font < d->nfonts) {
     buf_adds(&b, "<w:rFonts w:ascii=\""); xml_escape(&b, d->fonts[f->font], strlen(d->fonts[f->font]));
     buf_adds(&b, "\" w:hAnsi=\""); xml_escape(&b, d->fonts[f->font], strlen(d->fonts[f->font]));
     buf_adds(&b, "\" w:cs=\""); xml_escape(&b, d->fonts[f->font], strlen(d->fonts[f->font]));
@@ -3537,7 +3669,11 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
   if ((diff & CM_STRIKE) && (!full || (f->flags & CF_STRIKE))) buf_adds(&b, f->flags & CF_STRIKE ? "<w:strike/>" : "<w:strike w:val=\"0\"/>");
   if ((diff & CM_COLOR) && (!full || f->color != COLOR_AUTO)) {
     if (f->color == COLOR_AUTO) buf_adds(&b, "<w:color w:val=\"auto\"/>");
-    else buf_printf(&b, "<w:color w:val=\"%06lX\"/>", (unsigned long)(f->color & 0xFFFFFF));
+    else {
+      buf_printf(&b, "<w:color w:val=\"%06lX\"", (unsigned long)(f->color & 0xFFFFFF));
+      if (theme_ref_ok(d, f->thcolor, f->color)) thr_word_attrs(&b, f->thcolor, "theme");      /* (WP13) */
+      buf_adds(&b, "/>");
+    }
   }
   if (diff & CM_SIZE) buf_printf(&b, "<w:sz w:val=\"%u\"/><w:szCs w:val=\"%u\"/>", (unsigned)f->size, (unsigned)f->size);
   if ((diff & CM_HL) && (highlight_name(f->hl) || !full))
@@ -3575,6 +3711,23 @@ static void w_rpr(Buf *o, Doc *d, const CharFmt *f, const CharFmt *base, int ful
    w:sectPr or w:rPr): with full, everything (for styles), else the style reference and what
    differs from base, the paragraph's style. Lengths are twips. Elements go in the order the
    schema wants: Word can refuse a file with them out of order. */
+/* (WP13) a style's w:framePr */
+static void w_style_frame(Buf *b, const StyleFrame *f)
+{
+  static const char *const wraps[] = { "auto", "around", "none", "tight", "through", "notBeside" };
+  static const char *const anch[] = { "text", "margin", "page" };
+  static const char *const xal[] = { "", "left", "center", "right", "inside", "outside" }, *const yal[] = { "", "top", "center", "bottom", "inside", "outside" };
+  buf_adds(b, "<w:framePr");
+  if (f->w) buf_printf(b, " w:w=\"%ld\"", (long)f->w);
+  if (f->h) buf_printf(b, " w:h=\"%ld\" w:hRule=\"%s\"", (long)(f->h < 0 ? -f->h : f->h), f->h < 0 ? "exact" : "atLeast");
+  if (f->wrap < 6) buf_printf(b, " w:wrap=\"%s\"", wraps[f->wrap]);
+  if (f->hspace) buf_printf(b, " w:hSpace=\"%ld\"", (long)f->hspace);
+  if (f->vspace) buf_printf(b, " w:vSpace=\"%ld\"", (long)f->vspace);
+  buf_printf(b, " w:vAnchor=\"%s\" w:hAnchor=\"%s\"", anch[f->vanchor % 3], anch[f->hanchor % 3]);
+  if (f->xalign && f->xalign < 6) buf_printf(b, " w:xAlign=\"%s\"", xal[f->xalign]); else if (f->x) buf_printf(b, " w:x=\"%ld\"", (long)f->x);
+  if (f->yalign && f->yalign < 6) buf_printf(b, " w:yAlign=\"%s\"", yal[f->yalign]); else if (f->y) buf_printf(b, " w:y=\"%ld\"", (long)f->y);
+  buf_adds(b, "/>");
+}
 static void w_ppr_body(Buf *b, Doc *d, const ParaFmt *p, const ParaFmt *base, int full)
 {
   static const char *const jc[5] = { "left", "center", "right", "both", "distribute" };   /* (AL_DISTRIBUTE: WP10) */
@@ -3583,6 +3736,7 @@ static void w_ppr_body(Buf *b, Doc *d, const ParaFmt *p, const ParaFmt *base, in
   if (full ? p->keepnext : p->keepnext != base->keepnext) buf_adds(b, p->keepnext ? "<w:keepNext/>" : "<w:keepNext w:val=\"0\"/>");
   if (full ? p->keeplines : p->keeplines != base->keeplines) buf_adds(b, p->keeplines ? "<w:keepLines/>" : "<w:keepLines w:val=\"0\"/>");
   if (p->pagebreak && (full || !base->pagebreak)) buf_adds(b, "<w:pageBreakBefore/>");
+  if (w_pframe) { w_style_frame(b, w_pframe); w_pframe = NULL; }      /* (WP13) */
   if (full ? p->nowidow : p->nowidow != base->nowidow) buf_adds(b, p->nowidow ? "<w:widowControl w:val=\"0\"/>" : "<w:widowControl/>");
   if (p->list && p->list <= d->nlists && (full || p->list != base->list || p->level != base->level))
     buf_printf(b, "<w:numPr><w:ilvl w:val=\"%u\"/><w:numId w:val=\"%u\"/></w:numPr>", (unsigned)p->level, (unsigned)d->lists[p->list - 1].id);
@@ -3599,12 +3753,21 @@ static void w_ppr_body(Buf *b, Doc *d, const ParaFmt *p, const ParaFmt *base, in
       if (!p->bstyle[e]) { if (base->bstyle[e] && !full) buf_printf(b, "<w:%s w:val=\"nil\"/>", names[e]); continue; }
       buf_printf(b, "<w:%s w:val=\"%s\" w:sz=\"%u\" w:space=\"%u\" w:color=\"", names[e], kinds[p->bstyle[e] <= PB_DASHED ? p->bstyle[e] : 1],
                  (unsigned)(p->bwidth[e] ? p->bwidth[e] : 4), (unsigned)p->bspace[e]);
-      if (p->bcolor[e] == COLOR_AUTO) buf_adds(b, "auto\"/>"); else buf_printf(b, "%06lX\"/>", (unsigned long)(p->bcolor[e] & 0xFFFFFF));
+      if (p->bcolor[e] == COLOR_AUTO) buf_adds(b, "auto\"/>");
+      else {
+        buf_printf(b, "%06lX\"", (unsigned long)(p->bcolor[e] & 0xFFFFFF));
+        if (theme_ref_ok(d, p->thbcolor[e], p->bcolor[e])) thr_word_attrs(b, p->thbcolor[e], "theme");   /* (WP13) */
+        buf_adds(b, "/>");
+      }
     }
     buf_adds(b, "</w:pBdr>");
   }
   if (full ? p->shade != 0 : p->shade != base->shade) {
-    if (p->shade) buf_printf(b, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"%06lX\"/>", (unsigned long)(p->shade & 0xFFFFFF));
+    if (p->shade) {
+      buf_printf(b, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"%06lX\"", (unsigned long)(p->shade & 0xFFFFFF));
+      if (theme_ref_ok(d, p->thshade, p->shade & 0xFFFFFF)) thr_word_attrs(b, p->thshade, "themeFill");   /* (WP13) */
+      buf_adds(b, "/>");
+    }
     else buf_adds(b, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"auto\"/>");
   }
   if (full ? p->tabs[0] != 0 : (memcmp(p->tabs, base->tabs, sizeof p->tabs) || memcmp(p->tabkind, base->tabkind, sizeof p->tabkind) ||
@@ -3933,7 +4096,7 @@ static void w_tr_start(Buf *o, const Cell *c, int before, int after)
 /* open a cell and write its tcPr: width (the grid columns it spans, twips), span, vertical merge,
    all four edges (explicitly, so the table style's lines don't come back), fill and vertical
    alignment */
-static void w_tc_start(Buf *o, const Table *t, const Cell *c)
+static void w_tc_start(Buf *o, Doc *d, const Table *t, const Cell *c)
 {
   static const char *const edges[4] = { "top", "left", "bottom", "right" };
   i32 w = 0;
@@ -3945,7 +4108,11 @@ static void w_tc_start(Buf *o, const Table *t, const Cell *c)
   buf_adds(o, "<w:tcBorders>");
   for (k = 0; k < 4; k++) w_line(o, edges[k], c->borders & (1 << k), c->bstyle[k], c->bwidth[k], c->bcolor[k]);
   buf_adds(o, "</w:tcBorders>");
-  if (c->shade != COLOR_AUTO) buf_printf(o, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"%06lX\"/>", (unsigned long)(c->shade & 0xFFFFFF));
+  if (c->shade != COLOR_AUTO) {
+    buf_printf(o, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"%06lX\"", (unsigned long)(c->shade & 0xFFFFFF));
+    if (theme_ref_ok(d, c->thshade, c->shade)) thr_word_attrs(o, c->thshade, "themeFill");     /* (WP13) */
+    buf_adds(o, "/>");
+  }
   write_tcpr_wp21(o, c);                             /* WP21b: own margins, text direction */
   if (c->valign) buf_adds(o, c->valign == 1 ? "<w:vAlign w:val=\"center\"/>" : "<w:vAlign w:val=\"bottom\"/>");
   wp5_kept(o, w5_doc, RK_TCREV, c->table, c->row, c->col, 0); wp5_kept(o, w5_doc, RK_TC, c->table, c->row, c->col, 0);   /* (WP5) */
@@ -3989,7 +4156,7 @@ static void w_table_open(Buf *o, Doc *d, u32 i)
     int rowopen = tblopen && pv[l]->row == cv[l]->row;
     if (!tblopen) w_tbl_start(o, d, t);
     if (!rowopen) { int gb, ga; row_grid_wp21(d, i, cv[l], t, &gb, &ga); w_tr_start(o, cv[l], gb, ga); }
-    w_tc_start(o, t, cv[l]);
+    w_tc_start(o, d, t, cv[l]);
   }
 }
 /* close the cells, rows and tables paragraph i is in that the next paragraph isn't, innermost
@@ -4012,11 +4179,15 @@ static void w_table_close(Buf *o, Doc *d, u32 i)
   if (nc && i + 1 >= d->np) buf_adds(o, "<w:p/>");  /* a document ends with a paragraph */
 }
 static void w_para_ex(Buf *o, Doc *d, Para *p, const char *lead, const char *tail);
+static Doc *w_odoc;                    /* (WP13) the document whose objects are being written (for their theme colours) */
 /* an object's outline (a:ln), or none */
 static void w_outline(Buf *o, const Image *im)
 {
   if (im->lstyle == PB_NONE || !im->lwidth) { buf_adds(o, "<a:ln><a:noFill/></a:ln>"); return; }
-  buf_printf(o, "<a:ln w=\"%ld\"><a:solidFill><a:srgbClr val=\"%06lX\"/></a:solidFill>", (long)im->lwidth * 1587, (unsigned long)(im->lcolor & 0xFFFFFF));
+  buf_printf(o, "<a:ln w=\"%ld\"><a:solidFill>", (long)im->lwidth * 1587);
+  if (w_odoc && theme_ref_ok(w_odoc, im->thline, im->lcolor)) thr_dml(o, im->thline);       /* (WP13) */
+  else buf_printf(o, "<a:srgbClr val=\"%06lX\"/>", (unsigned long)(im->lcolor & 0xFFFFFF));
+  buf_adds(o, "</a:solidFill>");
   if (im->lstyle == PB_DOTTED) buf_adds(o, "<a:prstDash val=\"sysDot\"/>");
   else if (im->lstyle == PB_DASHED) buf_adds(o, "<a:prstDash val=\"dash\"/>");
   if (im->kind != OBJ_PICTURE && im->shape == SH_ARROW) buf_adds(o, "<a:tailEnd type=\"triangle\"/>");
@@ -4046,6 +4217,7 @@ static void w_obj(Buf *o, Doc *d, const Image *im, int child, long offx, long of
   long cx = (long)im->cx * 635, cy = (long)im->cy * 635;
   u32 me = ++*id;
   int k;
+  w_odoc = d;                            /* (WP13) */
   if (im->kind == OBJ_PICTURE) {
     int m = media_find(im);
     buf_printf(o, "<pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
@@ -4074,6 +4246,9 @@ static void w_obj(Buf *o, Doc *d, const Image *im, int child, long offx, long of
     buf_adds(o, im->kind == OBJ_TEXTBOX ? "<wps:cNvSpPr txBox=\"1\"/><wps:spPr>" : "<wps:cNvSpPr/><wps:spPr>");
     w_xfrm(o, im, offx, offy, cx, cy);
     objfx_write_geom(o, im, im->shape < SH_N ? prst_names[im->shape] : NULL);    /* WP18: more shapes, icons */
+    if (im->fx.filltype != FT_PIC && im->fx.filltype != FT_GRAD && !im->fx.falpha && im->fill != COLOR_AUTO && theme_ref_ok(d, im->thfill, im->fill)) {
+      buf_adds(o, "<a:solidFill>"); thr_dml(o, im->thfill); buf_adds(o, "</a:solidFill>");      /* (WP13) a theme colour */
+    } else
     objfx_write_fill(o, im, media_find(im));     /* WP18: gradients, picture fills */
     if (!objfx_write_line(o, im)) w_outline(o, im);     /* (an icon's strokes) */
     objfx_write_effects(o, im);
@@ -4100,6 +4275,7 @@ static void w_picture(Buf *o, Doc *d, const char *rpr, size_t rl, int k)
   long cx = (long)im->cx * 635, cy = (long)im->cy * 635;
   u32 id = ++save_drawing;
   int fl = im->wrap != WRAP_INLINE, i;
+  if (im->sig) { sig_write_vml(o, im, rpr, rl, media_find(im), id); return; }     /* (WP19) a signature line, as Word writes it */
   buf_adds(o, "<w:r>"); buf_add(o, rpr, rl);
   if (pack_save_isex(im)) buf_adds(o, "<mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\"><mc:Choice xmlns:cx1=\"http://schemas.microsoft.com/office/drawing/2015/9/8/chartex\" Requires=\"cx1\">");   /* (WP15a) */
   buf_printf(o, "<w:drawing><wp:%s distT=\"%ld\" distB=\"%ld\" distL=\"%ld\" distR=\"%ld\"", fl ? "anchor" : "inline",
@@ -4759,6 +4935,19 @@ static char *w_document(Doc *d, size_t *len)
 /* styles.xml: the document defaults written in full, then each paragraph and character style as
    what it changes from the style it is based on (style 0 is the default paragraph style), then
    the table styles. Malloc'd, *len its size; NULL if out of memory. */
+/* (WP13) a style's w:link, w:autoRedefine, w:hidden, w:uiPriority, w:semiHidden, w:unhideWhenUsed (in the schema's order) */
+static void w_style_x(Buf *o, Doc *d, const Style *s)
+{
+  int lk = s->x.link ? s->x.link - 1 : -1;
+  if (lk >= 0 && lk < d->nstyles && (d->styles[lk].type == ST_PARA || d->styles[lk].type == ST_CHAR) && d->styles[lk].type != s->type) {
+    buf_adds(o, "<w:link w:val=\""); xml_escape(o, d->styles[lk].id, strlen(d->styles[lk].id)); buf_adds(o, "\"/>");
+  }
+  if (s->x.flags & SXF_AUTOREDEFINE) buf_adds(o, "<w:autoRedefine/>");
+  if (s->x.flags & SXF_HIDDEN) buf_adds(o, "<w:hidden/>");
+  if (s->x.priority) buf_printf(o, "<w:uiPriority w:val=\"%u\"/>", (unsigned)(s->x.priority - 1));
+  if (s->x.flags & SXF_SEMIHIDDEN) buf_adds(o, "<w:semiHidden/>");
+  if (s->x.flags & SXF_UNHIDE) buf_adds(o, "<w:unhideWhenUsed/>");
+}
 static char *w_styles(Doc *d, size_t *len)
 {
   Buf o, pp;
@@ -4793,16 +4982,22 @@ static char *w_styles(Doc *d, size_t *len)
     if (i == 0) buf_adds(&o, " w:default=\"1\"");
     buf_adds(&o, " w:styleId=\""); xml_escape(&o, s->id, strlen(s->id));
     buf_adds(&o, "\"><w:name w:val=\""); xml_escape(&o, s->name, strlen(s->name)); buf_adds(&o, "\"/>");
+    if (s->x.aliases[0]) { buf_adds(&o, "<w:aliases w:val=\""); xml_escape(&o, s->x.aliases, strlen(s->x.aliases)); buf_adds(&o, "\"/>"); }   /* (WP13) */
     if (s->based < d->nstyles && s->based != i && d->styles[s->based].type == s->type) {
       buf_adds(&o, "<w:basedOn w:val=\""); xml_escape(&o, d->styles[s->based].id, strlen(d->styles[s->based].id)); buf_adds(&o, "\"/>");
     }
     if (!ch && s->next < d->nstyles && s->next != i && d->styles[s->next].type == ST_PARA) { buf_adds(&o, "<w:next w:val=\""); xml_escape(&o, d->styles[s->next].id, strlen(d->styles[s->next].id)); buf_adds(&o, "\"/>"); }
+    w_style_x(&o, d, s);                                   /* (WP13) link, uiPriority, semiHidden... */
     if (s->quick) buf_adds(&o, "<w:qFormat/>");
+    if (s->x.flags & SXF_LOCKED) buf_adds(&o, "<w:locked/>");
+    if (s->x.flags & SXF_PERSONAL) buf_adds(&o, "<w:personal/>");
     if (!ch) {
       ParaFmt sp = s->pf, b0 = *bp;
       sp.style = 0; b0.style = 0;
       buf_init(&pp);
+      if (s->x.frame.set) w_pframe = &s->x.frame;
       w_ppr_body(&pp, d, &sp, &b0, 0);
+      if (w_pframe) { w_style_frame(&pp, w_pframe); w_pframe = NULL; }
       if (pp.len) { buf_adds(&o, "<w:pPr>"); buf_add(&o, pp.data, pp.len); buf_adds(&o, "</w:pPr>"); }
       buf_free(&pp);
     }
@@ -4905,6 +5100,29 @@ static void write_info_parts(Doc *d, DocxOut *o)
                   "http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties", "rIdCustom", x, n);
     free(x);
   }
+}
+/* (WP13) the document's theme (Office's when it has none) and its styles' shortcut keys */
+static void write_theme_parts(Doc *d, DocxOut *o)
+{
+  size_t n;
+  char *x = theme_xml(theme_of(d), &n);
+  if (x) {
+    docx_out_part(o, "word/theme/theme1.xml", "application/vnd.openxmlformats-officedocument.theme+xml", "word/document.xml",
+                  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme", "rIdStTheme", x, n);
+    free(x);
+  } else o->oom = 1;
+  if ((x = stylekeys_xml(d, &n))) {
+    docx_out_part(o, "word/customizations.xml", "application/vnd.ms-word.keyMapCustomizations+xml", "word/document.xml",
+                  "http://schemas.microsoft.com/office/2006/relationships/keyMapCustomizations", "rIdStKeys", x, n);
+    free(x);
+  }
+}
+/* (WP23) settings.xml's relationship to the attached template */
+static void write_template_parts(Doc *d, DocxOut *o)
+{
+  size_t n;
+  char *x = blocks_settings_rels(d, &n);
+  if (x) { docx_out_part(o, "word/_rels/settings.xml.rels", NULL, NULL, NULL, NULL, x, n); free(x); }
 }
 /* ---- WP5: commentsExtended.xml (replies, Resolve), commentsIds.xml (durable ids), commentsExtensible.xml
    (times in UTC) for the comments saved, and people.xml (the authors of comments and changes; those
@@ -5112,6 +5330,7 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
   /* WP10: */
   /* WP11: */
   /* WP13: */
+  write_theme_parts(d, o);
   /* WP14a: */
   /* WP15a: */
   pack_save_parts(d, o);
@@ -5128,6 +5347,7 @@ static void docx_write_parts_ext(Doc *d, DocxOut *o)
   { const char *ct = NULL, *nm = pages_wm_part(d, &ct); if (nm[0]) docx_out_part(o, nm, ct, NULL, NULL, NULL, d->wm.pic, d->wm.piclen); }
   /* WP22b: */
   /* WP23: */
+  write_template_parts(d, o);
   /* WP24: */
   write_info_parts(d, o);
   /* WP27: */
@@ -5170,6 +5390,7 @@ static void docx_write_settings_ext(Doc *d, Buf *b, int where)
   pages_write_settings(d, b, where);
   /* WP22b: */
   /* WP23: */
+  if (where == 1) blocks_write_settings(d, b);
   /* WP24: */
   /* WP27: */
   /* WP31: */
@@ -5252,9 +5473,10 @@ u8 *docx_save(Doc *d, size_t *len)
   buf_adds(&ct, XMLHDR);
   buf_adds(&ct, "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
                 "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>"
-                "<Default Extension=\"xml\" ContentType=\"application/xml\"/>"
-                "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>"
-                "<Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/>"
+                "<Default Extension=\"xml\" ContentType=\"application/xml\"/>");
+  /* (WP23) a template's main part is a template's */
+  buf_printf(&ct, "<Override PartName=\"/word/document.xml\" ContentType=\"%s\"/>", blocks_main_ctype(d));
+  buf_adds(&ct, "<Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/>"
                 "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>");
   if (numxml) buf_adds(&ct, "<Override PartName=\"/word/numbering.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml\"/>");
   {
@@ -5542,7 +5764,8 @@ static Doc *load_docx(const u8 *b, size_t n, unsigned *lost, char *err, size_t e
 static const DocFormat fmt_docx = { "Word Document", "docx", sniff_zip, load_docx, docx_save, DF_NATIVE };
 static const DocFormat fmt_txt = { "Plain Text", "txt|text|asc", NULL, load_txt, save_txt, DF_TEXT };
 extern const DocFormat fmt_odt, fmt_fodt, fmt_doc, fmt_rtf, fmt_html, fmt_markdown;     /* (fmt_fodt: WP28b's Flat ODT) */
-const DocFormat *const doc_formats[] = { &fmt_odt, &fmt_fodt, &fmt_docx, &fmt_doc, &fmt_rtf, &fmt_html, &fmt_markdown, &fmt_txt };
+extern const DocFormat fmt_dotx, fmt_dotm;      /* (WP23, core/blocks.c) */
+const DocFormat *const doc_formats[] = { &fmt_odt, &fmt_fodt, &fmt_docx, &fmt_doc, &fmt_dotx, &fmt_dotm, &fmt_rtf, &fmt_html, &fmt_markdown, &fmt_txt };
 const int doc_nformats = (int)(sizeof doc_formats / sizeof doc_formats[0]);
 /* whether path ends in "." and one of exts (ext|ext|...), ignoring case (Amiga names are case-insensitive) */
 static int ext_in(const char *path, const char *exts)

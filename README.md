@@ -1,6 +1,8 @@
 # Quill: a word processor for the Amiga
 
-Quill 0.14 is a native word processor for AmigaOS with a MUI interface. It reads and writes Word documents (.docx) and lays them out the way Word does. It is written in C for a 68040 or better with plenty of RAM. Its design and look follow WordCraft, an open-source word processor in Rust (see "Why C, not a port").
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-farsonic-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/farsonic)
+
+Quill 0.15 is a native word processor for AmigaOS with a MUI interface. It reads and writes Word documents (.docx) and lays them out the way Word does. It is written in C for a 68040 or better with plenty of RAM. Its design and look follow WordCraft, an open-source word processor in Rust (see "Why C, not a port").
 
 ![Quill with the Welcome template](docs/quill-home.png)
 
@@ -28,6 +30,10 @@ Quill 0.14 is a native word processor for AmigaOS with a MUI interface. It reads
 - **AutoFormat as you type:** "smart quotes", dashes, ½, 1st, `* ` and `1. ` starting lists, a line of `---` (or `===`, `___`) becoming a border, web and mail addresses becoming links, *bold* and _italic_. **Format > AutoFormat Now** does it to the selection or the whole document.
 - **Read Aloud:** **Review > Read Aloud** reads the selection, or from the caret on, through translator.library and narrator.device (Workbench 1.3 and 2.0 had them), selecting each sentence as it is read; click again to stop.
 - **Languages:** each piece of text has a language, read from and written to Word files. **Review > Language > Set Proofing Language** marks the selection (or what you type next) as being in a language, or as not to be checked, and **Set As Default** sets the language of text that has none. The status bar shows the language at the caret; click it to change it. Spelling uses Quill's British English list, or for any language a Hunspell dictionary put in the `Dict` drawer (`de_DE.aff` and `de_DE.dic`, as LibreOffice and Firefox ship them; Quill reads their affix rules, compounds and suggestions itself). Hyphenation follows the language too: German, French, Spanish, Italian, Portuguese, Dutch and Polish come with Quill.
+
+## New in 0.15: closing the gap with WordCraft
+
+Quill 0.15 now has 432 of WordCraft's 531 ribbon commands (0.14 had 236); docs/wordcraft-gap.md lists them one by one, and NEXT.md what is still to come. New: fields (Insert Field, Update, field codes; Zotero/Mendeley fields kept), threaded comments and markup views, tracked formatting changes and moves, character effects and more paragraph tools, advanced Find/Replace and Go To, equations (read, laid out, drawn, edited in place with the Equation tab), charts and SmartArt (kept, drawn, inserted and edited), picture corrections and effects, more shapes, icons and linked text boxes, WordArt and signature lines, the Draw tab with ink and canvases, table styles editor, Quick Tables and drawing tables, columns/page setup/page borders/picture watermarks, footnote options, AutoSave/recovery/version history/properties/accessibility, outline view and window commands, Office themes and the Styles pane, templates and building blocks, grammar/thesaurus/AutoCorrect and per-run proofing languages with Hunspell dictionaries, RTF/ODT/HTML/Markdown files, and PDF export with subset fonts, Unicode text, links and bookmarks, plus page images.
 
 ## New in 0.14: arranging, bookmarks, page numbers and the Design tab
 
@@ -403,7 +409,7 @@ Quill draws its own window, as WordCraft does, in WordCraft's light colours, wit
 
 ## Setting up
 
-1. Unpack the archive (`lha x Quill-0.14.lha`). You get a **Quill** drawer with its own icon. Open it and either:
+1. Unpack the archive (`lha x Quill-0.15.lha`). You get a **Quill** drawer with its own icon. Open it and either:
    - **double-click Install-Quill** (it needs Installer, which comes with Workbench 3.x and AROS). It asks where to put Quill, makes a Quill drawer there and copies everything with its icons. The example documents and the source code are optional. Installing over an older Quill updates it and keeps your settings and spelling words. It can also remove an installed Quill. If Workbench can't find Installer, select the Install-Quill icon, choose **Icons > Information...** and set its Default Tool to where Installer is (`C:Installer`, `SYS:Utilities/Installer` or `SYS:System/Installer`). On AROS, start it from a Shell in the Quill drawer instead: `Installer SCRIPT Install-Quill APPNAME Quill`;
    - or just use the drawer where it is, or drag it anywhere. Quill needs `Quill`, `Fonts`, `TrueType` and `Dict` kept together (`Dict` holds the spelling list and the hyphenation patterns).
 
@@ -562,7 +568,7 @@ The MUI headers come from Aminet's `dev/mui/mui38dev.lha`. That archive may only
 - **Quill:** the code is new, written for this project. It borrows WordCraft's ideas but none of its code. The GIF, BMP and IFF ILBM readers and the PNG and JPEG writers (core/picfmt.c) come from Easel, the Amiga paint program by Quill's author.
 - **WordCraft:** one exception to the above: core/smartedit.c (SmartArt, WP15c) ports parts of WordCraft's SmartArt code (its diagram parts and several layouts, crates/docx/src/smart_art.rs), MIT licence, Copyright (c) 2026 ArtCraft Team and the WordCraft contributors, as the file says.
 - **WordCraft** (MIT OR Apache-2.0, © its authors; see its LICENSE-MIT, NOTICE and ATTRIBUTION.md): core/protect.c hashes a Restrict Editing password the way WordCraft's crates/docx/src/crypt.rs does (Word's legacy key as reversed hex, the iteration number after the hash), written again in C.
-- **Its licence:** not chosen yet; the author will choose one before the code is published.
+- **Its licence:** the GNU General Public License, version 2 (GPL-2.0-only); see `LICENSE`. The parts by other people listed here keep their own licences, all of which allow this.
 - **WordCraft (MIT OR Apache-2.0, © the WordCraft authors):** the equation editor (WP14b) takes its gallery templates and symbol sets from WordCraft's `math_gallery.rs` (core/mathgal.c) and follows its `math_edit.rs` rules for moving and deleting in an equation, written again in C (core/mathedit.c). WordCraft's MIT licence asks that its copyright notice and licence go with copies of that material.
 - **TrueType fonts:** Liberation (Red Hat, Google), Carlito and Caladea, under the SIL Open Font License 1.1. See `TrueType/LICENSE-fonts.txt`.
 - **Word list:** `Dict/british-english` is SCOWL's British English list (Copyright 2000-2011 Kevin Atkinson and others), used under its permissive licence: see `Dict/LICENSE-dict.txt`.

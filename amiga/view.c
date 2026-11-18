@@ -53,6 +53,8 @@
 #include "lang.h"
 #include "wp_tables.h"                 /* WP21a/WP21b: the table tools and turned text */
 #include "wp_objects.h"            /* WP17/WP18 */
+#include "wp_wordart.h"            /* WP19 */
+#include "../core/wordart.h"
 #include "../core/objfx.h"
 #include "wp_protect.h"                 /* (WP7) Restrict Editing */
 
@@ -512,6 +514,7 @@ static void free_pens(struct Data *d, Object *obj)
   for (i = 0; i < d->ncube; i++) ReleasePen(cm, d->cube[i]);
   d->ncube = 0;
   wp18_flush();                         /* (WP18: drawings made with those pens) */
+  wp19_flush();                         /* (WP19) */
   free_pics(d);
   for (i = 0; i < d->ncol; i++) ReleasePen(cm, d->col[i].pen);
   d->ncol = 0;
@@ -610,6 +613,7 @@ static int lower_l1(u8 c) { return (c >= 'a' && c <= 'z') || (c >= 0xE0 && c != 
 /* box b's text (t: the paragraph's UTF-8, shown as Latin-1 for the Amiga font) at x, on baseline base,
    in its colour and screen font: capitals, small capitals, raised and lowered text, underlines and
    strikes. Expects JAM1 (only the letters' pixels set, what's behind showing through) */
+static void get_cube(struct Data *d, Object *obj);     /* (WP19) */
 static void draw_text(struct Data *d, Object *obj, struct RastPort *rp, const Box *b, const char *t, LONG x, LONG base)
 {
   char buf[512];
@@ -620,6 +624,10 @@ static void draw_text(struct Data *d, Object *obj, struct RastPort *rp, const Bo
   u8 low[512], skip[512];
   LONG dx[3] = { 0, 0, 0 }, dy[3] = { 0, 0, 0 };
   ULONG pens[3];
+  if (WA_RICH(&b->f)) {                 /* (WP19) WordArt: drawn from the letters' outlines with its effects */
+    get_cube(d, obj);
+    if (wp19_draw_run(rp, d->lay, b, t, x, base, d->zoom, d->cube, d->cubelv, d->band0, d->band1)) return;
+  }
   {
     /* (WP10) an optional hyphen isn't drawn (with formatting marks: a not sign), a nonbreaking hyphen
        is a hyphen, a nonbreaking space shows as a degree sign with the marks */
@@ -1179,7 +1187,10 @@ text:
   if ((src->text && src->text->np) || src->fx.link) {
     Furn f;
     u32 j, ln;
-    if (lay_textbox(d->lay, src, t.cx, &f) && (t.rot || src->fx.vert)) draw_text_turned(d, obj, rp, src, &t, cx, cy, pl, pt, &f);
+    int laid = lay_textbox(d->lay, src, t.cx, &f);
+    if (laid && src->warp) get_cube(d, obj);
+    if (laid && src->warp && wp19_draw_warped(rp, d->lay, src, &t, cx, cy, pl, pt, d->zoom, d->cube, d->cubelv, d->band0, d->band1)) ;   /* (WP19) bent */
+    else if (laid && (t.rot || src->fx.vert)) draw_text_turned(d, obj, rp, src, &t, cx, cy, pl, pt, &f);
     else if (f.n) {
       Pos none;
       i32 tx0 = cx - t.cx / 2, ty0 = cy - t.cy / 2;
