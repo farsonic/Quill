@@ -670,7 +670,11 @@ typedef struct Doc {
      in its SectFmt as the others; East Asian line breaking settings of settings.xml */
   struct Ruby *rubies; int nrubies;
   struct IntlSettings *intl;
+  /* plain text (core/docx.c txt_load/txt_save): the encoding a .txt was read in and is saved in
+     (TXT_UTF8, the default, TXT_LATIN1, TXT_UTF16LE/BE), TXT_BOM if it began with a byte order mark */
+  u8 txtenc;
 } Doc;
+enum { TXT_UTF8, TXT_LATIN1, TXT_UTF16LE, TXT_UTF16BE, TXT_BOM = 0x10 };
 /* (WP13) styles (and the document's defaults, Doc.defpf and defcf) changed by edit(d, arg) as one undo
    step: every style's effective formatting worked out again and the text that had a style's look
    given its new one, as doc_set_style does (the defaults themselves are not in the undo history).

@@ -24,6 +24,7 @@
 #include "refs.h"    /* (WP2) */
 #include "info.h"    /* (WP24) */
 #include "math.h"     /* WP14a: equations */
+#include "codepage.h"   /* plain text: Windows-1252 */
 #include "ink.h"      /* WP20: freeforms, ink, drawing canvases */
 #include "docx_lang.h"   /* WP31: languages, do not check */
 #include "docx_intl.h"   /* WP27: right-to-left and East Asian text */
@@ -6303,31 +6304,93 @@ static int valid_utf8(const u8 *s, size_t n)
   }
   return 1;
 }
-/* a leading UTF-8 byte order mark is dropped; anything that isn't valid UTF-8 is taken as Latin-1,
-   which is what Amiga editors write. The new Doc has no undo history and is not marked modified;
+/* whether bytes without a byte order mark look like UTF-16: most of the first few hundred
+   characters' high bytes zero (Latin text), the low bytes not. 1 little-endian, 2 big-endian, 0 no */
+static int sniff_utf16(const u8 *s, size_t n)
+{
+  size_t i, m = n > 1024 ? 1024 : n & ~(size_t)1;
+  size_t z0 = 0, z1 = 0;
+  if (m < 4) return 0;
+  for (i = 0; i < m; i += 2) { z0 += !s[i]; z1 += !s[i + 1]; }
+  if (z1 * 10 >= m / 2 * 7 && z0 * 10 < m / 2) return 1;
+  if (z0 * 10 >= m / 2 * 7 && z1 * 10 < m / 2) return 2;
+  return 0;
+}
+/* the encoding of plain text: a byte order mark (UTF-8, UTF-16 either way), else UTF-16 by its zero
+   bytes, else UTF-8 if it is valid UTF-8, else Latin-1 (TXT_ in doc.h, with TXT_BOM); *skip the
+   mark's length */
+int txt_encoding(const u8 *data, size_t len, size_t *skip)
+{
+  int k;
+  *skip = 0;
+  if (len >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF) { *skip = 3; return TXT_UTF8 | TXT_BOM; }
+  if (len >= 2 && data[0] == 0xFF && data[1] == 0xFE) { *skip = 2; return TXT_UTF16LE | TXT_BOM; }
+  if (len >= 2 && data[0] == 0xFE && data[1] == 0xFF) { *skip = 2; return TXT_UTF16BE | TXT_BOM; }
+  if ((k = sniff_utf16(data, len))) return k == 1 ? TXT_UTF16LE : TXT_UTF16BE;
+  return valid_utf8(data, len) ? TXT_UTF8 : TXT_LATIN1;
+}
+/* plain text in any of txt_encoding's encodings (the mark dropped): UTF-16 with its surrogate pairs,
+   8-bit text as Windows-1252 (Latin-1 with Windows' characters in 0x80-0x9F, which is what both
+   Windows and Amiga editors write in practice); CR LF and lone CRs become line ends. The new Doc
+   has no undo history, is not marked modified and remembers the encoding (Doc.txtenc) for Save;
    NULL if out of memory. */
 Doc *txt_load(const u8 *data, size_t len)
 {
   Doc *d = doc_new();
   Buf u;
   Pos c;
-  size_t i;
+  size_t i, skip;
+  int enc;
   if (!d) return NULL;
   buf_init(&u);
-  if (len >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF) { data += 3; len -= 3; }
-  if (valid_utf8(data, len)) buf_add(&u, data, len);
-  else for (i = 0; i < len; i++) { char t[4]; buf_add(&u, t, (size_t)utf8_put(t, data[i])); }   /* Latin-1 */
+  enc = txt_encoding(data, len, &skip);
+  data += skip; len -= skip;
+  d->txtenc = (u8)enc;
+  switch (enc & 15) {
+  case TXT_UTF16LE: case TXT_UTF16BE: {
+    int be = (enc & 15) == TXT_UTF16BE;
+    for (i = 0; i + 1 < len; i += 2) {
+      u32 ch = be ? (u32)data[i] << 8 | data[i + 1] : (u32)data[i + 1] << 8 | data[i];
+      char t[4];
+      if (ch >= 0xD800 && ch < 0xDC00 && i + 3 < len) {
+        u32 lo = be ? (u32)data[i + 2] << 8 | data[i + 3] : (u32)data[i + 3] << 8 | data[i + 2];
+        if (lo >= 0xDC00 && lo < 0xE000) { ch = 0x10000 + ((ch - 0xD800) << 10) + (lo - 0xDC00); i += 2; }
+        else ch = 0xFFFD;
+      } else if (ch >= 0xD800 && ch < 0xE000) ch = 0xFFFD;
+      if (!ch) continue;
+      buf_add(&u, t, (size_t)utf8_put(t, ch));
+    }
+    break; }
+  case TXT_UTF8: buf_add(&u, data, len); break;
+  default:
+    for (i = 0; i < len; i++) { char t[4]; buf_add(&u, t, (size_t)utf8_put(t, data[i] >= 0x80 && data[i] < 0xA0 ? cp_to_unicode(1252, data[i]) : data[i])); }
+  }
   if (u.oom) { buf_free(&u); doc_free(d); return NULL; }
+  {
+    /* line ends: CR LF and CR as LF; NULs and the private code points Quill uses as marks left out */
+    size_t o = 0;
+    for (i = 0; i < u.len; i++) {
+      char ch = u.data[i];
+      if (ch == '\r') { if (i + 1 < u.len && u.data[i + 1] == '\n') continue; ch = '\n'; }
+      if (!ch) continue;
+      if ((u8)ch >= 0xF3 && i + 3 < u.len) { i += 3; continue; }       /* (U+C0000 and up) */
+      u.data[o++] = ch;
+    }
+    u.len = o;
+  }
   c = doc_start(d);
   if (u.len && !doc_insert(d, &c, u.data, (u32)u.len, NULL)) { buf_free(&u); doc_free(d); return NULL; }
   buf_free(&u);
   doc_clear_undo(d);
   d->dirty = 0;
+  d->txtenc = (u8)enc;
   return d;
 }
-/* pictures, note references and comment marks are left out and line breaks become newlines;
-   characters with no Latin-1 form are handled by utf8_to_latin1. Malloc'd; NULL if out of memory. */
-u8 *txt_save(Doc *d, int latin1, size_t *len)
+/* the document's text in encoding enc (TXT_ in doc.h, with TXT_BOM for a byte order mark): pictures,
+   note references and comment marks are left out and line breaks become newlines; for Latin-1,
+   characters it has no form for are handled by utf8_to_latin1; UTF-16 has surrogate pairs. Malloc'd;
+   NULL if out of memory. */
+u8 *txt_save_enc(Doc *d, int enc, size_t *len)
 {
   u32 n;
   char *t = doc_text(d, doc_start(d), doc_end_pos(d), &n);
@@ -6337,20 +6400,51 @@ u8 *txt_save(Doc *d, int latin1, size_t *len)
     for (i = 0; i < n; i++) {
       if (i + 4 <= n && IS_MATH(t + i)) { i += 3; continue; }     /* WP14a: equations too */
       if (i + 4 <= n && (IS_PIC(t + i) || IS_MARK(t + i) || IS_NOTE(t + i))) { i += 3; continue; }     /* pictures, notes and comment marks are left out */
+      if ((u8)t[i] >= 0xF3 && i + 4 <= n) { i += 3; continue; }      /* (fields' and other marks: private code points) */
       t[o++] = t[i] == '\v' ? '\n' : t[i];
     }
     n = o; t[n] = 0;
   }
-  if (latin1) {
+  switch (enc & 15) {
+  case TXT_LATIN1: {
     char *o = (char *)malloc(n * 3 + 2);
     if (!o) { free(t); return NULL; }
     *len = utf8_to_latin1(t, n, o, n * 3 + 2);
     free(t);
+    return (u8 *)o; }
+  case TXT_UTF16LE: case TXT_UTF16BE: {
+    int be = (enc & 15) == TXT_UTF16BE;
+    u8 *o = (u8 *)malloc((size_t)n * 2 + 4), *w;
+    u32 i = 0;
+    if (!o) { free(t); return NULL; }
+    w = o;
+#define PUT16(v) do { u32 v_ = (v); if (be) { *w++ = (u8)(v_ >> 8); *w++ = (u8)v_; } else { *w++ = (u8)v_; *w++ = (u8)(v_ >> 8); } } while (0)
+    if (enc & TXT_BOM) PUT16(0xFEFF);
+    while (i < n) {
+      int used;
+      u32 ch = utf8_get(t + i, n - i, &used);
+      i += (u32)used;
+      if (ch >= 0x10000) { ch -= 0x10000; PUT16(0xD800 + (ch >> 10)); PUT16(0xDC00 + (ch & 0x3FF)); }
+      else PUT16(ch);
+    }
+#undef PUT16
+    *len = (size_t)(w - o);
+    free(t);
+    return o; }
+  }
+  if (enc & TXT_BOM) {
+    char *o = (char *)malloc(n + 4);
+    if (!o) { free(t); return NULL; }
+    o[0] = (char)0xEF; o[1] = (char)0xBB; o[2] = (char)0xBF;
+    memcpy(o + 3, t, n + 1);
+    free(t);
+    *len = n + 3;
     return (u8 *)o;
   }
   *len = n;
   return (u8 *)t;
 }
+u8 *txt_save(Doc *d, int latin1, size_t *len) { return txt_save_enc(d, latin1 ? TXT_LATIN1 : TXT_UTF8, len); }
 
 /* ------------------------------------------------------------------ */
 /* files */
@@ -6393,13 +6487,14 @@ static Doc *load_txt(const u8 *b, size_t n, unsigned *lost, char *err, size_t er
   if (!d) snprintf(err, errcap, "Not enough memory to open the file.");
   return d;
 }
-static u8 *save_txt(Doc *d, size_t *len) { return txt_save(d, 1, len); }      /* (Latin-1, for Amiga editors) */
+static u8 *save_txt(Doc *d, size_t *len) { return txt_save_enc(d, d->txtenc, len); }      /* (in the encoding it was read in; a new one UTF-8) */
 static Doc *load_docx(const u8 *b, size_t n, unsigned *lost, char *err, size_t errcap) { return docx_load(b, n, lost, err, errcap); }
 static const DocFormat fmt_docx = { "Word Document", "docx", sniff_zip, load_docx, docx_save, DF_NATIVE };
 static const DocFormat fmt_txt = { "Plain Text", "txt|text|asc", NULL, load_txt, save_txt, DF_TEXT };
 extern const DocFormat fmt_odt, fmt_fodt, fmt_doc, fmt_rtf, fmt_html, fmt_markdown;     /* (fmt_fodt: WP28b's Flat ODT) */
 extern const DocFormat fmt_dotx, fmt_dotm;      /* (WP23, core/blocks.c) */
-const DocFormat *const doc_formats[] = { &fmt_odt, &fmt_fodt, &fmt_docx, &fmt_doc, &fmt_dotx, &fmt_dotm, &fmt_rtf, &fmt_html, &fmt_markdown, &fmt_txt };
+extern const DocFormat fmt_wordxml;             /* (WP28e, core/wordxml.c: Flat OPC and Word 2003 XML) */
+const DocFormat *const doc_formats[] = { &fmt_odt, &fmt_fodt, &fmt_docx, &fmt_doc, &fmt_dotx, &fmt_dotm, &fmt_wordxml, &fmt_rtf, &fmt_html, &fmt_markdown, &fmt_txt };
 const int doc_nformats = (int)(sizeof doc_formats / sizeof doc_formats[0]);
 /* whether path ends in "." and one of exts (ext|ext|...), ignoring case (Amiga names are case-insensitive) */
 static int ext_in(const char *path, const char *exts)
@@ -6474,7 +6569,7 @@ Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap)
   free(data);
   return d;
 }
-/* in the format its name's ending names (case ignored), otherwise Latin-1 plain text; marks the
+/* in the format its name's ending names (case ignored), otherwise plain text (Doc.txtenc); marks the
    document unmodified on success. 0 if out of memory or the file can't be written. */
 int doc_save_file(Doc *d, const char *path)
 {

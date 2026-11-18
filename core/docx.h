@@ -33,8 +33,14 @@ u8  *docx_save(Doc *d, size_t *len);
 extern int (*docx_pageref)(void *ctx, const char *bookmark);
 extern void *docx_pageref_ctx;
 
-/* plain text: UTF-8 if it is valid UTF-8, else Latin-1 (Amiga text); one paragraph per line */
+/* plain text: its encoding (TXT_ in doc.h) from a byte order mark (UTF-8, UTF-16LE/BE), else UTF-16
+   by its zero bytes, else UTF-8 if it is valid UTF-8, else Latin-1/Windows-1252 (Amiga and Windows
+   text); *skip the mark's length */
+int  txt_encoding(const u8 *data, size_t len, size_t *skip);
+/* plain text read in its encoding (kept in Doc.txtenc for Save); one paragraph per line */
 Doc *txt_load(const u8 *data, size_t len);
+/* the text in encoding enc (TXT_, with TXT_BOM: a byte order mark first) */
+u8  *txt_save_enc(Doc *d, int enc, size_t *len);
 /* latin1: write Latin-1 (for Amiga editors), else UTF-8 */
 u8  *txt_save(Doc *d, int latin1, size_t *len);
 
@@ -65,7 +71,7 @@ void doc_format_pattern(int saving, char *out, size_t cap);
 /* read by its contents (each format's sniff in table order), else by its name's ending, else as plain
    text; NULL if unreadable (err says why). *lost as for docx_load */
 Doc *doc_load_file(const char *path, unsigned *lost, char *err, size_t errcap);
-/* written in the format its name's ending names, else as plain text in Latin-1; clears the modified
+/* written in the format its name's ending names, else as plain text (in Doc.txtenc); clears the modified
    flag on success, 0 on failure */
 int  doc_save_file(Doc *d, const char *path);
 /* while doc_load_file reads a file: its path (NULL otherwise), so a format can find the files it

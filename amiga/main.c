@@ -564,6 +564,18 @@ static int save_as(int text)
   if (!text && !strchr((const char *)FilePart((STRPTR)path), '.')) strcat(path, ".docx");
   { BPTR l = Lock((STRPTR)path, ACCESS_READ);
     if (l) { UnLock(l); if (ask("Replace|Cancel", "%s exists.\nReplace it?", path) != 1) return 0; } }
+  if (text) {
+    /* the encoding: UTF-8 (the default: every character kept) or Latin-1 for Amiga editors; a text
+       file opened in UTF-16 can stay so */
+    int u16 = (doc->txtenc & 15) == TXT_UTF16LE || (doc->txtenc & 15) == TXT_UTF16BE;
+    switch (ask(u16 ? "UTF-8|Latin-1|UTF-16|Cancel" : "UTF-8|Latin-1|Cancel",
+                "Save the text in which encoding?\nUTF-8 keeps every character; Latin-1 is\nwhat most Amiga editors read.%s", "")) {
+    case 1: doc->txtenc = TXT_UTF8; break;
+    case 2: doc->txtenc = TXT_LATIN1; break;
+    case 3: if (u16) break;      /* (as it was read) */
+    default: return 0;
+    }
+  }
   if (!save_to(path)) return 0;
   if (!text) strcpy(docpath, path);
   set_title();
