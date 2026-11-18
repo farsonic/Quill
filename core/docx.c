@@ -1601,6 +1601,8 @@ typedef struct {
   int skip;                         /* its result is left out (a placeholder stands for it) */
   u16 link;                         /* its result's link (HYPERLINK, REF, PAGEREF), 0 none */
   u8 locked, dirty;
+  u8 deferred;                      /* (WP2) a PAGEREF whose marks wait for its end: 1 its result is being read */
+  CharFmt dmf;                      /* and the formatting it began with */
   char *ffdata;
 } FldOpen;
 #define FLD_DEPTH 16
@@ -1629,6 +1631,12 @@ static void fld_decide(PCtx *pc, FldOpen *o, const CharFmt *f)
   CharFmt mf = *f;
   mf.link = c->fieldlink ? c->fieldlink : pc->link;
   o->k = -1;
+  if (kind == FK_PAGEREF && o->state == 2 && !o->deferred) {
+    /* (WP2) its result is read first: LibreOffice puts a table of contents entry's text in it, before
+       the tab and the number (fld_char writes that text, then the field, at its end) */
+    o->deferred = 1; o->skip = 1; o->dmf = *f;
+    return;
+  }
   if (kind == FC_TOC) {
     /* (WP2: a table of contents is a field like any other, its entries its result; its code is also
        noted as the one a new table takes) */
@@ -1719,6 +1727,15 @@ static void fld_char(Xml *x, PCtx *pc, CharFmt *f)
       buf_addc(&par->code, FLD_CLOSE);
     } else {
       if (nosep) { fld_state(c); fld_decide(pc, o, f); }
+      if (o->deferred == 1) {
+        /* (WP2) a PAGEREF's result read: the text before its last tab stays in the text */
+        const char *t = o->res.data ? o->res.data : "", *tab = strrchr(t, '\t');
+        CharFmt pf = o->dmf;
+        pf.link = pc->link;
+        if (tab) run_text(pc, t, (size_t)(tab + 1 - t), &pf);
+        o->deferred = 2; o->skip = 0;
+        fld_state(c); fld_decide(pc, o, &o->dmf);
+      }
       if (o->k >= 0) {
         char m[8];
         CharFmt mf = *f;
@@ -1837,7 +1854,18 @@ static void parse_run(Xml *x, PCtx *pc)
     else if (fld_text(x, c, n, &f)) continue;
     else if (c->field == 1 && !strcmp(n, "tab") && c->fr && c->fr->n && c->fr->f[c->fr->n - 1].state == 1) buf_addc(&c->fr->f[c->fr->n - 1].code, '\t');   /* (WP2: a tab in a code, as LibreOffice writes INDEX \e) */
     else if (c->field == 1) ;                                  /* field code: left out */
-    else if (c->field == 2 && c->fieldkind) ;                  /* a page number's result: the placeholder stands for it */
+    else if (c->field == 2 && c->fieldkind) {                  /* a page number's result: the placeholder stands for it */
+      FldOpen *o = &c->fr->f[c->fr->n - 1];
+      if (o->deferred == 1 && !strcmp(n, "tab")) buf_addc(&o->res, '\t');
+      else if (o->deferred == 1 && !strcmp(n, "t")) {
+        int d1 = x->depth;
+        while (xml_next(x) != XT_EOF) {
+          if (x->type == XT_END && x->depth < d1) break;
+          if (x->type == XT_TEXT) buf_add(&o->res, x->text.data, x->text.len);
+        }
+        continue;
+      }
+    }
     else if (!strcmp(n, "t") || (!strcmp(n, "delText") && pc->rev == REV_DEL)) {
       int d1 = x->depth;
       while (xml_next(x) != XT_EOF) {
