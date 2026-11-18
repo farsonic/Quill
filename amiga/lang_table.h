@@ -3396,6 +3396,22 @@
   { { "Whole page", "Ganze Seite", "Page enti\350re", "Toda la p\341gina", "Pagina intera" } },
   { { "Many pages", "Mehrere Seiten", "Plusieurs pages", "Varias p\341ginas", "Pi\371 pagine" } },
   { { "Percent", "Prozent", "Pourcentage", "Porcentaje", "Percentuale" } },
+  { { "Document (White)", "Dokument (Wei\337)", "Document (blanc)", "Documento (blanco)", "Documento (bianco)" } },
+  { { "Soft Green", "Sanftes Gr\374n", "Vert doux", "Verde suave", "Verde tenue" } },
+  { { "Warm Cream", "Warmes Creme", "Cr\350me chaud", "Crema c\341lido", "Crema caldo" } },
+  { { "Soft Gray", "Sanftes Grau", "Gris doux", "Gris suave", "Grigio tenue" } },
+  { { "Side by Side", "Nebeneinander", "C\364te \340 c\364te", "En paralelo", "Affianca" } },
+  { { "This window and the next side by side on the screen (again: back as they were)", "Dieses und das n\344chste Fenster nebeneinander (erneut: wie vorher)", "Cette fen\352tre et la suivante c\364te \340 c\364te (de nouveau : comme avant)", "Esta ventana y la siguiente en paralelo (otra vez: como estaban)", "Questa finestra e la successiva affiancate (di nuovo: come prima)" } },
+  { { "Sync Scrolling", "Synchron scrollen", "D\351filement synchrone", "Desplazamiento sincr\363nico", "Scorrimento sincrono" } },
+  { { "The two windows side by side scroll together", "Die zwei Fenster nebeneinander scrollen gemeinsam", "Les deux fen\352tres c\364te \340 c\364te d\351filent ensemble", "Las dos ventanas en paralelo se desplazan juntas", "Le due finestre affiancate scorrono insieme" } },
+  { { "Screen Paper", "Bildschirmpapier", "Papier \340 l'\351cran", "Papel en pantalla", "Carta a schermo" } },
+  { { "The paper's colour on screen only, for every document (kept for next time)", "Die Papierfarbe nur auf dem Bildschirm, f\374r jedes Dokument (bleibt erhalten)", "La couleur du papier \340 l'\351cran seulement, pour tous les documents (conserv\351e)", "El color del papel solo en pantalla, para todos los documentos (se conserva)", "Il colore della carta solo a schermo, per ogni documento (conservato)" } },
+  { { "View Side by Side", "Nebeneinander anzeigen", "Afficher c\364te \340 c\364te", "Ver en paralelo", "Visualizza affiancate" } },
+  { { "Synchronous Scrolling", "Synchrones Scrollen", "D\351filement synchrone", "Desplazamiento sincr\363nico", "Scorrimento sincrono" } },
+  { { "Screen Paper Color", "Papierfarbe auf dem Bildschirm", "Couleur du papier \340 l'\351cran", "Color del papel en pantalla", "Colore della carta a schermo" } },
+  { { "Open another window first (View > New Window, or another document).", "\326ffnen Sie zuerst ein weiteres Fenster (Ansicht > Neues Fenster oder ein anderes Dokument).", "Ouvrez d'abord une autre fen\352tre (Affichage > Nouvelle fen\352tre, ou un autre document).", "Abra primero otra ventana (Vista > Nueva ventana, u otro documento).", "Aprire prima un'altra finestra (Visualizza > Nuova finestra, o un altro documento)." } },
+  { { "Turn on View Side by Side first.", "Schalten Sie zuerst Nebeneinander anzeigen ein.", "Activez d'abord Afficher c\364te \340 c\364te.", "Active primero Ver en paralelo.", "Attivare prima Visualizza affiancate." } },
+  { { "Clear the list", "Liste leeren", "Effacer la liste", "Borrar la lista", "Cancella l'elenco" } },
 /* ---- end WP25 */
 /* ---- begin WP26 (tools/lang/wp26.py) */
 /* ---- end WP26 */
