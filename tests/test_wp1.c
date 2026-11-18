@@ -479,7 +479,8 @@ static void saving(void)
     static const char *body = "<w:p><w:pPr><w:pStyle w:val=\"TOC1\"/></w:pPr>" BEGIN INSTR(" TOC \\o \"1-4\" \\h \\z \\t \"Title,1\" ") SEP R("Intro\t1") "</w:p>"
                               "<w:p><w:pPr><w:pStyle w:val=\"TOC1\"/></w:pPr>" R("More\t2") END "</w:p>";
     Doc *g = from_body(body, NULL, NULL);
-    ok("fields: the TOC's code is kept", g && g->finfo && g->finfo->toccode && strstr(g->finfo->toccode, "\\o \"1-4\""));
+    ok("fields: the TOC's code is kept", g && g->finfo && g->finfo->toccode && strstr(g->finfo->toccode, "\\o \"1-4\"") &&
+       g->nfields == 1 && strstr(g->fields[0].code, "\\o \"1-4\"") && IS_FSTART(g->p[0]->t));   /* (WP2: a field like the others) */
     doc_free(g);
   }
   /* properties written back into core.xml, settings' updateFields */

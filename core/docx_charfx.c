@@ -44,7 +44,7 @@ int wp9_read_rpr(Xml *x, unsigned *set, CharFmt *cf)
   const char *n = x->name, *v = xml_attr(x, "val");
   if (!strcmp(n, "vanish")) fx2_set(set, cf, FX2_HIDDEN, on_off(x));
   else if (!strcmp(n, "outline")) fx2_set(set, cf, FX2_OUTLINE, on_off(x));
-  else if (!strcmp(n, "shadow")) fx2_set(set, cf, FX2_SHADOW, on_off(x));
+  else if (!strcmp(n, "shadow") && strncmp(x->s + x->tok + 1, "w14:", 4)) fx2_set(set, cf, FX2_SHADOW, on_off(x));   /* (not WordArt's w14:shadow, WP19) */
   else if (!strcmp(n, "emboss")) fx2_set(set, cf, FX2_EMBOSS, on_off(x));
   else if (!strcmp(n, "imprint")) fx2_set(set, cf, FX2_ENGRAVE, on_off(x));
   else if (!strcmp(n, "u")) {

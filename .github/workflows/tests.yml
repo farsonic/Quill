@@ -1,0 +1,15 @@
+# Native tests of Quill's portable core (ASan/UBSan). The Amiga build needs vbcc, the NDK and the MUI
+# headers, which are not installed here; see CLAUDE.md.
+name: tests
+on:
+  push:
+  pull_request:
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the native tests
+        run: cc -std=c99 -O1 -g -Wall -Wextra -Wno-unused-parameter -fsanitize=address,undefined core/*.c tests/coretest.c tests/test_wp*.c -o quill_coretest
+      - name: Run them
+        run: ./quill_coretest | tail -5

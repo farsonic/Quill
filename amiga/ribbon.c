@@ -88,7 +88,7 @@ static const char *const margins[] = { "Normal: 2.54 cm all round", "Narrow: 1.2
                                        "Wide: 5.08 cm at the sides", "Roomy: 3.17 cm at the sides", "Custom Margins..." };
 static const char *const headers[] = { "Edit Header", "Remove Header" };
 static const char *const footers[] = { "Edit Footer", "Remove Footer" };
-static const char *const tocs[] = { "Insert or Update Table of Contents", "Remove Table of Contents" };
+static const char *const tocs[] = { "Insert or Update Table of Contents", "Remove Table of Contents", "Custom Table of Contents..." };   /* (the last: WP2) */
 static const char *const addtexts[] = { "Do Not Show in Table of Contents", "Level 1", "Level 2", "Level 3" };
 static const char *const finds[] = { "Find...", "Go To...", "Advanced Find..." };   /* (Go To and Advanced Find: WP12) */
 static const char *const forwards[] = { "Bring Forward", "Bring to Front" };

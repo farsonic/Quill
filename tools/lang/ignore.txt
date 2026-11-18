@@ -4,3 +4,65 @@ Quill
 Heading1
 Heading2
 Heading3
+ ASK 
+ FILLIN 
+ IF "{ MERGEFIELD 
+ MERGEFIELD %s 
+ MERGEREC 
+ MERGESEQ 
+ NEXT 
+ NEXTIF "{ MERGEFIELD 
+ SET 
+ SKIPIF "{ MERGEFIELD 
+,BAR
+Sheet1$
+ci R 1 2 14 13 ca B ABC
+United Kingdom
+Dear
+To
+Dear Sir or Madam,
+# (WP2: field codes and a Word object name written into documents, not words for people)
+Microsoft Word Table
+ TOC %s\z \t "%s,1" 
+ TOC %s\z \%c "%s" 
+ TOC 
+ INDEX 
+ TOA \h \c "%d" %s%s
+# (WP13, WP23) language codes, file names, formats and defaults that aren't words
+en-US
+en-GB
+de-DE
+de-AT
+de-CH
+fr-FR
+fr-CH
+es-ES
+it-IT
+nl-NL
+sv-SE
+da-DK
+nb-NO
+fi-FI
+pt-BR
+pt-PT
+pl-PL
+cs-CZ
+hu-HU
+%.40s Char
+%s %d pt
+Style1
+Times New Roman
+Building Blocks.dotx
+PROGDIR:Templates/Building Blocks.dotx
+½ pt
+¾ pt
+1½ pt
+2½ pt
+DOCPROPERTY Category
+DOCPROPERTY Status
+DOCPROPERTY Company
+DOCPROPERTY Manager
+SAVEDATE \@ "yyyy-MM-dd"
+%s   %ld KB%s
+ÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝàáâãäåçèéêëìíîïñòóôõöùúûüýÿ
+AAAAAACEEEEIIIINOOOOOUUUUYaaaaaaceeeeiiiinooooouuuuyy

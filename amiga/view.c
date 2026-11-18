@@ -42,6 +42,7 @@
 #include "wp_math.h"     /* WP14a: equations */
 #include "../core/math.h"
 #include "../core/spell.h"
+#include "../core/merge.h"     /* (WP4) */
 #include "../core/field.h"
 #include "../core/pages.h"
 #include "../core/review.h"
@@ -53,6 +54,8 @@
 #include "lang.h"
 #include "wp_tables.h"                 /* WP21a/WP21b: the table tools and turned text */
 #include "wp_objects.h"            /* WP17/WP18 */
+#include "wp_wordart.h"            /* WP19 */
+#include "../core/wordart.h"
 #include "../core/objfx.h"
 
 /* (not in the public MUI 3.8 headers) */
@@ -511,6 +514,7 @@ static void free_pens(struct Data *d, Object *obj)
   for (i = 0; i < d->ncube; i++) ReleasePen(cm, d->cube[i]);
   d->ncube = 0;
   wp18_flush();                         /* (WP18: drawings made with those pens) */
+  wp19_flush();                         /* (WP19) */
   free_pics(d);
   for (i = 0; i < d->ncol; i++) ReleasePen(cm, d->col[i].pen);
   d->ncol = 0;
@@ -609,6 +613,7 @@ static int lower_l1(u8 c) { return (c >= 'a' && c <= 'z') || (c >= 0xE0 && c != 
 /* box b's text (t: the paragraph's UTF-8, shown as Latin-1 for the Amiga font) at x, on baseline base,
    in its colour and screen font: capitals, small capitals, raised and lowered text, underlines and
    strikes. Expects JAM1 (only the letters' pixels set, what's behind showing through) */
+static void get_cube(struct Data *d, Object *obj);     /* (WP19) */
 static void draw_text(struct Data *d, Object *obj, struct RastPort *rp, const Box *b, const char *t, LONG x, LONG base)
 {
   char buf[512];
@@ -619,6 +624,10 @@ static void draw_text(struct Data *d, Object *obj, struct RastPort *rp, const Bo
   u8 low[512], skip[512];
   LONG dx[3] = { 0, 0, 0 }, dy[3] = { 0, 0, 0 };
   ULONG pens[3];
+  if (WA_RICH(&b->f)) {                 /* (WP19) WordArt: drawn from the letters' outlines with its effects */
+    get_cube(d, obj);
+    if (wp19_draw_run(rp, d->lay, b, t, x, base, d->zoom, d->cube, d->cubelv, d->band0, d->band1)) return;
+  }
   {
     /* (WP10) an optional hyphen isn't drawn (with formatting marks: a not sign), a nonbreaking hyphen
        is a hyphen, a nonbreaking space shows as a degree sign with the marks */
@@ -1178,7 +1187,10 @@ text:
   if ((src->text && src->text->np) || src->fx.link) {
     Furn f;
     u32 j, ln;
-    if (lay_textbox(d->lay, src, t.cx, &f) && (t.rot || src->fx.vert)) draw_text_turned(d, obj, rp, src, &t, cx, cy, pl, pt, &f);
+    int laid = lay_textbox(d->lay, src, t.cx, &f);
+    if (laid && src->warp) get_cube(d, obj);
+    if (laid && src->warp && wp19_draw_warped(rp, d->lay, src, &t, cx, cy, pl, pt, d->zoom, d->cube, d->cubelv, d->band0, d->band1)) ;   /* (WP19) bent */
+    else if (laid && (t.rot || src->fx.vert)) draw_text_turned(d, obj, rp, src, &t, cx, cy, pl, pt, &f);
     else if (f.n) {
       Pos none;
       i32 tx0 = cx - t.cx / 2, ty0 = cy - t.cy / 2;
@@ -1319,6 +1331,22 @@ static void field_shade(struct Data *d, Object *obj, struct RastPort *rp, ParaLa
     if (in) RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1);
   }
 }
+/* WP4: Highlight Merge Fields: the merge fields' results on grey (core/merge.h) */
+static void merge_shade(struct Data *d, Object *obj, struct RastPort *rp, ParaLay *pl, Line *ln, LONG lx, LONG top)
+{
+  int stack[16], n = 0, i, in;
+  u32 k;
+  for (k = pl->lines[0].box0; k < ln->box0 + ln->nbox && k < pl->nboxes; k++) {
+    Box *b = &pl->boxes[k];
+    if ((b->kind == BX_MARK || b->kind == BX_FIELD) && b->off + 4 <= pl->p->len && IS_FMARK(pl->p->t + b->off)) {
+      if (IS_FSTART(pl->p->t + b->off)) { if (n < 16) stack[n] = fmark_index(pl->p->t + b->off); n++; } else if (n > 0) n--;
+      continue;
+    }
+    if (k < ln->box0 || b->w <= 0 || b->kind == BX_FIELD) continue;
+    for (i = 0, in = 0; i < n && i < 16 && !in; i++) in = merge_is_field_k(d->doc, stack[i]);
+    if (in) { SetAPen(rp, pen_bg(d, obj, 0xC8C8C8)); RectFill(rp, lx + tx(d, b->x), top, lx + tx(d, b->x + b->w) - 1, top + tx(d, ln->height) - 1); }
+  }
+}
 /* WP14a: equations' colours as pens (for wp14a_draw) */
 static struct Data *mpen_d; static Object *mpen_obj;
 static LONG math_pen(ULONG rgb) { return pen_for(mpen_d, mpen_obj, rgb); }
@@ -1407,6 +1435,7 @@ static void draw_line(struct Data *d, Object *obj, struct RastPort *rp, ParaLay 
     }
   }
   if (doc->nfields && field_shading != FS_NEVER) field_shade(d, obj, rp, pl, pc, ln, lx, top);     /* fields on grey (WP1) */
+  if (doc->nfields && doc->merge && doc->merge->highlight) merge_shade(d, obj, rp, pl, ln, lx, top);   /* (WP4) */
   /* highlighting behind the text (not trailing spaces); page fields on grey, as Word shades fields */
   for (k = ln->box0; k < ln->box0 + ln->nbox; k++) {
     Box *b = &pl->boxes[k];
