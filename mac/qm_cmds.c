@@ -33,6 +33,12 @@ static const struct { const char *mac, *utf8; } symbols[] = {
 };
 #define NSYMBOLS ((int)(sizeof symbols / sizeof symbols[0]))
 
+/* Layout > Columns and Line Numbers, in the submenus' order (Line Numbers: LN_ order) */
+static const char *const column_names[3] = { "One", "Two", "Three" };
+static const char *const linenum_names[4] = { "None", "Restart Each Page", "Restart Each Section", "Continuous" };
+/* Page Setup's papers: US Letter, A4, US Legal, A5 (portrait, twips) */
+static const i32 papers[4][2] = { { 12240, 15840 }, { 11906, 16838 }, { 12240, 20160 }, { 8391, 11906 } };
+
 /* Insert > Breaks, in the submenu's order */
 static const char *const break_names[NBREAKS] = { "Page Break", "Column Break", "Section Break (Next Page)", "Section Break (Continuous)" };
 
@@ -112,6 +118,130 @@ static int text_dialog(const char *prompt, const char *button, char *mac, int ca
 	return qdlg_run(360, 108, it, 4, 2, 3) == 2;
 }
 
+/* the unit people measure in here: centimetres, or inches on a US Letter page (as the ruler) */
+static int unit_now(void)
+{
+	return qd.doc->page.width != 12240 && qd.doc->page.height != 12240 ? EU_CM : EU_INCH;
+}
+
+/* Layout > Page Setup...: the paper, its orientation and the margins, for the whole document */
+static void page_setup(void)
+{
+	PageSetup *pg = &qd.doc->page;
+	int unit = unit_now(), paper = -1, land = pg->width > pg->height, k, ok;
+	i32 w = land ? pg->height : pg->width, h = land ? pg->width : pg->height, m[4];
+	char e[4][16];
+	DItem it[] = {
+		{ DI_TEXT, 0, 0, 13, 13, 274, "Page Setup" },
+		{ DI_TEXT, 0, 0, 13, 41, 90, "Paper:" },
+		{ DI_RADIO, 0, 0, 110, 41, 170, "US Letter", NULL, 0, &paper, 0 },
+		{ DI_RADIO, 0, 0, 110, 59, 170, "A4", NULL, 0, &paper, 1 },
+		{ DI_RADIO, 0, 0, 110, 77, 170, "US Legal", NULL, 0, &paper, 2 },
+		{ DI_RADIO, 0, 0, 110, 95, 170, "A5", NULL, 0, &paper, 3 },
+		{ DI_TEXT, 0, 0, 13, 123, 90, "Orientation:" },
+		{ DI_RADIO, 0, 0, 110, 123, 170, "Portrait", NULL, 0, &land, 0 },
+		{ DI_RADIO, 0, 0, 110, 141, 170, "Landscape", NULL, 0, &land, 1 },
+		{ DI_TEXT, 0, 0, 13, 169, 274, unit == EU_CM ? "Margins (cm):" : "Margins (inches):" },
+		{ DI_TEXT, 0, 0, 13, 195, 64, "Top:" },
+		{ DI_EDIT, 0, 0, 80, 195, 50, NULL, e[0], 16 },
+		{ DI_TEXT, 0, 0, 150, 195, 64, "Bottom:" },
+		{ DI_EDIT, 0, 0, 220, 195, 50, NULL, e[1], 16 },
+		{ DI_TEXT, 0, 0, 13, 223, 64, "Left:" },
+		{ DI_EDIT, 0, 0, 80, 223, 50, NULL, e[2], 16 },
+		{ DI_TEXT, 0, 0, 150, 223, 64, "Right:" },
+		{ DI_EDIT, 0, 0, 220, 223, 50, NULL, e[3], 16 },
+		{ DI_BUTTON, 0, 0, 217, 258, 70, "OK" },
+		{ DI_BUTTON, 0, 0, 135, 258, 70, "_Cancel" },
+	};
+	for (k = 0; k < 4; k++)
+		if (papers[k][0] == w && papers[k][1] == h)
+			paper = k;
+	ec_measure_text(pg->top, unit, e[0], 16);
+	ec_measure_text(pg->bottom, unit, e[1], 16);
+	ec_measure_text(pg->left, unit, e[2], 16);
+	ec_measure_text(pg->right, unit, e[3], 16);
+	for (;;) {
+		if (qdlg_run(300, 291, it, 20, 18, 19) != 18)
+			return;
+		for (k = 0, ok = 1; k < 4; k++)
+			ok &= ec_measure(e[k], unit, &m[k]) && m[k] >= 0;
+		if (paper >= 0) {
+			w = papers[paper][0];
+			h = papers[paper][1];
+		}
+		if (ok && (ec_page_setup(qd.doc, land ? h : w, land ? w : h, m[0], m[1], m[2], m[3]) ||
+		           (pg->width == (land ? h : w) && pg->top == m[0] && pg->bottom == m[1] && pg->left == m[2] && pg->right == m[3])))
+			break;
+		qm_alert(QA_STOP, "The margins must be numbers, and leave room for text on the page.", NULL);
+	}
+	qv_changed(qm_view(), 1);
+}
+
+/* Layout > Orientation: the page turned, its margins kept */
+static void orientation(int land)
+{
+	PageSetup *pg = &qd.doc->page;
+	if ((pg->width > pg->height) == land)
+		return;
+	if (ec_page_setup(qd.doc, pg->height, pg->width, pg->top, pg->bottom, pg->left, pg->right))
+		qv_changed(qm_view(), 1);
+}
+
+/* Layout > Paragraph...: the selected paragraphs' indents, spacing and line spacing */
+static void paragraph(void)
+{
+	const ParaFmt *now = &qd.doc->p[qd.caret.para]->pf;
+	int unit = unit_now(), line = now->linerule == LS_AUTO ? (now->line == 360 ? 1 : now->line == 480 ? 2 : now->line == 240 ? 0 : -1) : -1, k, ok;
+	unsigned mask = PM_INDENT | PM_SPACING;
+	char e[5][16];
+	i32 v[5];
+	ParaFmt pf;
+	ESel s = sel_now();
+	DItem it[] = {
+		{ DI_TEXT, 0, 0, 13, 13, 314, "Paragraph" },
+		{ DI_TEXT, 0, 0, 13, 41, 314, unit == EU_CM ? "Indentation (cm):" : "Indentation (inches):" },
+		{ DI_TEXT, 0, 0, 13, 67, 64, "Left:" },
+		{ DI_EDIT, 0, 0, 80, 67, 50, NULL, e[0], 16 },
+		{ DI_TEXT, 0, 0, 160, 67, 90, "Right:" },
+		{ DI_EDIT, 0, 0, 257, 67, 50, NULL, e[1], 16 },
+		{ DI_TEXT, 0, 0, 160, 95, 90, "First line:" },
+		{ DI_EDIT, 0, 0, 257, 95, 50, NULL, e[2], 16 },
+		{ DI_TEXT, 0, 0, 13, 123, 314, "Spacing (points):" },
+		{ DI_TEXT, 0, 0, 13, 149, 64, "Before:" },
+		{ DI_EDIT, 0, 0, 80, 149, 50, NULL, e[3], 16 },
+		{ DI_TEXT, 0, 0, 160, 149, 90, "After:" },
+		{ DI_EDIT, 0, 0, 257, 149, 50, NULL, e[4], 16 },
+		{ DI_TEXT, 0, 0, 13, 177, 110, "Line spacing:" },
+		{ DI_RADIO, 0, 0, 130, 177, 190, "Single", NULL, 0, &line, 0 },
+		{ DI_RADIO, 0, 0, 130, 195, 190, "1.5 Lines", NULL, 0, &line, 1 },
+		{ DI_RADIO, 0, 0, 130, 213, 190, "Double", NULL, 0, &line, 2 },
+		{ DI_BUTTON, 0, 0, 237, 246, 70, "OK" },
+		{ DI_BUTTON, 0, 0, 155, 246, 70, "_Cancel" },
+	};
+	ec_measure_text(now->left, unit, e[0], 16);
+	ec_measure_text(now->right, unit, e[1], 16);
+	ec_measure_text(now->first, unit, e[2], 16);
+	ec_measure_text(now->before, EU_PT, e[3], 16);
+	ec_measure_text(now->after, EU_PT, e[4], 16);
+	for (;;) {
+		if (qdlg_run(320, 279, it, 19, 17, 18) != 17)
+			return;
+		for (k = 0, ok = 1; k < 5; k++)
+			ok &= ec_measure(e[k], k < 3 ? unit : EU_PT, &v[k]);
+		if (ok && v[0] >= 0 && v[3] >= 0 && v[4] >= 0)
+			break;
+		qm_alert(QA_STOP, "Indents and spacing must be numbers (spacing not below 0).", NULL);
+	}
+	memset(&pf, 0, sizeof pf);
+	pf.left = v[0]; pf.right = v[1]; pf.first = v[2]; pf.before = v[3]; pf.after = v[4];
+	if (line >= 0) {
+		pf.line = line == 0 ? 240 : line == 1 ? 360 : 480;
+		pf.linerule = LS_AUTO;
+		mask |= PM_LINE;
+	}
+	done(&s, ec_para(qd.doc, &s, mask, &pf));
+}
+
 /* Insert > Picture...: Standard File, then the core reads it (PNG or JPEG) */
 static void insert_picture(void)
 {
@@ -161,7 +291,16 @@ unsigned qc_state(unsigned long id, int *mine)
 		return QS_ENABLED;
 	if (id >= ID_BREAK0 && id < ID_BREAK0 + NBREAKS)
 		return id >= ID_BREAK0 + 2 && in_table_now() ? 0 : QS_ENABLED;     /* (no section break in a table) */
+	if (id >= ID_COLS0 && id < ID_COLS0 + 3)
+		return QS_ENABLED | (doc_sect(qd.doc, qd.caret.para)->cols == id - ID_COLS0 + 1 ||
+		                     (id == ID_COLS0 && doc_sect(qd.doc, qd.caret.para)->cols == 0) ? QS_CHECKED : 0);
+	if (id >= ID_LINENUM0 && id < ID_LINENUM0 + 4)
+		return QS_ENABLED | (doc_sect(qd.doc, qd.doc->np - 1)->linenum == id - ID_LINENUM0 ? QS_CHECKED : 0);
 	switch (id) {
+	case ID_PAGESETUP: case ID_PARAGRAPH:
+		return QS_ENABLED;
+	case ID_PORTRAIT: case ID_LANDSCAPE:
+		return QS_ENABLED | ((qd.doc->page.width > qd.doc->page.height) == (id == ID_LANDSCAPE) ? QS_CHECKED : 0);
 	case ID_TABLE: case ID_PICTURE: case ID_FOOTNOTE: case ID_ENDNOTE: case ID_DATE: case ID_PAGENUM:
 		return QS_ENABLED;
 	case ID_ROW_ABOVE: case ID_ROW_BELOW: case ID_COL_LEFT: case ID_COL_RIGHT:
@@ -188,7 +327,18 @@ int qc_command(unsigned long id)
 		done(&s, ec_table_op(qd.doc, &s, ET_ROW_ABOVE + (int)(id - ID_ROW_ABOVE)));
 		return 1;
 	}
+	if (id >= ID_COLS0 && id < ID_COLS0 + 3) {
+		done(&s, ec_columns(qd.doc, &s, (int)(id - ID_COLS0) + 1));
+		return 1;
+	}
+	if (id >= ID_LINENUM0 && id < ID_LINENUM0 + 4) {
+		done(&s, ec_line_numbers(qd.doc, &s, (int)(id - ID_LINENUM0)));
+		return 1;
+	}
 	switch (id) {
+	case ID_PAGESETUP: page_setup(); return 1;
+	case ID_PORTRAIT: case ID_LANDSCAPE: orientation(id == ID_LANDSCAPE); return 1;
+	case ID_PARAGRAPH: paragraph(); return 1;
 	case ID_TABLE: {
 		static int cols = 3, rows = 2;
 		if (table_dialog(&cols, &rows))
@@ -208,6 +358,8 @@ int qc_popup(int which, unsigned long *first)
 	switch (which) {
 	case QP_BREAKS: *first = ID_BREAK0; return NBREAKS;
 	case QP_SYMBOL: *first = ID_SYM0; return NSYMBOLS;
+	case QP_COLUMNS: *first = ID_COLS0; return 3;
+	case QP_LINENUM: *first = ID_LINENUM0; return 4;
 	}
 	return 0;
 }
@@ -218,6 +370,10 @@ const char *qc_label(unsigned long id)
 		return symbols[id - ID_SYM0].mac;
 	if (id >= ID_BREAK0 && id < ID_BREAK0 + NBREAKS)
 		return tr(break_names[id - ID_BREAK0]);
+	if (id >= ID_COLS0 && id < ID_COLS0 + 3)
+		return tr(column_names[id - ID_COLS0]);
+	if (id >= ID_LINENUM0 && id < ID_LINENUM0 + 4)
+		return tr(linenum_names[id - ID_LINENUM0]);
 	return NULL;
 }
 
@@ -242,6 +398,18 @@ void qc_menus(void (*add)(int type, const char *label, const char *key, int flag
 		add(NM_SUB, symbols[i].mac, NULL, 0, ID_SYM0 + (unsigned long)i);
 	/* Layout: the page and the table the caret is in (the Amiga's Layout and Table Layout tabs) */
 	add(NM_TITLE, "Layout", NULL, 0, 0);
+	add(NM_ITEM, "Page Setup...", NULL, 0, ID_PAGESETUP);
+	add(NM_ITEM, "Portrait", NULL, CHECKIT, ID_PORTRAIT);
+	add(NM_ITEM, "Landscape", NULL, CHECKIT, ID_LANDSCAPE);
+	add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0);
+	add(NM_ITEM, "Columns", NULL, 0, 0);
+	for (i = 0; i < 3; i++)
+		add(NM_SUB, column_names[i], NULL, CHECKIT, ID_COLS0 + (unsigned long)i);
+	add(NM_ITEM, "Line Numbers", NULL, 0, 0);
+	for (i = 0; i < 4; i++)
+		add(NM_SUB, linenum_names[i], NULL, CHECKIT, ID_LINENUM0 + (unsigned long)i);
+	add(NM_ITEM, "Paragraph...", NULL, 0, ID_PARAGRAPH);
+	add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0);
 	add(NM_ITEM, "Table", NULL, 0, 0);
 	add(NM_SUB, "Insert Rows Above", NULL, 0, ID_ROW_ABOVE);
 	add(NM_SUB, "Insert Rows Below", NULL, 0, ID_ROW_BELOW);

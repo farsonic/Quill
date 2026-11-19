@@ -29,6 +29,7 @@
 #include "mui/mm.h"
 #include "quill_mac.h"
 #include "qm_mac.h"
+#include "qm_dialog.h"
 #include "../core/docx.h"
 #include "../core/pdf.h"
 #include "../amiga/lang.h"
@@ -374,7 +375,7 @@ int qm_popup(int which, unsigned long *first, char *now, int cap)
 		*first = ID_STRIP0;
 		snprintf(now, (size_t)cap, "%s", tr(strip_names[prefs.strip]));
 		return QS_NSTRIPS;
-	case QP_BREAKS: case QP_SYMBOL:
+	case QP_BREAKS: case QP_SYMBOL: case QP_COLUMNS: case QP_LINENUM:
 		now[0] = 0;
 		return qc_popup(which, first);
 	case QP_SIZE:
@@ -458,6 +459,7 @@ void qm_alert(int level, const char *fmt, const char *arg)
 	char t[600];
 	snprintf(t, sizeof t, tr(fmt), arg ? arg : "");
 	mac_alert(level, t, ok, 1, 0, -1);
+	qdlg_settle();
 }
 
 Object *qm_view(void) { return view; }
@@ -474,7 +476,9 @@ static int ask(const char *gadgets, const char *fmt, const char *arg)
 {
 	ULONG args[1];
 	args[0] = (ULONG)arg;
-	return (int)MUI_RequestA(app, win, 0, (CONST_STRPTR)"Quill", (CONST_STRPTR)tr(gadgets), (CONST_STRPTR)tr(fmt), args);
+	int r = (int)MUI_RequestA(app, win, 0, (CONST_STRPTR)"Quill", (CONST_STRPTR)tr(gadgets), (CONST_STRPTR)tr(fmt), args);
+	qdlg_settle();
+	return r;
 }
 
 /* a full Mac path from Standard File's reply */

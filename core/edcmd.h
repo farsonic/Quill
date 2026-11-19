@@ -41,4 +41,22 @@ int  ec_note(Doc *d, ESel *s, int end, const char *text);
 /* a field (its code, "DATE \@ \"d MMMM yyyy\"", "PAGE") at the caret, worked out now */
 int  ec_field(Doc *d, ESel *s, const char *code);
 
+/* Layout: the whole document's page (Word's Page Setup for the whole document): size and margins,
+   twips; sections set up like the document follow it. 1 if anything changed (not in the undo
+   history, as on the Amiga) */
+int  ec_page_setup(Doc *d, i32 width, i32 height, i32 top, i32 bottom, i32 left, i32 right);
+/* the caret's section in cols columns (1 to 3), one undo step; 0 in a table's section */
+int  ec_columns(Doc *d, ESel *s, int cols);
+/* line numbers (LN_) in every section, one undo step */
+int  ec_line_numbers(Doc *d, ESel *s, int ln);
+/* the selected paragraphs' PM_ fields in mask set from pf (indents, spacing...), one undo step */
+int  ec_para(Doc *d, ESel *s, unsigned mask, const ParaFmt *pf);
+
+/* measurements as people type them: EU_ units; "1.25", "1,25" (a comma for the point), "-0.5"; at
+   most two decimals. ec_measure: 1 and *tw, or 0 if it isn't a number */
+enum { EU_INCH, EU_CM, EU_PT };
+int  ec_measure(const char *s, int unit, i32 *tw);
+/* tw in the unit, two decimals at most, trailing zeros left out ("1.25", "2", "-0.5") */
+void ec_measure_text(i32 tw, int unit, char *out, int cap);
+
 #endif

@@ -80,6 +80,16 @@ static void radios(void *dlg, const DItem *it, int n)
 			SetCtlValue(handle_of(dlg, k + 1), *it[k].value == it[k].ord);
 }
 
+void mac_alert_update(void *event);          /* riptide mm_app.c: a window behind a dialog drawn */
+#define UPDATE_MASK 0x40                    /* updateMask: update events only */
+
+void qdlg_settle(void)
+{
+	EventRecord ev;
+	while (EventAvail(UPDATE_MASK, &ev) && WaitNextEvent(UPDATE_MASK, &ev, 0, NULL))
+		mac_alert_update(&ev);
+}
+
 int qdlg_run(int w, int h, DItem *it, int n, int def, int cancel)
 {
 	unsigned char *q, title[2] = { 0, 0 };
@@ -179,6 +189,7 @@ int qdlg_run(int w, int h, DItem *it, int n, int def, int cancel)
 		}
 	DisposDialog(dlg);
 	SetPort(save);
+	qdlg_settle();
 	return hit;
 }
 

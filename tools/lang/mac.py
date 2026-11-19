@@ -29,4 +29,13 @@ W = [
 ("Columns are 1 to 64 and rows 1 to 500.", "Spalten: 1 bis 64, Zeilen: 1 bis 500.", "Colonnes : de 1 à 64, lignes : de 1 à 500.", "Columnas: de 1 a 64; filas: de 1 a 500.", "Colonne da 1 a 64, righe da 1 a 500."),
 ("Footnote text:", "Text der Fußnote:", "Texte de la note de bas de page :", "Texto de la nota al pie:", "Testo della nota a piè di pagina:"),
 ("Endnote text:", "Text der Endnote:", "Texte de la note de fin :", "Texto de la nota al final:", "Testo della nota di chiusura:"),
+# Layout > Page Setup... and Paragraph... (mac/qm_cmds.c)
+("Margins (cm):", "Ränder (cm):", "Marges (cm) :", "Márgenes (cm):", "Margini (cm):"),
+("Margins (inches):", "Ränder (Zoll):", "Marges (pouces) :", "Márgenes (pulgadas):", "Margini (pollici):"),
+("The margins must be numbers, and leave room for text on the page.", "Die Ränder müssen Zahlen sein und Platz für Text auf der Seite lassen.", "Les marges doivent être des nombres et laisser de la place au texte sur la page.", "Los márgenes deben ser números y dejar sitio al texto en la página.", "I margini devono essere numeri e lasciare spazio al testo sulla pagina."),
+("Indentation (cm):", "Einzug (cm):", "Retrait (cm) :", "Sangría (cm):", "Rientro (cm):"),
+("Indentation (inches):", "Einzug (Zoll):", "Retrait (pouces) :", "Sangría (pulgadas):", "Rientro (pollici):"),
+("First line:", "Erste Zeile:", "Première ligne :", "Primera línea:", "Prima riga:"),
+("Spacing (points):", "Abstand (Punkt):", "Espacement (points) :", "Espaciado (puntos):", "Spaziatura (punti):"),
+("Indents and spacing must be numbers (spacing not below 0).", "Einzüge und Abstände müssen Zahlen sein (Abstände nicht unter 0).", "Les retraits et espacements doivent être des nombres (espacement d'au moins 0).", "Las sangrías y el espaciado deben ser números (espaciado no inferior a 0).", "Rientri e spaziatura devono essere numeri (spaziatura non inferiore a 0)."),
 ]

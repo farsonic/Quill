@@ -99,20 +99,30 @@ static const SItem insert[] = {
 	{ SK_MENU, 4, QP_SYMBOL, BW + 6, 0, "ci O 7 6 4 L 3 13 5 13 L 9 13 12 13 L 5 10 5 13 L 9 10 9 13" },
 };
 static const SItem layout[] = {
+	/* SIZE: a page and its height; ORIENT: an upright page and one on its side */
+	{ SK_BUTTON, 1, 0, BW, ID_PAGESETUP, "ci R 2 1 13 15 ca L 2 4 13 4 L 2 12 13 12 L 5 1 5 15 L 10 1 10 15" },
+	{ SK_TOGGLE, 1, 0, BW, ID_PORTRAIT, "ci R 4 1 11 14 cd L 6 4 9 4 L 6 6 9 6 L 6 8 9 8" },
+	{ SK_TOGGLE, 1, 0, BW, ID_LANDSCAPE, "ci R 1 4 14 11 cd L 3 6 12 6 L 3 8 12 8" },
+	/* COLUMNS, BREAKS, LINENUM: submenus */
+	{ SK_MENU, 2, QP_COLUMNS, BW + 6, 0, "ci R 1 1 14 14 cd L 3 4 7 4 L 3 6 7 6 L 3 8 7 8 L 3 10 7 10 L 3 12 6 12 L 9 4 13 4 L 9 6 13 6 L 9 8 13 8 L 9 10 12 10 ca L 8 3 8 13" },
+	{ SK_MENU, 2, QP_BREAKS, BW + 6, 0, "ci R 3 1 12 5 R 3 11 12 15 ca L 1 8 14 8 L 12 6 14 8 L 12 10 14 8" },
+	{ SK_MENU, 2, QP_LINENUM, BW + 6, 0, "ca B 1 ci L 7 4 15 4 L 7 8 15 8 L 7 12 13 12 cd L 1 8 4 8 L 1 12 4 12" },
+	/* PARADLG: a pilcrow and the dialog's corner */
+	{ SK_BUTTON, 3, 0, BW, ID_PARAGRAPH, "ci P 4 7 2 4 2 4 7 7 7 L 7 2 7 13 L 9 2 9 13 L 7 2 11 2 ca R 10 10 15 15 L 12 12 15 15 L 15 12 15 15 L 12 15 15 15" },
 	/* SPACING: lines and a double arrow; then single, 1.5 and double as lines closer and wider apart */
-	{ SK_TOGGLE, 1, 0, BW, ID_SINGLE, "ci L 2 3 13 3 L 2 6 13 6 L 2 9 13 9 L 2 12 10 12" },
-	{ SK_TOGGLE, 1, 0, BW, ID_ONEHALF, "ci L 2 2 13 2 L 2 6 13 6 L 2 10 13 10 L 2 14 10 14" },
-	{ SK_TOGGLE, 1, 0, BW, ID_DOUBLE, "ci L 2 2 13 2 L 2 7 13 7 L 2 12 10 12" },
-	{ SK_BUTTON, 2, 0, BW, ID_OUTDENT, "ci L 1 2 14 2 L 7 6 14 6 L 7 10 14 10 L 1 14 14 14 ca P 3 4 5 1 8 4 11" },
-	{ SK_BUTTON, 2, 0, BW, ID_INDENT, "ci L 1 2 14 2 L 7 6 14 6 L 7 10 14 10 L 1 14 14 14 ca P 3 1 5 4 8 1 11" },
+	{ SK_TOGGLE, 3, 0, BW, ID_SINGLE, "ci L 2 3 13 3 L 2 6 13 6 L 2 9 13 9 L 2 12 10 12" },
+	{ SK_TOGGLE, 3, 0, BW, ID_ONEHALF, "ci L 2 2 13 2 L 2 6 13 6 L 2 10 13 10 L 2 14 10 14" },
+	{ SK_TOGGLE, 3, 0, BW, ID_DOUBLE, "ci L 2 2 13 2 L 2 7 13 7 L 2 12 10 12" },
+	{ SK_BUTTON, 4, 0, BW, ID_OUTDENT, "ci L 1 2 14 2 L 7 6 14 6 L 7 10 14 10 L 1 14 14 14 ca P 3 4 5 1 8 4 11" },
+	{ SK_BUTTON, 4, 0, BW, ID_INDENT, "ci L 1 2 14 2 L 7 6 14 6 L 7 10 14 10 L 1 14 14 14 ca P 3 1 5 4 8 1 11" },
 	/* the caret's table (dimmed outside one): ROWABOVE, ROWBELOW, COLLEFT, COLRIGHT, DELROW, MERGE, SPLIT */
-	{ SK_BUTTON, 3, 0, BW, ID_ROW_ABOVE, "ci R 1 7 14 14 L 1 10 14 10 L 7 7 7 14 ca L 7 1 7 5 L 5 3 9 3" },
-	{ SK_BUTTON, 3, 0, BW, ID_ROW_BELOW, "ci R 1 1 14 8 L 1 4 14 4 L 7 1 7 8 ca L 7 10 7 14 L 5 12 9 12" },
-	{ SK_BUTTON, 3, 0, BW, ID_COL_LEFT, "ci R 7 1 14 14 L 10 1 10 14 L 7 7 14 7 ca L 1 7 5 7 L 3 5 3 9" },
-	{ SK_BUTTON, 3, 0, BW, ID_COL_RIGHT, "ci R 1 1 8 14 L 4 1 4 14 L 1 7 8 7 ca L 10 7 14 7 L 12 5 12 9" },
-	{ SK_BUTTON, 3, 0, BW, ID_DEL_ROW, "ci R 1 1 14 14 L 1 5 14 5 L 1 10 14 10 cr L 4 6 11 9 L 11 6 4 9" },
-	{ SK_BUTTON, 3, 0, BW, ID_MERGE, "ci R 1 3 14 12 cd L 7 3 7 5 L 7 10 7 12 ca L 3 7 6 7 L 9 7 12 7 L 5 5 7 7 L 5 9 7 7 L 10 5 8 7 L 10 9 8 7" },
-	{ SK_BUTTON, 3, 0, BW, ID_SPLIT, "ci R 1 3 14 12 L 7 3 7 12 ca L 2 7 6 7 L 9 7 13 7" },
+	{ SK_BUTTON, 5, 0, BW, ID_ROW_ABOVE, "ci R 1 7 14 14 L 1 10 14 10 L 7 7 7 14 ca L 7 1 7 5 L 5 3 9 3" },
+	{ SK_BUTTON, 5, 0, BW, ID_ROW_BELOW, "ci R 1 1 14 8 L 1 4 14 4 L 7 1 7 8 ca L 7 10 7 14 L 5 12 9 12" },
+	{ SK_BUTTON, 5, 0, BW, ID_COL_LEFT, "ci R 7 1 14 14 L 10 1 10 14 L 7 7 14 7 ca L 1 7 5 7 L 3 5 3 9" },
+	{ SK_BUTTON, 5, 0, BW, ID_COL_RIGHT, "ci R 1 1 8 14 L 4 1 4 14 L 1 7 8 7 ca L 10 7 14 7 L 12 5 12 9" },
+	{ SK_BUTTON, 5, 0, BW, ID_DEL_ROW, "ci R 1 1 14 14 L 1 5 14 5 L 1 10 14 10 cr L 4 6 11 9 L 11 6 4 9" },
+	{ SK_BUTTON, 5, 0, BW, ID_MERGE, "ci R 1 3 14 12 cd L 7 3 7 5 L 7 10 7 12 ca L 3 7 6 7 L 9 7 12 7 L 5 5 7 7 L 5 9 7 7 L 10 5 8 7 L 10 9 8 7" },
+	{ SK_BUTTON, 5, 0, BW, ID_SPLIT, "ci R 1 3 14 12 L 7 3 7 12 ca L 2 7 6 7 L 9 7 13 7" },
 };
 #define N(a) ((int)(sizeof a / sizeof a[0]))
 static const struct { const SItem *items; int n; } strips[QS_NSTRIPS] = {

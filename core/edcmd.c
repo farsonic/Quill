@@ -5,6 +5,7 @@
  */
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "edcmd.h"
 #include "table.h"
 #include "field.h"
@@ -171,4 +172,97 @@ int ec_field(Doc *d, ESel *s, const char *code)
   doc_end(d, s->caret);
   s->anchor = s->caret;
   return k >= 0;
+}
+
+int ec_page_setup(Doc *d, i32 width, i32 height, i32 top, i32 bottom, i32 left, i32 right)
+{
+  PageSetup *pg = &d->page;
+  int k;
+  if (width < 1440 || height < 1440 || left + right > width - 720 || top + bottom > height - 720 || left < 0 || right < 0 || top < 0 || bottom < 0)
+    return 0;
+  if (pg->width == width && pg->height == height && pg->top == top && pg->bottom == bottom && pg->left == left && pg->right == right)
+    return 0;
+  /* sections that had their own page setup the same as the document's go on following it */
+  for (k = 0; k < d->nsects; k++)
+    if (d->sects[k].haspage && !memcmp(&d->sects[k].page, pg, sizeof *pg)) d->sects[k].haspage = 0;
+  pg->width = width; pg->height = height; pg->top = top; pg->bottom = bottom; pg->left = left; pg->right = right;
+  d->dirty = 1;
+  d->ver++;
+  return 1;
+}
+
+/* sections pa..pb (the paragraphs ending them) given new formats, set by how and v: one undo step
+   (the Amiga's CMD_COLUMNS and CMD_LINENUM); how: 0 columns, 1 line numbers */
+static int sections(Doc *d, ESel *s, u32 pa, u32 pb, int how, int v)
+{
+  u32 i;
+  int done = 0;
+  if (in_table(&d->p[doc_sect_end(d, d->np - 1)]->pf) && pb == d->np - 1) return 0;
+  doc_begin(d, s->caret);
+  for (i = pa; i <= pb; i++) {
+    SectFmt sf;
+    ParaFmt pf;
+    if ((!d->p[i]->pf.sect && i != d->np - 1) || in_table(&d->p[i]->pf)) continue;
+    sf = *doc_sect(d, i);
+    if (how == 0) sf.cols = (u8)v; else sf.linenum = (u8)v;
+    memset(&pf, 0, sizeof pf);
+    if (!(pf.sect = (u16)doc_add_sect(d, &sf))) break;
+    done |= doc_para_format(d, i, i, PM_SECT, &pf);
+  }
+  doc_end(d, s->caret);
+  return done;
+}
+
+int ec_columns(Doc *d, ESel *s, int cols)
+{
+  u32 e = doc_sect_end(d, s->caret.para);
+  if (cols < 1 || cols > 3) return 0;
+  return sections(d, s, e, e, 0, cols);
+}
+
+int ec_line_numbers(Doc *d, ESel *s, int ln)
+{
+  if (ln < LN_NONE || ln > LN_CONT) return 0;
+  return sections(d, s, 0, d->np - 1, 1, ln);
+}
+
+int ec_para(Doc *d, ESel *s, unsigned mask, const ParaFmt *pf)
+{
+  return doc_para_format(d, es_lo(s).para, es_hi(s).para, mask, pf);
+}
+
+/* twips in a hundredth of each unit: an inch is 1440 twips, a centimetre 567, a point 20 */
+static const i32 per_unit[3] = { 1440, 567, 20 };
+
+int ec_measure(const char *s, int unit, i32 *tw)
+{
+  long whole = 0, hund = 0;
+  int neg = 0, digits = 0, dec = 0;
+  while (*s == ' ') s++;
+  if (*s == '-') { neg = 1; s++; }
+  while (*s >= '0' && *s <= '9' && whole < 100000) { whole = whole * 10 + (*s++ - '0'); digits++; }
+  if (*s == '.' || *s == ',') {
+    s++;
+    while (*s >= '0' && *s <= '9') {
+      if (dec < 2) { hund = hund * 10 + (*s - '0'); dec++; }
+      s++; digits++;
+    }
+  }
+  if (dec == 1) hund *= 10;
+  while (*s == ' ') s++;
+  if (!digits || *s || unit < EU_INCH || unit > EU_PT) return 0;
+  *tw = (i32)(((whole * 100 + hund) * per_unit[unit] + 50) / 100);
+  if (neg) *tw = -*tw;
+  return 1;
+}
+
+void ec_measure_text(i32 tw, int unit, char *out, int cap)
+{
+  long a = tw < 0 ? -(long)tw : tw, h = (a * 100 + per_unit[unit] / 2) / per_unit[unit];
+  char t[24];
+  int n;
+  n = snprintf(t, sizeof t, "%s%ld.%02ld", tw < 0 && h ? "-" : "", h / 100, h % 100);
+  while (n > 0 && t[n - 1] == '0') t[--n] = 0;      /* 1.50 1.5; 2.00 2 */
+  if (n > 0 && t[n - 1] == '.') t[--n] = 0;
+  snprintf(out, (size_t)cap, "%s", t);
 }

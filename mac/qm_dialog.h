@@ -26,6 +26,9 @@ typedef struct {
    Command-period press def or cancel, indexes of buttons; def -1: no default button). Returns the
    index of the button that closed it. */
 int qdlg_run(int w, int h, DItem *it, int n, int def, int cancel);
+/* The windows a dialog or alert uncovered drawn now, before the command it asked for changes or
+   scrolls the page (ScrollRect would move what is not drawn yet, and the update go to the old place) */
+void qdlg_settle(void);
 /* s as a whole number from lo to hi into *out: 0 if it isn't one */
 int qdlg_number(const char *s, int lo, int hi, int *out);
 #endif

@@ -230,9 +230,56 @@ static void test_insert(void)
   doc_free(d);
 }
 
+/* the Layout strip's commands and the dialogs' measurements */
+static void test_layout(void)
+{
+  Doc *d = doc_new(), *r;
+  ESel s;
+  ParaFmt pf;
+  i32 tw;
+  char t[16];
+  memset(&s, 0, sizeof s);
+  ec_text(d, &s, "One\nTwo\nThree");
+  doc_clear_undo(d);
+  /* measurements */
+  ok("measure: inches", ec_measure("1.25", EU_INCH, &tw) && tw == 1800);
+  ok("measure: a comma for the point", ec_measure("2,5", EU_CM, &tw) && tw == 1418);
+  ok("measure: points", ec_measure("12", EU_PT, &tw) && tw == 240);
+  ok("measure: below zero", ec_measure(" -0.5 ", EU_INCH, &tw) && tw == -720);
+  ok("measure: not a number", !ec_measure("abc", EU_INCH, &tw) && !ec_measure("", EU_INCH, &tw) && !ec_measure("1.2x", EU_INCH, &tw));
+  ec_measure_text(1800, EU_INCH, t, sizeof t);
+  ok("measure: back to text", !strcmp(t, "1.25"));
+  ec_measure_text(1440, EU_INCH, t, sizeof t);
+  ok("measure: whole", !strcmp(t, "1"));
+  ec_measure_text(-720, EU_INCH, t, sizeof t);
+  ok("measure: negative", !strcmp(t, "-0.5"));
+  ec_measure_text(1134, EU_CM, t, sizeof t);
+  ok("measure: centimetres", !strcmp(t, "2"));
+  /* the page: Letter landscape, narrow margins */
+  ok("page setup", ec_page_setup(d, 15840, 12240, 720, 720, 720, 720) && d->page.width == 15840 && d->page.left == 720);
+  ok("page setup: nothing new, no change", !ec_page_setup(d, 15840, 12240, 720, 720, 720, 720));
+  ok("page setup: margins wider than the page refused", !ec_page_setup(d, 12240, 15840, 720, 720, 6000, 6000));
+  /* columns and line numbers */
+  s.anchor = s.caret = P(1, 0);
+  ok("two columns", ec_columns(d, &s, 2) && doc_sect(d, 1)->cols == 2);
+  ok("columns undone in one step", doc_undo(d, &s.caret) && doc_sect(d, 1)->cols <= 1);
+  ec_columns(d, &s, 3);
+  ok("line numbers", ec_line_numbers(d, &s, LN_PAGE) && doc_sect(d, 0)->linenum == LN_PAGE);
+  /* paragraph formatting on the selection */
+  memset(&pf, 0, sizeof pf);
+  pf.before = 240; pf.after = 120;
+  s.anchor = P(0, 1); s.caret = P(1, 1);
+  ok("paragraph spacing on two paragraphs", ec_para(d, &s, PM_SPACING, &pf) && d->p[0]->pf.before == 240 && d->p[1]->pf.after == 120 && d->p[2]->pf.before != 240);
+  r = docx_again(d, NULL);
+  ok("layout kept in .docx", r && r->page.width == 15840 && doc_sect(r, 0)->cols == 3 && doc_sect(r, 0)->linenum == LN_PAGE && r->p[1]->pf.after == 120);
+  doc_free(r);
+  doc_free(d);
+}
+
 void test_wpmac(void)
 {
   test_insert();
+  test_layout();
   test_units();
   test_indents();
   test_tabs();

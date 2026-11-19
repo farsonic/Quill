@@ -4421,4 +4421,12 @@
   { { "Columns are 1 to 64 and rows 1 to 500.", "Spalten: 1 bis 64, Zeilen: 1 bis 500.", "Colonnes : de 1 \340 64, lignes : de 1 \340 500.", "Columnas: de 1 a 64; filas: de 1 a 500.", "Colonne da 1 a 64, righe da 1 a 500." } },
   { { "Footnote text:", "Text der Fu\337note:", "Texte de la note de bas de page :", "Texto de la nota al pie:", "Testo della nota a pi\350 di pagina:" } },
   { { "Endnote text:", "Text der Endnote:", "Texte de la note de fin :", "Texto de la nota al final:", "Testo della nota di chiusura:" } },
+  { { "Margins (cm):", "R\344nder (cm):", "Marges (cm) :", "M\341rgenes (cm):", "Margini (cm):" } },
+  { { "Margins (inches):", "R\344nder (Zoll):", "Marges (pouces) :", "M\341rgenes (pulgadas):", "Margini (pollici):" } },
+  { { "The margins must be numbers, and leave room for text on the page.", "Die R\344nder m\374ssen Zahlen sein und Platz f\374r Text auf der Seite lassen.", "Les marges doivent \352tre des nombres et laisser de la place au texte sur la page.", "Los m\341rgenes deben ser n\372meros y dejar sitio al texto en la p\341gina.", "I margini devono essere numeri e lasciare spazio al testo sulla pagina." } },
+  { { "Indentation (cm):", "Einzug (cm):", "Retrait (cm) :", "Sangr\355a (cm):", "Rientro (cm):" } },
+  { { "Indentation (inches):", "Einzug (Zoll):", "Retrait (pouces) :", "Sangr\355a (pulgadas):", "Rientro (pollici):" } },
+  { { "First line:", "Erste Zeile:", "Premi\350re ligne :", "Primera l\355nea:", "Prima riga:" } },
+  { { "Spacing (points):", "Abstand (Punkt):", "Espacement (points) :", "Espaciado (puntos):", "Spaziatura (punti):" } },
+  { { "Indents and spacing must be numbers (spacing not below 0).", "Einz\374ge und Abst\344nde m\374ssen Zahlen sein (Abst\344nde nicht unter 0).", "Les retraits et espacements doivent \352tre des nombres (espacement d'au moins 0).", "Las sangr\355as y el espaciado deben ser n\372meros (espaciado no inferior a 0).", "Rientri e spaziatura devono essere numeri (spaziatura non inferiore a 0)." } },
 /* ---- end the Mac front end */

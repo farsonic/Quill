@@ -43,8 +43,12 @@ enum {
 	ID_TABLE, ID_PICTURE, ID_FOOTNOTE, ID_ENDNOTE, ID_DATE, ID_PAGENUM,
 	/* Layout > Table, in core/edcmd.h's ET_ order */
 	ID_ROW_ABOVE, ID_ROW_BELOW, ID_COL_LEFT, ID_COL_RIGHT, ID_DEL_ROW, ID_DEL_COL, ID_DEL_TABLE, ID_MERGE, ID_SPLIT,
+	/* Layout */
+	ID_PAGESETUP, ID_PORTRAIT, ID_LANDSCAPE, ID_PARAGRAPH,
 	ID_BREAK0 = 120,            /* + Insert > Breaks' row (NBREAKS): page, column, section next page, continuous */
 	ID_SYM0 = 130,              /* + Insert > Symbol's row */
+	ID_COLS0 = 160,             /* + Layout > Columns' row: one, two, three */
+	ID_LINENUM0 = 165,          /* + Layout > Line Numbers' row: LN_ */
 	ID_SIZE0 = 200,             /* + the Size menu's row */
 	ID_FONT0 = 220,             /* + the Font menu's family (24) */
 	ID_STYLE0 = 250,            /* + the Paragraph Style submenu's row */
@@ -66,7 +70,7 @@ Object *qm_view(void);                                 /* the page view */
 #endif
 /* the strip's pop-up menus show the Paragraph Style, Font and Size menus' items: their first command
    and how many, and what the box shows now (the caret's style, font or size, even one not listed) */
-enum { QP_STYLE, QP_FONT, QP_SIZE, QP_STRIP, QP_BREAKS, QP_SYMBOL };
+enum { QP_STYLE, QP_FONT, QP_SIZE, QP_STRIP, QP_BREAKS, QP_SYMBOL, QP_COLUMNS, QP_LINENUM };
 int  qm_popup(int which, unsigned long *first, char *now, int cap);
 const char *qm_label(unsigned long id);                /* a menu item's words as the menu shows them (Mac Roman) */
 
