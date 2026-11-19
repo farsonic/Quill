@@ -1112,8 +1112,9 @@ static void command(ULONG id)
 	case ID_SAVEAS: save_as(); break;
 	case ID_PDF: cmd_pdf(); break;
 	case ID_ABOUT:
+		/* (no line breaks inside a paragraph: the alert wraps the text itself) */
 		qm_alert(QA_NOTE, "Octavo 0.15\n\n%s", tr("Octavo is Quill for the classic Mac OS: a word processor that reads and writes Word documents (.docx).\n\n"
-		                               "Text is measured with the Liberation and Carlito/Caladea fonts\n(SIL Open Font License), so documents break\n"
+		                               "Text is measured with the Liberation and Carlito/Caladea fonts (SIL Open Font License), so documents break "
 		                               "their lines as they do in Word."));
 		break;
 	case ID_REDO:

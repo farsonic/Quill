@@ -173,6 +173,27 @@ Amiga's tab order, with submenus for the long lists; each command's state (usabl
 answer `qm_state()` gives menus and strips alike, and a command that can't be used here is dimmed,
 not hidden (a table command outside a table, Next Comment without comments).
 
+Proved in the testbed at 8 bits on a 1024 by 768 screen (19 November 2026), each strip doing its work:
+
+| | |
+|---|---|
+| ![The switcher open](mac-strip-switcher.png) The switcher: Home checked | ![Home](mac-strip-home-8bit.png) Home, with Font… and Find at its end |
+| ![Insert](mac-strip-insert-8bit.png) Insert: a picture at the start, a 3 x 2 table from Table… | ![Layout](mac-strip-layout-8bit.png) Layout: Page Setup made the page landscape |
+| ![References](mac-strip-references-8bit.png) References: Table of Contents put in a table of contents | ![Review](mac-strip-review-8bit.png) Review: Track Changes on, "Tracked" typed |
+| ![Insert Table](mac-dialog-table.png) Insert Table | ![Page Setup](mac-dialog-pagesetup.png) Page Setup |
+| ![Find and Replace](mac-dialog-find.png) Find and Replace | ![New Comment](mac-dialog-comment.png) New Comment |
+
+At 1 bit on a 640 by 480 screen (all eleven menu titles fit in English; the window is 632 wide, so
+Home's Font… and Find drop off its end), the five strips as the switcher shows them, the spelling
+dialog and the About box:
+
+![The five strips at 1 bit, 640 pixels](mac-strips-1bit-640.png)
+
+| | |
+|---|---|
+| ![Home at 640 by 480, 1 bit](mac-strip-640-1bit.png) | ![Spelling](mac-dialog-spelling.png) |
+| ![About Octavo](mac-about-octavo.png) | |
+
 | Strip | Items (each a menu command) |
 |---|---|
 | Home | style, font and size pop-ups; Bold, Italic, Underline; four alignments; Bullets, Numbering; Decrease, Increase Indent; Font…, Find… |
@@ -367,6 +388,35 @@ monitor:
 The native tests (2600, 44 of them the ruler's in tests/test_wpmac.c) pass, both Mac builds have no
 warnings, and `tools/langcheck.py` finds nothing missing for `amiga/` or `mac/`.
 
+### The switchable strips (19 November 2026)
+
+At 8 bits on a 1024 by 768 screen, on a copy of word.docx that already held a table and a picture from
+an earlier run, driven through QEMU's monitor:
+
+1. The switcher pop-up (and View › Tool Strip, a submenu with the current strip checked) chose Insert,
+   References, Layout and Review in turn.
+2. Insert: Picture… (Standard File, disc.png) put the picture at the start, drawn at once; Table… (3
+   columns, 2 rows, Return for Insert) put a table after "Before the break", the caret in its first
+   cell and its column edges on the ruler.
+3. References: Table of Contents put a table of contents at the caret (Contents, First heading 1,
+   Lists 1).
+4. Layout: Page Setup… showed US Letter, portrait, margins 1, 1, 1.25, 1.25 inches; Landscape and OK
+   turned the page.
+5. Edit › Find… (⌘F): "Quill" replaced with "Mac" by Replace All; a note said one replacement.
+6. Review: New Comment… on a word ("Checkthis": the script lost the space); Track Changes on, and
+   "Tracked " typed at the start of a paragraph showed underlined in the tracked colour.
+7. ⌘S, then on the host, in word/document.xml: three tables, two `w:drawing`s (word/media/image1.png and
+   image2.png), `<w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/>`, the TOC field, "The Mac
+   Test", `<w:ins w:author="Quill" …>` round "Tracked " (the System had no owner name; now "Octavo"),
+   a comment range, and word/comments.xml with the comment.
+
+Spelling ran in this boot without its word list on the disk and gave the stop alert that says so.
+In a second boot, at 1 bit on a 640 by 480 screen with the word list in a dict folder beside Octavo
+and an old "Quill Preferences" in the Preferences folder: Octavo started with the old settings and
+wrote them as "Octavo Preferences" (type `pref`, creator `OCTV`), deleting the old file. Spelling on
+word.docx found nothing; with "Speling" typed in a heading it asked about it with Spelling, Spieling
+and Spewing, and Change put Spelling in. The Apple menu read About Octavo…
+
 ## Not done yet
 
 - **Printing** is left out. Octavo draws pages for PDF; Export PDF writes one. Printing needs the Printing
@@ -391,6 +441,8 @@ warnings, and `tools/langcheck.py` finds nothing missing for `amiga/` or `mac/`.
 - **Tracked changes** cover typing, Delete, Cut, Clear and pasted text, and formatting; what Octavo's own
   commands put in (a table, a field, a picture) is not marked as a tracked insertion.
 - **Page Setup** sets the whole document's page; sections with their own page setup keep theirs.
+- **The ruler's unit** follows the Amiga's rule (inches only on an upright US Letter page): a landscape
+  Letter page gets centimetres. Page Setup's margins follow the same unit.
 - **The strip and rulers**: no Balloon Help for them; the vertical ruler does not drag the margins (nor
   does the Amiga's); no Show ¶ (the page view has no marks to show); the units follow the page size, as
   there is no unit preference yet. The Amiga's ruler (amiga/ruler.c) still does its own sums: switching it

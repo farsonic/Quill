@@ -4,11 +4,11 @@
 # Amiga's words. After changing it run python3 tools/mklang.py.
 W = [
 ("Octavo 0.15\\n\\n%s", "Octavo 0.15\\n\\n%s", "Octavo 0.15\\n\\n%s", "Octavo 0.15\\n\\n%s", "Octavo 0.15\\n\\n%s"),
-("Octavo is Quill for the classic Mac OS: a word processor that reads and writes Word documents (.docx).\\n\\nText is measured with the Liberation and Carlito/Caladea fonts\\n(SIL Open Font License), so documents break\\ntheir lines as they do in Word.",
- "Octavo ist Quill für das klassische Mac OS: eine Textverarbeitung, die Word-Dokumente (.docx) liest und schreibt.\\n\\nText wird mit den Schriften Liberation und Carlito/Caladea\\ngemessen (SIL Open Font License), daher brechen\\nZeilen wie in Word um.",
- "Octavo est Quill pour le Mac OS classique : un traitement de texte qui lit et écrit les documents Word (.docx).\\n\\nLe texte est mesuré avec les polices Liberation et Carlito/Caladea\\n(SIL Open Font License) : les lignes se coupent\\ncomme dans Word.",
- "Octavo es Quill para el Mac OS clásico: un procesador de textos que lee y escribe documentos de Word (.docx).\\n\\nEl texto se mide con las fuentes Liberation y Carlito/Caladea\\n(SIL Open Font License), así las líneas\\nse cortan como en Word.",
- "Octavo è Quill per il Mac OS classico: un elaboratore di testi che legge e scrive documenti Word (.docx).\\n\\nIl testo è misurato con i caratteri Liberation e Carlito/Caladea\\n(SIL Open Font License), così le righe\\nvanno a capo come in Word."),
+("Octavo is Quill for the classic Mac OS: a word processor that reads and writes Word documents (.docx).\\n\\nText is measured with the Liberation and Carlito/Caladea fonts (SIL Open Font License), so documents break their lines as they do in Word.",
+ "Octavo ist Quill für das klassische Mac OS: eine Textverarbeitung, die Word-Dokumente (.docx) liest und schreibt.\\n\\nText wird mit den Schriften Liberation und Carlito/Caladea gemessen (SIL Open Font License), daher brechen Zeilen wie in Word um.",
+ "Octavo est Quill pour le Mac OS classique : un traitement de texte qui lit et écrit les documents Word (.docx).\\n\\nLe texte est mesuré avec les polices Liberation et Carlito/Caladea (SIL Open Font License) : les lignes se coupent comme dans Word.",
+ "Octavo es Quill para el Mac OS clásico: un procesador de textos que lee y escribe documentos de Word (.docx).\\n\\nEl texto se mide con las fuentes Liberation y Carlito/Caladea (SIL Open Font License), así las líneas se cortan como en Word.",
+ "Octavo è Quill per il Mac OS classico: un elaboratore di testi che legge e scrive documenti Word (.docx).\\n\\nIl testo è misurato con i caratteri Liberation e Carlito/Caladea (SIL Open Font License), così le righe vanno a capo come in Word."),
 ("%s\\nis not a PNG or JPEG picture Octavo can read.", "%s\\nist kein PNG- oder JPEG-Bild, das Octavo lesen kann.", "%s\\nn'est pas une image PNG ou JPEG lisible par Octavo.", "%s\\nno es una imagen PNG o JPEG que Octavo pueda leer.", "%s\\nnon è un'immagine PNG o JPEG leggibile da Octavo."),
 # Format > Paragraph Style (a submenu, and the strip's style pop-up shows the same styles)
 ("Paragraph Style", "Absatzformat", "Style de paragraphe", "Estilo de párrafo", "Stile di paragrafo"),
