@@ -1,0 +1,266 @@
+; $VER: Install-Bureau 0.1 (19.11.2026)
+;
+; Installer script for Bureau, the suite of Quill (word processor), Ledger (spreadsheet), Easel
+; (picture editor), Folio (PDF viewer and editor) and Dispatch (mail, calendar, contacts and
+; tasks) (Commodore's Installer 43 or later, or AROS's). Started from its icon (default tool
+; Installer). It installs or updates the programs you choose in one Bureau drawer.
+;
+; Installs:  the screen fonts (QuillSans, QuillSerif, QuillMono...) in FONTS: (only those missing
+;            or older there); <the Bureau drawer>/TrueType and /Dict, shared by the programs;
+;            each program chosen in its own drawer, <the Bureau drawer>/<program> (the program,
+;            README.md, its example files, all with their icons; no Source: that is in
+;            Bureau-<version>-src.lha); README-Bureau.md and LICENSE; "Assign Bureau: <drawer>"
+;            in S:User-Startup (and assigned at once). The example files' icons are set to open
+;            in the program just installed.
+; Keeps:     each program's settings, recent files, word lists, caches and mail when updating
+;            (nothing in the Bureau drawer is deleted; only the files Bureau ships are replaced),
+;            and fonts.list in the TrueType drawer if you have changed it.
+; Needs:     a 68040 or better, MUI 3.8 or later (muimaster.library 19); Dispatch also wants a
+;            TCP/IP stack and AmiSSL 5 to reach mail servers (only a warning without them).
+;
+; The programs look for their shared files beside themselves first (PROGDIR:Fonts, PROGDIR:TrueType,
+; PROGDIR:Dict), then in Bureau: (Bureau:Fonts, Bureau:TrueType, Bureau:Dict), then FONTS: for the
+; screen fonts; so each single-app package still works on its own, and a suite install needs nothing
+; beside the programs.
+;
+; The script runs in the drawer it was unpacked into (Bureau/), so its sources are relative to that.
+; Texts carry their own line breaks (AROS's Installer doesn't wrap them), and function names are
+; in lower case (AROS's Installer doesn't know "IN", only "in"). After Install-Dispatch.
+; SPDX-License-Identifier: GPL-2.0-only
+
+(set @app-name "Bureau")
+(set #version "0.1")
+
+; ------------------------------------------------------------------ checks
+
+(set #cpu (database "cpu"))
+(if (or (= #cpu "68000") (= #cpu "68010") (= #cpu "68020") (= #cpu "68030"))
+  (if (not (askbool
+             (prompt (cat "This Amiga has a " #cpu " processor.\n"
+                          "Bureau's programs are built for a 68040 or\n"
+                          "better and will not run on it.\n\n"
+                          "Install anyway (for another Amiga, say)?"))
+             (help "Quill, Ledger, Easel, Folio and Dispatch use the\n"
+                   "68040's instructions (and most its floating-point\n"
+                   "unit). An accelerator card with a 68040 or 68060\n"
+                   "is needed.")
+             (default 0)))
+    (abort "Bureau was not installed.")))
+
+(set #mui 0)
+(if (exists "LIBS:muimaster.library" (noreq))
+  (set #mui (/ (getversion "LIBS:muimaster.library") 65536)))
+(if (< #mui 19)
+  (if (not (askbool
+             (prompt (if (= #mui 0)
+                       (cat "MUI isn't installed (there is no\n"
+                            "LIBS:muimaster.library).\n\n"
+                            "Bureau's programs need MUI 3.8 or later.\n"
+                            "Install Bureau anyway and add MUI afterwards?")
+                       (cat "The MUI installed (muimaster.library " #mui ")\n"
+                            "is older than Bureau's programs need\n"
+                            "(version 19, MUI 3.8).\n\n"
+                            "Install Bureau anyway and update MUI\n"
+                            "afterwards?")))
+             (help "MUI is the user interface system the programs are\n"
+                   "built with. It is on Aminet (dev/gui/mui38usr.lha)\n"
+                   "and at muidev.de (MUI 5). AROS and MorphOS have it\n"
+                   "built in.")
+             (default 1)))
+    (abort "Bureau was not installed.")))
+
+; ------------------------------------------------------------------ where
+
+; an installed Bureau (the assign) is updated by default
+(set #old (exists "Bureau:" (noreq)))
+(set #dir
+  (askdir
+    (prompt "Where should Bureau go? Choose its drawer:\n"
+            "it is made if it isn't there, or updated if\n"
+            "Bureau is in it already.")
+    (help "Bureau keeps its programs, each in a drawer of its\n"
+          "own, and their shared TrueType and Dict drawers in\n"
+          "this drawer, for example Work:Bureau. It is\n"
+          "assigned as Bureau: when your Amiga starts.\n\n"
+          "Installing over an older Bureau updates it and keeps\n"
+          "each program's settings, word lists and mail.")
+    (default (if #old (expandpath "Bureau:") (if (exists "Work:" (noreq)) "Work:Bureau" "SYS:Bureau")))
+    (newpath)
+    (disk)))
+(set @default-dest #dir)
+(set #update (exists (tackon #dir "TrueType") (noreq)))
+
+; ------------------------------------------------------------------ which programs
+
+(set #apps
+  (askoptions
+    (prompt "Which programs should be installed?")
+    (help "Quill: the word processor (Word .docx, PDF).\n"
+          "Ledger: the spreadsheet (Excel .xlsx).\n"
+          "Easel: the picture editor (layers, PNG, JPEG,\n"
+          "IFF, PSD...), with EaselConvert for the Shell.\n"
+          "Folio: the PDF viewer and editor.\n"
+          "Dispatch: mail, calendar, contacts and tasks,\n"
+          "with DispatchConvert for the Shell.\n\n"
+          "The screen fonts, TrueType fonts and dictionaries\n"
+          "they share are installed once, whichever you\n"
+          "choose. A program not chosen is left as it is.")
+    (choices "Quill (word processor)"
+             "Ledger (spreadsheet)"
+             "Easel (picture editor)"
+             "Folio (PDF viewer and editor)"
+             "Dispatch (mail and calendar)")
+    (default 31)))
+(if (= #apps 0) (abort "No program was chosen, so nothing was installed."))
+
+; AmiSSL 5: Dispatch reaches mail, calendar and contacts servers only over TLS (a warning only)
+(set #ssl 5)
+(if (in #apps 4)
+(
+  (set #ssl 0)
+  (if (exists "LIBS:amisslmaster.library" (noreq))
+    (set #ssl (/ (getversion "LIBS:amisslmaster.library") 65536)))
+  (if (< #ssl 5)
+    (message (if (= #ssl 0)
+               (cat "AmiSSL isn't installed (there is no\n"
+                    "LIBS:amisslmaster.library).\n\n")
+               (cat "The AmiSSL installed (amisslmaster.library " #ssl ")\n"
+                    "is older than AmiSSL 5.\n\n"))
+             "Without AmiSSL 5 Dispatch can't reach any mail,\n"
+             "calendar or contacts server: it always uses TLS.\n"
+             "Everything else works. AmiSSL 5 for AmigaOS 3 is\n"
+             "on Aminet (util/libs/AmiSSL-v5-OS3.lha).\n\n"
+             "Dispatch is installed all the same."
+             (all)))
+))
+
+; ------------------------------------------------------------------ the Bureau drawer
+
+; the same drawer it was unpacked in: nothing to copy but the fonts, only the assign and icons
+(set #here (expandpath ""))
+(set #same (if (exists #dir (noreq)) (= (expandpath #dir) #here) 0))
+
+(if (not (exists #dir (noreq)))
+  (makedir #dir
+    (prompt "Making the Bureau drawer")
+    (help @makedir-help)))
+; the drawer's own icon (next to the unpacked drawer), unless it is a disk's root
+(set #dirname (fileonly #dir))
+(if (and (not #same) (<> #dirname "") (exists "/Bureau.info" (noreq)))
+  (copyfiles (source "/Bureau.info") (dest (pathonly #dir)) (newname (cat #dirname ".info")) (nogauge)))
+(complete 2)
+
+; ------------------------------------------------------------------ screen fonts to FONTS:
+
+; each .font with its drawer of sizes, when FONTS: hasn't got it or has an older one
+(set #nfonts 0)
+(foreach "Fonts" "#?.font"
+  (
+    (set #fsrc (tackon "Fonts" @each-name))
+    (set #fdst (tackon "FONTS:" @each-name))
+    (if (or (not (exists #fdst (noreq))) (earlier #fdst #fsrc))
+    (
+      (set #fsub (substr @each-name 0 (- (strlen @each-name) 5)))
+      (if (exists (tackon "Fonts" #fsub) (noreq))
+        (copyfiles
+          (prompt (cat "Copying the screen font " #fsub " to FONTS:"))
+          (help @copyfiles-help)
+          (source (tackon "Fonts" #fsub))
+          (dest (tackon "FONTS:" #fsub))
+          (all)
+          (nogauge)))
+      (copyfiles (source #fsrc) (dest "FONTS:") (nogauge))
+      (set #nfonts (+ #nfonts 1))
+    ))
+  ))
+(complete 25)
+
+; ------------------------------------------------------------------ shared drawers and texts
+
+(if (not #same)
+(
+  (copyfiles
+    (prompt "Copying the TrueType fonts")
+    (help @copyfiles-help)
+    (source "TrueType")
+    (dest (tackon #dir "TrueType"))
+    (pattern "#?.(ttf|txt)"))
+  ; fonts.list names the fonts the programs measure text with; you may have added yours
+  (if (not (exists (tackon #dir "TrueType/fonts.list") (noreq)))
+    (copyfiles (source "TrueType/fonts.list") (dest (tackon #dir "TrueType")) (nogauge)))
+  (if (exists "TrueType.info" (noreq)) (copyfiles (source "TrueType.info") (dest #dir) (nogauge)))
+  (complete 45)
+  (copyfiles
+    (prompt "Copying the dictionaries")
+    (help @copyfiles-help)
+    (source "Dict")
+    (dest (tackon #dir "Dict"))
+    (all))
+  (if (exists "Dict.info" (noreq)) (copyfiles (source "Dict.info") (dest #dir) (nogauge)))
+  (copyfiles (source "README-Bureau.md") (dest #dir) (infos) (nogauge))
+  (copyfiles (source "LICENSE") (dest #dir) (infos) (nogauge))
+))
+(complete 55)
+
+; ------------------------------------------------------------------ the programs
+
+(set #i 0)
+(while (< #i 5)
+  (
+    (if (in #apps #i)
+    (
+      (set #app (select #i "Quill" "Ledger" "Easel" "Folio" "Dispatch"))
+      (set #adest (tackon #dir #app))
+      (if (not #same)
+      (
+        (if (not (exists #adest (noreq)))
+          (makedir #adest
+            (prompt (cat "Making the " #app " drawer"))
+            (help @makedir-help)))
+        (if (exists (cat #app ".info") (noreq))
+          (copyfiles (source (cat #app ".info")) (dest #dir) (nogauge)))
+        (copyfiles
+          (prompt (cat "Copying " #app))
+          (help @copyfiles-help)
+          (source #app)
+          (dest #adest)
+          (all))
+      ))
+      ; the example files open in the program just installed
+      (set #pat (select #i "#?.docx" "#?.(xlsx|csv)" "#?.(jpg|png|ora|iff)" "#?.pdf" ""))
+      (if (<> #pat "")
+        (foreach #adest #pat
+          (if (exists (tackon #adest (cat @each-name ".info")) (noreq))
+            (tooltype
+              (dest (tackon #adest @each-name))
+              (setdefaulttool (tackon #adest #app))))))
+    ))
+    (set #i (+ #i 1))
+    (complete (+ 55 (* #i 8)))
+  ))
+
+; ------------------------------------------------------------------ the assign
+
+(makeassign "Bureau" #dir (safe))
+(startup "Bureau"
+  (prompt "Bureau's programs find their shared files through\n"
+          "the assign Bureau:. Add it to S:User-Startup,\n"
+          "so it is made each time your Amiga starts?")
+  (help "This adds these lines to S:User-Startup:\n\n"
+        ";BEGIN Bureau\n"
+        "Assign >NIL: Bureau: \"" #dir "\"\n"
+        ";END Bureau\n\n"
+        "Without it the programs don't find their TrueType\n"
+        "fonts and dictionaries after the next start.")
+  (command "Assign >NIL: Bureau: \"" #dir "\"\n"))
+(complete 100)
+
+(exit
+  (cat "Bureau " #version " is "
+       (if #same "ready in" (if #update "updated in" "installed in"))
+       "\n\n" #dir "\n\n"
+       (if (> #nfonts 0) (cat #nfonts " screen fonts were put in FONTS:.\n") "")
+       "Bureau: is assigned to it. Open a program's\n"
+       "drawer and double-click its icon to start it;\n"
+       "README-Bureau.md tells you more.\n"
+       (if (< #ssl 5) "\nInstall AmiSSL 5 for Dispatch to reach mail\nservers.\n" "")))
