@@ -380,7 +380,7 @@ W = [
 ("\\33cThe spelling check is complete.", "\\33cDie Rechtschreibprüfung ist abgeschlossen.", "\\33cLa vérification orthographique est terminée.", "\\33cLa revisión ortográfica ha terminado.", "\\33cIl controllo ortografico è completato."),
 ("\\33cNot in the dictionary: \\33b%s", "\\33cNicht im Wörterbuch: \\33b%s", "\\33cAbsent du dictionnaire : \\33b%s", "\\33cNo está en el diccionario: \\33b%s", "\\33cNon nel dizionario: \\33b%s"),
 ("(no suggestions)", "(keine Vorschläge)", "(aucune suggestion)", "(sin sugerencias)", "(nessun suggerimento)"),
-("Quill has no dictionary: it should be in\\nthe Dict drawer next to Quill.", "Quill hat kein Wörterbuch: Es gehört in\\ndie Schublade Dict neben Quill.", "Quill n'a pas de dictionnaire : il doit être\\ndans le tiroir Dict à côté de Quill.", "Quill no tiene diccionario: debe estar en\\nel cajón Dict junto a Quill.", "Quill non ha un dizionario: deve stare\\nnel cassetto Dict accanto a Quill."),
+("Quill has no dictionary: it should be in\\nthe Dict drawer next to Quill or in Bureau:.", "Quill hat kein Wörterbuch: Es gehört in\\ndie Schublade Dict neben Quill oder in Bureau:.", "Quill n'a pas de dictionnaire : il doit être\\ndans le tiroir Dict à côté de Quill ou dans Bureau:.", "Quill no tiene diccionario: debe estar en\\nel cajón Dict junto a Quill o en Bureau:.", "Quill non ha un dizionario: deve stare\\nnel cassetto Dict accanto a Quill o in Bureau:."),
 ("_Change", "Ä_ndern", "_Modifier", "_Cambiar", "_Cambia"),
 ("Change A_ll", "_Alle ändern", "Tout m_odifier", "Cambiar _todas", "Cambia _tutte"),
 ("_Ignore", "_Ignorieren", "_Ignorer", "_Omitir", "_Ignora"),

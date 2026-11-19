@@ -23,6 +23,7 @@
 #include "wphooks.h"
 #include "lang.h"
 #include "wp_proof.h"
+#include "resdirs.h"
 #include "../core/spell.h"
 #include "../core/proflang.h"
 #include "../core/hyph.h"
@@ -39,16 +40,19 @@ static int exists(const char *path)
   if (l) UnLock(l);
   return l != 0;
 }
-/* a language's Hunspell files in the Dict drawer: xx_YY or xx; 1 with their paths */
+/* a language's Hunspell files in the Dict drawer: xx_YY or xx; 1 with their paths (64 bytes each) */
 static int dict_files(u16 lang, char *aff, char *dic)
 {
   const char *t = plang_tag(lang);
+  char name[16];
   if (strlen(t) == 5) {
-    sprintf(aff, "PROGDIR:Dict/%c%c_%c%c.aff", t[0], t[1], t[3], t[4]); sprintf(dic, "PROGDIR:Dict/%c%c_%c%c.dic", t[0], t[1], t[3], t[4]);
+    sprintf(name, "%c%c_%c%c.aff", t[0], t[1], t[3], t[4]); res_file(aff, 64, dir_dict, name);
+    sprintf(name, "%c%c_%c%c.dic", t[0], t[1], t[3], t[4]); res_file(dic, 64, dir_dict, name);
     if (exists(aff) && exists(dic)) return 1;
   }
   if (strlen(t) >= 2) {
-    sprintf(aff, "PROGDIR:Dict/%c%c.aff", t[0], t[1]); sprintf(dic, "PROGDIR:Dict/%c%c.dic", t[0], t[1]);
+    sprintf(name, "%c%c.aff", t[0], t[1]); res_file(aff, 64, dir_dict, name);
+    sprintf(name, "%c%c.dic", t[0], t[1]); res_file(dic, 64, dir_dict, name);
     if (exists(aff) && exists(dic)) return 1;
   }
   return 0;
@@ -70,10 +74,10 @@ static int load_dict(u16 lang, Spell *s)
 static char *load_hyph(u16 lang, size_t *n)
 {
   const char *t = plang_tag(lang);
-  char path[64];
+  char path[64], name[24];
   u8 *d = NULL;
-  if (strlen(t) == 5) { sprintf(path, "PROGDIR:Dict/hyph_%c%c_%c%c.dic", t[0], t[1], t[3], t[4]); d = file_read(path, n); }
-  if (!d && strlen(t) >= 2 && !plang_primary(lang, "en")) { sprintf(path, "PROGDIR:Dict/hyph_%c%c.dic", t[0], t[1]); d = file_read(path, n); }
+  if (strlen(t) == 5) { sprintf(name, "hyph_%c%c_%c%c.dic", t[0], t[1], t[3], t[4]); d = file_read(res_file(path, sizeof path, dir_dict, name), n); }
+  if (!d && strlen(t) >= 2 && !plang_primary(lang, "en")) { sprintf(name, "hyph_%c%c.dic", t[0], t[1]); d = file_read(res_file(path, sizeof path, dir_dict, name), n); }
   if (!d && plang_primary(lang, "en")) return NULL;
   return (char *)d;
 }

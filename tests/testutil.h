@@ -29,6 +29,6 @@ void test_wp1(void), test_wp2(void), test_wp3(void), test_wp4(void), test_wp5(vo
      test_wp17(void), test_wp18(void), test_wp19(void), test_wp20(void), test_wp21a(void), test_wp21b(void),
      test_wp22a(void), test_wp22b(void), test_wp23(void), test_wp24(void), test_wp25(void), test_wp26(void),
      test_wp27(void), test_wp28a(void), test_wp28b(void), test_wp28c(void), test_wp28d(void), test_wp28e(void), test_wp29(void),
-     test_wp30(void), test_wp31(void);
+     test_wp30(void), test_wp31(void), test_wp_bureau(void);
 
 #endif

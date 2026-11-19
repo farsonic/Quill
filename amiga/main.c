@@ -69,6 +69,7 @@ extern struct WBStartup *_WBenchMsg;
 #include "theme.h"
 #include "splash.h"
 #include "sysfonts.h"
+#include "resdirs.h"                 /* the Fonts, TrueType and Dict drawers (PROGDIR: or Bureau:) */
 #include "wphooks.h"
 #include "wp_charpara.h"                /* (WP9, WP10) */
 #include "wp_find.h"                  /* WP12: its ids, for Find's, Select's and Go To's entries */
@@ -1274,7 +1275,7 @@ static void comment_done(void)
   if (!(uibits & RBIT(RB_SHOWCOMMENTS))) ui_bit(RB_SHOWCOMMENTS, 1);
   set(win, MUIA_Window_Activate, TRUE);
 }
-/* spelling: the dictionary (PROGDIR:Dict), the user's words (PROGDIR:Quill.words), and the Spelling
+/* spelling: the dictionary (the Dict drawer, resdirs.h), the user's words (PROGDIR:Quill.words), and the Spelling
    window that goes from mistake to mistake */
 static Spell spell;
 static Object *spwin, *spword, *splist, *spto;
@@ -1286,8 +1287,8 @@ static Pos spa, spb;
 static void load_spelling(void)
 {
   FILE *f;
-  char line[128];
-  if (!spell_load(&spell, "PROGDIR:Dict/british-english")) return;
+  char line[128], path[256];
+  if (!spell_load(&spell, res_file(path, sizeof path, dir_dict, "british-english"))) return;
   if ((f = fopen("PROGDIR:Quill.words", "r"))) {
     while (fgets(line, sizeof line, f)) { line[strcspn(line, "\r\n")] = 0; if (line[0]) spell_add(&spell, line, (u32)strlen(line)); }
     fclose(f);
@@ -1355,7 +1356,7 @@ static void spell_pick(void)
 /* Review > Spelling: the window, starting at the caret */
 static void open_spelling(void)
 {
-  if (!spell.n) { ask("OK", "%s", "Quill has no dictionary: it should be in\nthe Dict drawer next to Quill."); return; }
+  if (!spell.n) { ask("OK", "%s", "Quill has no dictionary: it should be in\nthe Dict drawer next to Quill or in Bureau:."); return; }
   if (!spwin) {
     Object *chg, *chgall, *ign, *ignall, *add, *close;
     spwin = QWindowObject, MUIA_Window_Title, (ULONG)tr("Spelling"), MUIA_Window_ID, MAKE_ID('S','P','E','L'),
@@ -3376,17 +3377,20 @@ static void command(ULONG id)
 
 /* our own fonts drawer joins FONTS: while Quill runs */
 static int fonts_assigned;
-/* PROGDIR:Fonts added to the FONTS: assign (AssignAdd), so the screen fonts Quill draws its
-   interface in are found; remove_fonts takes it out again at the end. pr_WindowPtr -1 stops DOS
-   asking for a volume while it looks */
+/* the fonts drawer (PROGDIR:Fonts or Bureau:Fonts, resdirs.h) added to the FONTS: assign
+   (AssignAdd), so the screen fonts Quill draws its interface in are found; remove_fonts takes it out
+   again at the end. Nothing to add when they are in FONTS: already. pr_WindowPtr -1 stops DOS asking
+   for a volume while it looks */
 static void add_fonts(void)
 {
-  BPTR l = Lock((STRPTR)"PROGDIR:Fonts", ACCESS_READ), sys;
   struct Process *me = (struct Process *)FindTask(NULL);
   APTR win = me->pr_WindowPtr;
-  if (!l) return;
-  /* not if it is FONTS: itself (the end would take the system's own drawer out of it) */
+  BPTR l, sys;
+  if (!strcmp(dir_fonts, "FONTS:")) return;
   me->pr_WindowPtr = (APTR)-1;
+  l = Lock((STRPTR)dir_fonts, ACCESS_READ);
+  if (!l) { me->pr_WindowPtr = win; return; }
+  /* not if it is FONTS: itself (the end would take the system's own drawer out of it) */
   if ((sys = Lock((STRPTR)"FONTS:", ACCESS_READ))) {
     LONG same = SameLock(l, sys);
     UnLock(sys);
@@ -3400,7 +3404,7 @@ static void remove_fonts(void)
 {
   BPTR l;
   if (!fonts_assigned) return;
-  if ((l = Lock((STRPTR)"PROGDIR:Fonts", ACCESS_READ))) { RemAssignList((STRPTR)"FONTS", l); UnLock(l); }
+  if ((l = Lock((STRPTR)dir_fonts, ACCESS_READ))) { RemAssignList((STRPTR)"FONTS", l); UnLock(l); }
   fonts_assigned = 0;
 }
 
@@ -3743,7 +3747,7 @@ static void ribbon_pick(ULONG id, LONG v)
   case ID_LINENUMDD: { static const int ln[4] = { LN_NONE, LN_CONT, LN_PAGE, LN_SECTION }; if (v == 4) open_linenum(); else if (v >= 0 && v < 4) DoMethod(view, MUIM_Quill_Command, CMD_LINENUM, (ULONG)ln[v]); break; }
   case ID_HYPHENDD:
     if (v >= 2) { wp22a_command(ID_PG_HYPHLIST, v); break; }      /* (WP22a: Manual, Hyphenation Options) */
-    if (v == 1 && !hyph_ready()) hyph_load("PROGDIR:Dict/hyph_en_GB.dic");
+    if (v == 1 && !hyph_ready()) { char path[256]; hyph_load(res_file(path, sizeof path, dir_dict, "hyph_en_GB.dic")); }
     DoMethod(view, MUIM_Quill_Command, CMD_HYPHENATE, (ULONG)(v == 1));
     break;
   case ID_PAGEALIGNDD: if (v >= 0 && v < 4) DoMethod(view, MUIM_Quill_Command, CMD_PAGEALIGN, (ULONG)v); break;     /* (WP22a: 3 Justified) */
@@ -4813,10 +4817,42 @@ static int win_close_all(void)
   return 1;
 }
 
-/* PROGDIR: is where Quill finds its Fonts, TrueType and Dict drawers. Workbench and the Shell set
-   it; some other shells start programs without it (or with another drawer's), so then the drawer is
-   found from the name Quill was started by and made PROGDIR: here (put back at the end) */
+/* PROGDIR: is where Quill keeps its own files and finds its Fonts, TrueType and Dict drawers when
+   they are beside it (else Bureau:'s, see resdirs_find). Workbench and the Shell set it; some other
+   shells start programs without it (or with another drawer's), so then the drawer is found from the
+   name Quill was started by and made PROGDIR: here (put back at the end) */
 static BPTR home_lock, home_old;
+/* the drawers Quill takes its shared files from (resdirs.h), found once PROGDIR: is right */
+const char *dir_fonts = "PROGDIR:Fonts", *dir_truetype = "PROGDIR:TrueType", *dir_dict = "PROGDIR:Dict";
+/* (res_pick's question: whether the drawer is there; the caller has stopped DOS's requesters) */
+static int dir_exists(const char *dir, void *ud)
+{
+  BPTR l = Lock((STRPTR)dir, ACCESS_READ);
+  if (l) UnLock(l);
+  return l != 0;
+}
+void resdirs_find(void)
+{
+  struct Process *me = (struct Process *)FindTask(NULL);
+  APTR win = me->pr_WindowPtr;
+  const char *d;
+  me->pr_WindowPtr = (APTR)-1;           /* no "please insert volume Bureau" without the assign */
+  dir_fonts = res_pick(RES_FONTS, dir_exists, NULL);
+  if ((d = res_pick(RES_TRUETYPE, dir_exists, NULL))) dir_truetype = d;
+  if ((d = res_pick(RES_DICT, dir_exists, NULL))) dir_dict = d;
+  me->pr_WindowPtr = win;
+}
+char *res_file(char *out, size_t n, const char *dir, const char *name)
+{
+  res_join(out, n, dir, name);
+  return out;
+}
+/* whether Quill's screen fonts are in Bureau:Fonts or FONTS: (installed as part of the suite: then
+   the drawer Quill was started from holds no Fonts drawer); the caller has stopped the requesters */
+static int fonts_elsewhere(void)
+{
+  return dir_exists("Bureau:Fonts/QuillSans.font", NULL) || dir_exists("FONTS:QuillSans.font", NULL);
+}
 /* the installed fonts being looked at (the startup window's bar from 5 to 8) */
 static void scan_step(int done, int total)
 {
@@ -4859,6 +4895,7 @@ static void find_home(const char *argv0)
   struct Process *me = (struct Process *)FindTask(NULL);
   APTR win = me->pr_WindowPtr;
   BPTR l;
+  int elsewhere;
 #ifdef QUILL_TESTHOME
   SetProgramDir(0);                      /* (testing: as some shells start programs) */
 #ifdef QUILL_NOHOME
@@ -4868,6 +4905,8 @@ static void find_home(const char *argv0)
   me->pr_WindowPtr = (APTR)-1;           /* no "please insert volume" requesters while looking */
   l = GetProgramDir() ? Lock((STRPTR)"PROGDIR:Fonts/QuillSans.font", ACCESS_READ) : 0;
   if (l) { UnLock(l); me->pr_WindowPtr = win; return; }
+  elsewhere = fonts_elsewhere();
+  if (elsewhere && GetProgramDir()) { me->pr_WindowPtr = win; return; }
   tries[0] = argv0;
   tries[1] = GetProgramName((STRPTR)name, sizeof name) ? name : NULL;
   for (i = 0; i < 2 && !home_lock; i++) {
@@ -4875,7 +4914,7 @@ static void find_home(const char *argv0)
     if (!tries[i] || !tries[i][0] || !(f = Lock((STRPTR)tries[i], ACCESS_READ))) continue;
     d = ParentDir(f);
     UnLock(f);
-    if (d && home_has_fonts(d)) home_lock = d;
+    if (d && (elsewhere || home_has_fonts(d))) home_lock = d;
     else if (d) UnLock(d);
   }
   if (!home_lock) {                      /* started by its name alone, from its own drawer */
@@ -4951,7 +4990,7 @@ int main(int argc, char **argv)
 {
   ULONG sigs = 0;
   int rc = 20, i;
-  char start[512] = "", arg_screen[64] = "", missing_screen[64] = "";
+  char start[512] = "", arg_screen[64] = "", missing_screen[64] = "", dictfile[256];
   ULONG start_cmd = 0;
   if (!(IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 39)) ||
       !(GfxBase = (struct GfxBase *)OpenLibrary((STRPTR)"graphics.library", 39)) ||
@@ -4963,6 +5002,7 @@ int main(int argc, char **argv)
     goto done;
   }
   find_home(argc > 0 ? argv[0] : NULL);
+  resdirs_find();
   for (i = 1; i < argc; i++) {
     if (!strncmp(argv[i], "DEBUG=", 6)) qlog = fopen(argv[i] + 6, "w");
     else if (!strncmp(argv[i], "CMD=", 4)) start_cmd = (ULONG)atol(argv[i] + 4);       /* (testing: a command once the document is open) */
@@ -4996,7 +5036,7 @@ int main(int argc, char **argv)
   DiskfontBase = OpenLibrary((STRPTR)"diskfont.library", 39);
   add_fonts();
   splash_step(4, tr("Reading the TrueType fonts (for measuring text)"));
-  if (!fonts_init(&fonts, "PROGDIR:TrueType")) printf("Quill: no fonts in PROGDIR:TrueType (fonts.list); text will be measured roughly.\n");
+  if (!fonts_init(&fonts, dir_truetype)) printf("Quill: no fonts in %s (fonts.list); text will be measured roughly.\n", dir_truetype);
   splash_step(5, tr("Looking for installed fonts"));
   sysfonts_scan(&fonts, scan_step);
   splash_step(6, tr("Preparing"));
@@ -5022,7 +5062,7 @@ int main(int argc, char **argv)
   splash_step(8, tr("Loading the spelling dictionary"));
   load_spelling();
   splash_step(58, tr("Loading the hyphenation patterns"));
-  hyph_load("PROGDIR:Dict/hyph_en_GB.dic");      /* automatic hyphenation (when a document asks for it) */
+  hyph_load(res_file(dictfile, sizeof dictfile, dir_dict, "hyph_en_GB.dic"));      /* automatic hyphenation (when a document asks for it) */
   rexx_setup();
   splash_step(62, tr("Building the window"));
   app = ApplicationObject,

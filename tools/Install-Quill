@@ -8,6 +8,9 @@
 ;            drawers, the example documents (optional) and the source code (optional), all with
 ;            their icons; the Quill drawer gets Quill's own icon. The example documents' icons are
 ;            set to open in the Quill just installed.
+;            With the Bureau suite installed (a Bureau: assign with Bureau:TrueType, Bureau:Dict
+;            and the screen fonts in FONTS:), Quill goes into Bureau:Quill by default and the
+;            Fonts, TrueType and Dict drawers are not copied: Quill uses the suite's.
 ; Keeps:     your settings and words (Quill.prefs, Quill.recent, Quill.words) when updating.
 ; Needs:     a 68040 or better, MUI 3.8 or later (muimaster.library 19).
 ;
@@ -17,6 +20,14 @@
 
 (set @app-name "Quill")
 (set #version "0.15")
+
+; the Bureau suite (Quill, Ledger, Easel, Folio, Dispatch sharing one set of fonts and dictionaries):
+; #bureau if the Bureau: assign is there, #shared if its files are too
+(set #bureau (exists "Bureau:" (noreq)))
+(set #shared (if #bureau
+               (and (exists "Bureau:TrueType" (noreq)) (exists "Bureau:Dict" (noreq))
+                    (exists "FONTS:QuillSans.font" (noreq)))
+               0))
 
 ; ------------------------------------------------------------------ install or remove
 
@@ -40,10 +51,15 @@
     (askdir
       (prompt "Which Quill drawer should be removed?")
       (help "Choose the Quill drawer itself: the one holding\n"
-            "the Quill program and its Fonts drawer.")
-      (default (if (exists "Work:Quill" (noreq)) "Work:Quill" "SYS:"))))
-  ; only a drawer that really is Quill's
-  (if (not (and (exists (tackon #old "Quill")) (exists (tackon #old "Fonts/QuillSans.font"))))
+            "the Quill program (and its Fonts drawer, unless\n"
+            "it was installed as part of Bureau).\n\n"
+            "Removing Quill from Bureau leaves the fonts and\n"
+            "dictionaries the other programs share.")
+      (default (if (exists "Bureau:Quill" (noreq)) "Bureau:Quill"
+                 (if (exists "Work:Quill" (noreq)) "Work:Quill" "SYS:")))))
+  ; only a drawer that really is Quill's (its fonts beside it, or in FONTS: as Bureau puts them)
+  (if (not (and (exists (tackon #old "Quill"))
+                (or (exists (tackon #old "Fonts/QuillSans.font")) (exists "FONTS:QuillSans.font" (noreq)))))
     (abort (cat "\"" #old "\"\n"
                 "doesn't look like a Quill drawer (there is no\n"
                 "Quill program with a Fonts drawer in it),\n"
@@ -110,13 +126,19 @@
     (help "Choose the drawer or disk to put Quill in, for\n"
           "example Work:. Quill goes into a drawer of its own,\n"
           "Quill, inside the one you choose. If an older Quill\n"
-          "is there, it is updated and your settings are kept.")
-    (default (if (exists "Work:" (noreq)) "Work:" "SYS:"))
+          "is there, it is updated and your settings are kept.\n\n"
+          "With the Bureau suite installed, Bureau: is offered:\n"
+          "Quill then uses the suite's fonts and dictionaries\n"
+          "and needs no copies of its own.")
+    (default (if #bureau "Bureau:" (if (exists "Work:" (noreq)) "Work:" "SYS:")))
     (disk)))
 (set #dest (tackon #where "Quill"))
 (set @default-dest #dest)
 
 (set #update (exists (tackon #dest "Quill") (noreq)))
+; the Fonts, TrueType and Dict drawers: not needed with Bureau's, unless this Quill has its own
+; already (an older Quill updated: those are what it uses, so they are kept up to date)
+(set #ownfiles (or (not #shared) (exists (tackon #dest "TrueType") (noreq))))
 
 ; the parts
 (set #parts
@@ -124,7 +146,8 @@
     (prompt "Which parts should be installed?")
     (help "Quill itself (the program, its screen fonts, the\n"
           "fonts it measures pages with, and the spelling\n"
-          "dictionary) is always installed.\n\n"
+          "dictionary) is always installed; with the Bureau\n"
+          "suite, the fonts and dictionary are the suite's.\n\n"
           "Example documents: nine short Word documents\n"
           "showing what Quill can do (about 200 KB).\n\n"
           "Source code: Quill's C source, for programmers\n"
@@ -163,6 +186,8 @@
     (infos)
     (nogauge))
   (complete 10)
+  (if #ownfiles
+  (
   (copyfiles
     (prompt "Copying Quill's screen fonts")
     (help @copyfiles-help)
@@ -186,6 +211,7 @@
     (dest (tackon #dest "Dict"))
     (all))
   (if (exists "Dict.info" (noreq)) (copyfiles (source "Dict.info") (dest #dest) (nogauge)))
+  ))
   (complete 85)
 
   (if (in #parts 0)
@@ -227,4 +253,5 @@
        "Double-click the Quill icon to start it, or a\n"
        "Word document whose icon has Quill as its\n"
        "default tool. README.md tells you what is new\n"
-       "and how to use it."))
+       "and how to use it."
+       (if #ownfiles "" "\n\nIt uses the Bureau suite's fonts and\ndictionaries (Bureau:TrueType, Bureau:Dict).")))

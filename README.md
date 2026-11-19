@@ -425,6 +425,25 @@ Quill draws its own window, as WordCraft does, in WordCraft's light colours, wit
    - **RTG:** an RTG screen (Picasso96 or CyberGraphX) shows the pages best.
    - **AGA:** works too, on fewer colours.
 
+### Bureau
+
+Quill is also part of **Bureau**, one package of the five MUI programs (Quill, Ledger, Easel, Folio and
+Dispatch) with a single installer that puts the files they share there once: the screen fonts in
+`FONTS:`, the TrueType fonts in `Bureau:TrueType`, the dictionaries, hyphenation patterns and thesaurus
+in `Bureau:Dict`, and each program in a drawer of its own (`Bureau:Quill`), with `Assign Bureau: ...`
+added to `S:User-Startup`. Quill looks for each drawer in turn and takes the first there is:
+
+| Files | First | Then | Last |
+|---|---|---|---|
+| Screen fonts | `PROGDIR:Fonts` | `Bureau:Fonts` | `FONTS:` |
+| TrueType fonts | `PROGDIR:TrueType` | `Bureau:TrueType` | |
+| Dictionaries | `PROGDIR:Dict` | `Bureau:Dict` | |
+
+So Quill unpacked on its own, with its drawers beside it, works as before, and with Bureau installed it
+needs nothing beside it. Its own files (`Quill.prefs`, `Quill.words`, `Quill.fontcache`...) stay next to
+it either way. Install-Quill installs into `Bureau:Quill` and leaves out the shared drawers when it finds
+Bureau's.
+
 ## Keys
 
 | Keys | Action |

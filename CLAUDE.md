@@ -51,6 +51,10 @@ MUI is the reference. Alt-key combinations may not reach an emulated Amiga throu
   mathieeedoubbas.library.
 - Every interface string goes through `tools/lang/` with English, German, French, Spanish and Italian rows;
   run `python3 tools/langcheck.py` after adding strings. The window must fit 640x480.
+- Shared files (screen fonts, TrueType, Dict) are found through `core/respath.c` (`PROGDIR:` first, then
+  `Bureau:`, then `FONTS:` for screen fonts; the dirs are resolved once at startup into `amiga/resdirs.h`'s
+  `dir_fonts`/`dir_truetype`/`dir_dict`): never hard-code `PROGDIR:Fonts`, `PROGDIR:TrueType` or
+  `PROGDIR:Dict`. `core/respath.c/.h` are the same file in all five Bureau programs; change them everywhere.
 - Menus alongside the ribbon for every command; Quill's own icons; no network features; no printing to
   real printers from tests.
 - A new feature gets a native test in `tests/test_wpN.c`, and a line in `docs/wordcraft-gap.md` updated

@@ -27,6 +27,7 @@
 #include "wphooks.h"
 #include "lang.h"
 #include "wp_pages.h"
+#include "resdirs.h"
 #include "../core/pages.h"
 #include "../core/hyph.h"
 #include "../core/docx.h"
@@ -733,7 +734,8 @@ static void linenum_done(void)
 static Object *hywin, *h_auto, *h_caps, *h_zone, *h_limit;
 static int hyph_patterns(void)
 {
-  if (!hyph_ready()) hyph_load("PROGDIR:Dict/hyph_en_GB.dic");
+  char path[64];
+  if (!hyph_ready()) hyph_load(res_file(path, sizeof path, dir_dict, "hyph_en_GB.dic"));
   return hyph_ready();
 }
 static void open_hyphopts(void)

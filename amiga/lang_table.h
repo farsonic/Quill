@@ -354,7 +354,7 @@
   { { "\033cThe spelling check is complete.", "\033cDie Rechtschreibpr\374fung ist abgeschlossen.", "\033cLa v\351rification orthographique est termin\351e.", "\033cLa revisi\363n ortogr\341fica ha terminado.", "\033cIl controllo ortografico \350 completato." } },
   { { "\033cNot in the dictionary: \033b%s", "\033cNicht im W\366rterbuch: \033b%s", "\033cAbsent du dictionnaire : \033b%s", "\033cNo est\341 en el diccionario: \033b%s", "\033cNon nel dizionario: \033b%s" } },
   { { "(no suggestions)", "(keine Vorschl\344ge)", "(aucune suggestion)", "(sin sugerencias)", "(nessun suggerimento)" } },
-  { { "Quill has no dictionary: it should be in\nthe Dict drawer next to Quill.", "Quill hat kein W\366rterbuch: Es geh\366rt in\ndie Schublade Dict neben Quill.", "Quill n'a pas de dictionnaire : il doit \352tre\ndans le tiroir Dict \340 c\364t\351 de Quill.", "Quill no tiene diccionario: debe estar en\nel caj\363n Dict junto a Quill.", "Quill non ha un dizionario: deve stare\nnel cassetto Dict accanto a Quill." } },
+  { { "Quill has no dictionary: it should be in\nthe Dict drawer next to Quill or in Bureau:.", "Quill hat kein W\366rterbuch: Es geh\366rt in\ndie Schublade Dict neben Quill oder in Bureau:.", "Quill n'a pas de dictionnaire : il doit \352tre\ndans le tiroir Dict \340 c\364t\351 de Quill ou dans Bureau:.", "Quill no tiene diccionario: debe estar en\nel caj\363n Dict junto a Quill o en Bureau:.", "Quill non ha un dizionario: deve stare\nnel cassetto Dict accanto a Quill o in Bureau:." } },
   { { "_Change", "\304_ndern", "_Modifier", "_Cambiar", "_Cambia" } },
   { { "Change A_ll", "_Alle \344ndern", "Tout m_odifier", "Cambiar _todas", "Cambia _tutte" } },
   { { "_Ignore", "_Ignorieren", "_Ignorer", "_Omitir", "_Ignora" } },

@@ -30,6 +30,7 @@
 #include "wphooks.h"
 #include "lang.h"
 #include "wp_proof.h"
+#include "resdirs.h"
 #include "../core/spell.h"
 #include "../core/proflang.h"
 #include "../core/thesaurus.h"
@@ -282,7 +283,7 @@ static void sg_find(int from_end)
 }
 void wp8_spelling(void)
 {
-  if (!wp_spell() && !plang_spell(plang_default)) { wp_ask("OK", "%s", "Quill has no dictionary: it should be in\nthe Dict drawer next to Quill."); return; }
+  if (!wp_spell() && !plang_spell(plang_default)) { wp_ask("OK", "%s", "Quill has no dictionary: it should be in\nthe Dict drawer next to Quill or in Bureau:."); return; }
   if (!sgwin) {
     Object *close, *c = VGroup, QDLG,
       Child, sg_what = TextObject, MUIA_Text_Contents, (ULONG)"", End,
@@ -365,20 +366,21 @@ static Thes *thes; static char thes_tag[16];
 static ThesResult thr;
 static Object *thwin, *th_word, *th_means, *th_syns, *th_head;
 static Pos th_a, th_b; static int th_fromdoc;
-/* the thesaurus for the caret's language: PROGDIR:Dict/th_xx_YY.dat, th_xx.dat, or the English one */
+/* the thesaurus for the caret's language: Dict/th_xx_YY.dat, th_xx.dat, or the English one (in the
+   Dict drawer, resdirs.h) */
 static Thes *thes_for(u16 lang)
 {
   const char *t = plang_tag(lang);
-  char path[64];
+  char path[64], name[24];
   if (thes && !strcmp(thes_tag, t)) return thes;
   thes_close(thes); thes = NULL;
   strncpy(thes_tag, t, sizeof thes_tag - 1); thes_tag[sizeof thes_tag - 1] = 0;
   if (strlen(t) == 5) {
-    sprintf(path, "PROGDIR:Dict/th_%c%c_%c%c.dat", t[0], t[1], t[3], t[4]);
-    if ((thes = thes_open(path))) return thes;
+    sprintf(name, "th_%c%c_%c%c.dat", t[0], t[1], t[3], t[4]);
+    if ((thes = thes_open(res_file(path, sizeof path, dir_dict, name)))) return thes;
   }
-  if (t[0] && t[1]) { sprintf(path, "PROGDIR:Dict/th_%c%c.dat", t[0], t[1]); if ((thes = thes_open(path))) return thes; }
-  return thes = thes_open("PROGDIR:Dict/th_en.dat");
+  if (t[0] && t[1]) { sprintf(name, "th_%c%c.dat", t[0], t[1]); if ((thes = thes_open(res_file(path, sizeof path, dir_dict, name)))) return thes; }
+  return thes = thes_open(res_file(path, sizeof path, dir_dict, "th_en.dat"));
 }
 static u16 caret_lang(void)
 {
