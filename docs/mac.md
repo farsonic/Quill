@@ -155,6 +155,73 @@ View › Ribbon and View › Ruler are checkmarked items (Guidelines p. 75), kep
 (type `pref`) in the Preferences folder. The pages' area, the scroll bars, updates and the caret all keep
 to what is left: the vertical scroll bar starts under the ruler.
 
+## Switchable strips: one per tab, and the commands behind them
+
+The user asked to change the strip for each kind of work, as the Amiga changes ribbon tabs. Agreed
+design: a pop-up at the left end of the strip chooses it (Home, Insert, Layout, References, Review),
+the same choices as View › Tool Strip (a submenu, the current one checked); View › Ribbon still shows
+and hides it; the choice is kept in Quill Preferences (`strip N`). Every item is a menu command first
+(Cornerstone chapter 3): the menus Insert, Layout, References and Review follow Format in the
+Amiga's tab order, with submenus for the long lists; each command's state (usable, on) is the one
+answer `qm_state()` gives menus and strips alike, and a command that can't be used here is dimmed,
+not hidden (a table command outside a table, Next Comment without comments).
+
+| Strip | Items (each a menu command) |
+|---|---|
+| Home | style, font and size pop-ups; Bold, Italic, Underline; four alignments; Bullets, Numbering; Decrease, Increase Indent; Font…, Find… |
+| Insert | Table…, Picture…; Page Break, Breaks ▾; Footnote…, Endnote…; Date, Page Number, Symbol ▾ |
+| Layout | Page Setup…, Portrait, Landscape; Columns ▾, Breaks ▾, Line Numbers ▾; Paragraph…, Single, 1.5 Lines, Double; Decrease, Increase Indent; Insert Rows Above, Below, Columns Left, Right, Delete Rows, Merge Cells, Split Cells |
+| References | Table of Contents; Footnote…, Endnote…, Next Footnote; Caption…, Bookmark…, Cross-reference… |
+| Review | Spelling…, Word Count; New Comment…, Previous, Next, Delete Comment; Track Changes, Previous, Next Change, Accept, Reject |
+
+A ▾ item opens its submenu as a pop-up menu. In a window narrower than a strip, whole groups drop from
+the right end (Layout's table tools first); the menus keep everything.
+
+**How it is built.** The document work is the core's, in `core/edcmd.c`: what the Amiga's page view
+does inline for each command (`amiga/view.c` CMD_TABLE, CMD_SECTBREAK, CMD_PICTURE, CMD_FINDX,
+CMD_RESOLVE, CMD_NEXTCOMMENT...), moved where the Mac calls it on its selection and the native tests
+check it (`tests/test_wpmac.c`, about 80 checks, each command's .docx round trip included). The Mac's
+side (`mac/qm_cmds.c`) has the menus' states, the commands and their dialogs. The dialogs
+(`mac/qm_dialog.c`) are the Dialog Manager's, built in memory as Riptide builds its alerts: no title
+bar, the prompt at the top, the action button at the bottom right with Cancel to its left, the default
+button ringed and answering Return and Enter, Cancel answering Escape and Command-period, check boxes
+and radio buttons, text fields with Tab between them, a third of the way down the screen.
+
+- **Insert:** Table… asks columns and rows; Picture… is Standard File, any file the core reads as PNG
+  or JPEG, narrowed to the column; the breaks; Footnote… and Endnote… ask the note's text (one
+  paragraph: the Mac does not edit notes in place as the Amiga does); Date and Page Number are fields;
+  Symbol puts in a character.
+- **Layout:** Page Setup… sets the whole document's paper (US Letter, A4, US Legal, A5), orientation
+  and margins in the ruler's unit; Columns and Line Numbers set sections as the Amiga's commands do;
+  Paragraph… sets indents, spacing before and after, and line spacing. Hyphenation is left out: the core
+  has it, but the Mac does not load its patterns yet.
+- **Find and Replace** (Edit): one modal dialog (Find, Replace with, Match case, Whole words only;
+  Replace All, Replace, Cancel, Find Next); Find Again repeats it. **Format › Font…**: the families,
+  the size, the six styles.
+- **References:** Table of Contents (inserts, or brings the one there up to date), Footnote, Endnote,
+  Next Footnote, Caption… (Figure, Table, Equation), Bookmark… (on the selection or the word at the
+  caret) and Cross-reference… (to a bookmark, as a REF field).
+- **Review:** Spelling… with Quill's British English word list (`dict/british-english`, in a folder
+  named dict beside Quill): each unknown word selected and asked about, up to five suggestions,
+  Change, Ignore All, Cancel. Word Count. Comments: New Comment… asks the text (author: the System's
+  owner name); Next and Previous select a comment's range and show its text in a note (the page view
+  does not draw comments' balloons). Track Changes: while it is on, typing, Delete, Cut, Clear and
+  pasted text are the author's tracked changes (insertions underlined, deletions struck through on the
+  page), and formatting changes are tracked too; Accept, Reject, and both for all changes.
+
+**Against the Amiga's ribbon.** Of the commands `docs/wordcraft-gap.md` marks done on the Amiga, the Mac
+has, through its menus and strips:
+
+| Amiga tab | Amiga ✅ | Mac | The Mac's |
+|---|---|---|---|
+| Home | 113 | 34 | Paste, Cut, Copy, Font, Font Size, Increase and Decrease Font Size, Bold, Italic, Underline, Strikethrough, Subscript, Superscript, Font Dialog, Bullets, Numbering, Decrease and Increase Indent, Align Left, Center, Align Right, Justify, Line Spacing, Paragraph Dialog, Tabs (the ruler), Normal, Heading 1-3, Find, Find Next, Replace, Replace All, Select All |
+| Insert | 47 | 9 | Page Break, Insert Table, Pictures, Bookmark, Cross-reference, Comment, Page Number, Date & Time, Symbol (section and column breaks are counted under Layout's Breaks) |
+| Layout | 23 | 9 | Margins, Orientation, Size, Columns, Breaks, Line Numbers, Page Setup Dialog, Indent, Spacing |
+| References | 24 | 7 | Table of Contents, Update Table, Insert Footnote, Insert Endnote, Next Footnote, Insert Caption, Cross-reference |
+| Review | 28 | 13 | Spelling (no grammar), Word Count, New Comment, Delete, Previous, Next, Track Changes, Accept, Reject, Accept All, Reject All, Previous Change, Next Change |
+| Table Layout | 33 | 9 | Insert Above, Below, Left, Right, Delete Rows, Columns, Table, Merge Cells, Split Cells |
+| **These six** | **268** | **81** | |
+
 ## Building
 
     make -f Makefile.mac                     build/mac/Quill.bin (MacBinary)
@@ -191,12 +258,16 @@ forward delete, Option with them a word; Return a new paragraph, Shift-Return a 
 |---|---|
 | Apple | About Quill… |
 | File | New ⌘N, Open… ⌘O, Close ⌘W, Save ⌘S, Save As…, Revert, Export PDF… ⌘D, Quit ⌘Q |
-| Edit | Undo ⌘Z, Cut ⌘X, Copy ⌘C, Paste ⌘V, Clear, Redo ⌘Y, Select All ⌘A |
+| Edit | Undo ⌘Z, Cut ⌘X, Copy ⌘C, Paste ⌘V, Clear, Redo ⌘Y, Select All ⌘A, Find… ⌘F, Find Again ⌘G, Replace… |
 | Font | Quill's families (Caladea, Carlito, Liberation Mono, Sans and Serif), the caret's checked |
 | Size | 9 10 12 14 18 24 36, Grow Font ⌘>, Shrink Font ⌘< |
 | Style | Plain Text ⌘T, Bold ⌘B, Italic ⌘I, Underline ⌘U, Strikethrough, Superscript ⌘+, Subscript ⌘- |
-| Format | Paragraph Style ▸ (Normal, Title, Subtitle, Heading 1-3, Quote, List Paragraph), Align Left ⌘[, Centre ⌘E, Align Right ⌘], Justify ⌘J, Bullets, Numbering, Decrease Indent ⌘K, Increase Indent ⌘M, Single ⌘1, 1.5 Lines ⌘5, Double ⌘2, Page Break |
-| View | Ribbon, Ruler, Fit Page Width ⌘0, 50%, 75%, 100%, 150%, 200% |
+| Format | Font…, Paragraph Style ▸ (Normal, Title, Subtitle, Heading 1-3, Quote, List Paragraph), Align Left ⌘[, Centre ⌘E, Align Right ⌘], Justify ⌘J, Bullets, Numbering, Decrease Indent ⌘K, Increase Indent ⌘M, Single ⌘1, 1.5 Lines ⌘5, Double ⌘2 |
+| Insert | Table…, Picture…, Breaks ▸ (Page Break, Column Break, Section Break (Next Page), Section Break (Continuous)), Date, Page Number, Symbol ▸ (22 characters Mac Roman has) |
+| Layout | Page Setup…, Portrait, Landscape, Columns ▸ (One, Two, Three), Line Numbers ▸ (None, Restart Each Page, Restart Each Section, Continuous), Paragraph…, Table ▸ (Insert Rows Above, Below, Columns to the Left, Right, Delete Rows, Columns, Table, Merge Cells, Split Cells) |
+| References | Table of Contents, Footnote…, Endnote…, Next Footnote, Caption…, Bookmark…, Cross-reference… |
+| Review | Spelling…, Word Count, New Comment…, Previous Comment, Next Comment, Delete Comment, Track Changes, Previous Change, Next Change, Accept Change, Reject Change, Accept All Changes, Reject All Changes |
+| View | Ribbon, Tool Strip ▸ (Home, Insert, Layout, References, Review), Ruler, Fit Page Width ⌘0, 50%, 75%, 100%, 150%, 200% |
 
 The keys are the Amiga's where the Mac does not reserve them (Guidelines p. 128). Changed: Save As has no
 key (the Amiga's Amiga-A is Select All on the Mac, whose Amiga-L is gone), Page Break has none (Amiga-P is
@@ -216,21 +287,21 @@ or **left** (and why).
 
 | Point | Quill on the Mac |
 |---|---|
-| Menus and their order (pp. 49-130) | **Conforms.** Apple, File, Edit, then Quill's Font, Size, Style, Format and View, then the system's Help and Application menus. Five menus of Quill's own, Cornerstone's limit for a small screen (p. 80). |
+| Menus and their order (pp. 49-130) | **Changed, and over Cornerstone's count.** Apple, File, Edit, then Quill's Font, Size, Style, Format, Insert, Layout, References, Review and View, then the system's Help and Application menus. Nine menus of Quill's own, where Cornerstone asks for four or five on a small screen (HIG p. 80): agreed with the user, to follow the Amiga's ribbon tabs (Insert, Layout, References and Review between Format and View). Whether every title fits a 640 by 480 screen is checked in the testbed below; a longer translation may not fit. |
 | Apple menu (p. 98) | **Conforms.** About Quill… first, a line, the desk accessories (Riptide's Mac MUI). |
 | File (pp. 99-109) | **Changed:** Revert added, dimmed until a document read from a file is changed; it asks first, Cancel the default (it loses changes). Page Setup and Print are left out rather than shown dimmed for ever, as Cornerstone asks: Quill does not print yet. Export PDF… sits after Save As. |
 | Edit (pp. 109-117) | **Conforms**, with one difference left: Undo, Cut, Copy, Paste, Clear, then Quill's Redo and Select All after a line, where Riptide's layer puts a program's own Edit items. Show Clipboard is not offered. |
 | Preferences | **Conforms by having none to set in a dialog:** the only settings (Ribbon, Ruler) are View's toggles, remembered between sessions (p. 37). A Preferences… item comes with a first dialog of settings. |
 | Item names (pp. 58, 67) | **Conforms.** Title case, "…" where a dialog follows (Riptide turns "..." into the ellipsis character). |
-| Hierarchical menus (p. 79) | **Changed:** Format › Paragraph Style is a submenu of the styles every Quill document has (Riptide's layer gained submenus for it). |
-| Command keys (p. 128) | **Conforms.** N O W S Q Z X C V A keep Apple's meaning; P and period are unused (no printing, no long operation to stop yet). T B I U are the Style menu's. The Amiga's other keys stay where the Mac leaves them free: D Export PDF, Y Redo, E [ ] J alignment, 1 5 2 spacing, < > font size, + - super- and subscript, 0 Fit Page Width, and now K and M for the indents. F and G are not used: there is no Find yet. |
+| Hierarchical menus (p. 79) | **Changed:** the attribute lists are submenus: Format › Paragraph Style, Insert › Breaks and Symbol, Layout › Columns, Line Numbers and Table, View › Tool Strip (Riptide's layer gained submenus for them). |
+| Command keys (p. 128) | **Conforms.** N O W S Q Z X C V A keep Apple's meaning; P and period are unused (no printing, no long operation to stop yet). T B I U are the Style menu's, F and G Find and Find Again as Apple suggests. The Amiga's other keys stay where the Mac leaves them free: D Export PDF, Y Redo, E [ ] J alignment, 1 5 2 spacing, < > font size, + - super- and subscript, 0 Fit Page Width, K and M the indents. The new menus' commands have no keys: equivalents only for the most used commands. |
 | Dimming (pp. 54, 60, 63) | **Conforms.** Undo, Cut, Copy, Clear and Paste follow what can be done (`mm_edit_state`); a paragraph style the document lacks is dimmed, not removed; Revert is dimmed until there is something to revert. Every item's dimming comes from `qm_state()`. |
 | Toggles (p. 75) | **Conforms.** Style, alignment, spacing, lists, zoom, Ribbon and Ruler show check marks, from the same answer as the strip's buttons. |
 | No ribbon; a tool strip; pop-up menus (pp. 82-91, 96-97) | **Changed:** the strip and rulers above. The strip is inside the document window under the title bar, nowhere near the scroll bars or the close box; its lists are pop-up menus with a shadowed box and a triangle; it invents no command. |
 | Windows (pp. 131-174) | **Conforms** for the window: title bar, close box, zoom box, size box, scroll bars inactive when the page fits, staggered placement (Riptide). **Left:** one window, one document (opening another asks to save the first). |
 | Status box (p. 161) | **Conforms.** "Page 1 of 2" at the left end of the horizontal scroll bar, as Word 5 had it, following the page at the top of the window. |
-| Dialogs and button order (pp. 185, 196, 204-206) | **Conforms** through Riptide's alerts: the action at the bottom right, Cancel to its left, the default ringed and answering Return and Enter, Cancel answering Esc and Command-period. Open, Save As and Export PDF are Standard File. Quill has no dialogs of its own yet (Find, Page Setup). |
-| Alerts (pp. 193-196) | **Partly left.** Riptide chooses the icon by the number of buttons: a note for one, a caution for more. So "couldn't be read" shows a note where a stop belongs. `MUI_RequestA` has no level to pass; giving Riptide's requester one is the fix. |
+| Dialogs and button order (pp. 185, 196, 204-206) | **Changed: Quill has dialogs now** (Insert Table, Page Setup, Paragraph, Font, Find and Replace, a note's or comment's text, Caption, Bookmark, Cross-reference, Spelling), built with the Dialog Manager (`mac/qm_dialog.c`): no title bar, the prompt at the top in the system font, the action at the bottom right with Cancel to its left, the default ringed and answering Return and Enter, Cancel answering Escape and Command-period, check boxes for on and off and radio buttons for two to five choices, Tab between fields. Open, Save As, Export PDF and Insert Picture are Standard File. **Left:** Find and Replace is modal (it closes to show what it found), not the modeless dialog Cornerstone and the Guidelines (p. 178) would have: Riptide's event loop does not pass events to modeless dialogs yet. |
+| Alerts (pp. 193-196) | **Changed:** Quill's alerts have their level now (Riptide's `mac_alert` with its icon): a stop for what can't be done (a file that can't be read or saved, a picture Quill can't read, numbers a dialog can't take), a note for information (nothing found, replacements made, the word count, a comment's text, the spelling check done), a caution before Revert. Save, Don't Save, Cancel still goes through MUI's requester (a caution). |
 | Progress (pp. 185, 206) | **Left.** Opening a long document shows the watch, not a movable modal dialog with a Stop button; nothing in Quill can be stopped part way yet. |
 | Fonts (pp. 23, 60, 207) | **Changed:** the strip and rulers use Geneva 9, as Cornerstone asks for palettes. Menus and alerts are the system font; the page box uses Riptide's Geneva 9 or 10 (10 on screens taller than 600 lines). **Left:** the Font menu does not show families in their own faces: they are Quill's TrueType fonts, which the Font Manager does not have. |
 | Colour and one bit (pp. 258, 263-264) | **Conforms.** Everything was laid out on one bit first: the strip is white with black frames and inverted "on" buttons, the ruler's margins a light pattern. Colour from four bits up is only the icons' accents and light greys; the selection takes the Color control panel's highlight colour. |

@@ -41,7 +41,28 @@ on the host. Open, in order:
 - Balloon Help (`hmnu` from the strings table), alert levels in Riptide's requester (a stop icon for "couldn't be
   read"), a unit preference, the Amiga's ruler switched to `core/ruler.c` (needs the vbcc build).
 
+**Switchable strips (19 November 2026, same branch).** One strip per Amiga tab the Mac has commands for
+(Home, Insert, Layout, References, Review), chosen by a pop-up at its left end or View › Tool Strip, kept in
+Quill Preferences; the menus Insert, Layout, References and Review hold every strip command first. The document
+work is `core/edcmd.c` (the Amiga view's command code moved to the core, tested in `tests/test_wpmac.c`), the
+Mac's commands and dialogs `mac/qm_cmds.c` and `mac/qm_dialog.c` (Dialog Manager item lists built in memory;
+Riptide's `mac_dialog_modal` gives them the alert's keys and default ring). docs/mac.md has what each strip holds,
+the count against the Amiga's ribbon (81 of 268 on six tabs) and the evaluation updated. Open:
+
+- The Mac drew an inserted PNG's room but not the picture (the first Insert run; the saved .docx has it and the
+  host draws it, with glibc or the Mac's libc, little- or big-endian). Check it in the testbed (see the run log).
+- Find and Replace is modal; Riptide's event loop would need IsDialogEvent/DialogSelect for a modeless one.
+- Notes are typed in a dialog, not edited in place; comments are shown in a note, not drawn as balloons.
+- Spelling: British English only, no grammar, Ignore All only for the session (no user dictionary saved).
+- Hyphenation: the core has it, the Mac doesn't load patterns (dict/hyph_*), so it is not offered.
+- The Amiga's view still does its own copy of the commands now in core/edcmd.c; switching it over needs the
+  vbcc build. The commands Quill inserts (tables, fields...) are not tracked as changes while tracking.
+
 Pitfalls found:
+- A dialog or alert leaves an update pending for what it covered. If the command it asked for scrolls first,
+  ScrollRect moves the not yet drawn pixels and the update draws the old place: qdlg_settle handles the pending
+  updates as the dialog closes.
+- Another session may hold the testbed's QEMU: never stop QEMUs by name; stop yours by its disk image path.
 - Riptide's update handler ValidRects the whole window after MUIM_Draw: an InvalRect made while drawing an
   update is lost. The view sets `d->due` and its timer draws the rulers and page box afterwards.
 - Only the rows of a page whose pixels change are copied after an edit: a selection or caret drawn over rows that
