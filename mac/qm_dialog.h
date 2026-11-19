@@ -20,6 +20,7 @@ typedef struct {
 	int cap;                    /*   and the room there is for it */
 	int *value;                 /* DI_CHECK: 0 or 1; DI_RADIO: the group's choice, shared by its buttons */
 	int ord;                    /* DI_RADIO: the value this button stands for */
+	unsigned char raw;          /* the label is data (a name, a word: Mac Roman), shown as it is */
 } DItem;
 
 /* A modal dialog box w x h of n items run until a button is clicked (or Return, Enter, Escape or

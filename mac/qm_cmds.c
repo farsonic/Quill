@@ -371,7 +371,7 @@ static void xref(void)
 	it[n].kind = DI_TEXT; it[n].x = 13; it[n].y = 41; it[n].w = 90; it[n++].label = "Bookmarks:";
 	for (k = 0; k < nb; k++) {
 		it[n].kind = DI_RADIO; it[n].x = 110; it[n].y = 41 + 18 * k; it[n].w = 177;
-		it[n].label = names[k]; it[n].value = &pick; it[n++].ord = k;
+		it[n].label = names[k]; it[n].raw = 1; it[n].value = &pick; it[n++].ord = k;
 	}
 	k = 41 + 18 * nb + 14;
 	it[n].kind = DI_BUTTON; it[n].x = 217; it[n].y = k; it[n].w = 70; it[n++].label = "Insert";
@@ -439,12 +439,12 @@ static void spelling(void)
 		n = spell_suggest(&speller, qd.doc->p[a.para]->t + a.off, b.off - a.off, sug, NSUG);
 		memset(it, 0, sizeof it);
 		it[m].kind = DI_TEXT; it[m].x = 13; it[m].y = 13; it[m].w = 314; it[m++].label = "Spelling";
-		it[m].kind = DI_TEXT; it[m].x = 13; it[m].y = 41; it[m].w = 314; it[m++].label = line;
+		it[m].kind = DI_TEXT; it[m].x = 13; it[m].y = 41; it[m].w = 314; it[m].raw = 1; it[m++].label = line;
 		it[m].kind = DI_TEXT; it[m].x = 13; it[m].y = 69; it[m].w = 90; it[m++].label = n ? "Suggestions:" : "No suggestions.";
 		for (k = 0; k < n; k++) {
 			utf8_to_macroman(sug[k], labels[k], 64);
 			it[m].kind = DI_RADIO; it[m].x = 110; it[m].y = 69 + 18 * k; it[m].w = 217;
-			it[m].label = labels[k]; it[m].value = &pick; it[m++].ord = k;
+			it[m].label = labels[k]; it[m].raw = 1; it[m].value = &pick; it[m++].ord = k;
 		}
 		b0 = 69 + 18 * (n ? n : 1) + 14;
 		it[m].kind = DI_BUTTON; it[m].x = 13; it[m].y = b0; it[m].w = 90; it[m++].label = "Ignore All";

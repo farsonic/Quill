@@ -121,9 +121,9 @@ int qdlg_run(int w, int h, DItem *it, int n, int def, int cancel)
 			if (!first_edit)
 				first_edit = k + 1;
 		} else
-			strncpy(t, it[k].label ? tr(it[k].label) : "", 255);
+			strncpy(t, !it[k].label ? "" : it[k].raw ? it[k].label : tr(it[k].label), 255);
 		t[255] = 0;
-		if (it[k].kind != DI_EDIT) {
+		if (it[k].kind != DI_EDIT && !it[k].raw) {
 			char *u;
 			/* the Amiga's keyboard markers go; "..." becomes the ellipsis (Riptide's rules for labels) */
 			mm_hig_label(t, sizeof t);

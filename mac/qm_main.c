@@ -847,6 +847,7 @@ static void font_dialog(void)
 	ADD(DI_TEXT, 13, 41, 60, "Font:");
 	for (k = 0; k < shown; k++) {
 		DItem *r = ADD(DI_RADIO, 80, 41 + 18 * k, 230, fam[k]);
+		r->raw = 1;
 		r->value = &font;
 		r->ord = k;
 	}
