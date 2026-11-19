@@ -102,6 +102,7 @@ struct qv_data {
 	int hl_on;                  /* the selection as last drawn: from page hl_pa's row hl_y0 to page */
 	u32 hl_pa, hl_pb;           /* hl_pb's row hl_y1, so that after a relayout its old rows are drawn */
 	long hl_y0, hl_y1;          /* again even where the page's pixels did not change */
+	int due_all;                /* the whole pages' area to be copied again from the pictures (the timer) */
 	int due;                    /* the rulers or the page box changed outside an update's area: the
 	                               timer draws them (Riptide validates the whole window after an
 	                               update, so an InvalRect made while drawing one is lost) */
@@ -1328,6 +1329,16 @@ static void drag(struct qv_data *d, Object *obj, int mx, int my)
 
 /* ---- the class ---- */
 
+/* the pages' area r drawn from the pictures kept (drawing any that are old), clipped to it */
+static void save_clip_and_draw(struct qv_data *d, Object *obj, const Rect *r)
+{
+	void *save = clip_pages(obj);
+	caret_erase(d, obj);
+	draw_area(d, obj, r);
+	clip_end(save);
+	hl_note(d);
+}
+
 /* the timer, ten times a second: draws what typing changed once the keys pause, blinks the caret */
 static void tick(struct qv_data *d, Object *obj)
 {
@@ -1344,6 +1355,12 @@ static void tick(struct qv_data *d, Object *obj)
 			GetMouse(&m);
 			drag(d, obj, m.h, m.v);
 		}
+	}
+	if (d->due_all && !d->stale) {
+		Rect pr;
+		d->due_all = 0;
+		parts(obj, &pr, NULL, NULL, NULL);
+		save_clip_and_draw(d, obj, &pr);
 	}
 	if (d->due && !d->stale) {
 		d->due = 0;
@@ -1478,6 +1495,11 @@ DISPATCHER(qv_dispatch)
 		parts(obj, &pr, NULL, NULL, NULL);
 		area = *RGN_BBOX(*(void ***)((char *)port + 24));      /* a GrafPort's visRgn is at 24 */
 		save = clip_pages(obj);
+		/* An update while an edit waited to be drawn (an alert over the window right after a command):
+		   the page is drawn again into its picture here but copied only where the update is, so the
+		   rest of the window is drawn from the new picture by the timer (due_all) */
+		if (d->stale)
+			d->due_all = 1;
 		d->stale = 0;
 		draw_area(d, obj, &area);
 		clip_end(save);

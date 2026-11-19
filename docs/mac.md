@@ -367,10 +367,23 @@ warnings, and `tools/langcheck.py` finds nothing missing for `amiga/` or `mac/`.
   path), not hard, not done.
 - **One window, one document.** The Amiga has several windows; the Mac version opens one document at a
   time (opening another asks to save the first).
-- **Only the commands in the menus above** (and the strip's, which are the same). No panes or dialogs:
-  no Find and Replace, styles gallery, tables to insert, pictures, comments, track changes, spelling, page
-  setup or headers and footers to edit, though the core keeps all of them in a document it reads and
-  writes them out again.
+- **About a third of the Amiga's ribbon** on the five strips' tabs (81 of 268; the table under "Switchable
+  strips"). Not on the Mac yet: the styles gallery and the style dialogs (Create, Modify, Manage), headers
+  and footers to edit, text boxes, shapes, charts, SmartArt and equations to insert or edit (the core
+  keeps and draws them), citations, the index and tables of figures and authorities, mail merge, the
+  thesaurus, grammar, compare and combine, restricting editing, the Design and View tabs beyond zoom, and
+  the table tools past rows, columns, merge and split (properties, borders, shading, sort, formulas).
+  The core reads and writes all of them, so a document keeps them.
+- **Dialogs are modal.** Find and Replace closes to show what it found (Find Again repeats it); a
+  modeless one needs Riptide's event loop to pass events to dialogs. Notes and comments are typed in a
+  dialog (one paragraph), not edited in place as on the Amiga; comments are shown one at a time in a note,
+  not drawn as balloons in the margin.
+- **Spelling** checks British English only (the word list from a dict folder beside Quill), without
+  grammar; Ignore All lasts for the session (no user dictionary is saved). **Hyphenation** is not offered:
+  the core has it, but the Mac does not load its patterns.
+- **Tracked changes** cover typing, Delete, Cut, Clear and pasted text, and formatting; what Quill's own
+  commands put in (a table, a field, a picture) is not marked as a tracked insertion.
+- **Page Setup** sets the whole document's page; sections with their own page setup keep theirs.
 - **The strip and rulers**: no Balloon Help for them; the vertical ruler does not drag the margins (nor
   does the Amiga's); no Show ¶ (the page view has no marks to show); the units follow the page size, as
   there is no unit preference yet. The Amiga's ruler (amiga/ruler.c) still does its own sums: switching it

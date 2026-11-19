@@ -49,8 +49,6 @@ Mac's commands and dialogs `mac/qm_cmds.c` and `mac/qm_dialog.c` (Dialog Manager
 Riptide's `mac_dialog_modal` gives them the alert's keys and default ring). docs/mac.md has what each strip holds,
 the count against the Amiga's ribbon (81 of 268 on six tabs) and the evaluation updated. Open:
 
-- The Mac drew an inserted PNG's room but not the picture (the first Insert run; the saved .docx has it and the
-  host draws it, with glibc or the Mac's libc, little- or big-endian). Check it in the testbed (see the run log).
 - Find and Replace is modal; Riptide's event loop would need IsDialogEvent/DialogSelect for a modeless one.
 - Notes are typed in a dialog, not edited in place; comments are shown in a note, not drawn as balloons.
 - Spelling: British English only, no grammar, Ignore All only for the session (no user dictionary saved).
