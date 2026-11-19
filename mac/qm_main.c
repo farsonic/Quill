@@ -49,7 +49,7 @@ static int typing_set;
 static int tracking, track_rid = -1;
 static Doc *track_doc;
 
-/* the System's owner name (Sharing Setup: 'STR ' -16096), UTF-8, else "Quill": changes' and
+/* the System's owner name (Sharing Setup: 'STR ' -16096), UTF-8, else "Octavo": changes' and
    comments' author */
 const char *qm_author(void)
 {
@@ -57,7 +57,7 @@ const char *qm_author(void)
 	unsigned char **h;
 	if (name[0])
 		return name;
-	strcpy(name, "Quill");
+	strcpy(name, "Octavo");
 	h = (unsigned char **)GetResource(MAC_TYPE('S', 'T', 'R', ' '), -16096);
 	if (h && *h && (*h)[0]) {
 		int i, n = 0;
@@ -268,9 +268,12 @@ const char *qm_label(unsigned long id)
 	}
 }
 
-/* ---- the preferences file: "Quill Preferences" in the System Folder's Preferences folder, a line
-   per setting ("ribbon 1"), read at the start and written when a setting changes ---- */
+/* ---- the preferences file: "Octavo Preferences" in the System Folder's Preferences folder, a line
+   per setting ("ribbon 1"), read at the start and written when a setting changes. Octavo was called
+   Quill on the Mac at first: a "Quill Preferences" found there is read once, written again under the
+   new name and deleted ---- */
 static char prefs_path[300];
+static void prefs_save(void);
 
 static void prefs_load(void)
 {
@@ -286,9 +289,25 @@ static void prefs_load(void)
 	}
 	if (prefs_path[0] && prefs_path[strlen(prefs_path) - 1] != ':')
 		strcat(prefs_path, ":");
-	strcat(prefs_path, "Quill Preferences");
-	if (!(f = fopen(prefs_path, "r")))
+	strcat(prefs_path, "Octavo Preferences");
+	if (!(f = fopen(prefs_path, "r"))) {
+		char old[300];
+		strcpy(old, prefs_path);
+		strcpy(strrchr(old, ':') + 1, "Quill Preferences");
+		if (!(f = fopen(old, "r")))
+			return;
+		while (fgets(line, sizeof line, f)) {
+			if (sscanf(line, "ribbon %d", &v) == 1)
+				prefs.ribbon = v != 0;
+			else if (sscanf(line, "ruler %d", &v) == 1)
+				prefs.ruler = v != 0;
+		}
+		fclose(f);
+		prefs_save();
+		qm_fdelete(old);
+		mm_log("Octavo: Quill Preferences moved to Octavo Preferences");
 		return;
+	}
 	while (fgets(line, sizeof line, f)) {
 		if (sscanf(line, "ribbon %d", &v) == 1)
 			prefs.ribbon = v != 0;
@@ -547,7 +566,7 @@ static int ask(const char *gadgets, const char *fmt, const char *arg)
 {
 	ULONG args[1];
 	args[0] = (ULONG)arg;
-	int r = (int)MUI_RequestA(app, win, 0, (CONST_STRPTR)"Quill", (CONST_STRPTR)tr(gadgets), (CONST_STRPTR)tr(fmt), args);
+	int r = (int)MUI_RequestA(app, win, 0, (CONST_STRPTR)"Octavo", (CONST_STRPTR)tr(gadgets), (CONST_STRPTR)tr(fmt), args);
 	qdlg_settle();
 	return r;
 }
@@ -1093,7 +1112,7 @@ static void command(ULONG id)
 	case ID_SAVEAS: save_as(); break;
 	case ID_PDF: cmd_pdf(); break;
 	case ID_ABOUT:
-		qm_alert(QA_STOP, "Quill 0.15 for the Mac\n\n%s", tr("A word processor for the classic Mac OS.\nReads and writes Word documents (.docx).\n\n"
+		qm_alert(QA_NOTE, "Octavo 0.15\n\n%s", tr("Octavo is Quill for the classic Mac OS: a word processor that reads and writes Word documents (.docx).\n\n"
 		                               "Text is measured with the Liberation and Carlito/Caladea fonts\n(SIL Open Font License), so documents break\n"
 		                               "their lines as they do in Word."));
 		break;
@@ -1210,7 +1229,7 @@ static void finder_files(void)
 		return;
 	memcpy(path + len, p + 13, p[12]);
 	path[len + p[12]] = 0;
-	mm_log("Quill: the Finder opens %s", path);
+	mm_log("Octavo: the Finder opens %s", path);
 	open_file(path);
 }
 
@@ -1233,21 +1252,22 @@ int main(void)
 	mm_screen_init(*(void **)a5);
 	mm_paths_init();
 	lang_set(lang_mac_system());
-	mm_log("Quill for the Mac starts");
+	mm_log("Octavo starts");
 
 	/* the fonts: the Fonts folder beside Quill (the default folder at launch is Quill's own) */
 	if (!(qd.fonts = calloc(1, sizeof *qd.fonts)))
 		return 20;
 	if (!fonts_init(qd.fonts, ":Fonts:"))
-		mm_log("Quill: no fonts in :Fonts: (fonts.list)");
+		mm_log("Octavo: no fonts in :Fonts: (fonts.list)");
 	families();
 	prefs_load();
 	menus_build();
 	mm_edit_action = edit_action;
 	mm_edit_state = edit_state;
 
-	app = mui_new(MUIC_Application, MUIA_Application_Title, (ULONG)"Quill", MUIA_Application_Base, (ULONG)"QUILL",
-	              MUIA_Application_Version, (ULONG)"$VER: Quill 0.15 (18.11.2026)", TAG_DONE);
+	/* Octavo: the Mac's name for Quill (a classic Mac program called Quill exists already) */
+	app = mui_new(MUIC_Application, MUIA_Application_Title, (ULONG)"Octavo", MUIA_Application_Base, (ULONG)"OCTAVO",
+	              MUIA_Application_Version, (ULONG)"$VER: Octavo 0.15 (19.11.2026)", TAG_DONE);
 	if (!app || !qv_class())
 		return 20;
 	doc_take(doc_new(), NULL);
@@ -1280,6 +1300,6 @@ int main(void)
 	}
 	mui_set(win, MUIA_Window_Open, FALSE);
 	MUI_DisposeObject(app);
-	mm_log("Quill ends");
+	mm_log("Octavo ends");
 	return 0;
 }

@@ -65,7 +65,7 @@ void qm_type_for(const char *path, unsigned long *type, unsigned long *creator)
 	*type = 0x54455854UL;                   /* 'TEXT': .txt .md .html .rtf .xml */
 	if (!dot) {
 		size_t n = strlen(path);
-		if (n >= 17 && !strcmp(path + n - 17, "Quill Preferences"))
+		if (n >= 12 && !strcmp(path + n - 12, " Preferences"))
 			*type = 0x70726566UL;   /* 'pref': the Finder shows it as a preferences file */
 		return;
 	}

@@ -388,7 +388,7 @@ static void xref(void)
 /* ---- Review ---- */
 
 /* the word list: Quill's British English one (dict/british-english), in a folder named dict beside
-   Quill as the Amiga keeps it; read when the spelling is first checked */
+   Octavo as the Amiga's Quill keeps it; read when the spelling is first checked */
 static Spell speller;
 static int speller_state;                   /* 0 not read yet, 1 read, -1 couldn't be */
 
@@ -417,7 +417,7 @@ static void spelling(void)
 		set_watch_cursor(0);
 	}
 	if (speller_state < 0) {
-		qm_alert(QA_STOP, "Quill's word list (british-english, in a folder named dict beside Quill) couldn't be read.", NULL);
+		qm_alert(QA_STOP, "Octavo's word list (british-english, in a folder named dict beside Octavo) couldn't be read.", NULL);
 		return;
 	}
 	for (;;) {
@@ -534,7 +534,7 @@ static void insert_picture(void)
 	set_watch_cursor(0);
 	if (!data || ec_picture(qd.doc, &s, data, (u32)n) < 0) {
 		/* (ec_picture frees what it can't use) */
-		qm_alert(QA_STOP, "%s\nis not a PNG or JPEG picture Quill can read.", path);
+		qm_alert(QA_STOP, "%s\nis not a PNG or JPEG picture Octavo can read.", path);
 		return;
 	}
 	done(&s, 1);

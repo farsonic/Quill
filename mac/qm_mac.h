@@ -24,7 +24,7 @@ void  qm_log_bytes(const void *p, long n);  /* stdout and stderr: Riptide's log 
 void  qm_exit(void);                        /* ExitToShell */
 /* file type and creator for a name: 'TEXT' for text formats, 'DOCX' for Word documents... */
 void  qm_type_for(const char *path, unsigned long *type, unsigned long *creator);
-#define QM_CREATOR 0x5155494CUL            /* 'QUIL' */
+#define QM_CREATOR 0x4F435456UL            /* 'OCTV': Octavo's (the Amiga's Quill is not on the Mac) */
 short qm_system_region(void);               /* the System's region code ('vers' 1), -1 if unknown */
 
 /* 32-bit QuickDraw's offscreen worlds (mac/qm_thunks.S): NewGWorld (0 or a QDErr), its pixel map

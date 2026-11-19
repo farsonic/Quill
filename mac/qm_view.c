@@ -874,7 +874,7 @@ static void ruler_press(struct qv_data *d, Object *obj, int x, int y)
 	part = qr_track_h(port, &h, &pr, &g, win_x(d, obj, px0), d->dpi, x, y);
 	if (part && ruler_apply(qd.doc, qd.anchor.para, qd.caret.para, &qd.caret, &g, part)) {
 		qd.anchor = pos_clamp(qd.doc, qd.anchor);
-		mm_log("Quill: the ruler changed the paragraph (part %d)", part);
+		mm_log("Octavo: the ruler changed the paragraph (part %d)", part);
 		qv_changed(obj, 0);
 	} else
 		rulers_sync(d, obj, 1, NULL);       /* back to what the paragraph has */

@@ -1,10 +1,11 @@
-# Quill for the classic Mac OS (System 7, 68020 and later; written for the 68030 and 68040):
+# Octavo, Quill for the classic Mac OS (System 7, 68020 and later; written for the 68030 and 68040; the
+# Mac's name differs because a classic Mac program called Quill exists already):
 # Quill's core (core/, unchanged), a front end of its own in MUI (mac/) and Riptide's MUI for the
 # Mac, which the Riptide tree provides without copies (RIPTIDE, default ../riptide): its app kit
 # (src/mac/app), the MUI for the Mac (src/mac/mui) and the tools that make the Toolbox glue and
 # the application (mac_traps.py, gen_lvos.py, elf2app.py). docs/mac.md tells the story.
 #
-#   make -f Makefile.mac               build/mac/Quill.bin (MacBinary: copy it with `hcopy -m`)
+#   make -f Makefile.mac               build/mac/Octavo.bin (MacBinary: copy it with `hcopy -m`)
 #   make -f Makefile.mac AURORA68=1    the log also goes to the Pi kernel's log (Aurora68)
 #
 # Needs the m68k ELF toolchain (Debian/Ubuntu: gcc-m68k-linux-gnu, binutils-m68k-linux-gnu) and
@@ -37,7 +38,7 @@ endif
 RT_INC  := -I$(B) -I$(R)/src/mac/app -I$(R)/src/mac -I$(R)/src/mac/prefs -I$(R)/src/amiga/include -I$(R)/src/amiga \
            -I$(R)/src/amiga/os -I$(R)/include -I$(R)/include/rt
 # Riptide's own files, as Riptide builds them
-RT_CFLAGS := $(BASE) -std=gnu99 $(RT_INC) -DMM_LOG_NAME='"Quill"'
+RT_CFLAGS := $(BASE) -std=gnu99 $(RT_INC) -DMM_LOG_NAME='"Octavo"'
 # Quill's core: C99 with Quill's small C library (mac/include) in place of the system's
 CORE_CFLAGS := $(BASE) -std=gnu99 -Imac/include -Wno-sign-compare -Wno-unused-function
 # Quill's Mac front end: both, Quill's libc headers first (gnu11: core/util.h and Riptide's
@@ -58,7 +59,7 @@ GEN_H    := $(patsubst %,$(GEN)/%_calls.h,exec dos timer locale battclock intuit
 TRAPS    := $(B)/traps.txt
 HDRS     := $(wildcard core/*.h mac/*.h mac/include/*.h) amiga/lang_table.h amiga/lang.h
 
-all: $(B)/Quill.bin
+all: $(B)/Octavo.bin
 
 # Riptide's Toolbox calls and Quill's few more, one list
 $(TRAPS): $(R)/src/mac/app/traps.txt mac/traps.txt
@@ -104,17 +105,17 @@ $(B)/rt/gen/toolbox_glue.o: $(GEN)/toolbox_glue.S
 
 # --size: the partition in KB. A US Letter page drawn at 100% is 1.4 MB of RGB and three are kept,
 # a .docx is unzipped in memory, and the fonts in use are loaded whole (one is 0.3-0.8 MB)
-$(B)/Quill.elf: $(RT_OBJ) $(MAC_OBJ) $(CORE_OBJ) $(R)/src/mac/app/app.ld
+$(B)/Octavo.elf: $(RT_OBJ) $(MAC_OBJ) $(CORE_OBJ) $(R)/src/mac/app/app.ld
 	$(LD) -T $(R)/src/mac/app/app.ld --emit-relocs --gc-sections --no-warn-rwx-segments -z noexecstack -o $@ \
-	      $(RT_OBJ) $(MAC_OBJ) $(CORE_OBJ) $(LIBGCC) -Map $(B)/Quill.map
+	      $(RT_OBJ) $(MAC_OBJ) $(CORE_OBJ) $(LIBGCC) -Map $(B)/Octavo.map
 	@# libgcc's fpgnulib.o is 68881 code returning in FP0; mac/softfp.c replaces it (see there)
-	@if grep -q 'fpgnulib\.o' $(B)/Quill.map; then \
-	   echo "Quill.elf links libgcc's fpgnulib.o (FPU code): add the missing function to mac/softfp.c"; \
+	@if grep -q 'fpgnulib\.o' $(B)/Octavo.map; then \
+	   echo "Octavo.elf links libgcc's fpgnulib.o (FPU code): add the missing function to mac/softfp.c"; \
 	   mv $@ $@.bad; exit 1; fi
 # the Finder's resources (icons, the bundle, the files Quill opens: mac/mkfinder.py made them)
 FINDER  := $(shell sed 's|\([^:]*:[^:]*:\)|--rsrc \1mac/rsrc/|' mac/rsrc/list.txt)
-$(B)/Quill.bin: $(B)/Quill.elf $(R)/tools/elf2app.py $(wildcard mac/rsrc/*)
-	$(PYTHON) $(R)/tools/elf2app.py $< --name Quill --creator QUIL --size 12288 --bundle $(FINDER) -o $@
+$(B)/Octavo.bin: $(B)/Octavo.elf $(R)/tools/elf2app.py $(wildcard mac/rsrc/*)
+	$(PYTHON) $(R)/tools/elf2app.py $< --name Octavo --creator OCTV --size 12288 --bundle $(FINDER) -o $@
 
 clean-mac:
 	@mkdir -p build/old && mv $(B) build/old/mac-$$$$ 2>/dev/null || true

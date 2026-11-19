@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-# mac/mkfinder.py - the resources that introduce Quill to the Finder, written into mac/rsrc/.
+# mac/mkfinder.py - the resources that introduce Octavo (Quill for the classic Mac OS) to the Finder,
+# written into mac/rsrc/.
 #
 #   python3 mac/mkfinder.py          (needs PIL; run again only when the pictures change)
 #
 # The Finder learns from an application's bundle (Inside Macintosh: Macintosh Toolbox Essentials,
 # "Finder Interface") which files it opens and which icons they get: the signature resource
-# ('QUIL' 0, Quill's creator), BNDL 128 tying local icon and file-reference numbers to resources,
+# ('OCTV' 0, Octavo's creator), BNDL 128 tying local icon and file-reference numbers to resources,
 # FREF 128-130 (the application itself, Word documents 'DOCX', text 'TEXT') and their icons in
 # every size and depth the System 7 Finder draws: ICN# (32x32, 1 bit, with its mask), icl8
 # (32x32, the System's 256 colours), icl4 (16 colours), ics# / ics8 / ics4 (16x16). The pictures
@@ -20,7 +21,7 @@ from PIL import Image
 
 OUT = os.path.join(HERE, 'rsrc')
 VERSION = (0x00, 0x15, 0x80, 0)          # 0.1.5 final (BCD major, minor.bug, stage final, release)
-SHORT, LONG = '0.15', '0.15, Quill for the Mac'
+SHORT, LONG = '0.15', '0.15, Octavo (Quill for the classic Mac OS)'
 
 def mac8_palette():
     """the System's 8-bit colour table ('clut' 8): a 6x6x6 cube from white (0) down (215 is black,
@@ -103,11 +104,11 @@ def main():
     for rid, ftype, local in ((128, b'APPL', 0), (129, b'DOCX', 1), (130, b'TEXT', 2)):
         files[('FREF', rid)] = ftype + struct.pack('>H', local) + b'\0'
     # BNDL: signature, its resource id, then two types (ICN#, FREF) each mapping local ids 0-2
-    bndl = b'QUIL' + struct.pack('>HH', 0, 1)
+    bndl = b'OCTV' + struct.pack('>HH', 0, 1)
     for t in (b'ICN#', b'FREF'):
         bndl += t + struct.pack('>H', 2) + b''.join(struct.pack('>HH', i, 128 + i) for i in range(3))
     files[('BNDL', 128)] = bndl
-    files[('QUIL', 0)] = pstr('Quill ' + SHORT)
+    files[('OCTV', 0)] = pstr('Octavo ' + SHORT)
     # vers 1: version, region 0 (US), the short and long version strings
     files[('vers', 1)] = bytes(VERSION) + struct.pack('>H', 0) + pstr(SHORT) + pstr(LONG)
     with open(os.path.join(OUT, 'list.txt'), 'w') as f:

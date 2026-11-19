@@ -8,9 +8,14 @@ The full gap list, with every WordCraft command marked ✅/🟨/⬜/➖ and evid
 How work packages plug in (id blocks, wp_*.c files, hooks, lang rows, tests, file formats) is at the top
 of `amiga/wphooks.h` and in "WP0 conventions" at the end of the gap document.
 
-## Quill for the classic Mac OS (branch `mac-port`, 2026-11-18)
+## Octavo: Quill for the classic Mac OS (branch `mac-port`, 2026-11-18)
 
-A Mac build: `make -f Makefile.mac` → `build/mac/Quill.bin`, with Riptide's tree beside Quill's (`../riptide`,
+**Octavo** is the Mac edition's name (19 November 2026): a classic Mac program called Quill exists already, so the
+Mac port is called Octavo (creator `OCTV`, "Octavo Preferences", which takes over an old "Quill Preferences" once);
+the Amiga version, the core, the repository and the branch stay Quill. docs/mac.md explains it once. The build is
+`build/mac/Octavo.bin` (was Quill.bin); the Fonts folder must still sit beside the application.
+
+A Mac build: `make -f Makefile.mac` → `build/mac/Octavo.bin`, with Riptide's tree beside Quill's (`../riptide`,
 its `mac-port` branch: the MUI for the Mac). The core is unchanged; `mac/` is a small MUI front end of its own
 (window, page view drawn with `pdf_page_rgb` and CopyBits at 1 to 32 bits, HIG menus, Standard File, Mac types
 and creator `QUIL`, Finder icons) and a C library over the Toolbox. `docs/mac.md` tells the story, lists the
@@ -31,7 +36,7 @@ classic-Mac chapter point by point, and the new parts: the tool strip (View › 
 and size pop-ups, B I U, alignment, lists, indents; every item a menu command, one state answer `qm_state()` for
 menus and strip), the rulers (View › Ruler, `mac/qm_ruler.c`, sums in `core/ruler.c`, tests in `tests/test_wpmac.c`),
 Format › Paragraph Style (a submenu: Riptide's mac-port gained `NM_SUB`), Bullets, Numbering, the indents (⌘K, ⌘M),
-File › Revert, "Quill Preferences". Proved in the testbed at 1/4/8/32 bits and 640×480, the saved .docx read back
+File › Revert, "Quill Preferences" (now "Octavo Preferences"). Proved in the testbed at 1/4/8/32 bits and 640×480, the saved .docx read back
 on the host. Open, in order:
 
 - The Mac's page kept drawing a bold heading word in the sans face after Liberation Serif was chosen for it (the
@@ -43,7 +48,7 @@ on the host. Open, in order:
 
 **Switchable strips (19 November 2026, same branch).** One strip per Amiga tab the Mac has commands for
 (Home, Insert, Layout, References, Review), chosen by a pop-up at its left end or View › Tool Strip, kept in
-Quill Preferences; the menus Insert, Layout, References and Review hold every strip command first. The document
+Octavo Preferences; the menus Insert, Layout, References and Review hold every strip command first. The document
 work is `core/edcmd.c` (the Amiga view's command code moved to the core, tested in `tests/test_wpmac.c`), the
 Mac's commands and dialogs `mac/qm_cmds.c` and `mac/qm_dialog.c` (Dialog Manager item lists built in memory;
 Riptide's `mac_dialog_modal` gives them the alert's keys and default ring). docs/mac.md has what each strip holds,

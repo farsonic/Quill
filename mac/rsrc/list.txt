@@ -5,7 +5,7 @@ FREF:130:FREF-130.bin
 ICN#:128:ICN_-128.bin
 ICN#:129:ICN_-129.bin
 ICN#:130:ICN_-130.bin
-QUIL:0:QUIL-0.bin
+OCTV:0:OCTV-0.bin
 icl4:128:icl4-128.bin
 icl4:129:icl4-129.bin
 icl4:130:icl4-130.bin

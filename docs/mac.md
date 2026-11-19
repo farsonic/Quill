@@ -1,11 +1,18 @@
-# Quill for the classic Mac OS
+# Octavo: Quill for the classic Mac OS
 
-Quill runs on a Macintosh with a 68030 or 68040 and System 7: it opens a Word document, shows its pages
-as Quill draws them for PDF, lets you type and format, and saves .docx again. This is the story of the
+**Octavo** is the classic Mac OS edition of Quill, the Amiga word processor this repository is
+about. It has its own name because a classic Mac program called Quill exists already; the Amiga
+version stays Quill, and the core, repository and branch keep that name. (A modern macOS app called
+Octavo, a PDF booklet-imposition tool on the Mac App Store, is a different program of another era; no
+classic Mac OS program of that name turned up in the archives searched.) Below, Octavo means the Mac
+program and Quill the Amiga one or the shared core. Its creator code is `OCTV`.
+
+Octavo runs on a Macintosh with a 68030 or 68040 and System 7: it opens a Word document, shows its pages
+as Quill's core draws them for PDF, lets you type and format, and saves .docx again. This is the story of the
 port, how to build and install it, what it does and what it does not do yet. Started 18 November 2026 on
 branch `mac-port`.
 
-![Quill on a 1-bit screen, the Style menu down](mac-1bit.png)
+![Octavo on a 1-bit screen, the Style menu down](mac-1bit.png)
 
 ## How it is made
 
@@ -30,7 +37,7 @@ ask. The same Riptide tree builds RiptidePrefs and Lagoon for the Mac.
 | `mac/softfp.c` | integer and float conversions without an FPU, in place of libgcc's 68881 ones ("Floating point" below) |
 | `mac/qm_mac.c` | the File Manager by path, file types and creator, FlushVol, the clock, the log, the System's region |
 | `mac/qm_thunks.S` | the class dispatcher's register entry and 32-bit QuickDraw's offscreen calls |
-| `mac/traps.txt` | the Toolbox calls Quill adds to Riptide's list (CopyBits, Draw1Control, EventAvail, resources) |
+| `mac/traps.txt` | the Toolbox calls Octavo adds to Riptide's list (CopyBits, Draw1Control, EventAvail, resources) |
 | `mac/mkfinder.py`, `mac/rsrc/` | the Finder's resources: bundle, file references, icons in every size and depth, 'vers' |
 
 ### Pages on the screen, 1 to 32 bits
@@ -89,7 +96,7 @@ D0/D1, as `-msoft-float` code expects. Its conversions are not: `fpgnulib.o` (`_
 `__extendsfdf2`, `__truncdfsf2` and six more) is C compiled for the 68881. It uses FMOVE and returns in FP0. So
 every `(double)i` in the core gave whatever D0/D1 held. Charts showed it first: a chart's 4.3 was read as
 2.7e+153 and every chart was drawn as an empty box. With an FPU (the testbed's 68040) the result was wrong. On
-a Mac without one, the FMOVE would have stopped Quill with an F-line exception. `mac/softfp.c` now defines all
+a Mac without one, the FMOVE would have stopped Octavo with an F-line exception. `mac/softfp.c` now defines all
 ten functions in integer arithmetic, rounding to nearest, ties to even. Makefile.mac fails the build if the map
 shows `fpgnulib.o` linked again. Tested:
 - natively, against a PC's FPU, 20 million random and edge values, all identical (the file compiles for either
@@ -151,7 +158,7 @@ ruler goes. The vertical ruler on the left shows the page's top and bottom margi
 | ![The left indent dragged](mac-ruler-drag.png) | ![A table's column edge dragged](mac-ruler-table.png) |
 | ![The font pop-up](mac-ribbon-fontpop.png) | ![4 bits, the ruler hidden by the preferences](mac-ribbon-4bit-view.png) |
 
-View › Ribbon and View › Ruler are checkmarked items (Guidelines p. 75), kept in **Quill Preferences**
+View › Ribbon and View › Ruler are checkmarked items (Guidelines p. 75), kept in **Octavo Preferences**
 (type `pref`) in the Preferences folder. The pages' area, the scroll bars, updates and the caret all keep
 to what is left: the vertical scroll bar starts under the ruler.
 
@@ -160,7 +167,7 @@ to what is left: the vertical scroll bar starts under the ruler.
 The user asked to change the strip for each kind of work, as the Amiga changes ribbon tabs. Agreed
 design: a pop-up at the left end of the strip chooses it (Home, Insert, Layout, References, Review),
 the same choices as View › Tool Strip (a submenu, the current one checked); View › Ribbon still shows
-and hides it; the choice is kept in Quill Preferences (`strip N`). Every item is a menu command first
+and hides it; the choice is kept in Octavo Preferences (`strip N`). Every item is a menu command first
 (Cornerstone chapter 3): the menus Insert, Layout, References and Review follow Format in the
 Amiga's tab order, with submenus for the long lists; each command's state (usable, on) is the one
 answer `qm_state()` gives menus and strips alike, and a command that can't be used here is dimmed,
@@ -202,7 +209,7 @@ and radio buttons, text fields with Tab between them, a third of the way down th
   Next Footnote, Caption… (Figure, Table, Equation), Bookmark… (on the selection or the word at the
   caret) and Cross-reference… (to a bookmark, as a REF field).
 - **Review:** Spelling… with Quill's British English word list (`dict/british-english`, in a folder
-  named dict beside Quill): each unknown word selected and asked about, up to five suggestions,
+  named dict beside Octavo): each unknown word selected and asked about, up to five suggestions,
   Change, Ignore All, Cancel. Word Count. Comments: New Comment… asks the text (author: the System's
   owner name); Next and Previous select a comment's range and show its text in a note (the page view
   does not draw comments' balloons). Track Changes: while it is on, typing, Delete, Cut, Clear and
@@ -224,7 +231,7 @@ has, through its menus and strips:
 
 ## Building
 
-    make -f Makefile.mac                     build/mac/Quill.bin (MacBinary)
+    make -f Makefile.mac                     build/mac/Octavo.bin (MacBinary; Quill.bin before the rename)
     make -f Makefile.mac AURORA68=1 B=build/mac-a68    the log also goes to Aurora68's kernel log
 
 Needs the m68k ELF toolchain (`gcc-m68k-linux-gnu`, `binutils-m68k-linux-gnu`), Python 3 and Riptide's
@@ -233,17 +240,17 @@ tree beside Quill's (`RIPTIDE ?= ../riptide`, branch `mac-port`). The icons are 
 
 ## Installing
 
-Copy `build/mac/Quill.bin` to the Mac (`hcopy -m` onto an HFS image, or any MacBinary decoder), and beside
-it a folder named **Fonts** holding everything in `fonts/` (the `.ttf` files and `fonts.list`). Quill
+Copy `build/mac/Octavo.bin` to the Mac (`hcopy -m` onto an HFS image, or any MacBinary decoder), and beside
+it a folder named **Fonts** holding everything in `fonts/` (the `.ttf` files and `fonts.list`). Octavo
 looks for `:Fonts:` in its own folder at launch. Its memory size is 12 MB: a page drawn at 100% is
 1.4 MB of pixels and three are kept, a .docx is unzipped in memory and a font in use is loaded whole.
 
-Documents: Quill opens anything its core reads (.docx, .doc, .odt, .rtf, .html, .md, .txt), whatever its
+Documents: Octavo opens anything its core reads (.docx, .doc, .odt, .rtf, .html, .md, .txt), whatever its
 Mac type, since Word documents from other computers arrive typed `????`. It saves by the name's ending, a
-.docx when the name has none, and gives the file the Mac type for its format and Quill's creator
+.docx when the name has none, and gives the file the Mac type for its format and Octavo's creator
 `QUIL`: `TEXT` for text formats, `DOCX` for .docx/.docm/.dotx, `ODT ` for .odt, `PDF ` (Acrobat's
-creator) for exported PDFs. Its bundle tells the Finder that Quill opens `DOCX` and `TEXT` files and gives
-them Quill's document icons; documents double-clicked or dropped on Quill in the Finder are opened (the
+creator) for exported PDFs. Its bundle tells the Finder that Octavo opens `DOCX` and `TEXT` files and gives
+them Octavo's document icons (the Amiga's icon pictures); documents double-clicked or dropped on Octavo in the Finder are opened (the
 first one: one window, one document).
 
 ## Using it
@@ -256,7 +263,7 @@ forward delete, Option with them a word; Return a new paragraph, Shift-Return a 
 
 | Menu | Commands (Command keys) |
 |---|---|
-| Apple | About Quill… |
+| Apple | About Octavo… |
 | File | New ⌘N, Open… ⌘O, Close ⌘W, Save ⌘S, Save As…, Revert, Export PDF… ⌘D, Quit ⌘Q |
 | Edit | Undo ⌘Z, Cut ⌘X, Copy ⌘C, Paste ⌘V, Clear, Redo ⌘Y, Select All ⌘A, Find… ⌘F, Find Again ⌘G, Replace… |
 | Font | Quill's families (Caladea, Carlito, Liberation Mono, Sans and Serif), the caret's checked |
@@ -274,23 +281,23 @@ key (the Amiga's Amiga-A is Select All on the Mac, whose Amiga-L is gone), Page 
 Print), Table (Amiga-T) is not on the Mac, whose ⌘T is Plain Text as the Guidelines' Style menu has it.
 A Style, Font or Size command applies to the selection, or to the word the caret is in, as Word does;
 between words it sets what is typed next. Cut and Copy put the text on the Clipboard for other programs
-(Mac Roman, returns between paragraphs) and keep Quill's own copy with its formatting for Paste in Quill.
-Closing the window asks to save changes (Save, Don't Save, Cancel) and leaves Quill running; New and Open
+(Mac Roman, returns between paragraphs) and keep Octavo's own copy with its formatting for Paste in Octavo.
+Closing the window asks to save changes (Save, Don't Save, Cancel) and leaves Octavo running; New and Open
 bring the window back. The interface is in English, German, French, Spanish or Italian, from the System's
 region ('vers' 1), with the words Quill's Amiga version uses.
 
-## Quill and the Guidelines: Cornerstone's classic Mac chapter, point by point
+## Octavo and the Guidelines: Cornerstone's classic Mac chapter, point by point
 
 Checked on 18 November 2026 against Cornerstone's classic Mac chapter and Apple's *Macintosh Human
 Interface Guidelines* (1992), whose page numbers these are. **Conforms**, **changed** (in this branch),
 or **left** (and why).
 
-| Point | Quill on the Mac |
+| Point | Octavo |
 |---|---|
-| Menus and their order (pp. 49-130) | **Changed, and over Cornerstone's count.** Apple, File, Edit, then Quill's Font, Size, Style, Format, Insert, Layout, References, Review and View, then the system's Help and Application menus. Nine menus of Quill's own, where Cornerstone asks for four or five on a small screen (HIG p. 80): agreed with the user, to follow the Amiga's ribbon tabs (Insert, Layout, References and Review between Format and View). Whether every title fits a 640 by 480 screen is checked in the testbed below; a longer translation may not fit. |
-| Apple menu (p. 98) | **Conforms.** About Quill… first, a line, the desk accessories (Riptide's Mac MUI). |
-| File (pp. 99-109) | **Changed:** Revert added, dimmed until a document read from a file is changed; it asks first, Cancel the default (it loses changes). Page Setup and Print are left out rather than shown dimmed for ever, as Cornerstone asks: Quill does not print yet. Export PDF… sits after Save As. |
-| Edit (pp. 109-117) | **Conforms**, with one difference left: Undo, Cut, Copy, Paste, Clear, then Quill's Redo and Select All after a line, where Riptide's layer puts a program's own Edit items. Show Clipboard is not offered. |
+| Menus and their order (pp. 49-130) | **Changed, and over Cornerstone's count.** Apple, File, Edit, then Octavo's Font, Size, Style, Format, Insert, Layout, References, Review and View, then the system's Help and Application menus. Nine menus of Octavo's own, where Cornerstone asks for four or five on a small screen (HIG p. 80): agreed with the user, to follow the Amiga's ribbon tabs (Insert, Layout, References and Review between Format and View). Whether every title fits a 640 by 480 screen is checked in the testbed below; a longer translation may not fit. |
+| Apple menu (p. 98) | **Conforms.** About Octavo… first, a line, the desk accessories (Riptide's Mac MUI). |
+| File (pp. 99-109) | **Changed:** Revert added, dimmed until a document read from a file is changed; it asks first, Cancel the default (it loses changes). Page Setup and Print are left out rather than shown dimmed for ever, as Cornerstone asks: Octavo does not print yet. Export PDF… sits after Save As. |
+| Edit (pp. 109-117) | **Conforms**, with one difference left: Undo, Cut, Copy, Paste, Clear, then Octavo's Redo and Select All after a line, where Riptide's layer puts a program's own Edit items. Show Clipboard is not offered. |
 | Preferences | **Conforms by having none to set in a dialog:** the only settings (Ribbon, Ruler) are View's toggles, remembered between sessions (p. 37). A Preferences… item comes with a first dialog of settings. |
 | Item names (pp. 58, 67) | **Conforms.** Title case, "…" where a dialog follows (Riptide turns "..." into the ellipsis character). |
 | Hierarchical menus (p. 79) | **Changed:** the attribute lists are submenus: Format › Paragraph Style, Insert › Breaks and Symbol, Layout › Columns, Line Numbers and Table, View › Tool Strip (Riptide's layer gained submenus for them). |
@@ -300,9 +307,9 @@ or **left** (and why).
 | No ribbon; a tool strip; pop-up menus (pp. 82-91, 96-97) | **Changed:** the strip and rulers above. The strip is inside the document window under the title bar, nowhere near the scroll bars or the close box; its lists are pop-up menus with a shadowed box and a triangle; it invents no command. |
 | Windows (pp. 131-174) | **Conforms** for the window: title bar, close box, zoom box, size box, scroll bars inactive when the page fits, staggered placement (Riptide). **Left:** one window, one document (opening another asks to save the first). |
 | Status box (p. 161) | **Conforms.** "Page 1 of 2" at the left end of the horizontal scroll bar, as Word 5 had it, following the page at the top of the window. |
-| Dialogs and button order (pp. 185, 196, 204-206) | **Changed: Quill has dialogs now** (Insert Table, Page Setup, Paragraph, Font, Find and Replace, a note's or comment's text, Caption, Bookmark, Cross-reference, Spelling), built with the Dialog Manager (`mac/qm_dialog.c`): no title bar, the prompt at the top in the system font, the action at the bottom right with Cancel to its left, the default ringed and answering Return and Enter, Cancel answering Escape and Command-period, check boxes for on and off and radio buttons for two to five choices, Tab between fields. Open, Save As, Export PDF and Insert Picture are Standard File. **Left:** Find and Replace is modal (it closes to show what it found), not the modeless dialog Cornerstone and the Guidelines (p. 178) would have: Riptide's event loop does not pass events to modeless dialogs yet. |
-| Alerts (pp. 193-196) | **Changed:** Quill's alerts have their level now (Riptide's `mac_alert` with its icon): a stop for what can't be done (a file that can't be read or saved, a picture Quill can't read, numbers a dialog can't take), a note for information (nothing found, replacements made, the word count, a comment's text, the spelling check done), a caution before Revert. Save, Don't Save, Cancel still goes through MUI's requester (a caution). |
-| Progress (pp. 185, 206) | **Left.** Opening a long document shows the watch, not a movable modal dialog with a Stop button; nothing in Quill can be stopped part way yet. |
+| Dialogs and button order (pp. 185, 196, 204-206) | **Changed: Octavo has dialogs now** (Insert Table, Page Setup, Paragraph, Font, Find and Replace, a note's or comment's text, Caption, Bookmark, Cross-reference, Spelling), built with the Dialog Manager (`mac/qm_dialog.c`): no title bar, the prompt at the top in the system font, the action at the bottom right with Cancel to its left, the default ringed and answering Return and Enter, Cancel answering Escape and Command-period, check boxes for on and off and radio buttons for two to five choices, Tab between fields. Open, Save As, Export PDF and Insert Picture are Standard File. **Left:** Find and Replace is modal (it closes to show what it found), not the modeless dialog Cornerstone and the Guidelines (p. 178) would have: Riptide's event loop does not pass events to modeless dialogs yet. |
+| Alerts (pp. 193-196) | **Changed:** Octavo's alerts have their level now (Riptide's `mac_alert` with its icon): a stop for what can't be done (a file that can't be read or saved, a picture Octavo can't read, numbers a dialog can't take), a note for information (nothing found, replacements made, the word count, a comment's text, the spelling check done), a caution before Revert. Save, Don't Save, Cancel still goes through MUI's requester (a caution). |
+| Progress (pp. 185, 206) | **Left.** Opening a long document shows the watch, not a movable modal dialog with a Stop button; nothing in Octavo can be stopped part way yet. |
 | Fonts (pp. 23, 60, 207) | **Changed:** the strip and rulers use Geneva 9, as Cornerstone asks for palettes. Menus and alerts are the system font; the page box uses Riptide's Geneva 9 or 10 (10 on screens taller than 600 lines). **Left:** the Font menu does not show families in their own faces: they are Quill's TrueType fonts, which the Font Manager does not have. |
 | Colour and one bit (pp. 258, 263-264) | **Conforms.** Everything was laid out on one bit first: the strip is white with black frames and inverted "on" buttons, the ruler's margins a light pattern. Colour from four bits up is only the icons' accents and light greys; the selection takes the Color control panel's highlight colour. |
 | Balloon Help (pp. 316-325) | **Left.** No `hmnu` or `hrct` balloons yet. Quill's help texts are written for the Amiga's ribbon bubbles (`amiga/ribbon.c`), and Riptide's layer shows its own bubbles only for MUI objects with `MUIA_ShortHelp`, which the strip, drawn by the view, is not. Generating `hmnu` resources from the strings table is the way. |
@@ -311,11 +318,11 @@ or **left** (and why).
 
 ## Tested
 
-In the Aurora68 testbed (QEMU, the solo board, a copy of the System 7.1 image with Quill and its fonts in
+In the Aurora68 testbed (QEMU, the solo board, a copy of the System 7.1 image with Octavo (then still called Quill) and its fonts in
 Startup Items and `PiDepth N` setting the screen to N bits; `mac.screen=1024x768` with its declaration
 ROM), at 1, 8 and 32 bits, scripted through QEMU's monitor (keys and mouse):
 
-1. Quill starts with an empty Untitled document.
+1. Octavo starts with an empty Untitled document.
 2. ⌘O, Standard File, ⌘↑ twice to the disk, "word" selects word.docx (a copy of tests/data/word.docx),
    Return: the document opens, the window is titled word.docx, "Page 1 of 2".
 3. "Hello from the Mac. " typed at the start of the heading; Shift-Right five times selects "The Q"; ⌘B.
@@ -349,7 +356,7 @@ monitor:
    the break" `<w:jc w:val="center"/>` with "Before" `<w:b/>`, "Step two" `<w:ilvl w:val="1"/>`, and the run
    "heading" `<w:rFonts w:ascii="Liberation Serif" …/>`.
 7. Format › Paragraph Style (a submenu) chose Heading 2; View › Ruler and View › Ribbon hid them, and
-   "Quill Preferences" (type `pref`) held `ribbon 0`, `ruler 0`; a disk with `ruler 0` in it started
+   "Quill Preferences" (type `pref`; "Octavo Preferences" since the rename, which reads and replaces an old one) held `ribbon 0`, `ruler 0`; a disk with `ruler 0` in it started
    without the ruler and with View › Ruler unchecked.
 8. File › Revert after typing: the caution alert, Cancel the default; Revert reads the file again.
 9. On the 640 by 480 screen the window is 632 wide and the whole strip fits; narrowed to about 390
@@ -362,7 +369,7 @@ warnings, and `tools/langcheck.py` finds nothing missing for `amiga/` or `mac/`.
 
 ## Not done yet
 
-- **Printing** is left out. Quill draws pages for PDF; Export PDF writes one. Printing needs the Printing
+- **Printing** is left out. Octavo draws pages for PDF; Export PDF writes one. Printing needs the Printing
   Manager's QuickDraw (PrOpen, PrOpenDoc, a page at the printer's resolution through the same CopyBits
   path), not hard, not done.
 - **One window, one document.** The Amiga has several windows; the Mac version opens one document at a
@@ -378,10 +385,10 @@ warnings, and `tools/langcheck.py` finds nothing missing for `amiga/` or `mac/`.
   modeless one needs Riptide's event loop to pass events to dialogs. Notes and comments are typed in a
   dialog (one paragraph), not edited in place as on the Amiga; comments are shown one at a time in a note,
   not drawn as balloons in the margin.
-- **Spelling** checks British English only (the word list from a dict folder beside Quill), without
+- **Spelling** checks British English only (the word list from a dict folder beside Octavo), without
   grammar; Ignore All lasts for the session (no user dictionary is saved). **Hyphenation** is not offered:
   the core has it, but the Mac does not load its patterns.
-- **Tracked changes** cover typing, Delete, Cut, Clear and pasted text, and formatting; what Quill's own
+- **Tracked changes** cover typing, Delete, Cut, Clear and pasted text, and formatting; what Octavo's own
   commands put in (a table, a field, a picture) is not marked as a tracked insertion.
 - **Page Setup** sets the whole document's page; sections with their own page setup keep theirs.
 - **The strip and rulers**: no Balloon Help for them; the vertical ruler does not drag the margins (nor
@@ -396,8 +403,8 @@ warnings, and `tools/langcheck.py` finds nothing missing for `amiga/` or `mac/`.
   text), and the caret's line is found by the core's layout, so tables and columns select roughly.
 - **Speed** on a real 68030 is unmeasured; the testbed's figures are above. Drawing only a band of the
   page (the core draws whole pages) would make typing on slow machines cheaper.
-- **Apple events**: Quill takes documents from the Finder by the Segment Loader's parameters (System 6
+- **Apple events**: Octavo takes documents from the Finder by the Segment Loader's parameters (System 6
   style, which the System 7 Finder still sends to programs that do not declare high-level events); 'odoc'
-  while running, and drag-and-drop onto a running Quill, are not handled.
+  while running, and drag-and-drop onto a running Octavo, are not handled.
 - The Font menu draws family names in the system font, not in themselves; the Style menu does not show
   its items in their styles.

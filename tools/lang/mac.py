@@ -1,14 +1,15 @@
-# tools/lang/mac.py - the interface words of Quill for the classic Mac OS (mac/*.c) that the Amiga's
+# tools/lang/mac.py - the interface words of Octavo, Quill for the classic Mac OS (mac/*.c), that the Amiga's
 # don't have, in the same form as tools/mklang.py's W (English, German, French, Spanish, Italian),
 # Latin-1 only (mac/qm_lang.c turns the table into Mac Roman). The Mac's menus otherwise reuse the
 # Amiga's words. After changing it run python3 tools/mklang.py.
 W = [
-("Quill 0.15 for the Mac\\n\\n%s", "Quill 0.15 für den Mac\\n\\n%s", "Quill 0.15 pour le Mac\\n\\n%s", "Quill 0.15 para el Mac\\n\\n%s", "Quill 0.15 per il Mac\\n\\n%s"),
-("A word processor for the classic Mac OS.\\nReads and writes Word documents (.docx).\\n\\nText is measured with the Liberation and Carlito/Caladea fonts\\n(SIL Open Font License), so documents break\\ntheir lines as they do in Word.",
- "Eine Textverarbeitung für das klassische Mac OS.\\nLiest und schreibt Word-Dokumente (.docx).\\n\\nText wird mit den Schriften Liberation und Carlito/Caladea\\ngemessen (SIL Open Font License), daher brechen\\nZeilen wie in Word um.",
- "Un traitement de texte pour le Mac OS classique.\\nLit et écrit les documents Word (.docx).\\n\\nLe texte est mesuré avec les polices Liberation et Carlito/Caladea\\n(SIL Open Font License) : les lignes se coupent\\ncomme dans Word.",
- "Un procesador de textos para el Mac OS clásico.\\nLee y escribe documentos de Word (.docx).\\n\\nEl texto se mide con las fuentes Liberation y Carlito/Caladea\\n(SIL Open Font License), así las líneas\\nse cortan como en Word.",
- "Un elaboratore di testi per il Mac OS classico.\\nLegge e scrive documenti Word (.docx).\\n\\nIl testo è misurato con i caratteri Liberation e Carlito/Caladea\\n(SIL Open Font License), così le righe\\nvanno a capo come in Word."),
+("Octavo 0.15\\n\\n%s", "Octavo 0.15\\n\\n%s", "Octavo 0.15\\n\\n%s", "Octavo 0.15\\n\\n%s", "Octavo 0.15\\n\\n%s"),
+("Octavo is Quill for the classic Mac OS: a word processor that reads and writes Word documents (.docx).\\n\\nText is measured with the Liberation and Carlito/Caladea fonts\\n(SIL Open Font License), so documents break\\ntheir lines as they do in Word.",
+ "Octavo ist Quill für das klassische Mac OS: eine Textverarbeitung, die Word-Dokumente (.docx) liest und schreibt.\\n\\nText wird mit den Schriften Liberation und Carlito/Caladea\\ngemessen (SIL Open Font License), daher brechen\\nZeilen wie in Word um.",
+ "Octavo est Quill pour le Mac OS classique : un traitement de texte qui lit et écrit les documents Word (.docx).\\n\\nLe texte est mesuré avec les polices Liberation et Carlito/Caladea\\n(SIL Open Font License) : les lignes se coupent\\ncomme dans Word.",
+ "Octavo es Quill para el Mac OS clásico: un procesador de textos que lee y escribe documentos de Word (.docx).\\n\\nEl texto se mide con las fuentes Liberation y Carlito/Caladea\\n(SIL Open Font License), así las líneas\\nse cortan como en Word.",
+ "Octavo è Quill per il Mac OS classico: un elaboratore di testi che legge e scrive documenti Word (.docx).\\n\\nIl testo è misurato con i caratteri Liberation e Carlito/Caladea\\n(SIL Open Font License), così le righe\\nvanno a capo come in Word."),
+("%s\\nis not a PNG or JPEG picture Octavo can read.", "%s\\nist kein PNG- oder JPEG-Bild, das Octavo lesen kann.", "%s\\nn'est pas une image PNG ou JPEG lisible par Octavo.", "%s\\nno es una imagen PNG o JPEG que Octavo pueda leer.", "%s\\nnon è un'immagine PNG o JPEG leggibile da Octavo."),
 # Format > Paragraph Style (a submenu, and the strip's style pop-up shows the same styles)
 ("Paragraph Style", "Absatzformat", "Style de paragraphe", "Estilo de párrafo", "Stile di paragrafo"),
 # the Style menu of the Guidelines (p. 113): the text's style; the table's "Style" is a paragraph style
@@ -52,7 +53,7 @@ W = [
 ("This document has no bookmarks.", "Dieses Dokument hat keine Textmarken.", "Ce document n'a pas de signets.", "Este documento no tiene marcadores.", "Questo documento non ha segnalibri."),
 ("A bookmark's name is one word (letters, digits and _), on a word of the text.", "Der Name einer Textmarke ist ein Wort (Buchstaben, Ziffern und _) und steht auf einem Wort des Textes.", "Le nom d'un signet est un mot (lettres, chiffres et _), placé sur un mot du texte.", "El nombre de un marcador es una palabra (letras, cifras y _), sobre una palabra del texto.", "Il nome di un segnalibro è una parola (lettere, cifre e _), su una parola del testo."),
 # Review (mac/qm_cmds.c)
-("Quill's word list (british-english, in a folder named dict beside Quill) couldn't be read.", "Quills Wortliste (british-english, in einem Ordner namens dict neben Quill) konnte nicht gelesen werden.", "La liste de mots de Quill (british-english, dans un dossier nommé dict à côté de Quill) n'a pas pu être lue.", "No se pudo leer la lista de palabras de Quill (british-english, en una carpeta llamada dict junto a Quill).", "Non è stato possibile leggere l'elenco di parole di Quill (british-english, in una cartella chiamata dict accanto a Quill)."),
+("Octavo's word list (british-english, in a folder named dict beside Octavo) couldn't be read.", "Octavos Wortliste (british-english, in einem Ordner namens dict neben Octavo) konnte nicht gelesen werden.", "La liste de mots d'Octavo (british-english, dans un dossier nommé dict à côté d'Octavo) n'a pas pu être lue.", "No se pudo leer la lista de palabras de Octavo (british-english, en una carpeta llamada dict junto a Octavo).", "Non è stato possibile leggere l'elenco di parole di Octavo (british-english, in una cartella chiamata dict accanto a Octavo)."),
 ("The spelling check is complete.", "Die Rechtschreibprüfung ist abgeschlossen.", "La vérification orthographique est terminée.", "La revisión ortográfica ha terminado.", "Il controllo ortografico è terminato."),
 ("Not in the dictionary:", "Nicht im Wörterbuch:", "Absent du dictionnaire :", "No está en el diccionario:", "Non nel dizionario:"),
 ("No suggestions.", "Keine Vorschläge.", "Aucune suggestion.", "Sin sugerencias.", "Nessun suggerimento."),

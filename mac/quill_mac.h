@@ -143,7 +143,7 @@ void qm_delete(Pos a, Pos b);                          /* a..b deleted, or marke
 int  qm_tracking(void);                                /* Review > Track Changes is on */
 int  qm_track_rid(void);                               /* this document's revision for the author while tracking, else -1 */
 void qm_track_toggle(void);
-const char *qm_author(void);                           /* the System's owner name (UTF-8), else "Quill" */
+const char *qm_author(void);                           /* the System's owner name (UTF-8), else "Octavo" */
 void set_watch_cursor(int on);                         /* the watch while busy, else the arrow */
 
 /* qm_text.c: Mac Roman, Latin-1 and UTF-8 */
