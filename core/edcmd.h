@@ -59,6 +59,19 @@ int  ec_find(Doc *d, ESel *s, const char *what, unsigned flags);
 int  ec_replace(Doc *d, ESel *s, const char *what, const char *with, unsigned flags);
 u32  ec_replace_all(Doc *d, ESel *s, const char *what, const char *with, unsigned flags);
 
+/* References: a table of contents at the caret, or the one there is brought up to date (L: d laid
+   out in pages), one undo step; the next footnote or endnote reference after the caret, wrapping
+   round (the caret put before it); a caption below the caret's paragraph or table (label 0 Figure,
+   1 Table, 2 Equation, then the document's own) with text after its number; the selection made a
+   bookmark (a word at least: an empty selection takes the word at the caret); a cross-reference to
+   a bookmark (a REF field showing the bookmark's text) */
+struct Layout;
+int  ec_toc(Doc *d, struct Layout *L, ESel *s);
+int  ec_next_note(Doc *d, ESel *s);
+int  ec_caption(Doc *d, ESel *s, int label, const char *text);
+int  ec_bookmark(Doc *d, ESel *s, const char *name);
+int  ec_xref(Doc *d, ESel *s, const char *bookmark);
+
 /* measurements as people type them: EU_ units; "1.25", "1,25" (a comma for the point), "-0.5"; at
    most two decimals. ec_measure: 1 and *tw, or 0 if it isn't a number */
 enum { EU_INCH, EU_CM, EU_PT };

@@ -4434,4 +4434,10 @@
   { { "\"%s\" was not found.", "\"%s\" wurde nicht gefunden.", "\"%s\" est introuvable.", "No se encontr\363 \"%s\".", "\"%s\" non \350 stato trovato." } },
   { { "Replacements made: %s.", "Ersetzungen: %s.", "Remplacements effectu\351s : %s.", "Reemplazos hechos: %s.", "Sostituzioni eseguite: %s." } },
   { { "The size must be a number of points from 1 to 1638 (halves allowed).", "Die Gr\366\337e muss eine Punktzahl von 1 bis 1638 sein (halbe Punkte erlaubt).", "La taille doit \352tre un nombre de points de 1 \340 1638 (demi-points permis).", "El tama\361o debe ser un n\372mero de puntos de 1 a 1638 (se admiten medios).", "La dimensione deve essere un numero di punti da 1 a 1638 (mezzi punti ammessi)." } },
+  { { "Text:", "Text:", "Texte :", "Texto:", "Testo:" } },
+  { { "Bookmark name:", "Name der Textmarke:", "Nom du signet :", "Nombre del marcador:", "Nome del segnalibro:" } },
+  { { "Add", "Hinzuf\374gen", "Ajouter", "Agregar", "Aggiungi" } },
+  { { "Bookmarks:", "Textmarken:", "Signets :", "Marcadores:", "Segnalibri:" } },
+  { { "This document has no bookmarks.", "Dieses Dokument hat keine Textmarken.", "Ce document n'a pas de signets.", "Este documento no tiene marcadores.", "Questo documento non ha segnalibri." } },
+  { { "A bookmark's name is one word (letters, digits and _), on a word of the text.", "Der Name einer Textmarke ist ein Wort (Buchstaben, Ziffern und _) und steht auf einem Wort des Textes.", "Le nom d'un signet est un mot (lettres, chiffres et _), plac\351 sur un mot du texte.", "El nombre de un marcador es una palabra (letras, cifras y _), sobre una palabra del texto.", "Il nome di un segnalibro \350 una parola (lettere, cifre e _), su una parola del testo." } },
 /* ---- end the Mac front end */

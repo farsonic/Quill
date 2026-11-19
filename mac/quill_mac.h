@@ -47,6 +47,8 @@ enum {
 	ID_PAGESETUP, ID_PORTRAIT, ID_LANDSCAPE, ID_PARAGRAPH,
 	/* Edit > Find, Format > Font... */
 	ID_FIND, ID_FINDAGAIN, ID_REPLACE, ID_FONTDLG,
+	/* References */
+	ID_TOC, ID_NEXTNOTE, ID_CAPTION, ID_BOOKMARK, ID_XREF,
 	ID_BREAK0 = 120,            /* + Insert > Breaks' row (NBREAKS): page, column, section next page, continuous */
 	ID_SYM0 = 130,              /* + Insert > Symbol's row */
 	ID_COLS0 = 160,             /* + Layout > Columns' row: one, two, three */

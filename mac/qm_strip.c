@@ -127,9 +127,22 @@ static const SItem layout[] = {
 	{ SK_BUTTON, 5, 0, BW, ID_MERGE, "ci R 1 3 14 12 cd L 7 3 7 5 L 7 10 7 12 ca L 3 7 6 7 L 9 7 12 7 L 5 5 7 7 L 5 9 7 7 L 10 5 8 7 L 10 9 8 7" },
 	{ SK_BUTTON, 5, 0, BW, ID_SPLIT, "ci R 1 3 14 12 L 7 3 7 12 ca L 2 7 6 7 L 9 7 13 7" },
 };
+static const SItem references[] = {
+	/* TOC: a page of entries and their page numbers; UPDATE is the same command (it updates) */
+	{ SK_BUTTON, 1, 0, BW, ID_TOC, "ci R 2 1 13 15 ca L 4 4 11 4 cd L 4 7 8 7 L 10 7 11 7 L 4 10 8 10 L 10 10 11 10 L 4 13 8 13 L 10 13 11 13" },
+	/* FOOTNOTE, ENDNOTE, NEXTNOTE */
+	{ SK_BUTTON, 2, 0, BW, ID_FOOTNOTE, "ci L 1 4 9 4 L 1 7 9 7 ca L 11 2 12 1 L 12 1 12 5 ci L 1 12 6 12 cd L 1 14 12 14" },
+	{ SK_BUTTON, 2, 0, BW, ID_ENDNOTE, "ci R 2 1 13 15 L 4 4 11 4 L 4 6 11 6 ca L 4 11 11 11 cd L 4 13 9 13" },
+	{ SK_BUTTON, 2, 0, BW, ID_NEXTNOTE, "ci L 1 4 9 4 L 1 7 9 7 ca L 11 9 14 12 L 14 12 11 15 L 9 12 14 12" },
+	/* a caption: a picture and the line of text under it; BOOKMARK: a ribbon marker; a cross-reference:
+	   an arrow to a page (Cornerstone's GOTO) */
+	{ SK_BUTTON, 3, 0, BW, ID_CAPTION, "ci R 2 1 13 9 ca E 5 4 1 cg P 3 3 8 7 5 11 8 ci L 2 12 13 12 cd L 2 14 9 14" },
+	{ SK_BUTTON, 3, 0, BW, ID_BOOKMARK, "ca F 5 2 11 9 P 6 4 1 12 1 12 15 8 11 4 15 4 1" },
+	{ SK_BUTTON, 3, 0, BW, ID_XREF, "ci R 7 1 14 15 cw F 8 2 13 14 ca L 1 8 10 8 L 7 5 10 8 L 7 11 10 8" },
+};
 #define N(a) ((int)(sizeof a / sizeof a[0]))
 static const struct { const SItem *items; int n; } strips[QS_NSTRIPS] = {
-	{ home, N(home) }, { insert, N(insert) }, { layout, N(layout) }, { NULL, 0 }, { NULL, 0 },
+	{ home, N(home) }, { insert, N(insert) }, { layout, N(layout) }, { references, N(references) }, { NULL, 0 },
 };
 static int cur;                             /* the strip shown (QS_) */
 

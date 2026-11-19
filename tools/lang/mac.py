@@ -44,4 +44,11 @@ W = [
 ("\"%s\" was not found.", "\"%s\" wurde nicht gefunden.", "\"%s\" est introuvable.", "No se encontró \"%s\".", "\"%s\" non è stato trovato."),
 ("Replacements made: %s.", "Ersetzungen: %s.", "Remplacements effectués : %s.", "Reemplazos hechos: %s.", "Sostituzioni eseguite: %s."),
 ("The size must be a number of points from 1 to 1638 (halves allowed).", "Die Größe muss eine Punktzahl von 1 bis 1638 sein (halbe Punkte erlaubt).", "La taille doit être un nombre de points de 1 à 1638 (demi-points permis).", "El tamaño debe ser un número de puntos de 1 a 1638 (se admiten medios).", "La dimensione deve essere un numero di punti da 1 a 1638 (mezzi punti ammessi)."),
+# References > Caption..., Bookmark..., Cross-reference... (mac/qm_cmds.c)
+("Text:", "Text:", "Texte :", "Texto:", "Testo:"),
+("Bookmark name:", "Name der Textmarke:", "Nom du signet :", "Nombre del marcador:", "Nome del segnalibro:"),
+("Add", "Hinzufügen", "Ajouter", "Agregar", "Aggiungi"),
+("Bookmarks:", "Textmarken:", "Signets :", "Marcadores:", "Segnalibri:"),
+("This document has no bookmarks.", "Dieses Dokument hat keine Textmarken.", "Ce document n'a pas de signets.", "Este documento no tiene marcadores.", "Questo documento non ha segnalibri."),
+("A bookmark's name is one word (letters, digits and _), on a word of the text.", "Der Name einer Textmarke ist ein Wort (Buchstaben, Ziffern und _) und steht auf einem Wort des Textes.", "Le nom d'un signet est un mot (lettres, chiffres et _), placé sur un mot du texte.", "El nombre de un marcador es una palabra (letras, cifras y _), sobre una palabra del texto.", "Il nome di un segnalibro è una parola (lettere, cifre e _), su una parola del testo."),
 ]

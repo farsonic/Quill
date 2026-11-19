@@ -10,6 +10,7 @@
 #include "../core/layout.h"
 #include "../core/edcmd.h"
 #include "../core/field.h"
+#include "../core/toc.h"
 
 /* the ruler for the caret at p, laid out afresh */
 static void geom_at(Doc *d, Pos p, RulerGeom *g)
@@ -300,8 +301,57 @@ static void test_find(void)
   doc_free(d);
 }
 
+/* the References strip's commands */
+static void test_references(void)
+{
+  Doc *d = doc_new(), *r;
+  ESel s;
+  Layout *L;
+  u32 i;
+  int found;
+  memset(&s, 0, sizeof s);
+  ec_text(d, &s, "Start\nIntroduction\nBody text here.\nResults\nMore text.");
+  doc_apply_style(d, 1, 1, doc_style(d, "Heading1"));
+  doc_apply_style(d, 3, 3, doc_style(d, "Heading1"));
+  doc_clear_undo(d);
+  L = lay_new(d, &fs);
+  s.anchor = s.caret = P(0, 5);
+  ok("toc: a table of contents", ec_toc(d, L, &s));
+  for (i = 0, found = 0; i < d->np; i++) found += toc_para(d, d->p[i]);
+  ok("toc: its entries", found >= 2);
+  ok("toc: brought up to date again", ec_toc(d, L, &s));
+  lay_free(L);
+  /* notes: Next Footnote goes round */
+  for (i = 0; i < d->np && strncmp(d->p[i]->t, "Body", 4); i++) ;
+  s.anchor = s.caret = P(i, 4);
+  ec_note(d, &s, 0, "First note.");
+  s.anchor = s.caret = P(0, 0);
+  ok("next note: found", ec_next_note(d, &s) && s.caret.para == i && s.caret.off == 4);
+  ok("next note: round again to the same one", ec_next_note(d, &s) && s.caret.para == i && s.caret.off == 4);
+  /* a caption and a bookmark with a cross-reference to it */
+  s.anchor = s.caret = P(i, 2);
+  ok("caption: a figure's", ec_caption(d, &s, 0, " A drawing"));
+  for (i = 0, found = 0; i < d->np; i++) found |= strstr(d->p[i]->t, "A drawing") != NULL;
+  ok("caption: its text", found);
+  for (i = 0; i < d->np && strncmp(d->p[i]->t, "More", 4); i++) ;
+  s.anchor = s.caret = P(i, 1);
+  ok("bookmark: no spaces in names", !ec_bookmark(d, &s, "my mark"));
+  ok("bookmark: the word at the caret", ec_bookmark(d, &s, "more_text"));
+  {
+    Pos a, b;
+    ok("bookmark: where", doc_bmark_find(d, "more_text", &a, &b) && a.off == 0 && b.off == 4);
+  }
+  s.anchor = s.caret = P(0, 0);
+  ok("cross-reference: to a bookmark there is", ec_xref(d, &s, "more_text") && !ec_xref(d, &s, "nothing"));
+  r = docx_again(d, NULL);
+  ok("references kept in .docx", r && r->nnotes == 1 && doc_bmark(r, "more_text") >= 0);
+  doc_free(r);
+  doc_free(d);
+}
+
 void test_wpmac(void)
 {
+  test_references();
   test_find();
   test_insert();
   test_layout();

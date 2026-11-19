@@ -9,6 +9,8 @@
 #include "edcmd.h"
 #include "table.h"
 #include "field.h"
+#include "toc.h"
+#include "refs.h"
 
 #define MIN_TEXT_W 720            /* text never narrower than half an inch (as the Amiga's view) */
 
@@ -298,4 +300,71 @@ u32 ec_replace_all(Doc *d, ESel *s, const char *what, const char *with, unsigned
   n = doc_replace_all(d, what, with ? with : "", flags & ~FIND_BACK);
   s->caret = s->anchor = pos_clamp(d, s->caret);
   return n;
+}
+
+int ec_toc(Doc *d, struct Layout *L, ESel *s)
+{
+  Pos at = es_lo(s);
+  int again = 0, ok;
+  lay_update(L);
+  ok = doc_toc(d, L, &at, &again);
+  s->caret = s->anchor = pos_clamp(d, s->caret);
+  return ok;
+}
+
+int ec_next_note(Doc *d, ESel *s)
+{
+  u32 pi = s->caret.para, n, k, off;
+  const Para *p = d->p[pi];
+  /* (from after a reference the caret is at) */
+  off = s->caret.off + (s->caret.off + 4 <= p->len && (IS_NOTE(p->t + s->caret.off) || IS_ENOTE(p->t + s->caret.off)) ? 4 : 0);
+  for (n = 0; n <= d->np; n++, pi = (pi + 1) % d->np, off = 0) {
+    p = d->p[pi];
+    for (k = off; k + 4 <= p->len; k++)
+      if (IS_NOTE(p->t + k) || IS_ENOTE(p->t + k)) {
+        s->caret.para = s->anchor.para = pi;
+        s->caret.off = s->anchor.off = k;
+        return 1;
+      }
+  }
+  return 0;
+}
+
+int ec_caption(Doc *d, ESel *s, int label, const char *text)
+{
+  FieldEnv e;
+  Pos at = es_lo(s);
+  RefsInfo *ri = refs_info(d);
+  if (!ri || label < 0 || label >= ri->nlab) return 0;
+  field_env(&e);
+  if (!refs_insert_caption(d, &at, label, text ? text : "", -1, &e)) return 0;
+  s->caret = s->anchor = pos_clamp(d, at);
+  return 1;
+}
+
+/* is c part of a word (letters, digits, anything not ASCII) */
+static int wordch(unsigned char c) { return c >= 0x80 || (c >= '0' && c <= '9') || ((c | 32) >= 'a' && (c | 32) <= 'z'); }
+
+int ec_bookmark(Doc *d, ESel *s, const char *name)
+{
+  Pos a = es_lo(s), b = es_hi(s);
+  const char *c;
+  if (!name || !*name) return 0;
+  for (c = name; *c; c++) if (!wordch((unsigned char)*c) && *c != '_') return 0;      /* (Word's names: a word, no spaces) */
+  if (!pos_cmp(a, b)) {
+    const Para *p = d->p[a.para];
+    while (a.off > 0 && wordch((unsigned char)p->t[a.off - 1])) a.off--;
+    while (b.off < p->len && wordch((unsigned char)p->t[b.off])) b.off++;
+    if (!pos_cmp(a, b)) return 0;
+  }
+  return doc_set_bmark(d, a, b, name);
+}
+
+int ec_xref(Doc *d, ESel *s, const char *bookmark)
+{
+  char code[120];
+  Pos a, b;
+  if (!bookmark || !*bookmark || strlen(bookmark) > 80 || !doc_bmark_find(d, bookmark, &a, &b)) return 0;
+  snprintf(code, sizeof code, "REF %s \\h", bookmark);
+  return ec_field(d, s, code);
 }

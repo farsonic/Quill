@@ -307,6 +307,83 @@ static void find_dialog(void)
 	}
 }
 
+/* References > Caption...: the label (Figure, Table, Equation) and the words after its number */
+static void caption(void)
+{
+	char mac[200], u[600];
+	int label = 0;
+	ESel s = sel_now();
+	DItem it[] = {
+		{ DI_TEXT, 0, 0, 13, 13, 334, "Caption" },
+		{ DI_TEXT, 0, 0, 13, 41, 90, "Label:" },
+		{ DI_RADIO, 0, 0, 110, 41, 230, "Figure", NULL, 0, &label, 0 },
+		{ DI_RADIO, 0, 0, 110, 59, 230, "Table", NULL, 0, &label, 1 },
+		{ DI_RADIO, 0, 0, 110, 77, 230, "Equation", NULL, 0, &label, 2 },
+		{ DI_TEXT, 0, 0, 13, 105, 90, "Text:" },
+		{ DI_EDIT, 0, 0, 113, 105, 231, NULL, mac, sizeof mac },
+		{ DI_BUTTON, 0, 0, 277, 138, 70, "Insert" },
+		{ DI_BUTTON, 0, 0, 195, 138, 70, "_Cancel" },
+	};
+	mac[0] = 0;
+	if (qdlg_run(360, 171, it, 9, 7, 8) != 7)
+		return;
+	u[0] = ' ';                         /* ("Figure 1 Text": a space after the number) */
+	to_utf8(mac, u + 1, sizeof u - 1);
+	done(&s, ec_caption(qd.doc, &s, label, mac[0] ? u : ""));
+}
+
+/* References > Bookmark...: the selection (or the word at the caret) named */
+static void bookmark(void)
+{
+	char mac[64], u[200];
+	ESel s = sel_now();
+	if (!text_dialog("Bookmark name:", "Add", mac, sizeof mac))
+		return;
+	to_utf8(mac, u, sizeof u);
+	if (ec_bookmark(qd.doc, &s, u))
+		done(&s, 1);
+	else
+		qm_alert(QA_STOP, "A bookmark's name is one word (letters, digits and _), on a word of the text.", NULL);
+}
+
+/* References > Cross-reference...: one of the document's bookmarks (the first ten), its text shown */
+static void xref(void)
+{
+	enum { MAXB = 10 };
+	DItem it[2 + MAXB + 2];
+	char names[MAXB][64];
+	int k, n = 0, nb = 0, pick = 0;
+	ESel s = sel_now();
+	memset(it, 0, sizeof it);
+	for (k = 0; k < qd.doc->nbmarks && nb < MAXB; k++) {
+		const char *nm = doc_bmark_name(qd.doc, k);
+		Pos a, b;
+		if (!nm || nm[0] == '_' || !doc_bmark_find(qd.doc, nm, &a, &b))
+			continue;                   /* (hidden ones, and those no longer in the text) */
+		utf8_to_macroman(nm, names[nb++], 64);
+	}
+	if (!nb) {
+		qm_alert(QA_NOTE, "This document has no bookmarks.", NULL);
+		return;
+	}
+	it[n].kind = DI_TEXT; it[n].x = 13; it[n].y = 13; it[n].w = 274; it[n++].label = "Cross-reference";
+	it[n].kind = DI_TEXT; it[n].x = 13; it[n].y = 41; it[n].w = 90; it[n++].label = "Bookmarks:";
+	for (k = 0; k < nb; k++) {
+		it[n].kind = DI_RADIO; it[n].x = 110; it[n].y = 41 + 18 * k; it[n].w = 177;
+		it[n].label = names[k]; it[n].value = &pick; it[n++].ord = k;
+	}
+	k = 41 + 18 * nb + 14;
+	it[n].kind = DI_BUTTON; it[n].x = 217; it[n].y = k; it[n].w = 70; it[n++].label = "Insert";
+	it[n].kind = DI_BUTTON; it[n].x = 135; it[n].y = k; it[n].w = 70; it[n++].label = "_Cancel";
+	if (qdlg_run(300, k + 33, it, n, n - 2, n - 1) != n - 2)
+		return;
+	{
+		char u[200];
+		to_utf8(names[pick], u, sizeof u);
+		done(&s, ec_xref(qd.doc, &s, u));
+	}
+}
+
 /* Insert > Picture...: Standard File, then the core reads it (PNG or JPEG) */
 static void insert_picture(void)
 {
@@ -366,6 +443,10 @@ unsigned qc_state(unsigned long id, int *mine)
 		return QS_ENABLED;
 	case ID_FINDAGAIN:
 		return find_what[0] ? QS_ENABLED : 0;
+	case ID_TOC: case ID_CAPTION: case ID_BOOKMARK: case ID_XREF:
+		return QS_ENABLED;
+	case ID_NEXTNOTE:
+		return qd.doc->nnotes || qd.doc->nenotes ? QS_ENABLED : 0;
 	case ID_PORTRAIT: case ID_LANDSCAPE:
 		return QS_ENABLED | ((qd.doc->page.width > qd.doc->page.height) == (id == ID_LANDSCAPE) ? QS_CHECKED : 0);
 	case ID_TABLE: case ID_PICTURE: case ID_FOOTNOTE: case ID_ENDNOTE: case ID_DATE: case ID_PAGENUM:
@@ -406,6 +487,11 @@ int qc_command(unsigned long id)
 	case ID_PAGESETUP: page_setup(); return 1;
 	case ID_FIND: case ID_REPLACE: find_dialog(); return 1;
 	case ID_FINDAGAIN: find_again(); return 1;
+	case ID_TOC: done(&s, ec_toc(qd.doc, qd.lay, &s)); return 1;
+	case ID_NEXTNOTE: done(&s, ec_next_note(qd.doc, &s)); return 1;
+	case ID_CAPTION: caption(); return 1;
+	case ID_BOOKMARK: bookmark(); return 1;
+	case ID_XREF: xref(); return 1;
 	case ID_PORTRAIT: case ID_LANDSCAPE: orientation(id == ID_LANDSCAPE); return 1;
 	case ID_PARAGRAPH: paragraph(); return 1;
 	case ID_TABLE: {
@@ -457,8 +543,6 @@ void qc_menus(void (*add)(int type, const char *label, const char *key, int flag
 	add(NM_ITEM, "Breaks", NULL, 0, 0);
 	for (i = 0; i < NBREAKS; i++)
 		add(NM_SUB, break_names[i], NULL, 0, ID_BREAK0 + (unsigned long)i);
-	add(NM_ITEM, "Footnote...", NULL, 0, ID_FOOTNOTE);
-	add(NM_ITEM, "Endnote...", NULL, 0, ID_ENDNOTE);
 	add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0);
 	add(NM_ITEM, "Date", NULL, 0, ID_DATE);
 	add(NM_ITEM, "Page Number", NULL, 0, ID_PAGENUM);
@@ -491,4 +575,15 @@ void qc_menus(void (*add)(int type, const char *label, const char *key, int flag
 	add(NM_SUB, (const char *)NM_BARLABEL, NULL, 0, 0);
 	add(NM_SUB, "Merge Cells", NULL, 0, ID_MERGE);
 	add(NM_SUB, "Split Cells", NULL, 0, ID_SPLIT);
+	/* References: the Amiga's References tab, where the core does the work */
+	add(NM_TITLE, "References", NULL, 0, 0);
+	add(NM_ITEM, "Table of Contents", NULL, 0, ID_TOC);
+	add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0);
+	add(NM_ITEM, "Footnote...", NULL, 0, ID_FOOTNOTE);
+	add(NM_ITEM, "Endnote...", NULL, 0, ID_ENDNOTE);
+	add(NM_ITEM, "Next Footnote", NULL, 0, ID_NEXTNOTE);
+	add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0);
+	add(NM_ITEM, "Caption...", NULL, 0, ID_CAPTION);
+	add(NM_ITEM, "Bookmark...", NULL, 0, ID_BOOKMARK);
+	add(NM_ITEM, "Cross-reference...", NULL, 0, ID_XREF);
 }
