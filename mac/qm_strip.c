@@ -79,6 +79,9 @@ static const SItem home[] = {
 	/* OUTDENT, INDENT: lines moved out or in, an arrow pointing that way */
 	{ SK_BUTTON, 5, 0, BW, ID_OUTDENT, "ci L 1 2 14 2 L 7 6 14 6 L 7 10 14 10 L 1 14 14 14 ca P 3 4 5 1 8 4 11" },
 	{ SK_BUTTON, 5, 0, BW, ID_INDENT, "ci L 1 2 14 2 L 7 6 14 6 L 7 10 14 10 L 1 14 14 14 ca P 3 1 5 4 8 1 11" },
+	/* FONTDLG: A and the dialog's corner; FIND: a magnifier (Edit > Find...) */
+	{ SK_BUTTON, 6, 0, BW, ID_FONTDLG, "ci L 1 12 5 2 L 5 2 9 12 L 3 8 7 8 ca R 10 10 15 15 L 12 12 15 15 L 15 12 15 15 L 12 15 15 15" },
+	{ SK_BUTTON, 6, 0, BW, ID_FIND, "ci O 6 6 4 L 9 9 14 14 L 10 9 15 14" },
 };
 
 /* Insert, Layout, References, Review: the Amiga's tabs of those names, as far as the Mac has their

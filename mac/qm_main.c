@@ -32,6 +32,7 @@
 #include "qm_dialog.h"
 #include "../core/docx.h"
 #include "../core/pdf.h"
+#include "../core/edcmd.h"
 #include "../amiga/lang.h"
 
 int mm_dir_path(short vref, long dir, char *out, int len);       /* riptide src/mac/mui/mm_os.c */
@@ -115,6 +116,10 @@ static void menus_build(void)
 	nm_add(NM_TITLE, "Edit", NULL, 0, 0);                        /* after Undo, Cut, Copy, Paste, Clear */
 	nm_add(NM_ITEM, "Redo", "Y", 0, ID_REDO);
 	nm_add(NM_ITEM, "Select All", "A", 0, ID_SELALL);
+	BAR();
+	nm_add(NM_ITEM, "Find...", "F", 0, ID_FIND);                 /* F and G as the Guidelines have them (p. 128) */
+	nm_add(NM_ITEM, "Find Again", "G", 0, ID_FINDAGAIN);
+	nm_add(NM_ITEM, "Replace...", NULL, 0, ID_REPLACE);
 	nm_add(NM_TITLE, "Font", NULL, 0, 0);
 	for (i = 0; i < nfam; i++)
 		nm_add(NM_ITEM, fam[i], NULL, CHECKIT, (ULONG)(ID_FONT0 + i));
@@ -139,6 +144,7 @@ static void menus_build(void)
 	nm_add(NM_ITEM, "Superscript", "+", CHECKIT, ID_SUPER);
 	nm_add(NM_ITEM, "Subscript", "-", CHECKIT, ID_SUB);
 	nm_add(NM_TITLE, tr_ctx("menu", "Format"), NULL, 0, 0);   /* the menu, not the verb */
+	nm_add(NM_ITEM, "Font...", NULL, 0, ID_FONTDLG);
 	nm_add(NM_ITEM, "Paragraph Style", NULL, 0, 0);              /* a hierarchical menu (p. 79): an attribute list */
 	for (i = 0; i < NPSTYLES; i++)
 		nm_add(NM_SUB, pstyles[i].name, NULL, CHECKIT, (ULONG)(ID_STYLE0 + i));
@@ -666,7 +672,7 @@ static void char_format(unsigned mask, const CharFmt *v)
 	if (mask & CM_FONT) typing.font = v->font;
 	if (mask & CM_SIZE) typing.size = v->size;
 	if (mask & (CM_BOLD | CM_ITALIC | CM_UNDERLINE | CM_STRIKE | CM_SUPER | CM_SUB))
-		typing.flags &= (u8)~mask;
+		typing.flags = (u8)((typing.flags & ~mask) | (v->flags & mask));     /* (CM_ and CF_ bits are the same) */
 	qm_status();
 }
 
@@ -757,6 +763,70 @@ static void indent(int dir)
 	}
 	doc_end(doc, qd.caret);
 	qv_changed(view, 0);
+}
+
+/* Format > Font...: the family, size and styles of the selection (or of what is typed next) */
+static void font_dialog(void)
+{
+	enum { CHECKS = 6 };
+	static const char *const names[CHECKS] = { "Bold", "Italic", "Underline", "Strikethrough", "Superscript", "Subscript" };
+	static const unsigned bits[CHECKS] = { CF_BOLD, CF_ITALIC, CF_UNDERLINE, CF_STRIKE, CF_SUPER, CF_SUB };
+	DItem it[2 + MAXFAM + 2 + CHECKS + 2];
+	int n = 0, k, font = here.font, on[CHECKS], shown = nfam < 8 ? nfam : 8, y, size, b;
+	char sz[8];
+	CharFmt cf;
+	unsigned mask = CM_SIZE | CM_BOLD | CM_ITALIC | CM_UNDERLINE | CM_STRIKE | CM_SUPER | CM_SUB;
+	memset(it, 0, sizeof it);
+#define ADD(K, X, Y, W, L) (it[n].kind = (K), it[n].x = (X), it[n].y = (Y), it[n].w = (W), it[n].label = (L), &it[n++])
+	ADD(DI_TEXT, 13, 13, 304, "Font");
+	ADD(DI_TEXT, 13, 41, 60, "Font:");
+	for (k = 0; k < shown; k++) {
+		DItem *r = ADD(DI_RADIO, 80, 41 + 18 * k, 230, fam[k]);
+		r->value = &font;
+		r->ord = k;
+	}
+	y = 41 + 18 * shown + 10;
+	ADD(DI_TEXT, 13, y, 60, "Size:");
+	{
+		DItem *e = ADD(DI_EDIT, 80, y, 40, NULL);
+		snprintf(sz, sizeof sz, here.f.size & 1 ? "%d.5" : "%d", here.f.size / 2);
+		e->text = sz;
+		e->cap = sizeof sz;
+	}
+	y += 30;
+	for (k = 0; k < CHECKS; k++) {
+		DItem *c = ADD(DI_CHECK, k < 3 ? 13 : 165, y + 18 * (k % 3), 150, names[k]);
+		on[k] = (here.f.flags & bits[k]) != 0;
+		c->value = &on[k];
+	}
+	y += 18 * 3 + 14;
+	ADD(DI_BUTTON, 247, y, 70, "OK");
+	ADD(DI_BUTTON, 165, y, 70, "_Cancel");
+#undef ADD
+	for (;;) {
+		i32 tw;
+		b = qdlg_run(330, y + 33, it, n, n - 2, n - 1);
+		if (b != n - 2)
+			return;
+		/* the size in points (halves allowed): ec_measure gives twentieths */
+		if (ec_measure(sz, EU_PT, &tw) && tw >= 20 && tw <= 32760 && tw % 10 == 0) {
+			size = (int)(tw / 10);
+			break;
+		}
+		qm_alert(QA_STOP, "The size must be a number of points from 1 to 1638 (halves allowed).", NULL);
+	}
+	memset(&cf, 0, sizeof cf);
+	cf.size = (u16)size;
+	for (k = 0; k < CHECKS; k++)
+		if (on[k])
+			cf.flags |= (u8)bits[k];
+	if (cf.flags & CF_SUPER)
+		cf.flags &= (u8)~CF_SUB;           /* (not both) */
+	if (font >= 0) {
+		cf.font = (u8)doc_font(qd.doc, fam[font]);
+		mask |= CM_FONT;
+	}
+	char_format(mask, &cf);
 }
 
 /* ---- the Edit menu (Riptide's mm_edit_action and mm_edit_state) ---- */
@@ -1002,6 +1072,7 @@ static void command(ULONG id)
 		para_format(PM_LINE, &pf);
 		break;
 	case ID_BULLETS: case ID_NUMBERS: list_toggle(id == ID_NUMBERS); break;
+	case ID_FONTDLG: font_dialog(); break;
 	case ID_OUTDENT: case ID_INDENT: indent(id == ID_INDENT ? 1 : -1); break;
 	case ID_RIBBON: case ID_RULER:
 		if (id == ID_RIBBON)

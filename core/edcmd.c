@@ -266,3 +266,36 @@ void ec_measure_text(i32 tw, int unit, char *out, int cap)
   if (n > 0 && t[n - 1] == '.') t[--n] = 0;
   snprintf(out, (size_t)cap, "%s", t);
 }
+
+int ec_find(Doc *d, ESel *s, const char *what, unsigned flags)
+{
+  Pos a, b;
+  if (!what || !*what || !doc_find(d, (flags & FIND_BACK) ? es_lo(s) : es_hi(s), what, flags, &a, &b)) return 0;
+  s->anchor = a;
+  s->caret = b;
+  return 1;
+}
+
+/* the selection is exactly a match (as doc_find would find it from its start) */
+static int sel_matches(Doc *d, const ESel *s, const char *what, unsigned flags)
+{
+  Pos a, b, lo = es_lo(s);
+  return pos_cmp(s->anchor, s->caret) && doc_find(d, lo, what, flags & ~FIND_BACK, &a, &b) && !pos_cmp(a, lo) && !pos_cmp(b, es_hi(s));
+}
+
+int ec_replace(Doc *d, ESel *s, const char *what, const char *with, unsigned flags)
+{
+  int did = 0;
+  if (!what || !*what) return 0;
+  if (sel_matches(d, s, what, flags)) did = ec_text(d, s, with ? with : "");
+  return ec_find(d, s, what, flags & ~FIND_BACK) || did;
+}
+
+u32 ec_replace_all(Doc *d, ESel *s, const char *what, const char *with, unsigned flags)
+{
+  u32 n;
+  if (!what || !*what) return 0;
+  n = doc_replace_all(d, what, with ? with : "", flags & ~FIND_BACK);
+  s->caret = s->anchor = pos_clamp(d, s->caret);
+  return n;
+}

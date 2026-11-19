@@ -242,6 +242,71 @@ static void paragraph(void)
 	done(&s, ec_para(qd.doc, &s, mask, &pf));
 }
 
+/* Edit > Find..., Replace... and Find Again: one dialog; what was looked for is kept (Mac Roman) */
+static char find_what[128], find_with[128];
+static int find_case, find_word;
+
+static unsigned find_flags(void)
+{
+	return (find_case ? FIND_CASE : 0) | (find_word ? FIND_WORD : 0);
+}
+
+/* the search once more, from the selection; a note when there is nothing (Guidelines p. 196) */
+static void find_again(void)
+{
+	char u[400];
+	ESel s = sel_now();
+	if (!find_what[0]) {
+		SysBeep(1);
+		return;
+	}
+	to_utf8(find_what, u, sizeof u);
+	if (ec_find(qd.doc, &s, u, find_flags()))
+		done(&s, 1);
+	else
+		qm_alert(QA_NOTE, "\"%s\" was not found.", find_what);
+}
+
+static void find_dialog(void)
+{
+	char what[400], with[400], t[24];
+	u32 n;
+	ESel s = sel_now();
+	int b;
+	DItem it[] = {
+		{ DI_TEXT, 0, 0, 13, 13, 354, "Find and Replace" },
+		{ DI_TEXT, 0, 0, 13, 41, 100, "Find:" },
+		{ DI_EDIT, 0, 0, 116, 41, 248, NULL, find_what, sizeof find_what },
+		{ DI_TEXT, 0, 0, 13, 69, 100, "Replace with:" },
+		{ DI_EDIT, 0, 0, 116, 69, 248, NULL, find_with, sizeof find_with },
+		{ DI_CHECK, 0, 0, 13, 97, 150, "Match case", NULL, 0, &find_case },
+		{ DI_CHECK, 0, 0, 170, 97, 190, "Whole words only", NULL, 0, &find_word },
+		{ DI_BUTTON, 0, 0, 13, 128, 90, "Replace All" },
+		{ DI_BUTTON, 0, 0, 109, 128, 70, "Replace" },
+		{ DI_BUTTON, 0, 0, 215, 128, 70, "_Cancel" },
+		{ DI_BUTTON, 0, 0, 297, 128, 70, "Find Next" },
+	};
+	b = qdlg_run(380, 161, it, 11, 10, 9);
+	if (b == 9 || !find_what[0])
+		return;
+	to_utf8(find_what, what, sizeof what);
+	to_utf8(find_with, with, sizeof with);
+	if (b == 10) {
+		find_again();
+	} else if (b == 8) {
+		if (ec_replace(qd.doc, &s, what, with, find_flags()))
+			done(&s, 1);
+		else
+			qm_alert(QA_NOTE, "\"%s\" was not found.", find_what);
+	} else {
+		n = ec_replace_all(qd.doc, &s, what, with, find_flags());
+		if (n)
+			done(&s, 1);
+		snprintf(t, sizeof t, "%lu", (unsigned long)n);
+		qm_alert(QA_NOTE, n ? "Replacements made: %s." : "\"%s\" was not found.", n ? t : find_what);
+	}
+}
+
 /* Insert > Picture...: Standard File, then the core reads it (PNG or JPEG) */
 static void insert_picture(void)
 {
@@ -297,8 +362,10 @@ unsigned qc_state(unsigned long id, int *mine)
 	if (id >= ID_LINENUM0 && id < ID_LINENUM0 + 4)
 		return QS_ENABLED | (doc_sect(qd.doc, qd.doc->np - 1)->linenum == id - ID_LINENUM0 ? QS_CHECKED : 0);
 	switch (id) {
-	case ID_PAGESETUP: case ID_PARAGRAPH:
+	case ID_PAGESETUP: case ID_PARAGRAPH: case ID_FIND: case ID_REPLACE:
 		return QS_ENABLED;
+	case ID_FINDAGAIN:
+		return find_what[0] ? QS_ENABLED : 0;
 	case ID_PORTRAIT: case ID_LANDSCAPE:
 		return QS_ENABLED | ((qd.doc->page.width > qd.doc->page.height) == (id == ID_LANDSCAPE) ? QS_CHECKED : 0);
 	case ID_TABLE: case ID_PICTURE: case ID_FOOTNOTE: case ID_ENDNOTE: case ID_DATE: case ID_PAGENUM:
@@ -337,6 +404,8 @@ int qc_command(unsigned long id)
 	}
 	switch (id) {
 	case ID_PAGESETUP: page_setup(); return 1;
+	case ID_FIND: case ID_REPLACE: find_dialog(); return 1;
+	case ID_FINDAGAIN: find_again(); return 1;
 	case ID_PORTRAIT: case ID_LANDSCAPE: orientation(id == ID_LANDSCAPE); return 1;
 	case ID_PARAGRAPH: paragraph(); return 1;
 	case ID_TABLE: {

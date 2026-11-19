@@ -4429,4 +4429,9 @@
   { { "First line:", "Erste Zeile:", "Premi\350re ligne :", "Primera l\355nea:", "Prima riga:" } },
   { { "Spacing (points):", "Abstand (Punkt):", "Espacement (points) :", "Espaciado (puntos):", "Spaziatura (punti):" } },
   { { "Indents and spacing must be numbers (spacing not below 0).", "Einz\374ge und Abst\344nde m\374ssen Zahlen sein (Abst\344nde nicht unter 0).", "Les retraits et espacements doivent \352tre des nombres (espacement d'au moins 0).", "Las sangr\355as y el espaciado deben ser n\372meros (espaciado no inferior a 0).", "Rientri e spaziatura devono essere numeri (spaziatura non inferiore a 0)." } },
+  { { "Find Again", "Weitersuchen", "Rechercher le suivant", "Buscar siguiente", "Trova successivo" } },
+  { { "Whole words only", "Nur ganze W\366rter", "Mots entiers seulement", "S\363lo palabras completas", "Solo parole intere" } },
+  { { "\"%s\" was not found.", "\"%s\" wurde nicht gefunden.", "\"%s\" est introuvable.", "No se encontr\363 \"%s\".", "\"%s\" non \350 stato trovato." } },
+  { { "Replacements made: %s.", "Ersetzungen: %s.", "Remplacements effectu\351s : %s.", "Reemplazos hechos: %s.", "Sostituzioni eseguite: %s." } },
+  { { "The size must be a number of points from 1 to 1638 (halves allowed).", "Die Gr\366\337e muss eine Punktzahl von 1 bis 1638 sein (halbe Punkte erlaubt).", "La taille doit \352tre un nombre de points de 1 \340 1638 (demi-points permis).", "El tama\361o debe ser un n\372mero de puntos de 1 a 1638 (se admiten medios).", "La dimensione deve essere un numero di punti da 1 a 1638 (mezzi punti ammessi)." } },
 /* ---- end the Mac front end */

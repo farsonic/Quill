@@ -52,6 +52,13 @@ int  ec_line_numbers(Doc *d, ESel *s, int ln);
 /* the selected paragraphs' PM_ fields in mask set from pf (indents, spacing...), one undo step */
 int  ec_para(Doc *d, ESel *s, unsigned mask, const ParaFmt *pf);
 
+/* Find and Replace (FIND_ flags): the next match after the selection (FIND_BACK: before it),
+   wrapping round, selected; ec_replace: the selection, if it is a match, becomes with, then the next
+   match is selected (1 if either happened); ec_replace_all: every match, one undo step, how many */
+int  ec_find(Doc *d, ESel *s, const char *what, unsigned flags);
+int  ec_replace(Doc *d, ESel *s, const char *what, const char *with, unsigned flags);
+u32  ec_replace_all(Doc *d, ESel *s, const char *what, const char *with, unsigned flags);
+
 /* measurements as people type them: EU_ units; "1.25", "1,25" (a comma for the point), "-0.5"; at
    most two decimals. ec_measure: 1 and *tw, or 0 if it isn't a number */
 enum { EU_INCH, EU_CM, EU_PT };

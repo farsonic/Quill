@@ -38,4 +38,10 @@ W = [
 ("First line:", "Erste Zeile:", "Première ligne :", "Primera línea:", "Prima riga:"),
 ("Spacing (points):", "Abstand (Punkt):", "Espacement (points) :", "Espaciado (puntos):", "Spaziatura (punti):"),
 ("Indents and spacing must be numbers (spacing not below 0).", "Einzüge und Abstände müssen Zahlen sein (Abstände nicht unter 0).", "Les retraits et espacements doivent être des nombres (espacement d'au moins 0).", "Las sangrías y el espaciado deben ser números (espaciado no inferior a 0).", "Rientri e spaziatura devono essere numeri (spaziatura non inferiore a 0)."),
+# Edit > Find..., Find Again, Replace... and Format > Font... (mac/qm_cmds.c, mac/qm_main.c)
+("Find Again", "Weitersuchen", "Rechercher le suivant", "Buscar siguiente", "Trova successivo"),
+("Whole words only", "Nur ganze Wörter", "Mots entiers seulement", "Sólo palabras completas", "Solo parole intere"),
+("\"%s\" was not found.", "\"%s\" wurde nicht gefunden.", "\"%s\" est introuvable.", "No se encontró \"%s\".", "\"%s\" non è stato trovato."),
+("Replacements made: %s.", "Ersetzungen: %s.", "Remplacements effectués : %s.", "Reemplazos hechos: %s.", "Sostituzioni eseguite: %s."),
+("The size must be a number of points from 1 to 1638 (halves allowed).", "Die Größe muss eine Punktzahl von 1 bis 1638 sein (halbe Punkte erlaubt).", "La taille doit être un nombre de points de 1 à 1638 (demi-points permis).", "El tamaño debe ser un número de puntos de 1 a 1638 (se admiten medios).", "La dimensione deve essere un numero di punti da 1 a 1638 (mezzi punti ammessi)."),
 ]

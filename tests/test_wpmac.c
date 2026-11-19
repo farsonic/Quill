@@ -276,8 +276,33 @@ static void test_layout(void)
   doc_free(d);
 }
 
+/* Find and Replace (core/edcmd.c) */
+static void test_find(void)
+{
+  Doc *d = doc_new();
+  ESel s;
+  memset(&s, 0, sizeof s);
+  ec_text(d, &s, "The cat sat. A Cat ran.\nconcatenate the cat");
+  doc_clear_undo(d);
+  s.anchor = s.caret = P(0, 0);
+  ok("find: the first match", ec_find(d, &s, "cat", 0) && !pos_cmp(s.anchor, P(0, 4)) && !pos_cmp(s.caret, P(0, 7)));
+  ok("find: the next, any case", ec_find(d, &s, "cat", 0) && !pos_cmp(s.anchor, P(0, 15)));
+  ok("find: whole words skip concatenate", ec_find(d, &s, "cat", FIND_WORD) && !pos_cmp(s.anchor, P(1, 16)));
+  ok("find: round to the start", ec_find(d, &s, "cat", FIND_CASE) && !pos_cmp(s.anchor, P(0, 4)));
+  ok("find: backwards", ec_find(d, &s, "cat", FIND_BACK) && s.anchor.para == 1);
+  ok("find: nothing", !ec_find(d, &s, "dog", 0) && !ec_find(d, &s, "", 0));
+  s.anchor = s.caret = P(0, 0);
+  ec_find(d, &s, "cat", FIND_CASE);
+  ok("replace: the selection, then the next selected", ec_replace(d, &s, "cat", "dog", FIND_CASE) && !strncmp(d->p[0]->t, "The dog sat.", 12) && s.anchor.para == 1);
+  ok("replace all: how many", ec_replace_all(d, &s, "cat", "cow", FIND_WORD) == 2);
+  ok("replace all: the text", text_is(d, "The dog sat. A cow ran.\nconcatenate the cow"));
+  ok("replace all: one undo step", doc_undo(d, &s.caret) && text_is(d, "The dog sat. A Cat ran.\nconcatenate the cat"));
+  doc_free(d);
+}
+
 void test_wpmac(void)
 {
+  test_find();
   test_insert();
   test_layout();
   test_units();

@@ -45,6 +45,8 @@ enum {
 	ID_ROW_ABOVE, ID_ROW_BELOW, ID_COL_LEFT, ID_COL_RIGHT, ID_DEL_ROW, ID_DEL_COL, ID_DEL_TABLE, ID_MERGE, ID_SPLIT,
 	/* Layout */
 	ID_PAGESETUP, ID_PORTRAIT, ID_LANDSCAPE, ID_PARAGRAPH,
+	/* Edit > Find, Format > Font... */
+	ID_FIND, ID_FINDAGAIN, ID_REPLACE, ID_FONTDLG,
 	ID_BREAK0 = 120,            /* + Insert > Breaks' row (NBREAKS): page, column, section next page, continuous */
 	ID_SYM0 = 130,              /* + Insert > Symbol's row */
 	ID_COLS0 = 160,             /* + Layout > Columns' row: one, two, three */
