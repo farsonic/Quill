@@ -140,9 +140,25 @@ static const SItem references[] = {
 	{ SK_BUTTON, 3, 0, BW, ID_BOOKMARK, "ca F 5 2 11 9 P 6 4 1 12 1 12 15 8 11 4 15 4 1" },
 	{ SK_BUTTON, 3, 0, BW, ID_XREF, "ci R 7 1 14 15 cw F 8 2 13 14 ca L 1 8 10 8 L 7 5 10 8 L 7 11 10 8" },
 };
+static const SItem review[] = {
+	/* SPELLING: abc and a green tick; WORDCOUNT: 123 in a box */
+	{ SK_BUTTON, 1, 0, BW, ID_SPELL, "ci B abc cg L 5 12 8 15 L 8 15 14 8" },
+	{ SK_BUTTON, 1, 0, BW, ID_WORDCOUNT, "ci R 1 1 14 14 ca B 123" },
+	/* COMMENT, PREV, NEXT, DELETE */
+	{ SK_BUTTON, 2, 0, BW, ID_COMMENT, "ci R 1 2 14 11 L 4 11 4 14 L 4 14 7 11 ca L 4 5 11 5 L 4 8 9 8" },
+	{ SK_BUTTON, 2, 0, BW, ID_PREVCOMMENT, "ci R 1 2 12 11 ca L 9 13 4 13 L 6 11 4 13 L 6 15 4 13" },
+	{ SK_BUTTON, 2, 0, BW, ID_NEXTCOMMENT, "ci R 1 2 12 11 ca L 4 13 9 13 L 7 11 9 13 L 7 15 9 13" },
+	{ SK_BUTTON, 2, 0, BW, ID_DELCOMMENT, "ci R 2 2 13 13 cr L 4 4 11 11 L 11 4 4 11" },
+	/* TRACK: a page with changed lines; the changes before and after; ACCEPT, REJECT */
+	{ SK_TOGGLE, 3, 0, BW, ID_TRACK, "ci R 2 1 13 15 cr L 4 4 11 4 L 4 7 9 7 ci L 4 10 11 10 cr L 4 13 11 13" },
+	{ SK_BUTTON, 3, 0, BW, ID_PREVCHANGE, "ci R 2 1 13 9 cr L 4 4 11 4 ca L 9 13 4 13 L 6 11 4 13 L 6 15 4 13" },
+	{ SK_BUTTON, 3, 0, BW, ID_NEXTCHANGE, "ci R 2 1 13 9 cr L 4 4 11 4 ca L 4 13 9 13 L 7 11 9 13 L 7 15 9 13" },
+	{ SK_BUTTON, 3, 0, BW, ID_ACCEPT, "ci R 2 1 11 15 cg L 7 11 10 14 L 10 14 15 7" },
+	{ SK_BUTTON, 3, 0, BW, ID_REJECT, "ci R 2 1 11 15 cr L 8 8 14 14 L 14 8 8 14" },
+};
 #define N(a) ((int)(sizeof a / sizeof a[0]))
 static const struct { const SItem *items; int n; } strips[QS_NSTRIPS] = {
-	{ home, N(home) }, { insert, N(insert) }, { layout, N(layout) }, { references, N(references) }, { NULL, 0 },
+	{ home, N(home) }, { insert, N(insert) }, { layout, N(layout) }, { references, N(references) }, { review, N(review) },
 };
 static int cur;                             /* the strip shown (QS_) */
 

@@ -4440,4 +4440,13 @@
   { { "Bookmarks:", "Textmarken:", "Signets :", "Marcadores:", "Segnalibri:" } },
   { { "This document has no bookmarks.", "Dieses Dokument hat keine Textmarken.", "Ce document n'a pas de signets.", "Este documento no tiene marcadores.", "Questo documento non ha segnalibri." } },
   { { "A bookmark's name is one word (letters, digits and _), on a word of the text.", "Der Name einer Textmarke ist ein Wort (Buchstaben, Ziffern und _) und steht auf einem Wort des Textes.", "Le nom d'un signet est un mot (lettres, chiffres et _), plac\351 sur un mot du texte.", "El nombre de un marcador es una palabra (letras, cifras y _), sobre una palabra del texto.", "Il nome di un segnalibro \350 una parola (lettere, cifre e _), su una parola del testo." } },
+  { { "Quill's word list (british-english, in a folder named dict beside Quill) couldn't be read.", "Quills Wortliste (british-english, in einem Ordner namens dict neben Quill) konnte nicht gelesen werden.", "La liste de mots de Quill (british-english, dans un dossier nomm\351 dict \340 c\364t\351 de Quill) n'a pas pu \352tre lue.", "No se pudo leer la lista de palabras de Quill (british-english, en una carpeta llamada dict junto a Quill).", "Non \350 stato possibile leggere l'elenco di parole di Quill (british-english, in una cartella chiamata dict accanto a Quill)." } },
+  { { "The spelling check is complete.", "Die Rechtschreibpr\374fung ist abgeschlossen.", "La v\351rification orthographique est termin\351e.", "La revisi\363n ortogr\341fica ha terminado.", "Il controllo ortografico \350 terminato." } },
+  { { "Not in the dictionary:", "Nicht im W\366rterbuch:", "Absent du dictionnaire :", "No est\341 en el diccionario:", "Non nel dizionario:" } },
+  { { "No suggestions.", "Keine Vorschl\344ge.", "Aucune suggestion.", "Sin sugerencias.", "Nessun suggerimento." } },
+  { { "Words: %lu\nParagraphs: %lu\nPages: %lu", "W\366rter: %lu\nAbs\344tze: %lu\nSeiten: %lu", "Mots : %lu\nParagraphes : %lu\nPages : %lu", "Palabras: %lu\nP\341rrafos: %lu\nP\341ginas: %lu", "Parole: %lu\nParagrafi: %lu\nPagine: %lu" } },
+  { { "Comment by %s:\n%s", "Kommentar von %s:\n%s", "Commentaire de %s :\n%s", "Comentario de %s:\n%s", "Commento di %s:\n%s" } },
+  { { "Previous Comment", "Vorheriger Kommentar", "Commentaire pr\351c\351dent", "Comentario anterior", "Commento precedente" } },
+  { { "Next Comment", "N\344chster Kommentar", "Commentaire suivant", "Comentario siguiente", "Commento successivo" } },
+  { { "Previous Change", "Vorherige \304nderung", "Modification pr\351c\351dente", "Cambio anterior", "Modifica precedente" } },
 /* ---- end the Mac front end */

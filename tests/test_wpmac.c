@@ -11,6 +11,7 @@
 #include "../core/edcmd.h"
 #include "../core/field.h"
 #include "../core/toc.h"
+#include "../core/spell.h"
 
 /* the ruler for the caret at p, laid out afresh */
 static void geom_at(Doc *d, Pos p, RulerGeom *g)
@@ -349,8 +350,65 @@ static void test_references(void)
   doc_free(d);
 }
 
+/* the Review strip's commands */
+static void test_review(void)
+{
+  Doc *d = doc_new(), *r;
+  ESel s;
+  Spell sp;
+  Pos a, b;
+  int k, rid;
+  char when[24];
+  static const char words[] = "the\ncat\nsat\non\nmat\nmac\n";
+  memset(&s, 0, sizeof s);
+  ec_text(d, &s, "The cat sat on teh mat.\nAnother line.");
+  doc_clear_undo(d);
+  ec_now(when);
+  ok("review: a W3C time", strlen(when) == 20 && when[4] == '-' && when[19] == 'Z');
+  /* comments */
+  s.anchor = s.caret = P(0, 5);
+  k = ec_comment(d, &s, "Which cat?", "Mac", when);
+  ok("comment: on the word at the caret", k == 0 && d->ncomments == 1 && doc_comment_at(d, P(0, 6), &a, &b) == 0);
+  s.anchor = s.caret = P(1, 0);
+  ok("comment: the next one, round again", ec_comment_next(d, &s, 1) == 0 && s.anchor.para == 0);
+  ok("comment: its range selected", pos_cmp(s.anchor, s.caret) < 0);
+  ok("comment: the previous one", ec_comment_next(d, &s, -1) == 0);
+  r = docx_again(d, NULL);
+  ok("comment: kept in .docx with its author", r && r->ncomments == 1 && !strcmp(r->comments[0].author, "Mac"));
+  doc_free(r);
+  ok("comment: deleted", ec_comment_delete(d, &s) && ec_comment_next(d, &s, 1) < 0);
+  /* tracked changes: an insertion and a deletion by Mac, then accepted and rejected */
+  rid = doc_add_rev(d, "Mac", when);
+  {
+    CharFmt f = *para_fmt_before(d->p[1]->t ? d->p[1] : d->p[1], 0);
+    Pos at = P(1, 0);
+    ec_track_fmt(&f, rid);
+    doc_insert(d, &at, "Yet ", 4, &f);
+  }
+  ok("track: a deletion is only marked", ec_delete(d, P(0, 15), P(0, 19), rid) && !strncmp(d->p[0]->t + 15, "teh ", 4));
+  s.anchor = s.caret = P(0, 0);
+  ok("track: the next change", ec_change_next(d, &s, 1) && !pos_cmp(s.anchor, P(0, 15)));
+  ok("track: the deletion accepted, the next selected", ec_resolve(d, &s, 1, 0) && !strncmp(d->p[0]->t, "The cat sat on mat.", 19) && s.anchor.para == 1);
+  ok("track: the insertion rejected", ec_resolve(d, &s, 0, 0) && !strcmp(d->p[1]->t, "Another line."));
+  ok("track: none left", !ec_change_next(d, &s, 1) && !ec_resolve(d, &s, 1, 1));
+  ok("track: not tracking, a deletion deletes", ec_delete(d, P(1, 0), P(1, 8), -1) && !strcmp(d->p[1]->t, "line."));
+  /* spelling with a little word list */
+  memset(&sp, 0, sizeof sp);
+  ok("spell: a word list", spell_load_mem(&sp, words, sizeof words - 1));
+  doc_free(d);
+  d = doc_new();
+  s.anchor = s.caret = P(0, 0);
+  ec_text(d, &s, "the cat sat on teh mat");
+  ok("spell: the misspelt word found", spell_next(&sp, d, P(0, 0), &a, &b) && a.off == 15 && b.off == 18);
+  spell_add(&sp, "teh", 3);
+  ok("spell: none once it is known", !spell_next(&sp, d, P(0, 0), &a, &b));
+  spell_free(&sp);
+  doc_free(d);
+}
+
 void test_wpmac(void)
 {
+  test_review();
   test_references();
   test_find();
   test_insert();

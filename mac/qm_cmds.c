@@ -20,6 +20,7 @@
 #include "qm_mac.h"
 #include "qm_dialog.h"
 #include "../core/edcmd.h"
+#include "../core/spell.h"
 
 /* the Symbol submenu: characters Mac Roman has (the menu shows them), and each one's UTF-8 */
 static const struct { const char *mac, *utf8; } symbols[] = {
@@ -384,6 +385,131 @@ static void xref(void)
 	}
 }
 
+/* ---- Review ---- */
+
+/* the word list: Quill's British English one (dict/british-english), in a folder named dict beside
+   Quill as the Amiga keeps it; read when the spelling is first checked */
+static Spell speller;
+static int speller_state;                   /* 0 not read yet, 1 read, -1 couldn't be */
+
+/* text of the document as Mac Roman (a word, a comment) */
+static void doc_text_mac(Pos a, Pos b, char *out, int cap)
+{
+	char u[200];
+	u32 n = b.off - a.off;
+	if (a.para != b.para || n >= sizeof u)
+		n = 0;
+	memcpy(u, qd.doc->p[a.para]->t + a.off, n);
+	u[n] = 0;
+	utf8_to_macroman(u, out, cap);
+}
+
+/* Review > Spelling...: each word the list doesn't know, from the caret on, in a dialog: changed to
+   a suggestion, or ignored from now on (Ignore All); a note when the document is done */
+static void spelling(void)
+{
+	enum { NSUG = 5 };
+	ESel s = sel_now();
+	Pos from = es_hi(&s), a, b;
+	if (!speller_state) {
+		set_watch_cursor(1);
+		speller_state = spell_load(&speller, ":dict:british-english") ? 1 : -1;
+		set_watch_cursor(0);
+	}
+	if (speller_state < 0) {
+		qm_alert(QA_STOP, "Quill's word list (british-english, in a folder named dict beside Quill) couldn't be read.", NULL);
+		return;
+	}
+	for (;;) {
+		char word[64], line[160], *sug[NSUG], labels[NSUG][64];
+		int n, k, pick = 0, b0, hit;
+		DItem it[3 + NSUG + 3];
+		int m = 0;
+		if (!spell_next(&speller, qd.doc, from, &a, &b)) {
+			qm_alert(QA_NOTE, "The spelling check is complete.", NULL);
+			return;
+		}
+		/* the word selected and shown before the dialog asks about it */
+		s.anchor = a;
+		s.caret = b;
+		done(&s, 1);
+		qv_refresh_now(qm_view());
+		doc_text_mac(a, b, word, sizeof word);
+		snprintf(line, sizeof line, "%s \"%s\"", tr("Not in the dictionary:"), word);
+		n = spell_suggest(&speller, qd.doc->p[a.para]->t + a.off, b.off - a.off, sug, NSUG);
+		memset(it, 0, sizeof it);
+		it[m].kind = DI_TEXT; it[m].x = 13; it[m].y = 13; it[m].w = 314; it[m++].label = "Spelling";
+		it[m].kind = DI_TEXT; it[m].x = 13; it[m].y = 41; it[m].w = 314; it[m++].label = line;
+		it[m].kind = DI_TEXT; it[m].x = 13; it[m].y = 69; it[m].w = 90; it[m++].label = n ? "Suggestions:" : "No suggestions.";
+		for (k = 0; k < n; k++) {
+			utf8_to_macroman(sug[k], labels[k], 64);
+			it[m].kind = DI_RADIO; it[m].x = 110; it[m].y = 69 + 18 * k; it[m].w = 217;
+			it[m].label = labels[k]; it[m].value = &pick; it[m++].ord = k;
+		}
+		b0 = 69 + 18 * (n ? n : 1) + 14;
+		it[m].kind = DI_BUTTON; it[m].x = 13; it[m].y = b0; it[m].w = 90; it[m++].label = "Ignore All";
+		it[m].kind = DI_BUTTON; it[m].x = 176; it[m].y = b0; it[m].w = 70; it[m++].label = "_Cancel";
+		it[m].kind = DI_BUTTON; it[m].x = 258; it[m].y = b0; it[m].w = 70; it[m].off = !n; it[m++].label = "Change";
+		hit = qdlg_run(340, b0 + 33, it, m, n ? m - 1 : m - 3, m - 2);
+		if (hit == m - 1 && n) {
+			/* (the label shown is Mac Roman; the word put in is the core's UTF-8 suggestion) */
+			ec_text(qd.doc, &s, sug[pick]);
+			from = s.caret;
+			done(&s, 1);
+		} else if (hit == m - 3) {
+			spell_add(&speller, qd.doc->p[a.para]->t + a.off, b.off - a.off);
+			from = b;
+		}
+		for (k = 0; k < n; k++)
+			free(sug[k]);
+		if (hit == m - 2)
+			return;                     /* Cancel */
+	}
+}
+
+/* Review > Word Count: the body's words, paragraphs and pages in a note */
+static void word_count(void)
+{
+	char t[160];
+	lay_update(qd.lay);
+	snprintf(t, sizeof t, tr("Words: %lu\nParagraphs: %lu\nPages: %lu"), (unsigned long)doc_count_words(qd.doc),
+	         (unsigned long)qd.doc->np, (unsigned long)qd.lay->npages);
+	qm_alert(QA_NOTE, "%s", t);
+}
+
+/* a comment shown in a note: the page view does not draw comments' balloons yet */
+static void show_comment(int k)
+{
+	char text[300], author[64], t[400], *u = story_text(&qd.doc->comments[k].text);
+	utf8_to_macroman(u ? u : "", text, sizeof text);
+	utf8_to_macroman(qd.doc->comments[k].author, author, sizeof author);
+	free(u);
+	snprintf(t, sizeof t, tr("Comment by %s:\n%s"), author[0] ? author : "?", text);
+	qm_alert(QA_NOTE, "%s", t);
+}
+
+static void new_comment(void)
+{
+	char mac[256], u[768], when[24];
+	ESel s = sel_now();
+	if (!text_dialog("Comment:", "Add", mac, sizeof mac))
+		return;
+	to_utf8(mac, u, sizeof u);
+	ec_now(when);
+	done(&s, ec_comment(qd.doc, &s, u, qm_author(), when) >= 0);
+}
+
+static void next_comment(int dir)
+{
+	ESel s = sel_now();
+	int k = ec_comment_next(qd.doc, &s, dir);
+	done(&s, k >= 0);
+	if (k >= 0) {
+		qv_refresh_now(qm_view());
+		show_comment(k);
+	}
+}
+
 /* Insert > Picture...: Standard File, then the core reads it (PNG or JPEG) */
 static void insert_picture(void)
 {
@@ -447,6 +573,13 @@ unsigned qc_state(unsigned long id, int *mine)
 		return QS_ENABLED;
 	case ID_NEXTNOTE:
 		return qd.doc->nnotes || qd.doc->nenotes ? QS_ENABLED : 0;
+	case ID_SPELL: case ID_WORDCOUNT: case ID_COMMENT:
+	case ID_PREVCHANGE: case ID_NEXTCHANGE: case ID_ACCEPT: case ID_REJECT: case ID_ACCEPTALL: case ID_REJECTALL:
+		return QS_ENABLED;
+	case ID_PREVCOMMENT: case ID_NEXTCOMMENT: case ID_DELCOMMENT:
+		return qd.doc->ncomments ? QS_ENABLED : 0;
+	case ID_TRACK:
+		return QS_ENABLED | (qm_tracking() ? QS_CHECKED : 0);
 	case ID_PORTRAIT: case ID_LANDSCAPE:
 		return QS_ENABLED | ((qd.doc->page.width > qd.doc->page.height) == (id == ID_LANDSCAPE) ? QS_CHECKED : 0);
 	case ID_TABLE: case ID_PICTURE: case ID_FOOTNOTE: case ID_ENDNOTE: case ID_DATE: case ID_PAGENUM:
@@ -492,6 +625,15 @@ int qc_command(unsigned long id)
 	case ID_CAPTION: caption(); return 1;
 	case ID_BOOKMARK: bookmark(); return 1;
 	case ID_XREF: xref(); return 1;
+	case ID_SPELL: spelling(); return 1;
+	case ID_WORDCOUNT: word_count(); return 1;
+	case ID_COMMENT: new_comment(); return 1;
+	case ID_PREVCOMMENT: case ID_NEXTCOMMENT: next_comment(id == ID_NEXTCOMMENT ? 1 : -1); return 1;
+	case ID_DELCOMMENT: done(&s, ec_comment_delete(qd.doc, &s)); return 1;
+	case ID_TRACK: qm_track_toggle(); qm_status(); return 1;
+	case ID_PREVCHANGE: case ID_NEXTCHANGE: done(&s, ec_change_next(qd.doc, &s, id == ID_NEXTCHANGE ? 1 : -1)); return 1;
+	case ID_ACCEPT: case ID_REJECT: done(&s, ec_resolve(qd.doc, &s, id == ID_ACCEPT, 0)); return 1;
+	case ID_ACCEPTALL: case ID_REJECTALL: done(&s, ec_resolve(qd.doc, &s, id == ID_ACCEPTALL, 1)); return 1;
 	case ID_PORTRAIT: case ID_LANDSCAPE: orientation(id == ID_LANDSCAPE); return 1;
 	case ID_PARAGRAPH: paragraph(); return 1;
 	case ID_TABLE: {
@@ -586,4 +728,21 @@ void qc_menus(void (*add)(int type, const char *label, const char *key, int flag
 	add(NM_ITEM, "Caption...", NULL, 0, ID_CAPTION);
 	add(NM_ITEM, "Bookmark...", NULL, 0, ID_BOOKMARK);
 	add(NM_ITEM, "Cross-reference...", NULL, 0, ID_XREF);
+	/* Review: proofing, comments and tracked changes */
+	add(NM_TITLE, "Review", NULL, 0, 0);
+	add(NM_ITEM, "Spelling...", NULL, 0, ID_SPELL);
+	add(NM_ITEM, "Word Count", NULL, 0, ID_WORDCOUNT);
+	add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0);
+	add(NM_ITEM, "New Comment...", NULL, 0, ID_COMMENT);
+	add(NM_ITEM, "Previous Comment", NULL, 0, ID_PREVCOMMENT);
+	add(NM_ITEM, "Next Comment", NULL, 0, ID_NEXTCOMMENT);
+	add(NM_ITEM, "Delete Comment", NULL, 0, ID_DELCOMMENT);
+	add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0);
+	add(NM_ITEM, "Track Changes", NULL, CHECKIT, ID_TRACK);
+	add(NM_ITEM, "Previous Change", NULL, 0, ID_PREVCHANGE);
+	add(NM_ITEM, "Next Change", NULL, 0, ID_NEXTCHANGE);
+	add(NM_ITEM, "Accept Change", NULL, 0, ID_ACCEPT);
+	add(NM_ITEM, "Reject Change", NULL, 0, ID_REJECT);
+	add(NM_ITEM, "Accept All Changes", NULL, 0, ID_ACCEPTALL);
+	add(NM_ITEM, "Reject All Changes", NULL, 0, ID_REJECTALL);
 }

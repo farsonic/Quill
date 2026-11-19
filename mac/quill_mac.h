@@ -49,6 +49,9 @@ enum {
 	ID_FIND, ID_FINDAGAIN, ID_REPLACE, ID_FONTDLG,
 	/* References */
 	ID_TOC, ID_NEXTNOTE, ID_CAPTION, ID_BOOKMARK, ID_XREF,
+	/* Review */
+	ID_SPELL, ID_WORDCOUNT, ID_COMMENT, ID_PREVCOMMENT, ID_NEXTCOMMENT, ID_DELCOMMENT,
+	ID_TRACK, ID_PREVCHANGE, ID_NEXTCHANGE, ID_ACCEPT, ID_REJECT, ID_ACCEPTALL, ID_REJECTALL,
 	ID_BREAK0 = 120,            /* + Insert > Breaks' row (NBREAKS): page, column, section next page, continuous */
 	ID_SYM0 = 130,              /* + Insert > Symbol's row */
 	ID_COLS0 = 160,             /* + Layout > Columns' row: one, two, three */
@@ -106,6 +109,7 @@ void qv_chrome(Object *view, int ribbon, int ruler);   /* the tool strip and the
 int  qm_port_depth(void *port);                       /* the bits per pixel a window is drawn in */
 void qv_strip_changed(Object *view);                  /* the commands' states changed: the strip follows */
 void qv_strip_switched(Object *view);                 /* another strip chosen: drawn afresh */
+void qv_refresh_now(Object *view);                    /* the document laid out and drawn now (before a dialog shows it) */
 #endif
 
 /* qm_strip.c: the tool strip (View > Ribbon), drawn and clicked inside the page view's box */
@@ -135,6 +139,11 @@ void qr_click_corner(void *port, const void *r);       /* ... the next kind */
 void qm_status(void);                                  /* the menus' check marks after the caret moved */
 const CharFmt *qm_typing_fmt(void);                    /* what typing continues with (NULL: the text's) */
 void qm_typing_reset(void);                            /* the caret moved: typing takes the text's format again */
+void qm_delete(Pos a, Pos b);                          /* a..b deleted, or marked deleted while tracking changes */
+int  qm_tracking(void);                                /* Review > Track Changes is on */
+int  qm_track_rid(void);                               /* this document's revision for the author while tracking, else -1 */
+void qm_track_toggle(void);
+const char *qm_author(void);                           /* the System's owner name (UTF-8), else "Quill" */
 void set_watch_cursor(int on);                         /* the watch while busy, else the arrow */
 
 /* qm_text.c: Mac Roman, Latin-1 and UTF-8 */

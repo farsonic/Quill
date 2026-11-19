@@ -73,3 +73,5 @@ Quill Preferences
 out of memory
 no such file
 DATE \@ "d MMMM yyyy"
+:dict:british-english
+ci B abc cg L 5 12 8 15 L 8 15 14 8

@@ -1054,7 +1054,7 @@ static void delete_sel(void)
 	if (!has_sel())
 		return;
 	sel_order(&a, &b);
-	doc_delete(qd.doc, a, b);
+	qm_delete(a, b);                /* (marked deleted while changes are tracked) */
 	qd.caret = qd.anchor = a;
 }
 
@@ -1611,4 +1611,12 @@ void qv_strip_switched(Object *view)
 	chrome(view, &s, NULL, NULL, NULL, NULL, NULL);
 	SetPort(mm_win_of(view)->macwin);
 	InvalRect(&s);                  /* the update event draws the new strip */
+}
+
+void qv_refresh_now(Object *view)
+{
+	struct qv_data *d = INST_DATA(qv_mcc->mcc_Class, view);
+	if (d->stale)
+		refresh(d, view);
+	caret_show(d, view, 1);
 }

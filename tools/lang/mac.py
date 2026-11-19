@@ -51,4 +51,14 @@ W = [
 ("Bookmarks:", "Textmarken:", "Signets :", "Marcadores:", "Segnalibri:"),
 ("This document has no bookmarks.", "Dieses Dokument hat keine Textmarken.", "Ce document n'a pas de signets.", "Este documento no tiene marcadores.", "Questo documento non ha segnalibri."),
 ("A bookmark's name is one word (letters, digits and _), on a word of the text.", "Der Name einer Textmarke ist ein Wort (Buchstaben, Ziffern und _) und steht auf einem Wort des Textes.", "Le nom d'un signet est un mot (lettres, chiffres et _), placé sur un mot du texte.", "El nombre de un marcador es una palabra (letras, cifras y _), sobre una palabra del texto.", "Il nome di un segnalibro è una parola (lettere, cifre e _), su una parola del testo."),
+# Review (mac/qm_cmds.c)
+("Quill's word list (british-english, in a folder named dict beside Quill) couldn't be read.", "Quills Wortliste (british-english, in einem Ordner namens dict neben Quill) konnte nicht gelesen werden.", "La liste de mots de Quill (british-english, dans un dossier nommé dict à côté de Quill) n'a pas pu être lue.", "No se pudo leer la lista de palabras de Quill (british-english, en una carpeta llamada dict junto a Quill).", "Non è stato possibile leggere l'elenco di parole di Quill (british-english, in una cartella chiamata dict accanto a Quill)."),
+("The spelling check is complete.", "Die Rechtschreibprüfung ist abgeschlossen.", "La vérification orthographique est terminée.", "La revisión ortográfica ha terminado.", "Il controllo ortografico è terminato."),
+("Not in the dictionary:", "Nicht im Wörterbuch:", "Absent du dictionnaire :", "No está en el diccionario:", "Non nel dizionario:"),
+("No suggestions.", "Keine Vorschläge.", "Aucune suggestion.", "Sin sugerencias.", "Nessun suggerimento."),
+("Words: %lu\\nParagraphs: %lu\\nPages: %lu", "Wörter: %lu\\nAbsätze: %lu\\nSeiten: %lu", "Mots : %lu\\nParagraphes : %lu\\nPages : %lu", "Palabras: %lu\\nPárrafos: %lu\\nPáginas: %lu", "Parole: %lu\\nParagrafi: %lu\\nPagine: %lu"),
+("Comment by %s:\\n%s", "Kommentar von %s:\\n%s", "Commentaire de %s :\\n%s", "Comentario de %s:\\n%s", "Commento di %s:\\n%s"),
+("Previous Comment", "Vorheriger Kommentar", "Commentaire précédent", "Comentario anterior", "Commento precedente"),
+("Next Comment", "Nächster Kommentar", "Commentaire suivant", "Comentario siguiente", "Commento successivo"),
+("Previous Change", "Vorherige Änderung", "Modification précédente", "Cambio anterior", "Modifica precedente"),
 ]

@@ -45,7 +45,72 @@ static Object *app, *win, *view, *strip;
 static CharFmt typing;
 static int typing_set;
 
-const CharFmt *qm_typing_fmt(void) { return typing_set ? &typing : NULL; }
+/* Review > Track Changes: on or off, and this document's revision for the author (-1: none yet) */
+static int tracking, track_rid = -1;
+static Doc *track_doc;
+
+/* the System's owner name (Sharing Setup: 'STR ' -16096), UTF-8, else "Quill": changes' and
+   comments' author */
+const char *qm_author(void)
+{
+	static char name[96];
+	unsigned char **h;
+	if (name[0])
+		return name;
+	strcpy(name, "Quill");
+	h = (unsigned char **)GetResource(MAC_TYPE('S', 'T', 'R', ' '), -16096);
+	if (h && *h && (*h)[0]) {
+		int i, n = 0;
+		for (i = 1; i <= (*h)[0] && n + 4 < (int)sizeof name; i++)
+			n += macroman_to_utf8((*h)[i], name + n);
+		name[n] = 0;
+	}
+	return name;
+}
+
+int qm_tracking(void) { return tracking; }
+
+int qm_track_rid(void)
+{
+	char when[24];
+	if (!tracking || !qd.doc)
+		return -1;
+	if (track_doc != qd.doc) {
+		/* the author's changes in this document from now on, formatting changes too (Doc.rvtrack) */
+		ec_now(when);
+		track_rid = doc_add_rev(qd.doc, qm_author(), when);
+		track_doc = qd.doc;
+		qd.doc->rvtrack = (u16)(track_rid >= 0 ? track_rid + 1 : 0);
+	}
+	return track_rid;
+}
+
+void qm_track_toggle(void)
+{
+	tracking = !tracking;
+	track_doc = NULL;
+	if (qd.doc)
+		qd.doc->rvtrack = 0;
+	qm_track_rid();
+}
+
+/* a..b gone, or marked as deleted while changes are tracked */
+void qm_delete(Pos a, Pos b)
+{
+	ec_delete(qd.doc, a, b, qm_track_rid());
+}
+
+const CharFmt *qm_typing_fmt(void)
+{
+	static CharFmt t;
+	int rid = qm_track_rid();
+	if (rid < 0)
+		return typing_set ? &typing : NULL;
+	/* tracking: new text is the author's insertion */
+	t = typing_set ? typing : *para_fmt_before(qd.doc->p[qd.caret.para], qd.caret.off);
+	ec_track_fmt(&t, rid);
+	return &t;
+}
 void qm_typing_reset(void) { typing_set = 0; }
 
 /* ---- the menus ---- */
@@ -869,7 +934,7 @@ static void cmd_paste(void)
 	Pos a, b;
 	if (pos_cmp(qd.anchor, qd.caret)) {
 		fmt_range(&a, &b);
-		doc_delete(qd.doc, a, b);
+		qm_delete(a, b);
 		qd.caret = qd.anchor = a;
 	}
 	if (clip && clip_count == LM_SCRAPCOUNT) {
@@ -917,7 +982,7 @@ static int edit_action(int cmd)
 	case 2:                         /* Cut */
 		if (cmd_copy()) {
 			fmt_range(&a, &b);
-			doc_delete(qd.doc, a, b);
+			qm_delete(a, b);
 			qd.caret = qd.anchor = a;
 			qv_changed(view, 1);
 		}
@@ -930,7 +995,7 @@ static int edit_action(int cmd)
 		return 1;
 	case 5:                         /* Clear */
 		if (fmt_range(&a, &b) && pos_cmp(qd.anchor, qd.caret)) {
-			doc_delete(qd.doc, a, b);
+			qm_delete(a, b);
 			qd.caret = qd.anchor = a;
 			qv_changed(view, 1);
 		}

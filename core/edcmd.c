@@ -11,6 +11,7 @@
 #include "field.h"
 #include "toc.h"
 #include "refs.h"
+#include "review.h"
 
 #define MIN_TEXT_W 720            /* text never narrower than half an inch (as the Amiga's view) */
 
@@ -367,4 +368,122 @@ int ec_xref(Doc *d, ESel *s, const char *bookmark)
   if (!bookmark || !*bookmark || strlen(bookmark) > 80 || !doc_bmark_find(d, bookmark, &a, &b)) return 0;
   snprintf(code, sizeof code, "REF %s \\h", bookmark);
   return ec_field(d, s, code);
+}
+
+/* the word at p (letters, digits, anything not ASCII), as a..b; 0 if p is not in one */
+static int word_at(Doc *d, Pos p, Pos *a, Pos *b)
+{
+  const Para *q = d->p[p.para];
+  *a = *b = p;
+  while (a->off > 0 && wordch((unsigned char)q->t[a->off - 1])) a->off--;
+  while (b->off < q->len && wordch((unsigned char)q->t[b->off])) b->off++;
+  return pos_cmp(*a, *b) != 0;
+}
+
+void ec_now(char *out)
+{
+  FieldTime t;
+  field_time_now(&t);
+  field_time_w3c(&t, out);
+}
+
+int ec_comment(Doc *d, ESel *s, const char *text, const char *author, const char *date)
+{
+  Pos a = es_lo(s), b = es_hi(s);
+  char ini[4] = { 0, 0, 0, 0 };
+  int k;
+  if (!pos_cmp(a, b)) word_at(d, a, &a, &b);
+  if (author && author[0]) ini[0] = author[0];
+  if ((k = doc_comment(d, a, b, text ? text : "", author ? author : "", ini, date ? date : "")) < 0) return -1;
+  s->caret = s->anchor = pos_clamp(d, b);
+  return k;
+}
+
+int ec_comment_next(Doc *d, ESel *s, int dir)
+{
+  /* (the Amiga's CMD_NEXTCOMMENT) a comment's start mark after (or before) the caret */
+  u32 pi = s->caret.para, n;
+  Pos at = s->caret, e;
+  int found = 0, k;
+  for (n = 0; n <= d->np && !found; n++) {
+    const Para *q = d->p[pi];
+    if (dir > 0) {
+      u32 k0 = pi == s->caret.para && n == 0 ? s->caret.off : 0, j;
+      for (j = k0; j + 4 <= q->len; j++)
+        if (IS_CSTART(q->t + j) && !(pi == s->caret.para && n == 0 && j + 4 == s->caret.off)) { at.para = pi; at.off = j; found = 1; break; }
+      pi = (pi + 1) % d->np;
+    } else {
+      u32 j = pi == s->caret.para && n == 0 ? s->caret.off : q->len;
+      while (j >= 4) {
+        j = (u32)utf8_prev(q->t, j);
+        if (IS_CSTART(q->t + j) && !(pi == s->caret.para && n == 0 && j + 4 >= s->caret.off)) { at.para = pi; at.off = j; found = 1; break; }
+      }
+      pi = pi ? pi - 1 : d->np - 1;
+    }
+  }
+  if (!found) return -1;
+  k = note_index(d->p[at.para]->t + at.off);
+  if (!doc_comment_mark(d, k, 1, &e)) e = at;
+  at.off += 4;
+  s->anchor = at;
+  s->caret = pos_cmp(e, at) > 0 ? e : at;
+  return k;
+}
+
+int ec_comment_delete(Doc *d, ESel *s)
+{
+  int k = doc_comment_at(d, es_lo(s), NULL, NULL);
+  if (k < 0 && pos_cmp(s->anchor, s->caret)) {
+    /* (a selection that starts at the comment's mark) */
+    Pos q = es_lo(s);
+    q.off += 4 <= d->p[q.para]->len - q.off ? 4 : 0;
+    k = doc_comment_at(d, q, NULL, NULL);
+  }
+  if (k < 0 || !doc_delete_comment(d, k)) return 0;
+  s->caret = s->anchor = pos_clamp(d, es_lo(s));
+  return 1;
+}
+
+int ec_change_next(Doc *d, ESel *s, int dir)
+{
+  Pos a, b;
+  if (!doc_next_change(d, dir > 0 ? es_hi(s) : es_lo(s), dir, &a, &b)) return 0;
+  s->anchor = a;
+  s->caret = b;
+  return 1;
+}
+
+int ec_resolve(Doc *d, ESel *s, int accept, int all)
+{
+  /* (the Amiga's CMD_RESOLVE) */
+  Pos a, b;
+  if (all) { a = doc_start(d); b = doc_end_pos(d); }
+  else if (pos_cmp(s->anchor, s->caret)) { a = es_lo(s); b = es_hi(s); }
+  else {
+    const Para *q = d->p[s->caret.para];
+    u32 r, rs = 0;
+    a = b = s->caret;
+    for (r = 0; r < q->nr; r++) {
+      if (rv_is_change(&q->r[r].f) && rs <= s->caret.off && q->r[r].end >= s->caret.off && q->r[r].end > rs) { a.off = rs; b.off = q->r[r].end; break; }
+      rs = q->r[r].end;
+    }
+    if (r == q->nr && !doc_next_change(d, s->caret, 1, &a, &b)) return 0;
+  }
+  if (!doc_resolve(d, a, b, accept)) return 0;
+  s->caret = s->anchor = pos_clamp(d, a);
+  if (!all && doc_next_change(d, s->caret, 1, &a, &b)) { s->anchor = a; s->caret = b; }
+  return 1;
+}
+
+int ec_delete(Doc *d, Pos a, Pos b, int rid)
+{
+  return rid >= 0 ? doc_track_delete(d, a, b, rid) : doc_delete(d, a, b);
+}
+
+void ec_track_fmt(CharFmt *f, int rid)
+{
+  f->rev = REV_INS;
+  f->rid = (u16)rid;
+  f->frev = 0;
+  f->move = 0;           /* (new text is neither a formatting change nor a move) */
 }

@@ -72,6 +72,23 @@ int  ec_caption(Doc *d, ESel *s, int label, const char *text);
 int  ec_bookmark(Doc *d, ESel *s, const char *name);
 int  ec_xref(Doc *d, ESel *s, const char *bookmark);
 
+/* Review. Comments: one on the selection (or the word at the caret, else the caret) with text, by
+   author at date (W3C time, "" none), one undo step: its index or -1; the next (dir > 0) or previous
+   comment, its range selected, wrapping round: its index or -1; the comment at the selection taken
+   out. Tracked changes: the next or previous one selected; the change at the caret (or selected, or
+   the next one) accepted or rejected (all: every change), then the next one selected; deleting a..b
+   marked as rid's deletion when rid >= 0 (else deleted), and the format new text takes when rid's
+   insertions are tracked */
+int  ec_comment(Doc *d, ESel *s, const char *text, const char *author, const char *date);
+int  ec_comment_next(Doc *d, ESel *s, int dir);
+int  ec_comment_delete(Doc *d, ESel *s);
+int  ec_change_next(Doc *d, ESel *s, int dir);
+int  ec_resolve(Doc *d, ESel *s, int accept, int all);
+int  ec_delete(Doc *d, Pos a, Pos b, int rid);
+void ec_track_fmt(CharFmt *f, int rid);
+/* the time now as Word writes a change's or comment's date ("2026-11-19T10:00:00Z"; 21 bytes) */
+void ec_now(char *out);
+
 /* measurements as people type them: EU_ units; "1.25", "1,25" (a comma for the point), "-0.5"; at
    most two decimals. ec_measure: 1 and *tw, or 0 if it isn't a number */
 enum { EU_INCH, EU_CM, EU_PT };
