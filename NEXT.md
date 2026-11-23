@@ -71,6 +71,33 @@ Pitfalls found:
 - Only the rows of a page whose pixels change are copied after an edit: a selection or caret drawn over rows that
   stay blank survives a format change. The view now remembers where it drew them (`hl_`, `cdrawn`) and erases there.
 
+**Files, the Mac's fonts, the compact Mac's screen (23 November 2026, branch `octavo-se` from `mac-port`).**
+docs/mac.md has the story with before and after pictures. (1) Documents in a folder two deep were looked for
+in the folder above: Riptide's `mm_dir_path` gives a folder's path without its last ':' and the name was put
+straight after it. `qm_dir_path`/`qm_spec_path` (mac/qm_mac.c) build full paths at any depth; Fonts and dict
+are found beside Octavo's own file (PBGetFCBInfo), not in the default folder; Octavo is high-level-event
+aware (mac/mksize.py) and handles Open Documents, Print Documents and Quit, also while it runs. (2) The page's
+text is drawn with QuickDraw in the System's fonts (mac/qm_qdtext.c) at the core's layout positions; the core
+gained `pdf_page_rgb_text` (the page without the runs a front end takes; tests in tests/test_wpmac.c); View ›
+Smooth Text gives the old drawing. (3) On a 512-pixel menu bar the menus fold (sizes into Font, References
+into Insert, Layout into Format, then the styles into Font); dialogs fit 342 lines. Open:
+
+- Once, the first run of a freshly copied Octavo drew Times 11 (TrueType, by QuickDraw) with wrong letters;
+  a restart cured it. Emu68's translation cache or memory: find out on hardware or in the testbed again.
+- Text in front of pictures and shapes that cover it, and text boxes' clipping (the hook draws text last).
+- German, French, Spanish and Italian menu titles at 512 pixels: the folding measures them, but no
+  localised System was at hand to see them.
+- Format with Layout's commands is 27 rows and scrolls on a 342-line screen; Layout as a submenu would
+  need nested submenus in Riptide's Mac MUI.
+- Measure on a real SE with the Pi (and a 68030 Mac): page drawing went from 341 to 36 ticks in the testbed.
+
+Pitfalls found:
+- hfsutils keeps its current volume in $HOME/.hcwd: run it with a HOME of your own in a shared scratch area.
+- The testbed's solo board takes its screen size from `mac.screen=` (the declaration ROM alone is rewritten
+  to the firmware's 640 by 480); PiPing in the image's Startup Items waits for a key.
+- Riptide's event loop drops high-level events; a program that wants them must take them itself before
+  each turn (they stay queued until accepted).
+
 ## Merged into master (done)
 
 WP0 scaffolding · WP1 fields · WP5 comments and markup · WP8 proofing · WP9 character formatting ·

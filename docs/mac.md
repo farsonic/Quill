@@ -29,21 +29,24 @@ ask. The same Riptide tree builds RiptidePrefs and Lagoon for the Mac.
 |---|---|
 | `mac/qm_main.c` | the application: the window, the menus and their check marks, files, the Edit menu, the commands |
 | `mac/qm_view.c` | the page view, a MUI Area subclass: drawing, scrolling, the caret and selection, keys and clicks; the strip and rulers inside its box |
+| `mac/qm_qdtext.c` | the page's text drawn with QuickDraw in the Mac's own screen fonts (Times, Helvetica, Courier ...), at the layout's places ("Text in the Mac's own fonts" below) |
 | `mac/qm_strip.c` | the tool strip (View › Ribbon): pop-up menus and icon buttons, each a menu command |
 | `mac/qm_ruler.c`, `core/ruler.c` | the rulers (View › Ruler): drawing and dragging on the Mac; the sums, shared and tested natively |
 | `mac/qm_lang.c` | `tr()`: Quill's interface words (`amiga/lang_table.h`) in Mac Roman, the language from the System's region |
 | `mac/qm_text.c` | Mac Roman to and from UTF-8 and Latin-1 |
 | `mac/libc.c`, `mac/include/` | the C library the core needs (allocator, stdio over the File Manager, time, strings, sorting) |
 | `mac/softfp.c` | integer and float conversions without an FPU, in place of libgcc's 68881 ones ("Floating point" below) |
-| `mac/qm_mac.c` | the File Manager by path, file types and creator, FlushVol, the clock, the log, the System's region |
+| `mac/qm_mac.c` | the File Manager by path, full paths of folders and files (`qm_dir_path`, `qm_spec_path`) and of Octavo's own folder, file types and creator, FlushVol, the clock, the log, the System's region |
 | `mac/qm_thunks.S` | the class dispatcher's register entry and 32-bit QuickDraw's offscreen calls |
 | `mac/traps.txt` | the Toolbox calls Octavo adds to Riptide's list (CopyBits, Draw1Control, EventAvail, resources) |
 | `mac/mkfinder.py`, `mac/rsrc/` | the Finder's resources: bundle, file references, icons in every size and depth, 'vers' |
+| `mac/mksize.py` | the SIZE resource's flags: high-level-event aware, so the Finder sends Open Documents |
 
 ### Pages on the screen, 1 to 32 bits
 
-The view never draws text through the Toolbox. For each page it shows it asks the core for the page as
-pixels (`pdf_page_rgb`, core/raster.c: exactly what Export PDF writes, drawn with Quill's own TrueType
+(Since 23 November 2026 the page's text is drawn by QuickDraw in the Mac's own fonts and only the rest
+comes from Quill's rasteriser: "Text in the Mac's own fonts" below. View › Smooth Text draws it all as
+described here.) For each page it shows the view asks the core for the page as pixels (`pdf_page_rgb`, core/raster.c: exactly what Export PDF writes, drawn with Quill's own TrueType
 rasteriser in fixed point), at the zoom's resolution: 72 dots per inch at 100%, the Mac screen's own, so
 a 12-point letter is 12 pixels high. It keeps the last three pages drawn. Everything that reaches the
 window goes through one routine, `blit()`: a rectangle of one page converted a band of 32 rows at a time
@@ -250,6 +253,160 @@ has, through its menus and strips:
 | Table Layout | 33 | 9 | Insert Above, Below, Left, Right, Delete Rows, Columns, Table, Merge Cells, Split Cells |
 | **These six** | **268** | **81** | |
 
+## Files, the Mac's own fonts and the compact Mac's screen (23 November 2026)
+
+The owner asked for three things: Octavo must open files (it looked in the folder above the right one),
+its text must look like MacWrite 4's rather than smoothed TrueType thresholded to one bit, and it must work
+on the SE's own screen, 512 by 342 pixels at one bit. Branch `octavo-se`, tested in the Aurora68 testbed
+(QEMU, the solo board, System 7.1) at 512 by 342 and 640 by 480 at one bit, 640 by 480 at eight bits and
+1024 by 768, driven through the Aurora68 remote control and its agent (docs/13 in the Aurora68 project:
+`open` launches a program or opens a document the way the Finder does, with an Open Documents event).
+
+### Opening files: the folder above the right one
+
+**Reproduced.** The test disk had Octavo in `Apps:Octavo Folder`, a copy of tests/data/word.docx as
+`Documents:Brief für Zoë:Letter été.docx` (a space and Mac Roman letters in both names) and a second volume,
+`Other Disk`, on the card with `Reports:Year 2026:Report • draft.docx`. File › Open on the nested document
+answered "Mac Volume:Documents:Brief für ZoëLetter été.docx couldn't be read"; opening it from the Finder
+(the agent's `open`, which launches Octavo with it) logged "the Finder opens Mac Volume:Documents:Brief für
+ZoëLetter été.docx" and showed an empty window. Every document tested before sat at the top of the disk,
+where the bug does not show.
+
+**The cause.** Standard File's reply and the Finder's documents name a file by volume, folder and name;
+Octavo made a full path of the folder with Riptide's `mm_dir_path` and put the name after it. That function
+gives "Disk:Folder:Sub", with no colon at the end (except for a volume's top, "Disk:"), so the name ran on
+into the folder's: "Disk:Folder:Subname" is a file called "Subname" in the folder above. The Fonts and dict
+folders had a weaker spot of their own: they were found as `:Fonts:` and `:dict:`, from the default folder,
+which is Octavo's only when the Finder made it so at launch, and which Standard File moves.
+
+**The fix** (mac/qm_mac.c, mac/qm_main.c): `qm_dir_path` builds a folder's full path from its end, folder by
+folder with PBGetCatInfo, always ending in ':', to any depth (the File Manager's 255 characters at most;
+Riptide's stopped at 16 levels); `qm_spec_path` adds a file's name. Standard File's replies, the Finder's
+documents and the preferences folder all go through them. Octavo's own folder comes from its own file:
+PBGetFCBInfo on its resource fork (CurApRefNum) says which volume and folder it is in, and the Fonts and dict
+folders are looked up there. Riptide is unchanged (its own callers put a ':' between with AddPart).
+
+**Apple events.** Octavo is now high-level-event aware (mac/mksize.py sets the SIZE resource's flag after
+Riptide's elf2app.py has written it) and handles the required events: Open Application, Open Documents
+(the first document; one window, one document, so the open one is asked about first), Print Documents
+(opened: Octavo does not print) and Quit (as File › Quit, asking to save). Riptide's event loop does not
+look at high-level events, and an event not accepted stays queued, so Octavo's main loop takes them before
+each turn of MUI's (WaitNextEvent for high-level events only, then AEProcessAppleEvent); the Apple Event
+Manager's calls and the handler's Pascal entry are in mac/qm_thunks.S. So a document double-clicked or
+dropped on Octavo's icon while it runs is opened now; before, only the Segment Loader's list at launch was
+read.
+
+| | |
+|---|---|
+| ![Before: the nested document "couldn't be read"](mac-open-before.png) Before (640 by 480): File › Open on a document two folders down | ![After: opened from the Finder](mac-open-after-512.png) After (512 by 342): the same document opened from the Finder, the window titled with its name |
+| ![After: the second volume](mac-open-other-disk.png) After: `Other Disk:Reports:Year 2026:Report • draft.docx` by File › Open | |
+
+**Tested** (512 by 342, one bit): the nested document opened by the agent's `open` while Octavo was not
+running (logged "an Open Documents event for Mac Volume:Documents:Brief für Zoë:Letter été.docx"); File ›
+Open of `Other Disk:Reports:Year 2026:Report • draft.docx` on the second volume; `Documents:charts.docx`
+sent to the running Octavo ("running already: the document sent to it"), which opened it; Review ›
+Spelling… after Standard File had been in other folders, its word list read from `Octavo Folder:dict`; the
+fonts read from `Octavo Folder:Fonts` ("Octavo's folder: Mac Volume:Apps:Octavo Folder:" in the log).
+There is no Open Recent on the Mac, so nothing to test there. Not tested: two volumes of the same name (a
+full path reaches the first), a path longer than 255 characters (refused with a log line), dropping onto
+the icon in the Finder by hand (the testbed has no mouse at the Finder's icon in a script; the agent sends
+the same event the Finder does).
+
+### Text in the Mac's own fonts
+
+**Before.** The view showed each page as Quill's PDF export draws it (`pdf_page_rgb`, Quill's TrueType
+rasteriser, smoothed), and on a one-bit screen the grey edges were stretched and dithered: uneven stems,
+letters that run together or fall apart at 11 points.
+
+**What was decided, and why.** Two ways were open. (1) Lay the document out with the Mac fonts' widths (a
+metrics provider for the core): the screen would be exactly the Mac's, but lines and pages would break
+differently on the Mac than in the PDF Octavo exports, in Word and on the Amiga, and the core's layout and
+its 2,600 tests would have a second set of metrics to keep. (2) Keep the core's layout (Quill's TrueType
+metrics, as now) and draw each word at the place it gives, in the Mac's font: Word for the Mac with
+fractional widths off drew so. Octavo does (2): line breaks, page breaks, every word's place, the PDF and
+the .docx stay what they were; within a word the letters have the bitmap font's own spacing, and between
+words the layout's spaces take up the difference. The core changed only by a hook (`pdf_page_rgb_text`,
+core/pdf.c, tested in tests/test_wpmac.c): it draws the page's picture without the runs of text the front
+end takes and hands each over with its place, width, size, colour, underline and strike.
+
+**How** (mac/qm_qdtext.c):
+- *The family.* The document's own when the Mac has it (Palatino, Geneva, Times…); else a table: serif
+  families (Times New Roman, Cambria, Liberation Serif, Georgia…) become Times, sans serif ones (Arial,
+  Calibri, Liberation Sans, Segoe UI…) Helvetica, typewriter ones (Courier New, Consolas, Liberation Mono)
+  Courier; else by the face the layout used. Times, Helvetica and Courier were chosen over New York, Geneva
+  and Monaco because Times New Roman, Arial and Courier New were drawn to their widths. Bold, italic,
+  outline and shadow are QuickDraw's faces; underline (single, double, thick, dotted, dashed, wave) and
+  strikethrough are one-pixel lines drawn across the layout's width, so underlined words and the spaces
+  between them make one line.
+- *The size.* Each family, size and style is measured once, from a page's runs, at the size asked and
+  down to a fifth smaller: the runs' widths in the Mac font against the layout's. Wider costs twice what
+  narrower does (a word wider than its room has its letters closed up; a narrower one only leaves a wider
+  space), a bitmap size the System has is let off 3 per cent, and the cheapest wins. The Font Manager's own
+  table (the 'FOND') says which bitmap sizes there are (Times, Helvetica and Courier: 9, 10, 12, 14, 18
+  and 24) and whether there is a TrueType outline (System 7.1 has one for each, drawn unsmoothed). In
+  tests/data/word.docx at 100 %: Calibri 26 → Helvetica 24 (bitmap, 1000 ‰ of the layout's width), Cambria
+  11 → Times 11 (outline, 1024 ‰), Cambria 14 → Times 14 (bitmap, 1023 ‰), Calibri 14 bold → Helvetica 11
+  bold (930 ‰): Helvetica's letters are wider than Calibri's, its bold ones more so.
+- *Words that don't fit.* A run wider than its room by a pixel (two from 16 pixels up) has each letter
+  drawn at its place scaled to the layout's width; a single letter wider than its room (the article "A")
+  takes half the excess from the space on each side.
+- *Drawing.* The runs are drawn with QuickDraw into a one-bit bitmap of the page's size in a GrafPort of
+  Octavo's own, one colour at a time, and each black pixel is put into the page's picture in that colour.
+  On a one-bit screen every run is black (white when it is nearly white), so coloured headings come out
+  solid instead of dithered. The view shows the picture as before, so its caret, selection, row comparison
+  and copying did not change; drawing a page got faster (word.docx's first page: 36 ticks in the testbed,
+  341 with the TrueType rasteriser).
+- *The caret.* The layout puts the caret between letters by Quill's metrics; the view moves it to where
+  the letter was drawn (`qt_map_x`), and a click is taken back the other way (`qt_unmap_x`), so the caret,
+  a selection's ends and double-clicked words line up with the letters on the screen.
+- *Left to the core's rasteriser,* drawn smooth as before: pictures, shapes, charts' and SmartArt's
+  drawing, borders, shading; and text QuickDraw cannot draw as the document says: characters Mac Roman lacks
+  (Greek, Cyrillic, East Asian, the euro, which System 7's fonts draw as ¤), small capitals, scaled text,
+  embossed and engraved text, WordArt, equations, text in turned frames.
+- *View › Smooth Text* (kept in Octavo Preferences, `smooth 1`) brings back the old drawing.
+
+**Measured on the screen.** Octavo logs, for every page it draws, how many runs QuickDraw drew, how many
+were wider than their room and closed up (and by how much at most), and how much narrower than its room a
+run was at most. word.docx's first page at 512 by 342: 92 runs, 10 closed up, at most 3 pixels over (the
+letters of a nine-letter word a third of a pixel closer each), at most 5 pixels short; a space at 11 points
+is 2 to 3 pixels, and none vanished. charts.docx (Times New Roman 10): 110 runs, none closed up. In the
+pictures below the words neither touch nor stand apart; the widest spaces are where Helvetica 24 is
+narrower than Calibri 26 ("Quill  Test").
+
+| Before (smoothed TrueType at one bit) | After (QuickDraw, the System's fonts) |
+|---|---|
+| ![before](mac-text-before-512.png) | ![after](mac-text-after-512.png) |
+| ![before, 2x](mac-text-before-zoom.png) | ![after, 2x](mac-text-after-zoom.png) |
+
+Once, the first time a newly copied Octavo ran, the Times 11 outline's letters came out wrong in the
+testbed ("tex1", "Cefe"); Octavo was quit and started again and they were right, and they stayed right for
+the rest of the session. QuickDraw's TrueType code drew them, from the System; whether the emulator (Emu68's
+translation cache with a new program at the old one's addresses) or memory was to blame is not known yet.
+
+### The compact Mac's screen, 512 by 342
+
+**Before.** The window fitted (Riptide sizes it to the main screen: 504 by 298), but the menu bar did not:
+eleven titles of Octavo's need about 640 pixels, View was cut in half and the Help menu was covered. The
+tool strip showed its pop-ups and Bold, Italic, Underline (the narrow-window rule dropped the rest, as
+designed).
+
+**After.** The menus fold as Word 5 for the Mac's did on that screen (mac/qm_main.c `menus_fold`): the
+titles are measured in the system font with the Menu Manager's 13 pixels each, against the screen's width
+less 80 pixels for Help and the Application menu (the testbed measured 67 at 512: the menu bar's own list
+is logged at start), and folded step by step until they fit: (1) the sizes go into the Font menu above the
+families and References' commands into the Insert menu; (2) Layout's commands follow Format's; (3) the
+styles go into the Font menu too. Every command keeps its menu and its key. English at 512 needs step 2:
+File, Edit, Font, Style, Format, Insert, Review, View, ending at 416 with Help at 445. A long menu on a
+342-line screen scrolls, as the Menu Manager scrolls any (Format with Layout's commands has 27 rows). The
+dialogs fit: Page Setup is the tallest at 291 of the 314 lines under the menu bar; Format › Font… lists only
+as many families as the screen has room for. Alerts (Riptide's) and Standard File are the System's sizes.
+
+| | |
+|---|---|
+| ![Before: the menu bar cut short at 512](mac-text-before-512.png) Before: View cut, Help covered | ![After: the folded menus](mac-text-after-512.png) After: eight titles, Help and the Application menu clear |
+| ![Format with Layout's commands, scrolling](mac-512-format-menu.png) Format, scrolled to Layout's commands | ![Page Setup at 512 by 342](mac-512-pagesetup.png) Page Setup |
+| ![The Font menu with the sizes](mac-512-font-menu.png) The Font menu with the sizes | ![About Octavo](mac-512-about.png) About Octavo |
+
 ## Building
 
     make -f Makefile.mac                     build/mac/Octavo.bin (MacBinary; Quill.bin before the rename)
@@ -263,7 +420,8 @@ tree beside Quill's (`RIPTIDE ?= ../riptide`, branch `mac-port`). The icons are 
 
 Copy `build/mac/Octavo.bin` to the Mac (`hcopy -m` onto an HFS image, or any MacBinary decoder), and beside
 it a folder named **Fonts** holding everything in `fonts/` (the `.ttf` files and `fonts.list`). Octavo
-looks for `:Fonts:` in its own folder at launch. Its memory size is 12 MB: a page drawn at 100% is
+looks for the Fonts (and dict) folder in the folder its own file is in, wherever that is and however it was
+started. Its memory size is 12 MB: a page drawn at 100% is
 1.4 MB of pixels and three are kept, a .docx is unzipped in memory and a font in use is loaded whole.
 
 Documents: Octavo opens anything its core reads (.docx, .doc, .odt, .rtf, .html, .md, .txt), whatever its
@@ -315,7 +473,7 @@ or **left** (and why).
 
 | Point | Octavo |
 |---|---|
-| Menus and their order (pp. 49-130) | **Changed, and over Cornerstone's count.** Apple, File, Edit, then Octavo's Font, Size, Style, Format, Insert, Layout, References, Review and View, then the system's Help and Application menus. Nine menus of Octavo's own, where Cornerstone asks for four or five on a small screen (HIG p. 80): agreed with the user, to follow the Amiga's ribbon tabs (Insert, Layout, References and Review between Format and View). Whether every title fits a 640 by 480 screen is checked in the testbed below; a longer translation may not fit. |
+| Menus and their order (pp. 49-130) | **Changed, and over Cornerstone's count; folded on a narrow screen** (23 November: on 512 pixels Size goes into Font, References into Insert, Layout into Format, "The compact Mac's screen" above). Apple, File, Edit, then Octavo's Font, Size, Style, Format, Insert, Layout, References, Review and View, then the system's Help and Application menus. Nine menus of Octavo's own, where Cornerstone asks for four or five on a small screen (HIG p. 80): agreed with the user, to follow the Amiga's ribbon tabs (Insert, Layout, References and Review between Format and View). Whether every title fits a 640 by 480 screen is checked in the testbed below; a longer translation may not fit. |
 | Apple menu (p. 98) | **Conforms.** About Octavo… first, a line, the desk accessories (Riptide's Mac MUI). |
 | File (pp. 99-109) | **Changed:** Revert added, dimmed until a document read from a file is changed; it asks first, Cancel the default (it loses changes). Page Setup and Print are left out rather than shown dimmed for ever, as Cornerstone asks: Octavo does not print yet. Export PDF… sits after Save As. |
 | Edit (pp. 109-117) | **Conforms**, with one difference left: Undo, Cut, Copy, Paste, Clear, then Octavo's Redo and Select All after a line, where Riptide's layer puts a program's own Edit items. Show Clipboard is not offered. |
@@ -331,7 +489,7 @@ or **left** (and why).
 | Dialogs and button order (pp. 185, 196, 204-206) | **Changed: Octavo has dialogs now** (Insert Table, Page Setup, Paragraph, Font, Find and Replace, a note's or comment's text, Caption, Bookmark, Cross-reference, Spelling), built with the Dialog Manager (`mac/qm_dialog.c`): no title bar, the prompt at the top in the system font, the action at the bottom right with Cancel to its left, the default ringed and answering Return and Enter, Cancel answering Escape and Command-period, check boxes for on and off and radio buttons for two to five choices, Tab between fields. Open, Save As, Export PDF and Insert Picture are Standard File. **Left:** Find and Replace is modal (it closes to show what it found), not the modeless dialog Cornerstone and the Guidelines (p. 178) would have: Riptide's event loop does not pass events to modeless dialogs yet. |
 | Alerts (pp. 193-196) | **Changed:** Octavo's alerts have their level now (Riptide's `mac_alert` with its icon): a stop for what can't be done (a file that can't be read or saved, a picture Octavo can't read, numbers a dialog can't take), a note for information (nothing found, replacements made, the word count, a comment's text, the spelling check done), a caution before Revert. Save, Don't Save, Cancel still goes through MUI's requester (a caution). |
 | Progress (pp. 185, 206) | **Left.** Opening a long document shows the watch, not a movable modal dialog with a Stop button; nothing in Octavo can be stopped part way yet. |
-| Fonts (pp. 23, 60, 207) | **Changed:** the strip and rulers use Geneva 9, as Cornerstone asks for palettes. Menus and alerts are the system font; the page box uses Riptide's Geneva 9 or 10 (10 on screens taller than 600 lines). **Left:** the Font menu does not show families in their own faces: they are Quill's TrueType fonts, which the Font Manager does not have. |
+| Fonts (pp. 23, 60, 207) | **Changed:** the strip and rulers use Geneva 9, as Cornerstone asks for palettes. Menus and alerts are the system font; the page box uses Riptide's Geneva 9 or 10 (10 on screens taller than 600 lines). Since 23 November the page's text is the System's own screen fonts (Times, Helvetica, Courier, bitmap sizes favoured). **Left:** the Font menu does not show families in their own faces: they are Quill's TrueType fonts (what the layout measures with), which the Font Manager does not have. |
 | Colour and one bit (pp. 258, 263-264) | **Conforms.** Everything was laid out on one bit first: the strip is white with black frames and inverted "on" buttons, the ruler's margins a light pattern. Colour from four bits up is only the icons' accents and light greys; the selection takes the Color control panel's highlight colour. |
 | Balloon Help (pp. 316-325) | **Left.** No `hmnu` or `hrct` balloons yet. Quill's help texts are written for the Amiga's ribbon bubbles (`amiga/ribbon.c`), and Riptide's layer shows its own bubbles only for MUI objects with `MUIA_ShortHelp`, which the strip, drawn by the view, is not. Generating `hmnu` resources from the strings table is the way. |
 | Keyboard (pp. 277, 282-283) | **Conforms** for moving and selecting: arrows, Option-arrows by words, Shift extending, Home, End, Page Up and Page Down. **Left:** Option-Up and Option-Down go to the line's ends, the Amiga's habit, where many Mac programs used Command-Left and Command-Right; the Guidelines leave Command-arrows to keyboard scripts. |
@@ -450,13 +608,23 @@ and Spewing, and Change put Spelling in. The Apple menu read About Octavo…
 - **A font chosen but not seen**: in the testbed, Liberation Serif chosen for the bold heading's word was
   in the document (the saved file says so, and the host draws it serif), but the Mac's page kept drawing
   the sans face; Liberation Sans on body text showed at once. Not explained yet; a font that fails to load
-  on the Mac (memory, with three pages kept) falls back silently, so that is the first suspect.
+  on the Mac (memory, with three pages kept) falls back silently, so that is the first suspect. (With the
+  Mac's fonts drawing the text since 23 November the face shown follows the document's family name; the
+  widths the layout uses still come from the TrueType face that loaded.)
 - **Selection** is drawn line by line from margin to margin between its ends (not hugging each line's
   text), and the caret's line is found by the core's layout, so tables and columns select roughly.
 - **Speed** on a real 68030 is unmeasured; the testbed's figures are above. Drawing only a band of the
   page (the core draws whole pages) would make typing on slow machines cheaper.
-- **Apple events**: Octavo takes documents from the Finder by the Segment Loader's parameters (System 6
-  style, which the System 7 Finder still sends to programs that do not declare high-level events); 'odoc'
-  while running, and drag-and-drop onto a running Octavo, are not handled.
+- **Apple events**: since 23 November Octavo takes Open Documents, Print Documents (it opens them) and Quit,
+  at launch and while it runs; the first document only (one window). No other events (no scripting).
+- **Text in the Mac's fonts**: what QuickDraw can't draw as the document says stays smooth (characters
+  Mac Roman lacks, small capitals, scaled, embossed or engraved text, text in turned frames). Text over a
+  picture or shape that lies in front of it is drawn on top (the core's order is lost for text). A text
+  box's text is not clipped to its box. Only Mac Roman; System 7.1's fonts. The sizes are chosen per page's
+  sample and kept for the session; a document whose first page has little of some kind of text may get a
+  less good size for it. Not looked at on 68030 hardware.
+- **Paths**: full paths ("Disk:Folder:file"), as the core opens files by name: two mounted volumes of one
+  name reach the first, and a path over 255 characters can't be opened (an FSSpec all the way through
+  the core's file layer would end both).
 - The Font menu draws family names in the system font, not in themselves; the Style menu does not show
   its items in their styles.
