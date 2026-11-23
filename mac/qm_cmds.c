@@ -412,8 +412,10 @@ static void spelling(void)
 	ESel s = sel_now();
 	Pos from = es_hi(&s), a, b;
 	if (!speller_state) {
+		char path[300];
 		set_watch_cursor(1);
-		speller_state = spell_load(&speller, ":dict:british-english") ? 1 : -1;
+		snprintf(path, sizeof path, "%sdict:british-english", qm_appdir);
+		speller_state = spell_load(&speller, path) ? 1 : -1;
 		set_watch_cursor(0);
 	}
 	if (speller_state < 0) {
@@ -440,7 +442,7 @@ static void spelling(void)
 		memset(it, 0, sizeof it);
 		it[m].kind = DI_TEXT; it[m].x = 13; it[m].y = 13; it[m].w = 314; it[m++].label = "Spelling";
 		it[m].kind = DI_TEXT; it[m].x = 13; it[m].y = 41; it[m].w = 314; it[m].raw = 1; it[m++].label = line;
-		it[m].kind = DI_TEXT; it[m].x = 13; it[m].y = 69; it[m].w = 90; it[m++].label = n ? "Suggestions:" : "No suggestions.";
+		it[m].kind = DI_TEXT; it[m].x = 13; it[m].y = 69; it[m].w = n ? 90 : 314; it[m++].label = n ? "Suggestions:" : "No suggestions.";
 		for (k = 0; k < n; k++) {
 			utf8_to_macroman(sug[k], labels[k], 64);
 			it[m].kind = DI_RADIO; it[m].x = 110; it[m].y = 69 + 18 * k; it[m].w = 217;
@@ -674,25 +676,16 @@ const char *qc_label(unsigned long id)
 	return NULL;
 }
 
-void qc_menus(void (*add)(int type, const char *label, const char *key, int flags, unsigned long id))
+/* The menus, as the menu bar has room for them (qm_main.c's menu_fold): on a screen as narrow as a
+   compact Mac's (512 pixels) References' commands follow Insert's in its menu, and with less room
+   still Layout's follow Format's (qm_main.c puts them there: qc_menu_layout without its title) */
+typedef void (*QcAdd)(int type, const char *label, const char *key, int flags, unsigned long id);
+void qc_menu_layout(QcAdd add, int titled)
 {
 	int i;
-	/* Insert: the Amiga's Insert tab, as far as the Mac has its commands */
-	add(NM_TITLE, "Insert", NULL, 0, 0);
-	add(NM_ITEM, "Table...", NULL, 0, ID_TABLE);
-	add(NM_ITEM, "Picture...", NULL, 0, ID_PICTURE);
-	add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0);
-	add(NM_ITEM, "Breaks", NULL, 0, 0);
-	for (i = 0; i < NBREAKS; i++)
-		add(NM_SUB, break_names[i], NULL, 0, ID_BREAK0 + (unsigned long)i);
-	add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0);
-	add(NM_ITEM, "Date", NULL, 0, ID_DATE);
-	add(NM_ITEM, "Page Number", NULL, 0, ID_PAGENUM);
-	add(NM_ITEM, "Symbol", NULL, 0, 0);
-	for (i = 0; i < NSYMBOLS; i++)
-		add(NM_SUB, symbols[i].mac, NULL, 0, ID_SYM0 + (unsigned long)i);
 	/* Layout: the page and the table the caret is in (the Amiga's Layout and Table Layout tabs) */
-	add(NM_TITLE, "Layout", NULL, 0, 0);
+	if (titled)
+		add(NM_TITLE, "Layout", NULL, 0, 0);
 	add(NM_ITEM, "Page Setup...", NULL, 0, ID_PAGESETUP);
 	add(NM_ITEM, "Portrait", NULL, CHECKIT, ID_PORTRAIT);
 	add(NM_ITEM, "Landscape", NULL, CHECKIT, ID_LANDSCAPE);
@@ -717,8 +710,33 @@ void qc_menus(void (*add)(int type, const char *label, const char *key, int flag
 	add(NM_SUB, (const char *)NM_BARLABEL, NULL, 0, 0);
 	add(NM_SUB, "Merge Cells", NULL, 0, ID_MERGE);
 	add(NM_SUB, "Split Cells", NULL, 0, ID_SPLIT);
-	/* References: the Amiga's References tab, where the core does the work */
-	add(NM_TITLE, "References", NULL, 0, 0);
+}
+
+/* Insert, Layout (unless layout_in_format), References (in Insert's menu when refs_in_insert), Review */
+void qc_menus(QcAdd add, int refs_in_insert, int layout_in_format)
+{
+	int i;
+	/* Insert: the Amiga's Insert tab, as far as the Mac has its commands */
+	add(NM_TITLE, "Insert", NULL, 0, 0);
+	add(NM_ITEM, "Table...", NULL, 0, ID_TABLE);
+	add(NM_ITEM, "Picture...", NULL, 0, ID_PICTURE);
+	add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0);
+	add(NM_ITEM, "Breaks", NULL, 0, 0);
+	for (i = 0; i < NBREAKS; i++)
+		add(NM_SUB, break_names[i], NULL, 0, ID_BREAK0 + (unsigned long)i);
+	add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0);
+	add(NM_ITEM, "Date", NULL, 0, ID_DATE);
+	add(NM_ITEM, "Page Number", NULL, 0, ID_PAGENUM);
+	add(NM_ITEM, "Symbol", NULL, 0, 0);
+	for (i = 0; i < NSYMBOLS; i++)
+		add(NM_SUB, symbols[i].mac, NULL, 0, ID_SYM0 + (unsigned long)i);
+	if (!refs_in_insert) {
+		if (!layout_in_format)
+			qc_menu_layout(add, 1);
+		/* References: the Amiga's References tab, where the core does the work */
+		add(NM_TITLE, "References", NULL, 0, 0);
+	} else
+		add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0);
 	add(NM_ITEM, "Table of Contents", NULL, 0, ID_TOC);
 	add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0);
 	add(NM_ITEM, "Footnote...", NULL, 0, ID_FOOTNOTE);
@@ -728,6 +746,8 @@ void qc_menus(void (*add)(int type, const char *label, const char *key, int flag
 	add(NM_ITEM, "Caption...", NULL, 0, ID_CAPTION);
 	add(NM_ITEM, "Bookmark...", NULL, 0, ID_BOOKMARK);
 	add(NM_ITEM, "Cross-reference...", NULL, 0, ID_XREF);
+	if (refs_in_insert && !layout_in_format)
+		qc_menu_layout(add, 1);
 	/* Review: proofing, comments and tracked changes */
 	add(NM_TITLE, "Review", NULL, 0, 0);
 	add(NM_ITEM, "Spelling...", NULL, 0, ID_SPELL);

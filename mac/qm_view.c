@@ -60,6 +60,8 @@ typedef struct {
 	int dpi;
 	unsigned long ver;          /* Doc.ver it shows */
 	unsigned long used;         /* when last used, for choosing which to drop */
+	int mono;                   /* drawn for a one-bit screen (the text black) */
+	QtWords *words;             /* where its text was drawn (mac/qm_qdtext.c), NULL: drawn smooth */
 } Drawn;
 
 /* the selection in page pixels, for mixing it into a band: from (pa, xa, ya..ya+ha) to (pb, xb..)
@@ -103,6 +105,7 @@ struct qv_data {
 	u32 hl_pa, hl_pb;           /* hl_pb's row hl_y1, so that after a relayout its old rows are drawn */
 	long hl_y0, hl_y1;          /* again even where the page's pixels did not change */
 	int due_all;                /* the whole pages' area to be copied again from the pictures (the timer) */
+	int mono;                   /* the window is on a one-bit screen: pages are drawn for it */
 	int due;                    /* the rulers or the page box changed outside an update's area: the
 	                               timer draws them (Riptide validates the whole window after an
 	                               update, so an InvalRect made while drawing one is lost) */
@@ -113,6 +116,7 @@ static unsigned char ink[256];  /* the levels on a 1-bit screen (blit) */
 static int ink_ready;
 static Object *qv_obj;          /* the view (one window, one view) */
 static int show_strip = 1, show_ruler = 1;      /* View > Ribbon, View > Ruler */
+static int smooth_text;                         /* View > Smooth Text: the text as the PDF draws it */
 static void rulers_sync(struct qv_data *d, Object *obj, int force, const Rect *area);
 
 /* ---- geometry ---- */
@@ -237,12 +241,32 @@ static long win_y(struct qv_data *d, Object *obj, long y)
 
 /* ---- pages drawn ---- */
 
+static void cache_drop(Drawn *c)
+{
+	free(c->rgb);
+	c->rgb = NULL;
+	qt_words_free(c->words);
+	c->words = NULL;
+}
+
 static void cache_drop_all(struct qv_data *d)
 {
 	int i;
-	for (i = 0; i < NCACHE; i++) {
-		free(d->cache[i].rgb);
-		d->cache[i].rgb = NULL;
+	for (i = 0; i < NCACHE; i++)
+		cache_drop(&d->cache[i]);
+}
+
+/* the window's screen: one bit or more (it may have been dragged to the other screen). Pages drawn
+   for the other kind are dropped */
+static void mono_check(struct qv_data *d, Object *obj)
+{
+	int mono;
+	if (!mm_win_of(obj) || !mm_win_of(obj)->macwin)
+		return;
+	mono = qm_port_depth(mm_win_of(obj)->macwin) == 1;
+	if (mono != d->mono) {
+		d->mono = mono;
+		cache_drop_all(d);
 	}
 }
 
@@ -251,7 +275,7 @@ static Drawn *cache_find(struct qv_data *d, u32 k)
 {
 	int i;
 	for (i = 0; i < NCACHE; i++)
-		if (d->cache[i].rgb && d->cache[i].page == k && d->cache[i].dpi == d->dpi) {
+		if (d->cache[i].rgb && d->cache[i].page == k && d->cache[i].dpi == d->dpi && d->cache[i].mono == d->mono) {
 			d->cache[i].used = ++d->clock;
 			return &d->cache[i];
 		}
@@ -274,23 +298,23 @@ static Drawn *page_drawn(struct qv_data *d, u32 k, long *y0, long *y1)
 	unsigned long t0;
 	u32 w, h;
 	int i;
+	QtWords *words = NULL;
 	if (y0) { *y0 = 0; *y1 = -1; }
 	if (c && c->ver == qd.doc->ver)
 		return c;
 	set_watch_cursor(1);
 	t0 = qm_ticks();
-	rgb = pdf_page_rgb(qd.lay, k, d->dpi, &w, &h);
+	/* the text in the Mac's screen fonts (mac/qm_qdtext.c), or smooth as the PDF has it */
+	rgb = smooth_text ? pdf_page_rgb(qd.lay, k, d->dpi, &w, &h) : qt_page_rgb(qd.lay, k, d->dpi, d->mono, &w, &h, &words);
 	set_watch_cursor(0);
 	/* the log says how long a page takes: the measure of whether a Mac is fast enough */
 	mm_log("page %lu drawn at %d dpi in %lu ticks%s", (unsigned long)k + 1, d->dpi, qm_ticks() - t0, rgb ? "" : " (out of memory)");
 	if (!rgb) {
 		/* out of memory: give the others' room to this one and try once more */
 		for (i = 0; i < NCACHE; i++)
-			if (&d->cache[i] != c) {
-				free(d->cache[i].rgb);
-				d->cache[i].rgb = NULL;
-			}
-		rgb = pdf_page_rgb(qd.lay, k, d->dpi, &w, &h);
+			if (&d->cache[i] != c)
+				cache_drop(&d->cache[i]);
+		rgb = smooth_text ? pdf_page_rgb(qd.lay, k, d->dpi, &w, &h) : qt_page_rgb(qd.lay, k, d->dpi, d->mono, &w, &h, &words);
 		if (!rgb)
 			return NULL;
 	}
@@ -314,7 +338,10 @@ static Drawn *page_drawn(struct qv_data *d, u32 k, long *y0, long *y1)
 				c = &d->cache[i];
 	}
 	free(c->rgb);
+	qt_words_free(c->words);
 	c->rgb = rgb;
+	c->words = words;
+	c->mono = d->mono;
 	c->page = k;
 	c->w = w;
 	c->h = h;
@@ -331,15 +358,30 @@ static int has_sel(void)
 	return pos_cmp(qd.anchor, qd.caret) != 0;
 }
 
+/* the kept picture of page k when it shows the document as it is now (not counted as a use) */
+static Drawn *cache_now(struct qv_data *d, u32 k)
+{
+	int i;
+	for (i = 0; i < NCACHE; i++)
+		if (d->cache[i].rgb && d->cache[i].page == k && d->cache[i].dpi == d->dpi && d->cache[i].mono == d->mono &&
+		    d->cache[i].ver == qd.doc->ver)
+			return &d->cache[i];
+	return NULL;
+}
+
+/* where the caret for p is: from the layout, then between the letters as QuickDraw drew them */
 static void caret_px(struct qv_data *d, Pos p, u32 *page, long *x, long *y, long *h)
 {
 	i32 tx, ty, th;
+	Drawn *c;
 	lay_caret(qd.lay, p, page, &tx, &ty, &th);
 	*x = px(tx, d->dpi);
 	*y = px(ty, d->dpi);
 	*h = px(th, d->dpi);
 	if (*h < 1)
 		*h = 1;
+	if ((c = cache_now(d, *page)) && c->words)
+		*x = qt_map_x(c->words, *x, *y, *h);
 }
 
 static void sel_now(struct qv_data *d, Sel *s)
@@ -954,6 +996,7 @@ static void refresh(struct qv_data *d, Object *obj)
 	if (!d->shown || !mm_win_of(obj) || !mm_win_of(obj)->macwin)
 		return;
 	lay_update(qd.lay);
+	mono_check(d, obj);
 	dpi = zoom_dpi(d, obj);
 	if (dpi != d->dpi) {
 		d->dpi = dpi;
@@ -1221,7 +1264,11 @@ static int hit(struct qv_data *d, Object *obj, int mx, int my, Pos *p)
 		x = win_x(d, obj, x);
 		y = win_y(d, obj, y);
 		if (my >= y && my < y + page_h(k, d->dpi) + GAP) {
-			*p = lay_hit(qd.lay, k, (i32)((mx - x) * 1440 / d->dpi), (i32)((my - y) * 1440 / d->dpi));
+			Drawn *c = cache_now(d, k);
+			long ux = mx - x;
+			if (c && c->words)
+				ux = qt_unmap_x(c->words, ux, my - y);      /* the letter as drawn, to the layout's place */
+			*p = lay_hit(qd.lay, k, (i32)(ux * 1440 / d->dpi), (i32)((my - y) * 1440 / d->dpi));
 			return 1;
 		}
 	}
@@ -1474,6 +1521,7 @@ DISPATCHER(qv_dispatch)
 		d = INST_DATA(cl, obj);
 		port = mm_win_of(obj)->macwin;
 		lay_update(qd.lay);
+		mono_check(d, obj);
 		if (zoom_dpi(d, obj) != d->dpi) {
 			d->dpi = zoom_dpi(d, obj);
 			cache_drop_all(d);
@@ -1571,6 +1619,7 @@ void qv_reset(Object *view)
 {
 	struct qv_data *d = INST_DATA(qv_mcc->mcc_Class, view);
 	cache_drop_all(d);
+	qt_forget();
 	d->sx = d->sy = 0;
 	d->caret_on = d->cdrawn = 0;
 	d->stale = 0;
@@ -1612,6 +1661,21 @@ void qv_chrome(Object *view, int ribbon, int ruler)
 		r.left = _mleft(view); r.top = _mtop(view);
 		r.right = (short)(_mleft(view) + _mwidth(view)); r.bottom = (short)(_mtop(view) + _mheight(view));
 		bars_place(d, view);
+		SetPort(mm_win_of(view)->macwin);
+		InvalRect(&r);
+	}
+}
+
+void qv_smooth(Object *view, int on)
+{
+	struct qv_data *d = INST_DATA(qv_mcc->mcc_Class, view);
+	if (smooth_text == on)
+		return;
+	smooth_text = on;
+	cache_drop_all(d);
+	if (d->shown && mm_win_of(view) && mm_win_of(view)->macwin) {
+		Rect r;
+		parts(view, &r, NULL, NULL, NULL);
 		SetPort(mm_win_of(view)->macwin);
 		InvalRect(&r);
 	}

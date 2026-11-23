@@ -32,4 +32,6 @@ int qdlg_run(int w, int h, DItem *it, int n, int def, int cancel);
 void qdlg_settle(void);
 /* s as a whole number from lo to hi into *out: 0 if it isn't one */
 int qdlg_number(const char *s, int lo, int hi, int *out);
+/* the height a dialog can have on the main screen under the menu bar (a compact Mac's: 314 pixels) */
+int qdlg_room(void);
 #endif

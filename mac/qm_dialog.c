@@ -193,6 +193,13 @@ int qdlg_run(int w, int h, DItem *it, int n, int def, int cancel)
 	return hit;
 }
 
+int qdlg_room(void)
+{
+	void *wm;
+	GetWMgrPort(&wm);
+	return PORT_RECT(wm)->bottom - PORT_RECT(wm)->top - LM_MBARHEIGHT - 8;
+}
+
 int qdlg_number(const char *s, int lo, int hi, int *out)
 {
 	char *e;

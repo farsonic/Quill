@@ -35,9 +35,9 @@
 #include "../core/edcmd.h"
 #include "../amiga/lang.h"
 
-int mm_dir_path(short vref, long dir, char *out, int len);       /* riptide src/mac/mui/mm_os.c */
 
 QDoc qd;
+char qm_appdir[256];             /* the folder Octavo is in, a full path ending in ':' */
 static Object *app, *win, *view, *strip;
 
 /* the format typing continues with after a Style, Font or Size command with no text selected
@@ -144,7 +144,7 @@ static char size_label[NSIZES][8];
 static const char *const strip_names[QS_NSTRIPS] = { "Home", "Insert", "Layout", "References", "Review" };
 
 /* the preferences: what View shows, kept between sessions (Guidelines p. 37) */
-static struct { int ribbon, ruler, strip; } prefs = { 1, 1, QS_HOME };
+static struct { int ribbon, ruler, strip, smooth; } prefs = { 1, 1, QS_HOME, 0 };
 
 static void nm_add(UBYTE type, const char *label, const char *key, UWORD flags, ULONG id)
 {
@@ -161,6 +161,78 @@ static void nm_add(UBYTE type, const char *label, const char *key, UWORD flags, 
 static void nm_addc(int type, const char *label, const char *key, int flags, unsigned long id)
 {
 	nm_add((UBYTE)type, label, key, (UWORD)flags, (ULONG)id);
+}
+
+/* How far the menus fold together to fit the menu bar. Eleven titles of Octavo's fit a 640-pixel
+   screen in English; a compact Mac's 512 pixels hold seven or eight. As Word 5 for the Mac did on
+   that screen, the sizes go into the Font menu (above the families) and References' commands into
+   Insert's menu (1); with less room still Layout's commands follow Format's (2), and the styles go
+   into the Font menu too (3). Every command stays in a menu, with its key. The titles are measured
+   in the system font, each with the Menu Manager's room around it, against the screen's width less
+   the room the System's own menus at the right end take (Help, the Application menu, one more). */
+static int menu_fold;
+#define TITLE_PAD   13          /* round each title (System 7's menu bar definition) */
+#define MBAR_LEFT   (10 + 16 + TITLE_PAD)   /* the Apple menu */
+#define MBAR_RIGHT  80          /* Help and the Application menu (67 pixels at 512 in the testbed), and a little */
+static int title_w(const char *t)
+{
+	unsigned char p[80];
+	return StringWidth(mac_pstr(p, t)) + TITLE_PAD;
+}
+static int menu_room(int fold, int screen_w)
+{
+	static const char *const all[] = { "File", "Edit", "Font", "Size", "menu:Style", "menu:Format", "Insert", "Layout", "References", "Review", "View" };
+	int i, w = MBAR_LEFT;
+	for (i = 0; i < (int)(sizeof all / sizeof all[0]); i++) {
+		const char *t = all[i];
+		if (fold >= 1 && (!strcmp(t, "Size") || !strcmp(t, "References")))
+			continue;
+		if (fold >= 2 && !strcmp(t, "Layout"))
+			continue;
+		if (fold >= 3 && !strcmp(t, "menu:Style"))
+			continue;
+		w += title_w(!strncmp(t, "menu:", 5) ? tr_ctx("menu", t + 5) : tr(t));
+	}
+	return screen_w - MBAR_RIGHT - w;
+}
+static void menus_fold(int screen_w)
+{
+	void *save, *wm;
+	GetPort(&save);
+	GetWMgrPort(&wm);
+	SetPort(wm);
+	TextFont(0);                /* the system font, as the menu bar */
+	TextSize(0);
+	TextFace(0);
+	for (menu_fold = 0; menu_fold < 3 && menu_room(menu_fold, screen_w) < 0; menu_fold++)
+		;
+	mm_log("menu bar: %d pixels, titles folded to level %d (%d pixels spare)", screen_w, menu_fold, menu_room(menu_fold, screen_w));
+	SetPort(save);
+}
+
+static void menu_sizes(void)
+{
+	int i;
+	for (i = 0; i < NSIZES; i++) {
+		snprintf(size_label[i], sizeof size_label[i], "%d", sizes[i]);
+		nm_add(NM_ITEM, size_label[i], NULL, CHECKIT, (ULONG)(ID_SIZE0 + i));
+	}
+	BAR();
+	nm_add(NM_ITEM, "Grow Font", ">", 0, ID_GROW);
+	nm_add(NM_ITEM, "Shrink Font", "<", 0, ID_SHRINK);
+}
+
+static void menu_styles(void)
+{
+	nm_add(NM_ITEM, "Plain Text", "T", CHECKIT, ID_PLAIN);
+	BAR();
+	nm_add(NM_ITEM, "Bold", "B", CHECKIT, ID_BOLD);
+	nm_add(NM_ITEM, "Italic", "I", CHECKIT, ID_ITALIC);
+	nm_add(NM_ITEM, "Underline", "U", CHECKIT, ID_UNDERLINE);
+	nm_add(NM_ITEM, "Strikethrough", NULL, CHECKIT, ID_STRIKE);
+	BAR();
+	nm_add(NM_ITEM, "Superscript", "+", CHECKIT, ID_SUPER);
+	nm_add(NM_ITEM, "Subscript", "-", CHECKIT, ID_SUB);
 }
 
 static void menus_build(void)
@@ -186,28 +258,27 @@ static void menus_build(void)
 	nm_add(NM_ITEM, "Find Again", "G", 0, ID_FINDAGAIN);
 	nm_add(NM_ITEM, "Replace...", NULL, 0, ID_REPLACE);
 	nm_add(NM_TITLE, "Font", NULL, 0, 0);
+	if (menu_fold >= 1) {
+		/* (a narrow menu bar) the sizes first, as Word 5 for the Mac had them; the styles too */
+		menu_sizes();
+		BAR();
+		if (menu_fold >= 3) {
+			menu_styles();
+			BAR();
+		}
+	}
 	for (i = 0; i < nfam; i++)
 		nm_add(NM_ITEM, fam[i], NULL, CHECKIT, (ULONG)(ID_FONT0 + i));
-	nm_add(NM_TITLE, "Size", NULL, 0, 0);
-	for (i = 0; i < NSIZES; i++) {
-		snprintf(size_label[i], sizeof size_label[i], "%d", sizes[i]);
-		nm_add(NM_ITEM, size_label[i], NULL, CHECKIT, (ULONG)(ID_SIZE0 + i));
+	if (menu_fold < 1) {
+		nm_add(NM_TITLE, "Size", NULL, 0, 0);
+		menu_sizes();
 	}
-	BAR();
-	nm_add(NM_ITEM, "Grow Font", ">", 0, ID_GROW);
-	nm_add(NM_ITEM, "Shrink Font", "<", 0, ID_SHRINK);
 	/* the Guidelines' Style menu (p. 113): the text's style, not a paragraph style (the German
 	   table's "Style" is Formatvorlage, a paragraph style; the menu is Stil) */
-	nm_add(NM_TITLE, tr_ctx("menu", "Style"), NULL, 0, 0);
-	nm_add(NM_ITEM, "Plain Text", "T", CHECKIT, ID_PLAIN);
-	BAR();
-	nm_add(NM_ITEM, "Bold", "B", CHECKIT, ID_BOLD);
-	nm_add(NM_ITEM, "Italic", "I", CHECKIT, ID_ITALIC);
-	nm_add(NM_ITEM, "Underline", "U", CHECKIT, ID_UNDERLINE);
-	nm_add(NM_ITEM, "Strikethrough", NULL, CHECKIT, ID_STRIKE);
-	BAR();
-	nm_add(NM_ITEM, "Superscript", "+", CHECKIT, ID_SUPER);
-	nm_add(NM_ITEM, "Subscript", "-", CHECKIT, ID_SUB);
+	if (menu_fold < 3) {
+		nm_add(NM_TITLE, tr_ctx("menu", "Style"), NULL, 0, 0);
+		menu_styles();
+	}
 	nm_add(NM_TITLE, tr_ctx("menu", "Format"), NULL, 0, 0);   /* the menu, not the verb */
 	nm_add(NM_ITEM, "Font...", NULL, 0, ID_FONTDLG);
 	nm_add(NM_ITEM, "Paragraph Style", NULL, 0, 0);              /* a hierarchical menu (p. 79): an attribute list */
@@ -227,7 +298,11 @@ static void menus_build(void)
 	nm_add(NM_ITEM, "Single", "1", CHECKIT, ID_SINGLE);
 	nm_add(NM_ITEM, "1.5 Lines", "5", CHECKIT, ID_ONEHALF);
 	nm_add(NM_ITEM, "Double", "2", CHECKIT, ID_DOUBLE);
-	qc_menus(nm_addc);                                           /* Insert, Layout, References, Review */
+	if (menu_fold >= 2) {
+		BAR();
+		qc_menu_layout(nm_addc, 0);                          /* (a narrow menu bar) Layout's commands */
+	}
+	qc_menus(nm_addc, menu_fold >= 1, menu_fold >= 2);           /* Insert, Layout, References, Review */
 	nm_add(NM_TITLE, "View", NULL, 0, 0);
 	/* toggles with a check mark (p. 75); Ribbon is what Word for the Mac called its formatting bar */
 	nm_add(NM_ITEM, "Ribbon", NULL, CHECKIT | (prefs.ribbon ? CHECKED : 0), ID_RIBBON);
@@ -235,6 +310,8 @@ static void menus_build(void)
 	for (i = 0; i < QS_NSTRIPS; i++)
 		nm_add(NM_SUB, strip_names[i], NULL, CHECKIT | (prefs.strip == i ? CHECKED : 0), (ULONG)(ID_STRIP0 + i));
 	nm_add(NM_ITEM, "Ruler", NULL, CHECKIT | (prefs.ruler ? CHECKED : 0), ID_RULER);
+	/* the text in the Mac's screen fonts (MacWrite's look) unless this is on: as the PDF draws it */
+	nm_add(NM_ITEM, "Smooth Text", NULL, CHECKIT | (prefs.smooth ? CHECKED : 0), ID_SMOOTH);
 	BAR();
 	nm_add(NM_ITEM, "Fit Page Width", "0", CHECKIT, ID_ZOOMFIT);
 	BAR();
@@ -283,12 +360,10 @@ static void prefs_load(void)
 	int v;
 	FILE *f;
 	if (mac_findfolder(-32768, MAC_TYPE('p', 'r', 'e', 'f'), 1, &vref, &dir) != 0 ||
-	    mm_dir_path(vref, dir, prefs_path, (int)sizeof prefs_path - 24) < 0) {
+	    qm_dir_path(vref, dir, prefs_path, (int)sizeof prefs_path - 24) < 0) {
 		prefs_path[0] = 0;
 		return;
 	}
-	if (prefs_path[0] && prefs_path[strlen(prefs_path) - 1] != ':')
-		strcat(prefs_path, ":");
 	strcat(prefs_path, "Octavo Preferences");
 	if (!(f = fopen(prefs_path, "r"))) {
 		char old[300];
@@ -315,6 +390,8 @@ static void prefs_load(void)
 			prefs.ruler = v != 0;
 		else if (sscanf(line, "strip %d", &v) == 1 && v >= 0 && v < QS_NSTRIPS)
 			prefs.strip = v;
+		else if (sscanf(line, "smooth %d", &v) == 1)
+			prefs.smooth = v != 0;
 	}
 	fclose(f);
 }
@@ -324,7 +401,7 @@ static void prefs_save(void)
 	FILE *f;
 	if (!prefs_path[0] || !(f = fopen(prefs_path, "w")))
 		return;
-	fprintf(f, "ribbon %d\nruler %d\nstrip %d\n", prefs.ribbon, prefs.ruler, prefs.strip);
+	fprintf(f, "ribbon %d\nruler %d\nstrip %d\nsmooth %d\n", prefs.ribbon, prefs.ruler, prefs.strip, prefs.smooth);
 	fclose(f);
 	qm_flush(prefs_path);
 }
@@ -429,6 +506,7 @@ unsigned qm_state(unsigned long id)
 			return qd.path[0] && qd.doc->dirty ? QS_ENABLED : 0;
 		case ID_RIBBON: on = prefs.ribbon; break;
 		case ID_RULER: on = prefs.ruler; break;
+		case ID_SMOOTH: on = prefs.smooth; break;
 		case ID_ZOOMFIT: case ID_ZOOM50: case ID_ZOOM75: case ID_ZOOM100: case ID_ZOOM150: case ID_ZOOM200:
 			on = zoom_row == (int)(id - ID_ZOOMFIT);
 			break;
@@ -571,17 +649,14 @@ static int ask(const char *gadgets, const char *fmt, const char *arg)
 	return r;
 }
 
-/* a full Mac path from Standard File's reply */
+/* a full Mac path from Standard File's reply (its FSSpec: volume, folder, name) */
 static int reply_path(const StandardFileReply *r, char *out, int cap)
 {
-	int n;
-	if (mm_dir_path(r->sfFile.vRefNum, r->sfFile.parID, out, cap) < 0)
+	if (qm_spec_path(r->sfFile.vRefNum, r->sfFile.parID, r->sfFile.name, out, cap) < 0) {
+		mm_log("Octavo: no path for \"%.*s\" (folder %ld on volume %d)", r->sfFile.name[0], (const char *)r->sfFile.name + 1,
+		       (long)r->sfFile.parID, r->sfFile.vRefNum);
 		return 0;
-	n = (int)strlen(out);
-	if (n + r->sfFile.name[0] + 1 > cap)
-		return 0;
-	memcpy(out + n, r->sfFile.name + 1, r->sfFile.name[0]);
-	out[n + r->sfFile.name[0]] = 0;
+	}
 	return 1;
 }
 
@@ -861,6 +936,11 @@ static void font_dialog(void)
 	CharFmt cf;
 	unsigned mask = CM_SIZE | CM_BOLD | CM_ITALIC | CM_UNDERLINE | CM_STRIKE | CM_SUPER | CM_SUB;
 	memset(it, 0, sizeof it);
+	/* as many families as the screen has room for (a compact Mac's 342 lines: seven) */
+	while (shown > 1 && 41 + 18 * shown + 10 + 30 + 18 * 3 + 14 + 33 > qdlg_room())
+		shown--;
+	if (font >= shown)
+		font = -1;
 #define ADD(K, X, Y, W, L) (it[n].kind = (K), it[n].x = (X), it[n].y = (Y), it[n].w = (W), it[n].label = (L), &it[n++])
 	ADD(DI_TEXT, 13, 13, 304, "Font");
 	ADD(DI_TEXT, 13, 41, 60, "Font:");
@@ -1115,7 +1195,7 @@ static void command(ULONG id)
 		/* (no line breaks inside a paragraph: the alert wraps the text itself) */
 		qm_alert(QA_NOTE, "Octavo 0.15\n\n%s", tr("Octavo is Quill for the classic Mac OS: a word processor that reads and writes Word documents (.docx).\n\n"
 		                               "Text is measured with the Liberation and Carlito/Caladea fonts (SIL Open Font License), so documents break "
-		                               "their lines as they do in Word."));
+		                               "their lines as they do in Word; on the screen it is drawn in the Mac's own fonts."));
 		break;
 	case ID_REDO:
 		if (doc_redo(qd.doc, &qd.caret)) {
@@ -1169,6 +1249,12 @@ static void command(ULONG id)
 		qv_chrome(view, prefs.ribbon, prefs.ruler);
 		qm_status();
 		break;
+	case ID_SMOOTH:
+		prefs.smooth = !prefs.smooth;
+		prefs_save();
+		qv_smooth(view, prefs.smooth);
+		qm_status();
+		break;
 	case ID_ZOOMFIT: case ID_ZOOM50: case ID_ZOOM75: case ID_ZOOM100: case ID_ZOOM150: case ID_ZOOM200:
 		zoom_row = (int)(id - ID_ZOOMFIT);
 		qv_zoom(view, zooms[zoom_row]);
@@ -1215,23 +1301,98 @@ static void finder_files(void)
 	unsigned char **h = LM_APPPARMHANDLE, *p;
 	char path[300];
 	short vref;
-	int n, len;
+	int n;
 	if (!h || !*h)
 		return;
 	p = *h;
 	n = *(short *)(p + 2);
 	if (n < 1)
 		return;
-	vref = *(short *)(p + 4);
-	if (mm_dir_path(vref, 0, path, sizeof path) < 0)
+	vref = *(short *)(p + 4);              /* a working directory: its folder (directory 0) */
+	if (qm_spec_path(vref, 0, p + 12, path, (int)sizeof path) < 0) {
+		mm_log("Octavo: no path for the Finder's document (working directory %d)", vref);
 		return;
-	len = (int)strlen(path);
-	if (len + p[12] + 1 > (int)sizeof path)
-		return;
-	memcpy(path + len, p + 13, p[12]);
-	path[len + p[12]] = 0;
+	}
 	mm_log("Octavo: the Finder opens %s", path);
 	open_file(path);
+}
+
+/* Apple events (System 7): Octavo is high-level-event aware (its SIZE resource says so, mac/mksize.py),
+   so the Finder sends it the required events: Open Application, Open Documents (a document
+   double-clicked or dropped on Octavo's icon, whether Octavo runs already or is started by it),
+   Print Documents (opened: Octavo does not print) and Quit (Shut Down, Restart). Riptide's event
+   loop leaves high-level events alone, and an event not accepted stays in the queue, so the loop
+   below takes them before each turn of MUI's: WaitNextEvent for high-level events only, then
+   AEProcessAppleEvent, which calls qm_ae_event through the Pascal thunk in qm_thunks.S. */
+short qm_ae_install(long cls, long id, void *handler, long refcon);
+short qm_ae_process(const void *ev);
+short qm_ae_getparamdesc(const void *ev, long key, long type, void *desc);
+short qm_ae_countitems(const void *list, long *n);
+short qm_ae_getnthptr(const void *list, long i, long type, long *kw, long *typ, void *data, long max, long *actual);
+short qm_ae_disposedesc(void *desc);
+void qm_ae_handler(void);
+long mac_gestalt(long selector, long *response);
+#define AE_CLASS     MAC_TYPE('a', 'e', 'v', 't')
+#define HLE_EVENT    23                 /* kHighLevelEvent */
+#define HLE_MASK     0x0400             /* highLevelEventMask */
+static int ae_ready, ae_quit;
+static int ae_opened;                   /* documents opened by an Open Documents event */
+
+short qm_ae_event(const void *ev, long refcon);
+short qm_ae_event(const void *ev, long refcon)
+{
+	long kw, typ, n = 0, got;
+	struct { void *type_; void *data; } list = { 0, 0 };
+	struct { short vref; long dir; unsigned char name[64]; } __attribute__((packed)) fss;
+	char path[300];
+	unsigned long eid = (unsigned long)refcon;     /* the event's ID, given as the handler's refcon */
+	if (eid == MAC_TYPE('o', 'a', 'p', 'p'))
+		return 0;
+	if (eid == MAC_TYPE('q', 'u', 'i', 't')) {
+		ae_quit = 1;            /* the main loop asks to save first, as Quit does */
+		return 0;
+	}
+	/* Open Documents and Print Documents: the direct object, a list of files */
+	if (qm_ae_getparamdesc(ev, MAC_TYPE('-', '-', '-', '-'), MAC_TYPE('l', 'i', 's', 't'), &list) != 0)
+		return -1701;           /* errAEDescNotFound */
+	if (qm_ae_countitems(&list, &n) == 0 && n > 0 &&
+	    qm_ae_getnthptr(&list, 1, MAC_TYPE('f', 's', 's', ' '), &kw, &typ, &fss, (long)sizeof fss, &got) == 0) {
+		if (qm_spec_path(fss.vref, fss.dir, fss.name, path, (int)sizeof path) == 0) {
+			mm_log("Octavo: an Open Documents event for %s (%ld document%s)", path, n, n == 1 ? "" : "s");
+			ae_opened++;
+			if (!strcmp(path, qd.path) && qd.doc && !qd.doc->dirty)
+				win_show();     /* that one is open already */
+			else if (may_close())
+				open_file(path);
+		} else
+			mm_log("Octavo: an Open Documents event for a file with no path (folder %ld)", fss.dir);
+	}
+	qm_ae_disposedesc(&list);
+	return 0;
+}
+
+/* the handlers: one, told the event by its refcon (the event ID) */
+static void ae_init(void)
+{
+	long r = 0;
+	if (mac_gestalt(MAC_TYPE('e', 'v', 'n', 't'), &r) != 0 || !(r & 1))
+		return;                 /* no Apple Event Manager (System 6) */
+	ae_ready = qm_ae_install(AE_CLASS, MAC_TYPE('o', 'a', 'p', 'p'), (void *)qm_ae_handler, (long)MAC_TYPE('o', 'a', 'p', 'p')) == 0;
+	qm_ae_install(AE_CLASS, MAC_TYPE('o', 'd', 'o', 'c'), (void *)qm_ae_handler, (long)MAC_TYPE('o', 'd', 'o', 'c'));
+	qm_ae_install(AE_CLASS, MAC_TYPE('p', 'd', 'o', 'c'), (void *)qm_ae_handler, (long)MAC_TYPE('p', 'd', 'o', 'c'));
+	qm_ae_install(AE_CLASS, MAC_TYPE('q', 'u', 'i', 't'), (void *)qm_ae_handler, (long)MAC_TYPE('q', 'u', 'i', 't'));
+	mm_log("Octavo: Apple event handlers %s", ae_ready ? "installed" : "not installed");
+}
+
+/* the high-level events waiting, each handled */
+static void ae_take(void)
+{
+	EventRecord ev;
+	int guard = 0;
+	if (!ae_ready)
+		return;
+	while (guard++ < 8 && WaitNextEvent(HLE_MASK, &ev, 0, NULL) && ev.what == HLE_EVENT)
+		qm_ae_process(&ev);
 }
 
 void mm_gfx_lib_init(void);
@@ -1255,13 +1416,22 @@ int main(void)
 	lang_set(lang_mac_system());
 	mm_log("Octavo starts");
 
-	/* the fonts: the Fonts folder beside Quill (the default folder at launch is Quill's own) */
+	/* the fonts: the Fonts folder beside Octavo, found from Octavo's own file (not the default
+	   folder, which is Octavo's only when the Finder made it so and which Standard File moves) */
+	if (qm_app_dir(qm_appdir, (int)sizeof qm_appdir - 40) < 0)
+		strcpy(qm_appdir, ":");
+	mm_log("Octavo's folder: %s", qm_appdir);
 	if (!(qd.fonts = calloc(1, sizeof *qd.fonts)))
 		return 20;
-	if (!fonts_init(qd.fonts, ":Fonts:"))
-		mm_log("Octavo: no fonts in :Fonts: (fonts.list)");
+	{
+		char fdir[300];
+		snprintf(fdir, sizeof fdir, "%sFonts:", qm_appdir);
+		if (!fonts_init(qd.fonts, fdir))
+			mm_log("Octavo: no fonts in %s (fonts.list)", fdir);
+	}
 	families();
 	prefs_load();
+	menus_fold(sb[3] - sb[1]);
 	menus_build();
 	mm_edit_action = edit_action;
 	mm_edit_state = edit_state;
@@ -1275,8 +1445,10 @@ int main(void)
 	strip = mui_make(MUIO_MenustripNM, (ULONG)menu, 0);
 	view = mui_newc(qv_class(), MUIA_Frame, MUIV_Frame_None, TAG_DONE);
 	qs_select(prefs.strip);
-	if (view)
+	if (view) {
 		qv_chrome(view, prefs.ribbon, prefs.ruler);
+		qv_smooth(view, prefs.smooth);
+	}
 	win = mui_new(MUIC_Window, MUIA_Window_Title, (ULONG)tr("Untitled"), MUIA_Window_RootObject, (ULONG)view,
 	              MUIA_Window_Menustrip, (ULONG)strip, TAG_DONE);
 	if (!view || !win)
@@ -1285,10 +1457,32 @@ int main(void)
 	mui_do(win, MUIM_Notify, MUIA_Window_CloseRequest, TRUE, (ULONG)app, 2, MUIM_Application_ReturnID, ID_CLOSEWIN);
 	set_title();
 	mui_set(win, MUIA_Window_Open, TRUE);
+	{
+		/* the menu bar as the Menu Manager placed it (MenuList, low memory 0xA1C: the offset of the
+		   last entry, the last title's right edge, then a handle and a left edge per menu): logged, so
+		   that menus_fold's sums can be checked against it */
+		short **ml = *(short ***)0xA1C;
+		if (ml && *ml) {
+			short *m = *ml;
+			int k, n = m[0] / 6;
+			char line[200];
+			int o = snprintf(line, sizeof line, "menu bar: %d menus, the last title ends at %d; lefts", n, m[1]);
+			for (k = 0; k < n && o < (int)sizeof line - 8; k++)
+				o += snprintf(line + o, sizeof line - (size_t)o, " %d", *(short *)((char *)m + 6 + 6 * k + 4));
+			mm_log("%s", line);
+		}
+	}
 	finder_files();
+	ae_init();
 	qm_status();
 	for (;;) {
-		LONG id = (LONG)mui_do(app, MUIM_Application_NewInput, (ULONG)&sigs);
+		LONG id;
+		ae_take();
+		id = (LONG)mui_do(app, MUIM_Application_NewInput, (ULONG)&sigs);
+		if (ae_quit) {
+			ae_quit = 0;
+			id = ID_QUIT;
+		}
 		if (id == MUIV_Application_ReturnID_Quit || id == ID_QUIT) {
 			if (may_close())
 				break;

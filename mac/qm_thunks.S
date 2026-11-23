@@ -98,3 +98,119 @@ qm_pixbaseaddr:
 	move.l	(%sp)+,%d0
 	move.l	%d0,%a0
 	rts
+
+| The Apple Event Manager (Inside Macintosh: Interapplication Communication, chapter 4): one trap,
+| _Pack8 ($A816), with a selector in D0 whose high byte is the arguments' size in words. Pascal
+| calls, the arguments pushed left to right after room for the OSErr. With the result word pushed,
+| argument k (from 0) of the C call is at 10 + 4k(sp), and 4 more for each one pushed before it:
+| so the k-th push takes 10 + 8k(sp).
+| short qm_ae_install(long eventClass, long eventID, void *handler, long refcon):
+| AEInstallEventHandler, in the application's table
+	.globl	qm_ae_install
+qm_ae_install:
+	move.l	%d2,-(%sp)
+	clr.w	-(%sp)
+	move.l	10(%sp),-(%sp)			| theAEEventClass
+	move.l	18(%sp),-(%sp)			| theAEEventID
+	move.l	26(%sp),-(%sp)			| handler (a procedure pointer is the 68k's UPP)
+	move.l	34(%sp),-(%sp)			| handlerRefcon
+	clr.w	-(%sp)				| isSysHandler: FALSE
+	move.l	#0x091F,%d0
+	.short	0xA816
+	move.w	(%sp)+,%d0
+	ext.l	%d0
+	move.l	(%sp)+,%d2
+	rts
+
+| short qm_ae_process(const EventRecord *ev): AEProcessAppleEvent
+	.globl	qm_ae_process
+qm_ae_process:
+	move.l	%d2,-(%sp)
+	clr.w	-(%sp)
+	move.l	10(%sp),-(%sp)
+	move.l	#0x021B,%d0
+	.short	0xA816
+	move.w	(%sp)+,%d0
+	ext.l	%d0
+	move.l	(%sp)+,%d2
+	rts
+
+| short qm_ae_getparamdesc(const AppleEvent *ev, long keyword, long desiredType, AEDesc *result)
+	.globl	qm_ae_getparamdesc
+qm_ae_getparamdesc:
+	move.l	%d2,-(%sp)
+	clr.w	-(%sp)
+	move.l	10(%sp),-(%sp)
+	move.l	18(%sp),-(%sp)
+	move.l	26(%sp),-(%sp)
+	move.l	34(%sp),-(%sp)
+	move.l	#0x0812,%d0
+	.short	0xA816
+	move.w	(%sp)+,%d0
+	ext.l	%d0
+	move.l	(%sp)+,%d2
+	rts
+
+| short qm_ae_countitems(const AEDescList *list, long *count)
+	.globl	qm_ae_countitems
+qm_ae_countitems:
+	move.l	%d2,-(%sp)
+	clr.w	-(%sp)
+	move.l	10(%sp),-(%sp)
+	move.l	18(%sp),-(%sp)
+	move.l	#0x0407,%d0
+	.short	0xA816
+	move.w	(%sp)+,%d0
+	ext.l	%d0
+	move.l	(%sp)+,%d2
+	rts
+
+| short qm_ae_getnthptr(const AEDescList *list, long index, long desiredType, long *keyword,
+|                       long *typeCode, void *data, long maxSize, long *actualSize)
+	.globl	qm_ae_getnthptr
+qm_ae_getnthptr:
+	move.l	%d2,-(%sp)
+	clr.w	-(%sp)
+	move.l	10(%sp),-(%sp)
+	move.l	18(%sp),-(%sp)
+	move.l	26(%sp),-(%sp)
+	move.l	34(%sp),-(%sp)
+	move.l	42(%sp),-(%sp)
+	move.l	50(%sp),-(%sp)
+	move.l	58(%sp),-(%sp)
+	move.l	66(%sp),-(%sp)
+	move.l	#0x100A,%d0
+	.short	0xA816
+	move.w	(%sp)+,%d0
+	ext.l	%d0
+	move.l	(%sp)+,%d2
+	rts
+
+| short qm_ae_disposedesc(AEDesc *desc)
+	.globl	qm_ae_disposedesc
+qm_ae_disposedesc:
+	move.l	%d2,-(%sp)
+	clr.w	-(%sp)
+	move.l	10(%sp),-(%sp)
+	move.l	#0x0204,%d0
+	.short	0xA816
+	move.w	(%sp)+,%d0
+	ext.l	%d0
+	move.l	(%sp)+,%d2
+	rts
+
+| qm_ae_handler: the handler the Apple Event Manager calls, pascal OSErr (const AppleEvent *event,
+| AppleEvent *reply, long refcon), into C's short qm_ae_event(const AppleEvent *event, long refcon).
+| The arguments are popped here and the result left in the room above them.
+	.globl	qm_ae_handler
+qm_ae_handler:
+	movem.l	%d2-%d7/%a2-%a6,-(%sp)		| 44 bytes: refcon at 48(sp), reply 52, event 56
+	move.l	48(%sp),-(%sp)			| refcon
+	move.l	60(%sp),-(%sp)			| event
+	jsr	qm_ae_event
+	addq.l	#8,%sp
+	movem.l	(%sp)+,%d2-%d7/%a2-%a6
+	move.l	(%sp)+,%a0
+	lea	12(%sp),%sp
+	move.w	%d0,(%sp)
+	jmp	(%a0)

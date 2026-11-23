@@ -56,6 +56,8 @@ static unsigned char roman_of(unsigned long u)
 	return 0;
 }
 
+unsigned char qm_roman_of(unsigned long u) { return roman_of(u); }
+
 int macroman_to_utf8(unsigned char c, char *out)
 {
 	unsigned u = c < 0x80 ? c : roman_hi[c - 0x80];

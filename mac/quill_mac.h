@@ -27,6 +27,7 @@ typedef struct {
 	unsigned long saved_ver;    /* Doc.ver when last saved */
 } QDoc;
 extern QDoc qd;
+extern char qm_appdir[256];     /* the folder Octavo is in ("Disk:Apps:Octavo:"): its Fonts and dict folders are there */
 
 /* The commands: the menus' items and the tool strip's (mac/qm_strip.c), one number each. The strip
    never has a command of its own: every item is a menu item's number (Cornerstone, chapter 3) */
@@ -52,6 +53,8 @@ enum {
 	/* Review */
 	ID_SPELL, ID_WORDCOUNT, ID_COMMENT, ID_PREVCOMMENT, ID_NEXTCOMMENT, ID_DELCOMMENT,
 	ID_TRACK, ID_PREVCHANGE, ID_NEXTCHANGE, ID_ACCEPT, ID_REJECT, ID_ACCEPTALL, ID_REJECTALL,
+	/* View > Smooth Text */
+	ID_SMOOTH,
 	ID_BREAK0 = 120,            /* + Insert > Breaks' row (NBREAKS): page, column, section next page, continuous */
 	ID_SYM0 = 130,              /* + Insert > Symbol's row */
 	ID_COLS0 = 160,             /* + Layout > Columns' row: one, two, three */
@@ -93,7 +96,10 @@ unsigned qc_state(unsigned long id, int *mine);        /* qm_state for its comma
 int  qc_command(unsigned long id);                     /* 1 if it was one of its commands */
 int  qc_popup(int which, unsigned long *first);        /* a strip pop-up button's submenu: its first command, how many */
 const char *qc_label(unsigned long id);                /* a submenu item's words, NULL if not its */
-void qc_menus(void (*add)(int type, const char *label, const char *key, int flags, unsigned long id));
+/* the menus Insert, Layout, References and Review; on a narrow menu bar References' commands in Insert's
+   menu (refs_in_insert) and Layout's left to the caller, who puts them in Format's (qc_menu_layout, untitled) */
+void qc_menus(void (*add)(int type, const char *label, const char *key, int flags, unsigned long id), int refs_in_insert, int layout_in_format);
+void qc_menu_layout(void (*add)(int type, const char *label, const char *key, int flags, unsigned long id), int titled);
 
 /* qm_view.c: the page view, a MUI Area subclass (for the files that include MUI) */
 #ifdef RT_PREFS_MUI_H
@@ -106,11 +112,24 @@ void qv_reset(Object *view);                          /* a new document: back to
 #define MUIM_QV_Tick 0xFECA0001UL
 void qv_redraw_all(Object *view);                     /* everything again, by an update event */
 void qv_chrome(Object *view, int ribbon, int ruler);   /* the tool strip and the rulers shown or not */
+void qv_smooth(Object *view, int on);                 /* View > Smooth Text: the text as the PDF draws it, or QuickDraw's */
 int  qm_port_depth(void *port);                       /* the bits per pixel a window is drawn in */
 void qv_strip_changed(Object *view);                  /* the commands' states changed: the strip follows */
 void qv_strip_switched(Object *view);                 /* another strip chosen: drawn afresh */
 void qv_refresh_now(Object *view);                    /* the document laid out and drawn now (before a dialog shows it) */
 #endif
+
+/* qm_qdtext.c: a page's picture with its text drawn by QuickDraw in the Mac's screen fonts (the core
+   draws the rest), as pdf_page_rgb's; mono: for a one-bit screen (all text black or white). *words:
+   where each run's letters were drawn, for the caret (qt_words_free); NULL when none were */
+typedef struct QtWords QtWords;
+unsigned char *qt_page_rgb(Layout *L, u32 page, int dpi, int mono, u32 *w, u32 *h, QtWords **words);
+void qt_words_free(QtWords *q);
+/* x (page pixels) of a place in the text, on the line whose baseline is in y..y+h-1: from the
+   layout's to where it is drawn (qt_map_x), and back (qt_unmap_x: a click at x, y) */
+long qt_map_x(QtWords *q, long x, long y, long h);
+long qt_unmap_x(QtWords *q, long x, long y);
+void qt_forget(void);                                  /* a new document: the sizes chosen forgotten */
 
 /* qm_strip.c: the tool strip (View > Ribbon), drawn and clicked inside the page view's box */
 #define QS_HEIGHT 24                                   /* its height with the line under it */
@@ -147,6 +166,7 @@ const char *qm_author(void);                           /* the System's owner nam
 void set_watch_cursor(int on);                         /* the watch while busy, else the arrow */
 
 /* qm_text.c: Mac Roman, Latin-1 and UTF-8 */
+unsigned char qm_roman_of(unsigned long u);           /* a Unicode character's Mac Roman byte, 0 if none */
 int  macroman_to_utf8(unsigned char c, char *out);    /* bytes written (1-3) */
 void utf8_to_macroman(const char *s, char *out, int cap);
 void latin1_to_macroman(const char *s, char *out, int cap);

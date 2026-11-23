@@ -4,11 +4,11 @@
 # Amiga's words. After changing it run python3 tools/mklang.py.
 W = [
 ("Octavo 0.15\\n\\n%s", "Octavo 0.15\\n\\n%s", "Octavo 0.15\\n\\n%s", "Octavo 0.15\\n\\n%s", "Octavo 0.15\\n\\n%s"),
-("Octavo is Quill for the classic Mac OS: a word processor that reads and writes Word documents (.docx).\\n\\nText is measured with the Liberation and Carlito/Caladea fonts (SIL Open Font License), so documents break their lines as they do in Word.",
- "Octavo ist Quill für das klassische Mac OS: eine Textverarbeitung, die Word-Dokumente (.docx) liest und schreibt.\\n\\nText wird mit den Schriften Liberation und Carlito/Caladea gemessen (SIL Open Font License), daher brechen Zeilen wie in Word um.",
- "Octavo est Quill pour le Mac OS classique : un traitement de texte qui lit et écrit les documents Word (.docx).\\n\\nLe texte est mesuré avec les polices Liberation et Carlito/Caladea (SIL Open Font License) : les lignes se coupent comme dans Word.",
- "Octavo es Quill para el Mac OS clásico: un procesador de textos que lee y escribe documentos de Word (.docx).\\n\\nEl texto se mide con las fuentes Liberation y Carlito/Caladea (SIL Open Font License), así las líneas se cortan como en Word.",
- "Octavo è Quill per il Mac OS classico: un elaboratore di testi che legge e scrive documenti Word (.docx).\\n\\nIl testo è misurato con i caratteri Liberation e Carlito/Caladea (SIL Open Font License), così le righe vanno a capo come in Word."),
+("Octavo is Quill for the classic Mac OS: a word processor that reads and writes Word documents (.docx).\\n\\nText is measured with the Liberation and Carlito/Caladea fonts (SIL Open Font License), so documents break their lines as they do in Word; on the screen it is drawn in the Mac's own fonts.",
+ "Octavo ist Quill für das klassische Mac OS: eine Textverarbeitung, die Word-Dokumente (.docx) liest und schreibt.\\n\\nText wird mit den Schriften Liberation und Carlito/Caladea gemessen (SIL Open Font License), daher brechen Zeilen wie in Word um; auf dem Bildschirm erscheint er in den Schriften des Mac.",
+ "Octavo est Quill pour le Mac OS classique : un traitement de texte qui lit et écrit les documents Word (.docx).\\n\\nLe texte est mesuré avec les polices Liberation et Carlito/Caladea (SIL Open Font License) : les lignes se coupent comme dans Word ; à l'écran, il s'affiche dans les polices du Mac.",
+ "Octavo es Quill para el Mac OS clásico: un procesador de textos que lee y escribe documentos de Word (.docx).\\n\\nEl texto se mide con las fuentes Liberation y Carlito/Caladea (SIL Open Font License), así las líneas se cortan como en Word; en la pantalla se muestra con las fuentes del Mac.",
+ "Octavo è Quill per il Mac OS classico: un elaboratore di testi che legge e scrive documenti Word (.docx).\\n\\nIl testo è misurato con i caratteri Liberation e Carlito/Caladea (SIL Open Font License), così le righe vanno a capo come in Word; sullo schermo è mostrato con i caratteri del Mac."),
 ("%s\\nis not a PNG or JPEG picture Octavo can read.", "%s\\nist kein PNG- oder JPEG-Bild, das Octavo lesen kann.", "%s\\nn'est pas une image PNG ou JPEG lisible par Octavo.", "%s\\nno es una imagen PNG o JPEG que Octavo pueda leer.", "%s\\nnon è un'immagine PNG o JPEG leggibile da Octavo."),
 # Format > Paragraph Style (a submenu, and the strip's style pop-up shows the same styles)
 ("Paragraph Style", "Absatzformat", "Style de paragraphe", "Estilo de párrafo", "Stile di paragrafo"),
@@ -23,6 +23,8 @@ W = [
  "Revenir à la version enregistrée de %s ? Les modifications faites depuis seront perdues.",
  "¿Volver a la versión guardada de %s? Se perderán los cambios hechos desde entonces.",
  "Tornare alla versione salvata di %s? Le modifiche fatte da allora andranno perse."),
+# View > Smooth Text: the page's text as the PDF draws it (smoothed TrueType) instead of in the Mac's screen fonts
+("Smooth Text", "Text glätten", "Texte lissé", "Texto suavizado", "Testo smussato"),
 # View > Tool Strip: which of the strips (Home, Insert, Layout, References, Review) the window shows
 ("Tool Strip", "Symbolleiste", "Barre d'outils", "Barra de herramientas", "Barra degli strumenti"),
 # Insert > Table..., Footnote..., Endnote... (mac/qm_cmds.c)

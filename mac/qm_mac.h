@@ -17,6 +17,11 @@ long  qm_feof_pos(short ref);               /* the file's length */
 int   qm_fseek(short ref, long pos);
 int   qm_fdelete(const char *path);
 int   qm_frename(const char *from, const char *to);
+/* full Mac paths: a folder's ("Disk:Folder:Sub:", always ending in ':'), a file's from its volume,
+   folder and name (a Pascal string), the folder Octavo is in; 0, or -1 if unknown or too long */
+int   qm_dir_path(short vref, long dir, char *out, int cap);
+int   qm_spec_path(short vref, long dir, const unsigned char *name, char *out, int cap);
+int   qm_app_dir(char *out, int cap);
 void  qm_flush(const char *path);           /* the path's volume written out (FlushVol): after a save */
 unsigned long qm_seconds(void);             /* the Mac's clock: local seconds since 1904 */
 unsigned long qm_ticks(void);               /* sixtieths of a second since the Mac started */

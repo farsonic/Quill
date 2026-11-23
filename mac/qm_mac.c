@@ -58,6 +58,76 @@ static void pb_path(unsigned char *pb, unsigned char *pname, const char *path)
 	*(unsigned char **)(pb + PB_NAME) = pname;
 }
 
+/* ---- full paths of folders and files (Inside Macintosh: Files, "Getting the Full Pathname of a
+   File"). Standard File's reply and the Finder's documents name a file by its volume, its folder's
+   directory ID and its name; the core opens files by name, so they become "Disk:Folder:Sub:name".
+   A folder's path ends in ':' whatever its depth (Riptide's mm_dir_path gives "Disk:Folder:Sub",
+   without it, and a name put straight after that named a file in the parent folder: "Disk:Folder:
+   Subname"). The names are the catalog's own bytes, Mac Roman, spaces and all. ---- */
+#define T_GETCATINFO 0x0009A260L            /* _HFSDispatch 9: PBGetCatInfo */
+#define T_GETFCBINFO 0x0008A260L            /* _HFSDispatch 8: PBGetFCBInfo */
+int qm_dir_path(short vref, long dir, char *out, int cap)
+{
+	char t[256];
+	int at = (int)sizeof t;                 /* the path is built from its end, folder by folder */
+	int guard;
+	t[--at] = 0;
+	for (guard = 0; guard < 100; guard++) {
+		unsigned char pb[PB_SIZE], nm[64];
+		long parent;
+		memset(pb, 0, sizeof pb);
+		nm[0] = 0;
+		*(unsigned char **)(pb + PB_NAME) = nm;
+		W(pb, PB_VREF) = vref;
+		W(pb, 28) = -1;                 /* ioFDirIndex -1: the folder ioDrDirID names, not a file */
+		L(pb, PB_DIRID) = dir;
+		if (mac_pb(pb, T_GETCATINFO) != 0)
+			return -1;
+		if (at < nm[0] + 2)
+			return -1;              /* longer than a Pascal string can carry to the File Manager */
+		t[--at] = ':';
+		at -= nm[0];
+		memcpy(t + at, nm + 1, nm[0]);
+		dir = L(pb, PB_DIRID);          /* (dir 0 with a working directory: its folder's ID) */
+		parent = L(pb, 100);            /* ioDrParID */
+		if (dir == 2 || parent < 2)
+			break;                  /* the root: the volume's name came last */
+		dir = parent;
+	}
+	if ((int)sizeof t - 1 - at >= cap)
+		return -1;
+	memcpy(out, t + at, (size_t)((int)sizeof t - at));
+	return 0;
+}
+
+int qm_spec_path(short vref, long dir, const unsigned char *name, char *out, int cap)
+{
+	int n;
+	if (qm_dir_path(vref, dir, out, cap) < 0)
+		return -1;
+	n = (int)strlen(out);
+	if (n + name[0] + 1 > cap || n + name[0] > 255)
+		return -1;
+	memcpy(out + n, name + 1, name[0]);
+	out[n + name[0]] = 0;
+	return 0;
+}
+
+/* The folder Octavo's own file is in: its resource fork is open (CurApRefNum, low memory 0x900),
+   and PBGetFCBInfo says on which volume and in which folder that file is. Not the default folder:
+   that is the application's at launch only if the Finder made it so, and Standard File moves it. */
+int qm_app_dir(char *out, int cap)
+{
+	unsigned char pb[PB_SIZE], nm[64];
+	memset(pb, 0, sizeof pb);
+	*(unsigned char **)(pb + PB_NAME) = nm;
+	W(pb, PB_REF) = *(volatile short *)0x900;      /* CurApRefNum */
+	W(pb, 28) = 0;                                  /* ioFCBIndx 0: by ioRefNum */
+	if (mac_pb(pb, T_GETFCBINFO) != 0)
+		return -1;
+	return qm_dir_path(W(pb, 52) /* ioFCBVRefNum */, L(pb, 58) /* ioFCBParID */, out, cap);
+}
+
 void qm_type_for(const char *path, unsigned long *type, unsigned long *creator)
 {
 	const char *dot = strrchr(path, '.');
