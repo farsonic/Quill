@@ -71,6 +71,8 @@ typedef struct {
   int *tocto;                             /* each paragraph of a table of contents: its heading's paragraph, -1 */
   Image wmimg;                            /* (WP22a) the picture watermark, as a picture to draw */
   struct PRich { u8 *rgb, *a; i32 w, h; } *rich; int nrich;   /* WP17/WP18: objects drawn by objfx_render, as /R0... */
+  PdfTextFn textfn; void *textctx;        /* pdf_page_rgb_text: the front end draws the text runs it takes */
+  int turned;                             /* inside a turned frame: no run is offered to textfn */
 } Pdf;
 /* a link's area (twips, as the content stream draws) noted for the page being written; a box
    just right of the last area of the same link on the same line joins it */
@@ -376,6 +378,20 @@ static void text1(Pdf *p, Buf *b, const CharFmt *f, const char *s, u32 n, i32 x,
     size = (size * 2 + 2) / 3;
   }
   y += f->position * 10;
+  if (p->textfn && !p->turned) {
+    /* a front end drawing the text itself (pdf_page_rgb_text) */
+    static const u32 revc[] = { 0xC00000, 0x1F4FC8, 0x008040, 0x8A2BB0, 0xB85C00, 0x007A87 };   /* as below */
+    PdfTextRun t;
+    memset(&t, 0, sizeof t);
+    t.kind = PT_TEXT; t.f = f; t.s = s; t.n = n; t.z = z;
+    t.x = x; t.y = y; t.w = w; t.size = size;
+    t.color = f->rev ? revc[f->rid % 6] : f->color == COLOR_AUTO ? 0 : f->color & 0xFFFFFF;
+    t.ul = (f->flags & CF_UNDERLINE) || f->rev == REV_INS ? (f->rev == REV_INS ? UL_SINGLE : f->ul) : -1;
+    t.strike = (f->fx & FX_DSTRIKE) ? 2 : ((f->flags & CF_STRIKE) || f->rev == REV_DEL) ? 1 : 0;
+    t.ulcolor = f->ulcolor && (f->flags & CF_UNDERLINE) && !f->rev ? f->ulcolor & 0xFFFFFF : t.color;
+    t.pageh = lay_page(p->L, p->page)->height;
+    if (p->textfn(p->textctx, &t)) return;
+  }
   ssize = (size * 4 + 2) / 5;
   if (small) { CharFmt t = *f; t.size = (u16)((f->size * 4 + 2) / 5); zs = lay_face(p->L, &t); }
   while (i < n && k < sizeof cps / sizeof cps[0]) {
@@ -632,6 +648,14 @@ static void pdf_line(Pdf *p, Buf *b, ParaLay *pl, u32 line, i32 lx, i32 base)
     }
     else if (bx->kind == BX_SPACE && (bx->f.flags & CF_UNDERLINE) && bx->f.ul != UL_WORDS && k + 1 < ln->box0 + ln->nbox) {
       i32 size = bx->f.size * 10;
+      if (p->textfn && !p->turned) {
+        PdfTextRun t;
+        memset(&t, 0, sizeof t);
+        t.kind = PT_LINE; t.f = &bx->f; t.x = lx + bx->x; t.y = base + bx->f.position * 10; t.w = bx->w; t.size = size;
+        t.color = t.ulcolor = bx->f.color == COLOR_AUTO ? 0 : bx->f.color & 0xFFFFFF;
+        t.ul = bx->f.ul; t.pageh = lay_page(p->L, p->page)->height;
+        if (p->textfn(p->textctx, &t)) continue;
+      }
       colour(b, bx->f.color, "rg");
       colour(b, bx->f.color, "RG");
       deco_line(b, bx->f.ul, lx + bx->x, base + bx->f.position * 10 - size / 9, bx->w, size);
@@ -828,7 +852,9 @@ static void pdf_pack(Pdf *p, Buf *b, const Image *im, i32 x0, i32 y0, i32 w, i32
         /* reading upwards: its box ht wide and tw high, the baseline asc in from its left */
         long left = PX(q->x) - (q->align == 1 ? ht / 2 : q->align == 2 ? ht : 0), bottom = PY(q->y) - (q->valign == 1 ? tw / 2 : q->valign == 2 ? tw : 0);
         buf_printf(b, "q 0 1 -1 0 %ld %ld cm\n", left + asc, bottom);
+        p->turned++;
         text(p, b, &f, q->text, (u32)strlen(q->text), 0, 0, (i32)tw);
+        p->turned--;
         buf_adds(b, "Q\n");
       }
       break; }
@@ -909,6 +935,7 @@ text:
         buf_printf(b, "q 1 0 0 1 %ld %ld cm ", (long)cx, (long)cy);
         fix4(b, icos(a)); fix4(b, -isin(a)); fix4(b, isin(a)); fix4(b, icos(a));
         buf_printf(b, "0 0 cm 1 0 0 1 %ld %ld cm\n", (long)-cx, (long)-cy);
+        p->turned++;
       }
       buf_printf(b, "q %ld %ld %ld %ld re W n\n", (long)x0, (long)(cy - th / 2), (long)tw, (long)th);
       if (!wp19_pdf_warped(p, b, im, &f, x0, top, tw, th))     /* (WP19) bent by a Transform */
@@ -921,6 +948,7 @@ text:
         }
       }
       buf_adds(b, a ? "Q Q\n" : "Q\n");
+      if (a) p->turned--;
     }
     lay_furniture_free(&f);
   }
@@ -1052,7 +1080,9 @@ static void page_content(Pdf *p, u32 page, Buf *b)
       if (pc->turn == TD_DOWN) buf_printf(b, "q 0 -1 1 0 %ld %ld cm\n", (long)(pg->left + pc->x + ln->height), (long)(H - pc->y - pc->tshift));
       else buf_printf(b, "q 0 1 -1 0 %ld %ld cm\n", (long)(pg->left + pc->x), (long)(H - pc->y - pc->tlen + pc->tshift));
       wp27_vert = pc->turn == TD_DOWN;              /* (WP27: East Asian characters upright in vertical text) */
+      p->turned++;
       pdf_line(p, b, pl, pc->line, ln->left, -ln->ascent);
+      p->turned--;
       wp27_vert = 0;
       buf_adds(b, "Q\n");
       continue;
@@ -1655,7 +1685,8 @@ int pdf_save_file(Layout *L, const char *path)
   return ok;
 }
 /* see pdf.h: the page's content as the PDF would have it, drawn by core/raster.c */
-u8 *pdf_page_rgb(Layout *L, u32 page, int dpi, u32 *w, u32 *h)
+u8 *pdf_page_rgb(Layout *L, u32 page, int dpi, u32 *w, u32 *h) { return pdf_page_rgb_text(L, page, dpi, w, h, NULL, NULL); }
+u8 *pdf_page_rgb_text(Layout *L, u32 page, int dpi, u32 *w, u32 *h, PdfTextFn fn, void *ctx)
 {
   Pdf p;
   Buf b;
@@ -1665,6 +1696,7 @@ u8 *pdf_page_rgb(Layout *L, u32 page, int dpi, u32 *w, u32 *h)
   if (!lay_update(L) || page >= L->npages) return NULL;
   memset(&p, 0, sizeof p);
   p.L = L; p.opt = &pdf_options; p.raster = 1;
+  p.textfn = fn; p.textctx = ctx;
   buf_init(&b);
   page_content(&p, page, &b);
   for (i = 0; i < p.nfonts; i++) { rf[i].face = p.fonts[i].face; rf[i].simple = p.fonts[i].kind == PF_SIMPLE; }

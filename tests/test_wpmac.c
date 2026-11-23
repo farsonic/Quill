@@ -12,6 +12,7 @@
 #include "../core/field.h"
 #include "../core/toc.h"
 #include "../core/spell.h"
+#include "../core/pdf.h"
 
 /* the ruler for the caret at p, laid out afresh */
 static void geom_at(Doc *d, Pos p, RulerGeom *g)
@@ -406,8 +407,72 @@ static void test_review(void)
   doc_free(d);
 }
 
+/* pdf_page_rgb_text: the runs a front end draws itself (Octavo's QuickDraw text, mac/qm_qdtext.c) */
+typedef struct { int take, nrun, nline, under, struck, inorder, red; char text[400]; i32 lastx, lasty, pageh; } Runs;
+static int take_run(void *ctx, const PdfTextRun *r)
+{
+  Runs *u = (Runs *)ctx;
+  if (r->kind == PT_LINE) { u->nline++; return u->take; }
+  if (r->n && strlen(u->text) + r->n + 2 < sizeof u->text) {
+    if (u->text[0]) strcat(u->text, "|");
+    strncat(u->text, r->s, r->n);
+  }
+  if (u->nrun && r->y == u->lasty && r->x <= u->lastx) u->inorder = 0;
+  u->lastx = r->x; u->lasty = r->y; u->pageh = r->pageh;
+  if (r->ul >= 0) u->under++;
+  if (r->strike) u->struck++;
+  if (r->color == 0xFF0000) u->red++;
+  u->nrun++;
+  return u->take;
+}
+/* how many pixels of an RGB page are darker than mid grey */
+static long dark_pixels(const u8 *rgb, u32 w, u32 h)
+{
+  long n = 0, i;
+  for (i = 0; i < (long)w * h; i++) if (rgb[3 * i] + rgb[3 * i + 1] + rgb[3 * i + 2] < 3 * 128) n++;
+  return n;
+}
+static void test_page_text(void)
+{
+  Doc *d = doc_new();
+  Pos c = doc_start(d), a, b;
+  Layout *L;
+  Runs u;
+  u8 *plain, *keep, *bare;
+  u32 w, h, w2, h2;
+  CharFmt f;
+  const char *text = "Words drawn by the Mac, underlined here and red there.";
+  doc_insert(d, &c, text, (u32)strlen(text), NULL);
+  /* "underlined here" underlined (so the space between them too), "red" red */
+  memset(&f, 0, sizeof f);
+  f.flags = CF_UNDERLINE;
+  a = P(0, 24); b = P(0, 39);
+  doc_format(d, a, b, CM_UNDERLINE, &f);
+  f.flags = 0; f.color = 0xFF0000;
+  a = P(0, 44); b = P(0, 47);
+  doc_format(d, a, b, CM_COLOR, &f);
+  L = lay_new(d, &fs);
+  plain = pdf_page_rgb(L, 0, 72, &w, &h);
+  memset(&u, 0, sizeof u); u.inorder = 1;
+  keep = pdf_page_rgb_text(L, 0, 72, &w2, &h2, take_run, &u);
+  ok("page text: a run declined is drawn as always", plain && keep && w == w2 && h == h2 && !memcmp(plain, keep, (size_t)w * h * 3));
+  ok("page text: each word a run, in order", u.nrun == 10 && u.inorder && !strncmp(u.text, "Words|drawn|by|the|Mac,|underlined", 34));
+  ok("page text: the underline and the colour come with the run", u.under == 2 && u.red == 1 && u.struck == 0);
+  ok("page text: the underline under the space between, as a line", u.nline == 1);
+  ok("page text: the page's height for y from the top", u.pageh == lay_page(L, 0)->height);
+  memset(&u, 0, sizeof u); u.take = 1; u.inorder = 1;
+  bare = pdf_page_rgb_text(L, 0, 72, &w2, &h2, take_run, &u);
+  ok("page text: runs taken are left out of the picture", bare && dark_pixels(plain, w, h) > 200 && dark_pixels(bare, w2, h2) == 0);
+  free(plain); free(keep); free(bare);
+  ok("page text: the layout's measure, longer for more letters", lay_measure(L, &d->p[0]->r[0].f, "Words", 5) > lay_measure(L, &d->p[0]->r[0].f, "Wo", 2) &&
+     lay_measure(L, &d->p[0]->r[0].f, "Wo", 2) > 0);
+  lay_free(L);
+  doc_free(d);
+}
+
 void test_wpmac(void)
 {
+  test_page_text();
   test_review();
   test_references();
   test_find();

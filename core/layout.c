@@ -113,6 +113,11 @@ static u32 measure(Layout *L, FaceSize *z, const char *s, u32 n, const CharFmt *
   if (f && f->spacing) { w += (long)chars * f->spacing * QFINE; if (w < 0) w = 0; }
   return (u32)w;
 }
+/* see layout.h */
+i32 lay_measure(Layout *L, const CharFmt *f, const char *s, u32 n)
+{
+  return (i32)((measure(L, lay_face(L, f), s, n, f) + QFINE / 2) / QFINE);
+}
 
 /* ------------------------------------------------------------------ */
 /* one paragraph */

@@ -233,6 +233,7 @@ Pos  lay_visual_step(Layout *L, Pos p, int dir);
 /* the metrics of a box's format (super/subscript at two thirds size) */
 FaceSize *lay_face(Layout *L, const CharFmt *f);
 i32  lay_text_x(Layout *L, const Box *b, const char *t, u32 off);   /* x within a box of byte off */
+i32  lay_measure(Layout *L, const CharFmt *f, const char *s, u32 n);   /* n bytes of text in format f: twips, as lines are measured */
 /* (WP27) box b's text as shown, left to right: right-to-left text reversed and mirrored, Arabic shaped,
    digits as the Numeral option says, invisible controls left out: UTF-8 into out (cap bytes), its length;
    0 if the box shows its text as it is (t + b->off, b->len) */
