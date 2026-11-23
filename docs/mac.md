@@ -258,8 +258,8 @@ has, through its menus and strips:
 The owner asked for three things: Octavo must open files (it looked in the folder above the right one),
 its text must look like MacWrite 4's rather than smoothed TrueType thresholded to one bit, and it must work
 on the SE's own screen, 512 by 342 pixels at one bit. Branch `octavo-se`, tested in the Aurora68 testbed
-(QEMU, the solo board, System 7.1) at 512 by 342 and 640 by 480 at one bit, 640 by 480 at eight bits and
-1024 by 768, driven through the Aurora68 remote control and its agent (docs/13 in the Aurora68 project:
+(QEMU, the solo board, System 7.1) at 512 by 342 and 640 by 480 at one bit and 640 by 480 at eight bits
+(not yet on a large screen with this branch), driven through the Aurora68 remote control and its agent (docs/13 in the Aurora68 project:
 `open` launches a program or opens a document the way the Finder does, with an Open Documents event).
 
 ### Opening files: the folder above the right one
@@ -367,9 +367,11 @@ end takes and hands each over with its place, width, size, colour, underline and
 
 **Measured on the screen.** Octavo logs, for every page it draws, how many runs QuickDraw drew, how many
 were wider than their room and closed up (and by how much at most), and how much narrower than its room a
-run was at most. word.docx's first page at 512 by 342: 92 runs, 10 closed up, at most 3 pixels over (the
-letters of a nine-letter word a third of a pixel closer each), at most 5 pixels short; a space at 11 points
-is 2 to 3 pixels, and none vanished. charts.docx (Times New Roman 10): 110 runs, none closed up. In the
+run was at most. word.docx's first page: 92 runs, of which 10 (one session at 512 by 342) to 33 (two launches at 640 by
+480) were closed up, by at most 3 and 8 pixels (the widest, a quoted word in curly quotes, its letters a
+little under a pixel closer each), and at most 5 pixels short; a space at 11 points is 2 to 3 pixels, and
+none vanished. QuickDraw's widths of the Times 11 outline differed between launches, which goes with the
+wrong letters noted below. charts.docx (Times New Roman 10): 110 runs, none closed up. In the
 pictures below the words neither touch nor stand apart; the widest spaces are where Helvetica 24 is
 narrower than Calibri 26 ("Quill  Test").
 
@@ -377,6 +379,7 @@ narrower than Calibri 26 ("Quill  Test").
 |---|---|
 | ![before](mac-text-before-512.png) | ![after](mac-text-after-512.png) |
 | ![before, 2x](mac-text-before-zoom.png) | ![after, 2x](mac-text-after-zoom.png) |
+| ![before, 640 by 480, 8 bits](mac-text-before-640-8bit.png) | ![after, 640 by 480, 8 bits: the colours kept](mac-text-after-640-8bit.png) |
 
 Once, the first time a newly copied Octavo ran, the Times 11 outline's letters came out wrong in the
 testbed ("tex1", "Cefe"); Octavo was quit and started again and they were right, and they stayed right for
@@ -395,7 +398,11 @@ titles are measured in the system font with the Menu Manager's 13 pixels each, a
 less 80 pixels for Help and the Application menu (the testbed measured 67 at 512: the menu bar's own list
 is logged at start), and folded step by step until they fit: (1) the sizes go into the Font menu above the
 families and References' commands into the Insert menu; (2) Layout's commands follow Format's; (3) the
-styles go into the Font menu too. Every command keeps its menu and its key. English at 512 needs step 2:
+styles go into the Font menu too. Every command keeps its menu and its key. The titles are measured in the
+Window Manager port's font as it is: the testbed's menu bar is Chicago 12 at 512 pixels but a smaller plain
+face at 640, and setting that port to the system font to measure (the first try) made the 640-pixel bar
+Chicago too and folded it needlessly. At 640 nothing folds, as before (the last title ends at 492, Help at
+573). English at 512 needs step 2:
 File, Edit, Font, Style, Format, Insert, Review, View, ending at 416 with Help at 445. A long menu on a
 342-line screen scrolls, as the Menu Manager scrolls any (Format with Layout's commands has 27 rows). The
 dialogs fit: Page Setup is the tallest at 291 of the 314 lines under the menu bar; Format › Font… lists only

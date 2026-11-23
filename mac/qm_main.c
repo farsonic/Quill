@@ -168,7 +168,7 @@ static void nm_addc(int type, const char *label, const char *key, int flags, uns
    that screen, the sizes go into the Font menu (above the families) and References' commands into
    Insert's menu (1); with less room still Layout's commands follow Format's (2), and the styles go
    into the Font menu too (3). Every command stays in a menu, with its key. The titles are measured
-   in the system font, each with the Menu Manager's room around it, against the screen's width less
+   in the menu bar's font, each with the Menu Manager's room around it, against the screen's width less
    the room the System's own menus at the right end take (Help, the Application menu, one more). */
 static int menu_fold;
 #define TITLE_PAD   13          /* round each title (System 7's menu bar definition) */
@@ -201,9 +201,9 @@ static void menus_fold(int screen_w)
 	GetPort(&save);
 	GetWMgrPort(&wm);
 	SetPort(wm);
-	TextFont(0);                /* the system font, as the menu bar */
-	TextSize(0);
-	TextFace(0);
+	/* measured in the Window Manager port's font as it is, and that left alone: the menu bar is drawn
+	   in it (Chicago 12 at 512 pixels in the testbed, a smaller plain face at 640; setting the port's
+	   font to the system font's here once made the 640-pixel menu bar Chicago too) */
 	for (menu_fold = 0; menu_fold < 3 && menu_room(menu_fold, screen_w) < 0; menu_fold++)
 		;
 	mm_log("menu bar: %d pixels, titles folded to level %d (%d pixels spare)", screen_w, menu_fold, menu_room(menu_fold, screen_w));
