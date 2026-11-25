@@ -391,6 +391,15 @@ Object *qr_make(Object *view)
 	   the Amiga's does on demand (a tab double-clicked: WP26); a click on a tab shows its tools again */
 	if (mm_screen.Height < 400)
 		DoMethod(ribbon, MUIM_Ribbon_Collapse);
+	{
+		/* how much of the Amiga's ribbon the Mac does (docs/mac.md quotes the log) */
+		RibbonCmd *cmds = malloc(700 * sizeof *cmds);
+		int i, n = cmds ? ribbon_commands(cmds, 700) : 0, can = 0;
+		for (i = 0; i < n; i++)
+			can += qr_can(cmds[i].id);
+		mm_log("ribbon: %d commands on its tabs, %d of them on the Mac", n, can);
+		free(cmds);
+	}
 	docgroup = MUI_NewObject(MUIC_Group, MUIA_Group_Spacing, 0, MUIA_Group_Child, ribbon, MUIA_Group_Child, view,
 	                         status ? MUIA_Group_Child : TAG_IGNORE, status, TAG_DONE);
 	if (!back)

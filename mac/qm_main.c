@@ -745,9 +745,21 @@ static void open_file(const char *path)
 	char err[200];
 	Doc *d;
 	set_watch_cursor(1);
+	/* the document shown gives up its layout and its pages drawn first (the most of what it holds: a
+	   long one's layout is megabytes), so the next is read in their room; they are made again if it
+	   can't be read */
+	if (view)
+		qv_reset(view);
+	if (qd.lay) {
+		lay_free(qd.lay);
+		qd.lay = NULL;
+	}
 	d = doc_load_file(path, &lost, err, sizeof err);
 	set_watch_cursor(0);
 	if (!d) {
+		qd.lay = lay_new(qd.doc, qd.fonts);
+		if (view)
+			qv_changed(view, 0);
 		qm_alert(QA_STOP, "%s couldn't be read.", path);
 		return;
 	}

@@ -79,6 +79,21 @@ __attribute__((noinline)) LONG ObtainBestPen(struct ColorMap *cm, ULONG r, ULONG
 	return ObtainBestPenA(cm, r, g, b, (const struct TagItem *)&tag1);
 }
 
+/* (qm_cdispatch_thunk) a method to a class of the Amiga's files: its C dispatcher, in the hook's
+   h_SubEntry. How long each MUIM_Draw takes goes to the log (mac/qm_measure.c's figures) */
+unsigned long qm_us(void);
+ULONG qm_cdispatch(struct IClass *cl, Object *obj, Msg msg)
+{
+	ULONG (*f)(struct IClass *, Object *, Msg) = (ULONG (*)(struct IClass *, Object *, Msg))cl->cl_Dispatcher.h_SubEntry;
+	if (msg->MethodID == MUIM_Draw) {
+		unsigned long t0 = qm_us();
+		ULONG r = f(cl, obj, msg);
+		mm_log("draw %dx%d at %d,%d: %lu us", _width(obj), _height(obj), _left(obj), _top(obj), qm_us() - t0);
+		return r;
+	}
+	return f(cl, obj, msg);
+}
+
 /* A class written for vbcc takes (cl, obj, msg) in A0, A2, A1; here it is a C function. The class
    is made with qm_cdispatch_thunk (mac/qm_thunks.S), which calls the hook's h_SubEntry with the
    three as arguments: the C function, put there now */

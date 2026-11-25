@@ -229,7 +229,6 @@ qm_cdispatch_thunk:
 	move.l	%a1,-(%sp)
 	move.l	%a2,-(%sp)
 	move.l	%a0,-(%sp)
-	move.l	12(%a0),%a0
-	jsr	(%a0)
+	jsr	qm_cdispatch
 	lea	12(%sp),%sp
 	rts

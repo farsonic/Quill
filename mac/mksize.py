@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""mac/mksize.py APP.bin FLAGS: the SIZE -1 resource's flags in a MacBinary application set to
-FLAGS (Inside Macintosh: Processes, "The SIZE Resource"), the MacBinary II header's CRC made
-again. Riptide's tools/elf2app.py writes 0x5880 (MultiFinder aware, background, 32-bit clean);
+"""mac/mksize.py APP.bin FLAGS [PREFERRED_KB MINIMUM_KB]: the SIZE -1 resource's flags in a MacBinary
+application set to FLAGS (Inside Macintosh: Processes, "The SIZE Resource"), and its preferred and
+minimum partitions if given, the MacBinary II header's CRC made again. Riptide's tools/elf2app.py writes 0x5880 (MultiFinder aware, background, 32-bit clean);
 Octavo adds isHighLevelEventAware (0x0040) so the Finder sends it Open Documents events while it
 runs (mac/qm_main.c handles them). GPL-2.0-only, as Quill."""
 import struct, sys
@@ -15,6 +15,7 @@ def crc16(b):
     return c
 
 path, flags = sys.argv[1], int(sys.argv[2], 0)
+sizes = (int(sys.argv[3]) * 1024, int(sys.argv[4]) * 1024) if len(sys.argv) > 4 else None
 d = bytearray(open(path, 'rb').read())
 dlen, rlen = struct.unpack('>II', d[83:91])
 r0 = 128 + (dlen + 127) // 128 * 128                    # the resource fork, after the padded data fork
@@ -37,6 +38,9 @@ for i in range(ntypes):
         d[at:at + 2] = struct.pack('>H', flags)
         done = 1
         print('%s: SIZE -1 flags %#06x -> %#06x' % (path, old, flags))
+        if sizes:
+            d[at + 2:at + 10] = struct.pack('>II', sizes[0], sizes[1])
+            print('%s: SIZE -1 preferred %d KB, minimum %d KB' % (path, sizes[0] // 1024, sizes[1] // 1024))
 if not done:
     sys.exit('%s: no SIZE -1 resource' % path)
 d[124:126] = struct.pack('>H', crc16(bytes(d[:124])))
