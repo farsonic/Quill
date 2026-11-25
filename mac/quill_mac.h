@@ -31,40 +31,8 @@ extern char qm_appdir[256];     /* the folder Octavo is in ("Disk:Apps:Octavo:")
 
 /* The commands: the menus' items and the tool strip's (mac/qm_strip.c), one number each. The strip
    never has a command of its own: every item is a menu item's number (Cornerstone, chapter 3) */
-enum {
-	ID_NEW = 1, ID_OPEN, ID_SAVE, ID_SAVEAS, ID_PDF, ID_ABOUT, ID_QUIT,
-	ID_REDO, ID_SELALL,
-	ID_PLAIN, ID_BOLD, ID_ITALIC, ID_UNDERLINE, ID_STRIKE, ID_SUPER, ID_SUB,
-	ID_GROW, ID_SHRINK,
-	ID_LEFT, ID_CENTER, ID_RIGHT, ID_JUSTIFY, ID_SINGLE, ID_ONEHALF, ID_DOUBLE,
-	ID_ZOOMFIT, ID_ZOOM50, ID_ZOOM75, ID_ZOOM100, ID_ZOOM150, ID_ZOOM200,
-	ID_CLOSEWIN,
-	ID_BULLETS, ID_NUMBERS, ID_OUTDENT, ID_INDENT, ID_RIBBON, ID_RULER, ID_REVERT,
-	/* Insert (mac/qm_cmds.c) */
-	ID_TABLE, ID_PICTURE, ID_FOOTNOTE, ID_ENDNOTE, ID_DATE, ID_PAGENUM,
-	/* Layout > Table, in core/edcmd.h's ET_ order */
-	ID_ROW_ABOVE, ID_ROW_BELOW, ID_COL_LEFT, ID_COL_RIGHT, ID_DEL_ROW, ID_DEL_COL, ID_DEL_TABLE, ID_MERGE, ID_SPLIT,
-	/* Layout */
-	ID_PAGESETUP, ID_PORTRAIT, ID_LANDSCAPE, ID_PARAGRAPH,
-	/* Edit > Find, Format > Font... */
-	ID_FIND, ID_FINDAGAIN, ID_REPLACE, ID_FONTDLG,
-	/* References */
-	ID_TOC, ID_NEXTNOTE, ID_CAPTION, ID_BOOKMARK, ID_XREF,
-	/* Review */
-	ID_SPELL, ID_WORDCOUNT, ID_COMMENT, ID_PREVCOMMENT, ID_NEXTCOMMENT, ID_DELCOMMENT,
-	ID_TRACK, ID_PREVCHANGE, ID_NEXTCHANGE, ID_ACCEPT, ID_REJECT, ID_ACCEPTALL, ID_REJECTALL,
-	/* View > Smooth Text */
-	ID_SMOOTH,
-	ID_BREAK0 = 120,            /* + Insert > Breaks' row (NBREAKS): page, column, section next page, continuous */
-	ID_SYM0 = 130,              /* + Insert > Symbol's row */
-	ID_COLS0 = 160,             /* + Layout > Columns' row: one, two, three */
-	ID_LINENUM0 = 165,          /* + Layout > Line Numbers' row: LN_ */
-	ID_SIZE0 = 200,             /* + the Size menu's row */
-	ID_FONT0 = 220,             /* + the Font menu's family (24) */
-	ID_STYLE0 = 250,            /* + the Paragraph Style submenu's row */
-	ID_STRIP0 = 270,            /* + View > Tool Strip's row: the strip shown (QS_) */
-	ID_LAST = 400
-};
+#define QM_ID(n) ID_##n
+#include "qm_ids.h"
 #define NBREAKS 4
 /* the tool strips, one per tab of the Amiga's ribbon that the Mac has commands for */
 enum { QS_HOME, QS_INSERT, QS_LAYOUT, QS_REFERENCES, QS_REVIEW, QS_NSTRIPS };
@@ -106,6 +74,7 @@ void qc_menu_layout(void (*add)(int type, const char *label, const char *key, in
 struct MUI_CustomClass *qv_class(void);
 void qv_changed(Object *view, int scroll_to_caret);   /* the document or the selection changed: lay out, redraw */
 void qv_zoom(Object *view, int percent);
+void qv_page_info(Object *view, unsigned long *page, unsigned long *pages, long *zoom);   /* (the status bar) */
 void qv_reset(Object *view);                          /* a new document: back to the top, caches dropped */
 
 /* the page view's own method: its timer (MUIM_Application_AddInputHandler), ten times a second */

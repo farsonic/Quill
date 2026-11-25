@@ -37,6 +37,7 @@
 #include "quill_mac.h"
 #include "qm_mac.h"
 #include "../core/pdf.h"
+#include "../core/rowpack.h"
 
 #define GAP      12             /* desk between and around pages, pixels */
 #define BARW     16             /* a scroll bar's width, the Toolbox's standard */
@@ -53,9 +54,11 @@ enum { inUpButton = 20, inDownButton = 21, inPageUp = 22, inPageDown = 23, inThu
 #define IBEAM_CURSOR  1         /* the System's cursors ('CURS' resources) */
 #define LM_HILITERGB  ((const unsigned short *)0xDA0)   /* the highlight colour (Color control panel) */
 
-/* a page as drawn, kept: RGB, 3 bytes a pixel, rows top down (pdf_page_rgb's) */
+/* a page as drawn, kept: its RGB rows (pdf_page_rgb's, 3 bytes a pixel) run-length packed
+   (core/rowpack.c). A page of text is mostly runs of white, so it keeps in a tenth of its 1.4 MB or
+   less (US Letter at 72 dpi), and three pages fit in a partition of a few MB */
 typedef struct {
-	unsigned char *rgb;
+	PackedRGB pk;               /* (pk.data NULL: nothing kept) */
 	u32 page, w, h;
 	int dpi;
 	unsigned long ver;          /* Doc.ver it shows */
@@ -79,6 +82,8 @@ struct qv_data {
 	int dpi;
 	long sx, sy;                /* scrolled: the view's top left in document pixels */
 	Drawn cache[NCACHE];
+	unsigned char *line;        /* a kept row unpacked, for blit (line_w pixels) */
+	u32 line_w;
 	unsigned long clock;
 	void *gw, **gwpm;           /* the 32-bit GWorld a band is converted into */
 	int gw_w;
@@ -93,6 +98,7 @@ struct qv_data {
 	unsigned long last_click;
 	Pos last_click_pos;
 	int stale;                  /* the document changed since it was last drawn */
+	int fast, ihn_on;           /* the timer at ten a second (else the caret's blink); added */
 	unsigned long changed_at;
 	int follow;                 /* bring the caret into view once laid out */
 	long want_x;                /* up and down arrows keep to this x (twips), -1 none */
@@ -239,12 +245,13 @@ static long win_y(struct qv_data *d, Object *obj, long y)
 	return t + y - d->sy;
 }
 
+static void tick_rate(struct qv_data *d, Object *obj, int fast);
+
 /* ---- pages drawn ---- */
 
 static void cache_drop(Drawn *c)
 {
-	free(c->rgb);
-	c->rgb = NULL;
+	rgb_pack_free(&c->pk);
 	qt_words_free(c->words);
 	c->words = NULL;
 }
@@ -275,7 +282,7 @@ static Drawn *cache_find(struct qv_data *d, u32 k)
 {
 	int i;
 	for (i = 0; i < NCACHE; i++)
-		if (d->cache[i].rgb && d->cache[i].page == k && d->cache[i].dpi == d->dpi && d->cache[i].mono == d->mono) {
+		if (d->cache[i].pk.data && d->cache[i].page == k && d->cache[i].dpi == d->dpi && d->cache[i].mono == d->mono) {
 			d->cache[i].used = ++d->clock;
 			return &d->cache[i];
 		}
@@ -318,28 +325,38 @@ static Drawn *page_drawn(struct qv_data *d, u32 k, long *y0, long *y1)
 		if (!rgb)
 			return NULL;
 	}
-	if (old && old->w == w && old->h == h) {
-		/* the rows that differ, so only they are copied to the screen */
-		long row = (long)w * 3, a = 0, b = (long)h - 1;
-		while (a <= b && !memcmp(old->rgb + a * row, rgb + a * row, (size_t)row))
-			a++;
-		while (b >= a && !memcmp(old->rgb + b * row, rgb + b * row, (size_t)row))
-			b--;
-		if (y0) { *y0 = a; *y1 = b; }
-	} else if (y0) {
-		*y0 = 0;
-		*y1 = (long)h - 1;
+	{
+		/* kept packed (core/rowpack.c): the full picture goes at once */
+		PackedRGB np;
+		int ok = rgb_pack(&np, rgb, w, h);
+		free(rgb);
+		if (!ok) {
+			qt_words_free(words);
+			return NULL;
+		}
+		if (old && old->w == w && old->h == h) {
+			/* the rows that differ, so only they are copied to the screen */
+			long a = 0, b = (long)h - 1;
+			while (a <= b && rgb_same_row(&old->pk, &np, (u32)a))
+				a++;
+			while (b >= a && rgb_same_row(&old->pk, &np, (u32)b))
+				b--;
+			if (y0) { *y0 = a; *y1 = b; }
+		} else if (y0) {
+			*y0 = 0;
+			*y1 = (long)h - 1;
+		}
+		if (!c) {
+			/* the least recently used place */
+			c = &d->cache[0];
+			for (i = 1; i < NCACHE; i++)
+				if (!d->cache[i].pk.data || (c->pk.data && d->cache[i].used < c->used))
+					c = &d->cache[i];
+		}
+		rgb_pack_free(&c->pk);
+		c->pk = np;
 	}
-	if (!c) {
-		/* the least recently used place */
-		c = &d->cache[0];
-		for (i = 1; i < NCACHE; i++)
-			if (!d->cache[i].rgb || (c->rgb && d->cache[i].used < c->used))
-				c = &d->cache[i];
-	}
-	free(c->rgb);
 	qt_words_free(c->words);
-	c->rgb = rgb;
 	c->words = words;
 	c->mono = d->mono;
 	c->page = k;
@@ -363,7 +380,7 @@ static Drawn *cache_now(struct qv_data *d, u32 k)
 {
 	int i;
 	for (i = 0; i < NCACHE; i++)
-		if (d->cache[i].rgb && d->cache[i].page == k && d->cache[i].dpi == d->dpi && d->cache[i].mono == d->mono &&
+		if (d->cache[i].pk.data && d->cache[i].page == k && d->cache[i].dpi == d->dpi && d->cache[i].mono == d->mono &&
 		    d->cache[i].ver == qd.doc->ver)
 			return &d->cache[i];
 	return NULL;
@@ -492,6 +509,13 @@ static void blit(struct qv_data *d, Object *obj, u32 k, long x0, long x1, long y
 	if (y1 >= (long)c->h) y1 = (long)c->h - 1;
 	if (x0 > x1 || y0 > y1 || !gw_ready(d, (int)(x1 - x0 + 1)))
 		return;
+	if (d->line_w < c->w) {
+		free(d->line);
+		d->line_w = 0;
+		if (!(d->line = malloc((size_t)c->w * 3)))
+			return;
+		d->line_w = c->w;
+	}
 	page_at(d, obj, k, &px0, &py0);
 	sel_now(d, &s);
 	if (!s.on && d->caret_on) {
@@ -525,10 +549,13 @@ static void blit(struct qv_data *d, Object *obj, u32 k, long x0, long x1, long y
 		base = qm_pixbaseaddr(d->gwpm);
 		rowb = *(unsigned short *)((char *)*d->gwpm + 4) & 0x3FFF;
 		for (r = 0; r < n; r++) {
-			const unsigned char *sp = c->rgb + ((y + r) * (long)c->w + x0) * 3;
-			unsigned long *dp = (unsigned long *)(base + r * rowb);
+			const unsigned char *sp;
 			long sx0, sx1;
-			int sel = sel_span(d, &s, k, y + r, &sx0, &sx1);
+			int sel;
+			rgb_unpack_row(&c->pk, (u32)(y + r), d->line);
+			sp = d->line + x0 * 3;
+			sel = sel_span(d, &s, k, y + r, &sx0, &sx1);
+			unsigned long *dp = (unsigned long *)(base + r * rowb);
 			for (i = x0; i <= x1; i++, sp += 3) {
 				unsigned long R = sp[0], G = sp[1], B = sp[2];
 				if (depth == 1) {
@@ -691,6 +718,7 @@ static void status_check(struct qv_data *d, Object *obj, int in_update)
 		return;
 	}
 	d->due = 1;
+	tick_rate(d, obj, 1);
 }
 
 /* ---- scroll bars ---- */
@@ -862,16 +890,20 @@ static void rulers_sync(struct qv_data *d, Object *obj, int force, const Rect *a
 	        g.mtop != d->rgv.mtop || g.mbottom != d->rgv.mbottom || g.metric != d->rgv.metric;
 	SetPort(port);
 	/* (a changed ruler not wholly in the update's area: all of it again from the timer) */
-	if (area && hneed && !inside_rect(&h, area))
+	if (area && hneed && !inside_rect(&h, area)) {
 		d->due = 1;
+		tick_rate(d, obj, 1);
+	}
 	if (area ? meets(&h, area) : hneed) {
 		qr_draw_h(port, &h, &g, x, d->dpi);
 		d->rgh = g;
 		d->rgh_x = x;
 		d->rgh_dpi = d->dpi;
 	}
-	if (area && vneed && !inside_rect(&v, area))
+	if (area && vneed && !inside_rect(&v, area)) {
 		d->due = 1;
+		tick_rate(d, obj, 1);
+	}
 	if (area ? meets(&v, area) : vneed) {
 		qr_draw_v(port, &v, &g, y, d->dpi);
 		d->rgv = g;
@@ -987,7 +1019,23 @@ static void hl_redraw(struct qv_data *d, Object *obj)
 /* The document changed (or only the selection): laid out, the visible pages drawn again, the
    rows that changed copied. Typing calls this once the keys stop coming (the timer), so a burst
    of typing costs one drawing of the page, not one per key. */
+unsigned long qm_us(void);
+void qm_mem_log(const char *when);
+int qm_mem_pending;
+static void refresh_(struct qv_data *d, Object *obj);
 static void refresh(struct qv_data *d, Object *obj)
+{
+	/* (mac/qm_measure.c) what bringing the window up to date costs: the layout, then the drawing */
+	unsigned long t0 = qm_us(), t1;
+	refresh_(d, obj);
+	t1 = qm_us();
+	mm_log("refresh: %lu us", t1 - t0);
+	if (qm_mem_pending) {
+		qm_mem_pending = 0;
+		qm_mem_log("document shown");
+	}
+}
+static void refresh_(struct qv_data *d, Object *obj)
 {
 	Rect pr;
 	void *save;
@@ -1144,6 +1192,7 @@ void qv_changed(Object *view, int scroll_to_caret)
 	caret_erase(d, view);
 	d->stale = 1;
 	d->changed_at = qm_ticks();
+	tick_rate(d, view, 1);
 	if (scroll_to_caret)
 		d->follow = 1;
 	qm_status();
@@ -1160,7 +1209,15 @@ static void type_char(struct qv_data *d, Object *obj, unsigned char c)
 	qv_changed(obj, 1);
 }
 
+static void key_(struct qv_data *d, Object *obj, int c, UWORD qual);
 static void key(struct qv_data *d, Object *obj, int c, UWORD qual)
+{
+	/* (mac/qm_measure.c) a key's own cost: the edit and what it sets going, before the redraw */
+	unsigned long t0 = qm_us();
+	key_(d, obj, c, qual);
+	mm_log("key: %lu us", qm_us() - t0);
+}
+static void key_(struct qv_data *d, Object *obj, int c, UWORD qual)
 {
 	int shift = (qual & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) != 0;
 	int opt = (qual & IEQUALIFIER_LALT) != 0;
@@ -1358,6 +1415,7 @@ static void click(struct qv_data *d, Object *obj, struct IntuiMessage *im)
 	d->last_click_pos = p;
 	move_to(d, obj, p, (im->Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) != 0);
 	d->dragging = 1;
+	tick_rate(d, obj, 1);
 }
 
 static void drag(struct qv_data *d, Object *obj, int mx, int my)
@@ -1386,7 +1444,22 @@ static void save_clip_and_draw(struct qv_data *d, Object *obj, const Rect *r)
 	hl_note(d);
 }
 
-/* the timer, ten times a second: draws what typing changed once the keys pause, blinks the caret */
+/* The timer runs ten times a second only while there is something to do soon (typing to draw, a
+   drag, rulers to bring up to date); otherwise at the caret's blink, so an idle Octavo wakes about
+   twice a second instead of ten times. Its rate is changed by taking it off and putting it back, so
+   the new one counts from now */
+static void tick_rate(struct qv_data *d, Object *obj, int fast)
+{
+	Object *app;
+	if (fast == d->fast || !d->ihn_on || !(app = _app(obj)))
+		return;
+	d->fast = fast;
+	mui_do(app, MUIM_Application_RemInputHandler, (ULONG)&d->ihn);
+	d->ihn.ihn_millis = (UWORD)(fast ? 100 : (LM_CARETTIME > 6 && LM_CARETTIME < 120 ? LM_CARETTIME : 32) * 1000 / 60);
+	mui_do(app, MUIM_Application_AddInputHandler, (ULONG)&d->ihn);
+}
+
+/* the timer: draws what typing changed once the keys pause, blinks the caret */
 static void tick(struct qv_data *d, Object *obj)
 {
 	EventRecord ev;
@@ -1428,6 +1501,8 @@ static void tick(struct qv_data *d, Object *obj)
 		caret_show(d, obj, !d->caret_on);
 		d->blink_at = now + LM_CARETTIME;
 	}
+	if (!d->dragging && !d->due && !d->due_all)
+		tick_rate(d, obj, 0);
 }
 
 /* the pointer: the I-beam over the pages (Guidelines p. 286), the arrow elsewhere */
@@ -1464,6 +1539,7 @@ DISPATCHER(qv_dispatch)
 	case OM_DISPOSE:
 		d = INST_DATA(cl, obj);
 		cache_drop_all(d);
+		free(d->line);
 		if (d->gw)
 			qm_disposegworld(d->gw);
 		break;
@@ -1495,11 +1571,14 @@ DISPATCHER(qv_dispatch)
 		d->ihn.ihn_Flags = MUIIHNF_TIMER;
 		d->ihn.ihn_Method = MUIM_QV_Tick;
 		d->ihn.ihn_millis = 100;
+		d->fast = 1;
+		d->ihn_on = 1;
 		mui_do(_app(obj), MUIM_Application_AddInputHandler, (ULONG)&d->ihn);
 		return TRUE;
 	case MUIM_Cleanup:
 		d = INST_DATA(cl, obj);
 		mui_do(_app(obj), MUIM_Application_RemInputHandler, (ULONG)&d->ihn);
+		d->ihn_on = 0;
 		mui_do(_win(obj), MUIM_Window_RemEventHandler, (ULONG)&d->ehn);
 		/* the window and its controls go with it */
 		d->vbar = d->hbar = NULL;
@@ -1546,8 +1625,10 @@ DISPATCHER(qv_dispatch)
 		/* An update while an edit waited to be drawn (an alert over the window right after a command):
 		   the page is drawn again into its picture here but copied only where the update is, so the
 		   rest of the window is drawn from the new picture by the timer (due_all) */
-		if (d->stale)
+		if (d->stale) {
 			d->due_all = 1;
+			tick_rate(d, obj, 1);
+		}
 		d->stale = 0;
 		draw_area(d, obj, &area);
 		clip_end(save);
@@ -1602,6 +1683,21 @@ struct MUI_CustomClass *qv_class(void)
 	if (!qv_mcc)
 		qv_mcc = MUI_CreateCustomClass(NULL, (CONST_STRPTR)MUIC_Area, NULL, sizeof(struct qv_data), DISPATCHER_REF(qv_dispatch));
 	return qv_mcc;
+}
+
+/* (the experimental ribbon tree's status bar) the page at the top of the view, of how many, and the zoom in per cent */
+void qv_page_info(Object *view, unsigned long *page, unsigned long *pages, long *zoom)
+{
+	struct qv_data *d;
+	*page = 1;
+	*pages = qd.lay && qd.lay->npages ? qd.lay->npages : 1;
+	*zoom = 100;
+	if (!view || !qv_mcc)
+		return;
+	d = INST_DATA(qv_mcc->mcc_Class, view);
+	if (d->status_page)
+		*page = d->status_page;
+	*zoom = d->zoom > 0 ? d->zoom : d->dpi > 0 ? (long)d->dpi * 100 / 72 : 100;
 }
 
 void qv_zoom(Object *view, int percent)

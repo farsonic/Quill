@@ -794,6 +794,10 @@ static int layout_para(Layout *L, ParaLay *pl, Para *p, i32 avail, const char *l
   }
   if (droplines && w.nl && w.nl < droplines) w.l[w.nl - 1].height += (i32)(droplines - w.nl) * w.l[0].height;   /* room for the cap below */
   if ((L->ocur & OL_FIRST) && !p->pf.outlvl && w.nl > 1) { w.nl = 1; pl->ocut = 1; }    /* (WP11) body text's first line only */
+  /* kept at their size: the arrays grew by doubling, and a long document's boxes are most of its
+     layout's memory (a 158-page one: 155,000 boxes; Octavo on the Mac runs in a few MB) */
+  if (w.n && w.n < w.cap) { Box *nb = (Box *)realloc(w.b, w.n * sizeof(Box)); if (nb) w.b = nb; }
+  if (w.nl && w.nl < w.lcap) { Line *nl = (Line *)realloc(w.l, w.nl * sizeof(Line)); if (nl) w.l = nl; }
   pl->boxes = w.b; pl->nboxes = w.n;
   pl->lines = w.l; pl->nlines = w.nl;
   return 1;

@@ -21,6 +21,12 @@ rp_hook_call:				| ULONG rp_hook_call(struct Hook *h, Object *obj, Msg msg)
 	movem.l	(%sp)+,%d2-%d7/%a2-%a6
 	rts
 
+| long qm_freemem(void): _FreeMem, the free bytes in the current heap (mac/qm_measure.c)
+	.globl	qm_freemem
+qm_freemem:
+	.short	0xA01C
+	rts
+
 	.globl	qv_dispatch_thunk
 qv_dispatch_thunk:			| into ULONG qv_dispatch(struct IClass *cl, Object *obj, Msg msg)
 	move.l	%a1,-(%sp)
@@ -214,3 +220,16 @@ qm_ae_handler:
 	lea	12(%sp),%sp
 	move.w	%d0,(%sp)
 	jmp	(%a0)
+
+| qm_cdispatch_thunk: BOOPSI's way into a class of Quill's Amiga files (amiga/ribbon.c, panes.c,
+| backstage.c, compiled for the Mac by the experimental ribbon tree): a0 the class (its hook), a2 the
+| object, a1 the message; the C dispatcher is in the hook's h_SubEntry (mac/qm_ashim.c qm_create_class)
+	.globl	qm_cdispatch_thunk
+qm_cdispatch_thunk:
+	move.l	%a1,-(%sp)
+	move.l	%a2,-(%sp)
+	move.l	%a0,-(%sp)
+	move.l	12(%a0),%a0
+	jsr	(%a0)
+	lea	12(%sp),%sp
+	rts

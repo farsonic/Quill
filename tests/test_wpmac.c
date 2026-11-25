@@ -13,6 +13,7 @@
 #include "../core/toc.h"
 #include "../core/spell.h"
 #include "../core/pdf.h"
+#include "../core/rowpack.h"
 
 /* the ruler for the caret at p, laid out afresh */
 static void geom_at(Doc *d, Pos p, RulerGeom *g)
@@ -470,8 +471,70 @@ static void test_page_text(void)
   doc_free(d);
 }
 
+/* Octavo keeps the pages it has drawn packed (core/rowpack.c, mac/qm_view.c): every row back as it was,
+   and a page of text in much less room */
+static int pack_round_trip(const u8 *rgb, u32 w, u32 h, size_t *packed)
+{
+  PackedRGB p, q;
+  u8 *row = (u8 *)malloc((size_t)w * 3 + 3);
+  u32 y;
+  int good = row && rgb_pack(&p, rgb, w, h) && rgb_pack(&q, rgb, w, h);
+  for (y = 0; good && y < h; y++) {
+    rgb_unpack_row(&p, y, row);
+    good = !memcmp(row, rgb + (size_t)y * w * 3, (size_t)w * 3) && rgb_same_row(&p, &q, y);
+  }
+  if (packed) *packed = good ? rgb_pack_size(&p) : 0;
+  if (good) { rgb_pack_free(&p); rgb_pack_free(&q); }
+  free(row);
+  return good;
+}
+static void test_rowpack(void)
+{
+  static const u32 widths[] = { 1, 2, 3, 127, 128, 129, 130, 258, 612 };
+  u8 *rgb;
+  u32 i, k, w, h;
+  int good = 1;
+  unsigned seed = 7;
+  size_t packed;
+  Doc *d;
+  Layout *L;
+  unsigned lost = 0;
+  char err[100];
+  /* runs, noise and both mixed, at widths around the packing's limits */
+  for (k = 0; k < sizeof widths / sizeof widths[0]; k++) {
+    w = widths[k]; h = 6;
+    rgb = (u8 *)malloc((size_t)w * h * 3);
+    for (i = 0; i < w * h * 3; i++) {
+      u32 y = i / (w * 3), x = i % (w * 3) / 3;
+      seed = seed * 1103515245u + 12345u;
+      rgb[i] = (u8)(y == 0 ? 255 : y == 1 ? (seed >> 16) : y == 2 ? (x & 1 ? 0 : 255) : y == 3 ? (x < w / 2 ? 9 : (seed >> 16) & 3)
+                    : y == 4 ? (x % 3 ? 40 : 41) : (x / 7) * 13);
+    }
+    if (!pack_round_trip(rgb, w, h, NULL)) good = 0;
+    free(rgb);
+  }
+  ok("rowpack: runs, noise and both, every row back as it was", good);
+  /* a real page: the long document's first two at 72 dpi, as the Mac draws them */
+  d = doc_load_file("tests/data/wordcraft-long.docx", &lost, err, sizeof err);
+  ok("rowpack: the long document read", d != NULL);
+  if (!d) return;
+  L = lay_new(d, &fs);
+  for (k = 0; k < 2; k++) {
+    rgb = pdf_page_rgb(L, k, 72, &w, &h);
+    good = rgb && pack_round_trip(rgb, w, h, &packed);
+    printf("  (rowpack: page %u of wordcraft-long.docx at 72 dpi: %u x %u, %lu bytes packed of %lu)\n", (unsigned)k + 1, (unsigned)w,
+           (unsigned)h, (unsigned long)packed, (unsigned long)w * h * 3);
+    ok("rowpack: a page of the long document unpacks as drawn", good);
+    ok("rowpack: and keeps in less than a quarter of the room (smoothed text; the Mac's is solid)", good && packed < (size_t)w * h * 3 / 4);
+    free(rgb);
+  }
+  lay_free(L);
+  doc_free(d);
+}
+
 void test_wpmac(void)
 {
+  test_rowpack();
   test_page_text();
   test_review();
   test_references();

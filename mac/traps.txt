@@ -1,12 +1,9 @@
 # mac/traps.txt - the Toolbox calls Quill's Mac build makes beyond Riptide's (riptide
 # src/mac/app/traps.txt, whose format this is: trap result Name(type name:kind, ...)). Makefile.mac
 # joins the two and has riptide's tools/mac_traps.py make the glue. GPL-2.0-only, as Quill.
+# (CopyBits, FrameOval and PaintOval, which the page view and the strip use, are Riptide's own in its
+# octavo-ribbon branch, for its graphics.library calls: listed there, not again here.)
 #
-# QuickDraw: the page view copies its pages (mac/qm_view.c)
-A8EC - CopyBits(const void *src:l, const void *dst:l, const void *srcRect:l, const void *dstRect:l, int mode:w, void *mask:l)
-# QuickDraw: the tool strip's icons (mac/qm_strip.c: the icon language's circles)
-A8B7 - FrameOval(const void *r:l)
-A8B8 - PaintOval(const void *r:l)
 # Controls: the scroll bars drawn after an update
 A96D - Draw1Control(void *ctl:l)
 # Events: whether keys are waiting (typing is laid out once they stop)

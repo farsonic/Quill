@@ -4451,4 +4451,5 @@
   { { "Previous Comment", "Vorheriger Kommentar", "Commentaire pr\351c\351dent", "Comentario anterior", "Commento precedente" } },
   { { "Next Comment", "N\344chster Kommentar", "Commentaire suivant", "Comentario siguiente", "Commento successivo" } },
   { { "Previous Change", "Vorherige \304nderung", "Modification pr\351c\351dente", "Cambio anterior", "Modifica precedente" } },
+  { { "Font Colour", "Schriftfarbe", "Couleur de police", "Color de fuente", "Colore carattere" } },
 /* ---- end the Mac front end */

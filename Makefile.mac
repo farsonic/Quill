@@ -31,7 +31,8 @@ R       := $(RIPTIDE)
 # ones); -O2 as Riptide is built; -ffixed-a5: A5 is the Mac's application globals pointer
 BASE    := -m68020 -O2 -ffreestanding -fno-builtin -fno-pic -fno-pie -ffixed-a5 -msoft-float \
            -nostdinc -isystem $(GCCINC) -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-stack-protector \
-           -ffunction-sections -fdata-sections -Wall -Wno-unused-parameter --param=min-pagesize=0
+           -ffunction-sections -fdata-sections -Wall -Wno-unused-parameter --param=min-pagesize=0 \
+           -DMAXFACES=48
 ifeq ($(AURORA68),1)
 BASE    += -DAURORA68_LOG
 endif
@@ -45,10 +46,22 @@ CORE_CFLAGS := $(BASE) -std=gnu99 -Imac/include -Wno-sign-compare -Wno-unused-fu
 # headers each typedef u8, u32...: the same types, which C11 allows twice)
 FE_CFLAGS := $(BASE) -std=gnu11 -Imac/include $(RT_INC) -Imac
 
+# The experimental ribbon tree (docs/mac.md): Quill's Amiga ribbon, status bar and File page compiled
+# for the Mac unchanged, against Riptide's MUI for the Mac through the NDK-shaped headers in mac/ashim,
+# and the work packages' ribbon tables taken out of amiga/wp_*.c by mac/mkwpgroups.py. Riptide's
+# octavo-ribbon branch has the MUI pieces they need (fonts by size, borderless windows ...).
+AFE_CFLAGS := $(BASE) -std=gnu11 -Imac/ashim -Imac/include $(RT_INC) -I$(R)/src/mac/mui -Iamiga -Imac -I$(GEN) \
+              -Wno-pointer-sign -Wno-sign-compare -Wno-unused-function -Wno-unused-variable -Wno-enum-compare
+AMIGA_UI := ribbon theme panes backstage wphooks
+AUI_OBJ  := $(patsubst %,$(B)/amiga/%.o,$(AMIGA_UI)) $(B)/mac/qm_ribbon.o $(B)/mac/qm_ashim.o
+WP_SRC   := $(shell grep -l "_package = {" amiga/wp_*.c)
+WPG_OBJ  := $(patsubst amiga/wp_%.c,$(B)/wpg/wpg_%.o,$(WP_SRC))
+AHDRS    := $(wildcard amiga/*.h mac/ashim/*.h mac/ashim/*/*.h) mac/qm_ribbon.h mac/qm_ids.h
+
 CORE_SRC := $(wildcard core/*.c)
 CORE_OBJ := $(patsubst core/%.c,$(B)/core/%.o,$(CORE_SRC))
 MAC_OBJ  := $(patsubst mac/%.c,$(B)/mac/%.o,mac/qm_main.c mac/qm_view.c mac/qm_strip.c mac/qm_ruler.c mac/qm_dialog.c mac/qm_cmds.c mac/qm_lang.c mac/qm_text.c mac/qm_qdtext.c) \
-            $(B)/mac/libc.o $(B)/mac/softfp.o $(B)/mac/qm_mac.o $(B)/mac/qm_thunks.o
+            $(B)/mac/libc.o $(B)/mac/softfp.o $(B)/mac/qm_mac.o $(B)/mac/qm_thunks.o $(B)/mac/qm_measure.o
 # Riptide's app kit and MUI for the Mac, and what they need of its core and libc (as Lagoon)
 RT_OBJ   := $(B)/rt/mac/app/crt0.o $(B)/rt/mac/app/ostraps.o $(B)/rt/gen/toolbox_glue.o $(B)/rt/mac/app/mac_alert.o \
             $(patsubst %,$(B)/rt/mac/mui/%.o,mm_boopsi mm_app mm_area mm_group mm_gadgets mm_gfx mm_os mm_hig mm_thunks) \
@@ -81,10 +94,28 @@ $(GEN)/bsdsocket_calls.h $(GEN)/riptide_calls.h $(GEN)/usergroup_calls.h: $(GEN)
 	@mkdir -p $(GEN)
 	$(PYTHON) $(R)/tools/gen_lvos.py call proto $< $* $@ $(TRAPS)
 
+$(B)/amiga/%.o: amiga/%.c $(HDRS) $(AHDRS) $(GEN_H)
+	@mkdir -p $(dir $@)
+	$(CC) $(AFE_CFLAGS) -c -o $@ $<
+$(B)/mac/qm_ribbon.o $(B)/mac/qm_ashim.o: $(B)/mac/%.o: mac/%.c $(HDRS) $(AHDRS) $(GEN_H)
+	@mkdir -p $(dir $@)
+	$(CC) $(AFE_CFLAGS) -c -o $@ $<
+# each work package's ribbon groups and menu rows, without its Amiga code (mac/mkwpgroups.py)
+$(GEN)/wpg/wpg_%.c: amiga/wp_%.c mac/mkwpgroups.py
+	@mkdir -p $(dir $@)
+	$(PYTHON) mac/mkwpgroups.py $(GEN)/wpg $<
+$(B)/wpg/wpg_%.o: $(GEN)/wpg/wpg_%.c $(HDRS) $(AHDRS) $(GEN_H)
+	@mkdir -p $(dir $@)
+	$(CC) $(AFE_CFLAGS) -c -o $@ $<
+
+# The code is loaded whole into the application's heap, so its size is memory: the core's files
+# that run while typing, drawing and scrolling are made for speed (-O2), the rest (the file formats,
+# charts, equations, citations ...: used now and then) for size (-Os)
+CORE_HOT := layout raster pdf ttraster fonts doc util rowpack ruler edcmd review field
 $(B)/core/%.o: core/%.c $(HDRS)
 	@mkdir -p $(dir $@)
-	$(CC) $(CORE_CFLAGS) -c -o $@ $<
-$(B)/mac/libc.o $(B)/mac/softfp.o $(B)/mac/qm_mac.o: $(B)/mac/%.o: mac/%.c $(HDRS)
+	$(CC) $(CORE_CFLAGS) $(if $(filter $*,$(CORE_HOT)),,-Os) -c -o $@ $<
+$(B)/mac/libc.o $(B)/mac/softfp.o $(B)/mac/qm_mac.o $(B)/mac/qm_measure.o: $(B)/mac/%.o: mac/%.c $(HDRS)
 	@mkdir -p $(dir $@)
 	$(CC) $(CORE_CFLAGS) -c -o $@ $<
 $(B)/mac/%.o: mac/%.c $(HDRS) $(GEN_H)
@@ -105,9 +136,9 @@ $(B)/rt/gen/toolbox_glue.o: $(GEN)/toolbox_glue.S
 
 # --size: the partition in KB. A US Letter page drawn at 100% is 1.4 MB of RGB and three are kept,
 # a .docx is unzipped in memory, and the fonts in use are loaded whole (one is 0.3-0.8 MB)
-$(B)/Octavo.elf: $(RT_OBJ) $(MAC_OBJ) $(CORE_OBJ) $(R)/src/mac/app/app.ld
-	$(LD) -T $(R)/src/mac/app/app.ld --emit-relocs --gc-sections --no-warn-rwx-segments -z noexecstack -o $@ \
-	      $(RT_OBJ) $(MAC_OBJ) $(CORE_OBJ) $(LIBGCC) -Map $(B)/Octavo.map
+$(B)/Octavo.elf: $(RT_OBJ) $(MAC_OBJ) $(AUI_OBJ) $(WPG_OBJ) $(CORE_OBJ) $(R)/src/mac/app/app.ld
+	$(LD) -T $(R)/src/mac/app/app.ld --emit-relocs --gc-sections --wrap=WaitNextEvent --no-warn-rwx-segments -z noexecstack -o $@ \
+	      $(RT_OBJ) $(MAC_OBJ) $(AUI_OBJ) $(WPG_OBJ) $(CORE_OBJ) $(LIBGCC) -Map $(B)/Octavo.map
 	@# libgcc's fpgnulib.o is 68881 code returning in FP0; mac/softfp.c replaces it (see there)
 	@if grep -q 'fpgnulib\.o' $(B)/Octavo.map; then \
 	   echo "Octavo.elf links libgcc's fpgnulib.o (FPU code): add the missing function to mac/softfp.c"; \

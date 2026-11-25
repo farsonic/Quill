@@ -47,7 +47,11 @@ typedef struct FaceSize {
   struct FaceSize *next;
 } FaceSize;
 
+/* (a front end may set fewer: Octavo on the Mac, which has only the faces of its Fonts folder, sets 48,
+   and its FontSet takes 45 KB instead of 230) */
+#ifndef MAXFACES
 #define MAXFACES 256
+#endif
 typedef struct FontSet {
   Face faces[MAXFACES];
   int nfaces;

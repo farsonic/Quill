@@ -809,7 +809,12 @@ static int bit_on(struct RData *d, int b)
 /* whether an item shows checked: its state bit, or for VM() the view mode */
 static int item_on(struct RData *d, const Item *it) { return it->st >= 100 && it->st < RB_WP_BASE ? d->st.vmode == it->st - 100 : it->st && bit_on(d, it->st); }
 /* whether an item can be used: it needs no state, or its state is on (else it is greyed out) */
-static int item_enabled(struct RData *d, const Item *it) { return !it->en || bit_on(d, it->en); }
+/* RIBBON_CAN: whether the front end has the command at all (always on the Amiga; Octavo's experimental
+   ribbon tree compiles this file for the Mac and dims what it can't do yet: mac/ashim/qm_amiga.h) */
+#ifndef RIBBON_CAN
+#define RIBBON_CAN(id) 1
+#endif
+static int item_enabled(struct RData *d, const Item *it) { return RIBBON_CAN(it->id) && (!it->en || bit_on(d, it->en)); }
 /* whether tab t is in the strip: contextual tabs only while what they work on is there */
 static int tab_visible(struct RData *d, int t)
 {

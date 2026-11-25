@@ -64,4 +64,6 @@ W = [
 ("Previous Comment", "Vorheriger Kommentar", "Commentaire précédent", "Comentario anterior", "Commento precedente"),
 ("Next Comment", "Nächster Kommentar", "Commentaire suivant", "Comentario siguiente", "Commento successivo"),
 ("Previous Change", "Vorherige Änderung", "Modification précédente", "Cambio anterior", "Modifica precedente"),
+# Format > Font Colour (a submenu of the Amiga ribbon's colours: the experimental ribbon tree, mac/qm_main.c)
+("Font Colour", "Schriftfarbe", "Couleur de police", "Color de fuente", "Colore carattere"),
 ]

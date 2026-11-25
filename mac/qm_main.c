@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include "mui/mm.h"
 #include "quill_mac.h"
+#include "qm_ribbon.h"
 #include "qm_mac.h"
 #include "qm_dialog.h"
 #include "../core/docx.h"
@@ -233,7 +234,20 @@ static void menu_styles(void)
 	BAR();
 	nm_add(NM_ITEM, "Superscript", "+", CHECKIT, ID_SUPER);
 	nm_add(NM_ITEM, "Subscript", "-", CHECKIT, ID_SUB);
+	BAR();
+	nm_add(NM_ITEM, "All Caps", NULL, CHECKIT, ID_CAPS);
+	nm_add(NM_ITEM, "Clear Formatting", NULL, 0, ID_CLEARFMT);
 }
+
+/* Format > Font Colour and Highlight: the Amiga ribbon's colour lists (amiga/ribbon.c), as submenus */
+#define NFCOLORS 12
+static const char *const fcolor_name[NFCOLORS] = { "Automatic", "Black", "Dark Red", "Red", "Orange", "Gold", "Green", "Teal", "Blue",
+                                                   "Dark Blue", "Purple", "Grey" };
+static const unsigned long fcolor_rgb[NFCOLORS] = { COLOR_AUTO, 0x000000, 0xC00000, 0xFF0000, 0xFFA500, 0xBF9000, 0x00B050, 0x008080,
+                                                    0x0070C0, 0x002060, 0x7030A0, 0x808080 };
+#define NHILITES 8
+static const char *const hilite_name[NHILITES] = { "No Colour", "Yellow", "Bright Green", "Turquoise", "Pink", "Blue", "Red", "Grey 25%" };
+static const unsigned long hilite_rgb[NHILITES] = { 0, 0xFFFF00, 0x00FF00, 0x00FFFF, 0xFF00FF, 0x0000FF, 0xFF0000, 0xC0C0C0 };
 
 static void menus_build(void)
 {
@@ -281,6 +295,12 @@ static void menus_build(void)
 	}
 	nm_add(NM_TITLE, tr_ctx("menu", "Format"), NULL, 0, 0);   /* the menu, not the verb */
 	nm_add(NM_ITEM, "Font...", NULL, 0, ID_FONTDLG);
+	nm_add(NM_ITEM, "Font Colour", NULL, 0, 0);
+	for (i = 0; i < NFCOLORS; i++)
+		nm_add(NM_SUB, fcolor_name[i], NULL, 0, (ULONG)(ID_FCOLOR0 + i));
+	nm_add(NM_ITEM, "Highlight", NULL, 0, 0);
+	for (i = 0; i < NHILITES; i++)
+		nm_add(NM_SUB, hilite_name[i], NULL, 0, (ULONG)(ID_HILITE0 + i));
 	nm_add(NM_ITEM, "Paragraph Style", NULL, 0, 0);              /* a hierarchical menu (p. 79): an attribute list */
 	for (i = 0; i < NPSTYLES; i++)
 		nm_add(NM_SUB, pstyles[i].name, NULL, CHECKIT, (ULONG)(ID_STYLE0 + i));
@@ -493,6 +513,7 @@ unsigned qm_state(unsigned long id)
 		case ID_STRIKE: on = (flags & CF_STRIKE) != 0; break;
 		case ID_SUPER: on = (flags & CF_SUPER) != 0; break;
 		case ID_SUB: on = (flags & CF_SUB) != 0; break;
+		case ID_CAPS: on = (here.f.flags & CF_CAPS) != 0; break;
 		case ID_LEFT: case ID_CENTER: case ID_RIGHT: case ID_JUSTIFY:
 			on = here.align == (int)(id - ID_LEFT);
 			break;
@@ -583,6 +604,7 @@ void qm_status(void)
 	}
 	if (view)
 		qv_strip_changed(view);
+	qr_update();
 }
 
 static void doc_take(Doc *d, const char *path)
@@ -715,6 +737,8 @@ static int may_close(void)
 	}
 }
 
+extern int qm_mem_pending;
+void qm_mem_log(const char *when);
 static void open_file(const char *path)
 {
 	unsigned lost = 0;
@@ -729,6 +753,8 @@ static void open_file(const char *path)
 	}
 	doc_clear_undo(d);
 	doc_take(d, path);
+	qm_mem_log("document read");
+	qm_mem_pending = 1;
 	win_show();
 }
 
@@ -1150,6 +1176,16 @@ static void command(ULONG id)
 		qm_status();
 		return;
 	}
+	if (id >= ID_FCOLOR0 && id < ID_FCOLOR0 + NFCOLORS) {
+		cf.color = (u32)fcolor_rgb[id - ID_FCOLOR0];
+		char_format(CM_COLOR, &cf);
+		return;
+	}
+	if (id >= ID_HILITE0 && id < ID_HILITE0 + NHILITES) {
+		cf.hl = id == ID_HILITE0 ? 0 : (u32)(HL_ON | hilite_rgb[id - ID_HILITE0]);
+		char_format(CM_HL, &cf);
+		return;
+	}
 	if (id >= ID_STYLE0 && id < ID_STYLE0 + NPSTYLES) {
 		u32 a, b;
 		if (pstyle_at[id - ID_STYLE0] < 0)
@@ -1219,6 +1255,12 @@ static void command(ULONG id)
 	case ID_STRIKE: char_flag(CF_STRIKE); break;
 	case ID_SUPER: char_flag(CF_SUPER); break;
 	case ID_SUB: char_flag(CF_SUB); break;
+	case ID_CAPS: char_flag(CF_CAPS); break;
+	case ID_CLEARFMT:
+		/* back to the paragraph style's plain look (the Amiga's Clear All Formatting) */
+		cf.color = COLOR_AUTO;
+		char_format(CM_BOLD | CM_ITALIC | CM_UNDERLINE | CM_STRIKE | CM_SUPER | CM_SUB | CM_CAPS | CM_COLOR | CM_HL, &cf);
+		break;
 	case ID_GROW:
 	case ID_SHRINK: {
 		Pos a, b;
@@ -1391,12 +1433,45 @@ static void ae_take(void)
 	int guard = 0;
 	if (!ae_ready)
 		return;
+	/* asked first, without WaitNextEvent: that gives the other programs a turn each time round the
+	   loop, and woke Octavo twice as often while idle */
+	if (!EventAvail(HLE_MASK, &ev))
+		return;
 	while (guard++ < 8 && WaitNextEvent(HLE_MASK, &ev, 0, NULL) && ev.what == HLE_EVENT)
 		qm_ae_process(&ev);
 }
 
+/* ---- for the Amiga's ribbon, status bar and File page (mac/qm_ribbon.c, the experimental ribbon tree) ---- */
+Doc *qm_doc(void) { return qd.doc; }
+FontSet *qm_fonts(void) { return qd.fonts; }
+void qm_sel(Pos *caret, Pos *anchor)
+{
+	*caret = qd.caret;
+	*anchor = qd.anchor;
+}
+const CharFmt *qm_fmt_here(void) { return fmt_here(); }
+void qm_char_format(unsigned mask, const CharFmt *v) { char_format(mask, v); }
+void qm_para_format(unsigned mask, const ParaFmt *pf) { para_format(mask, pf); }
+void qm_apply_style(int style)
+{
+	u32 a, b;
+	sel_paras(&a, &b);
+	if (doc_apply_style(qd.doc, a, b, style)) {
+		typing_set = 0;
+		qv_changed(view, 0);
+	}
+}
+void qm_edit(int cmd) { edit_action(cmd); }
+void qm_page_info(unsigned long *page, unsigned long *pages, long *zoom)
+{
+	qv_page_info(view, page, pages, zoom);
+}
+
+void qm_mem_log(const char *when);
+void qm_measure_loop(void);
 void mm_gfx_lib_init(void);
 void mm_screen_init(void *qd_thePort_addr);
+void qm_ashim_init(void);
 void mm_paths_init(void);
 void mm_log(const char *fmt, ...);
 #define LM_MBARHEIGHT (*(volatile short *)0xBAA)
@@ -1406,9 +1481,11 @@ int main(void)
 	void *a5;
 	short *sb;
 	ULONG sigs = 0;
+	Object *root;
 	__asm__ volatile("move.l %%a5,%0" : "=r"(a5));
 	mm_gfx_lib_init();
 	mm_classes_init();
+	qm_ashim_init();
 	sb = (short *)((char *)*(void **)a5 - 116);       /* QuickDraw's screenBits.bounds */
 	mm_gfx_init(sb[2] - sb[0] - LM_MBARHEIGHT - 20 < 560);
 	mm_screen_init(*(void **)a5);
@@ -1446,10 +1523,12 @@ int main(void)
 	view = mui_newc(qv_class(), MUIA_Frame, MUIV_Frame_None, TAG_DONE);
 	qs_select(prefs.strip);
 	if (view) {
-		qv_chrome(view, prefs.ribbon, prefs.ruler);
+		/* the experimental ribbon tree: the Amiga's ribbon over the view (mac/qm_ribbon.c), not the strip */
+		qv_chrome(view, 0, prefs.ruler);
 		qv_smooth(view, prefs.smooth);
 	}
-	win = mui_new(MUIC_Window, MUIA_Window_Title, (ULONG)tr("Untitled"), MUIA_Window_RootObject, (ULONG)view,
+	root = view ? qr_make(view) : NULL;
+	win = mui_new(MUIC_Window, MUIA_Window_Title, (ULONG)tr("Untitled"), MUIA_Window_RootObject, (ULONG)(root ? root : view),
 	              MUIA_Window_Menustrip, (ULONG)strip, TAG_DONE);
 	if (!view || !win)
 		return 20;
@@ -1475,8 +1554,10 @@ int main(void)
 	finder_files();
 	ae_init();
 	qm_status();
+	qm_mem_log("launch");
 	for (;;) {
 		LONG id;
+		qm_measure_loop();
 		ae_take();
 		id = (LONG)mui_do(app, MUIM_Application_NewInput, (ULONG)&sigs);
 		if (ae_quit) {
@@ -1488,7 +1569,9 @@ int main(void)
 				break;
 			continue;
 		}
-		if (id)
+		if (id && (ULONG)id >= QM_AMIGA_ID)
+			qr_command((ULONG)id);
+		else if (id)
 			command((ULONG)id);
 		if (sigs)
 			sigs = Wait(sigs);

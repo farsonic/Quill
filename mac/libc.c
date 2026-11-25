@@ -38,6 +38,13 @@ static const unsigned short class_size[NCLASS] = {
 typedef struct freeblk { struct freeblk *next; } freeblk;
 static freeblk *free_list[NCLASS];
 static char *chunk_at, *chunk_end;          /* what is left of the chunk being carved */
+static unsigned long st_chunks, st_big, st_bigpeak;   /* (mac/qm_measure.c) bytes in chunks, in big blocks now, the most */
+void libc_stats(unsigned long *chunks, unsigned long *big, unsigned long *bigpeak)
+{
+	*chunks = st_chunks;
+	*big = st_big;
+	*bigpeak = st_bigpeak;
+}
 
 /* each block: [u16 class][u16 0][the caller's bytes], 4-aligned; a big one also [u32 size] before */
 static int class_of(size_t n)
@@ -66,6 +73,7 @@ void *malloc(size_t n)
 				return NULL;
 			chunk_at = p;
 			chunk_end = p + CHUNK;
+			st_chunks += CHUNK;
 		}
 		*(unsigned short *)chunk_at = (unsigned short)c;
 		chunk_at += need;
@@ -75,6 +83,9 @@ void *malloc(size_t n)
 		if (!p)
 			return NULL;
 		*(unsigned int *)p = (unsigned int)n;      /* 32 bits, before the class word */
+		st_big += n + 8;
+		if (st_big > st_bigpeak)
+			st_bigpeak = st_big;
 		*(unsigned short *)(p + 4) = BIG;
 		return p + 8;
 	}
@@ -93,6 +104,7 @@ void free(void *p)
 		return;
 	c = *((unsigned short *)p - 2);
 	if (c == BIG) {
+		st_big -= *(unsigned int *)((char *)p - 8) + 8;
 		qm_disposeptr((char *)p - 8);
 		return;
 	}
