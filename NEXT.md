@@ -111,7 +111,11 @@ an idle timer that slows down, no second WaitNextEvent per loop. Open:
 - A long document (tests/data/wordcraft-long.docx, 158 pages) still doesn't fit: its layout is ~15 MB on the 68k,
   mostly boxes each carrying a 78-byte CharFmt. A format index in Box (180 readers, 90 in amiga/view.c) or dropping
   far paragraphs' boxes and laying them out again when drawn.
-- Typing redraws the whole page in memory; drawing only the changed band needs the raster and qm_qdtext by bands.
+- Typing redraws the whole page in memory. The core can now draw a band of a page (`pdf_page_rgb_band`,
+  `raster_page_band`, tested in tests/test_wpmac.c: exactly the page's rows; natively 0.7-2.4 ms for 31 rows
+  against 1.2-3.6 ms for the page). Still to do on the Mac: qm_qdtext drawing and merging only the runs in the
+  band (keeping the other runs' places in QtWords from the page kept), and qm_view working out the band an edit
+  changed (the edited paragraph's lines, or down to the page's foot when its height changed).
 - The navigation pane (reads the Amiga view's MUIA_Quill_ attributes), the word count, Tell Me, customizing, the
   right-button menus; Latin-1 interface text outside the translated words shows as Mac Roman bytes (the File page's "Résumé" template).
 

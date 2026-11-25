@@ -22,5 +22,9 @@ typedef struct { Face *face; int simple; } RFont;
    NULL if out of memory */
 u8 *raster_page(const char *content, size_t len, i32 pw, i32 ph, int dpi, const RFont *fonts, int nfonts,
                 const Image *const *imgs, int nimgs, u32 *w, u32 *h);
+/* the same, only rows y0..y1 of the page (clipped to it): *h is the band's height, its rows exactly
+   the page's (a front end draws again only the rows an edit changed); NULL if out of memory or none */
+u8 *raster_page_band(const char *content, size_t len, i32 pw, i32 ph, int dpi, const RFont *fonts, int nfonts,
+                     const Image *const *imgs, int nimgs, i32 y0, i32 y1, u32 *w, u32 *h);
 
 #endif

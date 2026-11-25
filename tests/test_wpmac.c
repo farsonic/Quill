@@ -542,8 +542,43 @@ static void test_rowpack(void)
   doc_free(d);
 }
 
+/* a band of a page (core/raster.c raster_page_band): exactly the whole page's rows, for text, a table,
+   charts and pictures, at its edges and across the middle */
+static void test_band(void)
+{
+  static const char *const files[] = { "tests/data/word.docx", "tests/data/charts.docx", "tests/data/pictures.docx" };
+  static const i32 bands[][2] = { { 0, 0 }, { 0, 40 }, { 100, 163 }, { 391, 392 }, { 700, 5000 } };
+  int f, k, good = 1, shown = 1;
+  for (f = 0; f < 3; f++) {
+    unsigned lost = 0;
+    char err[100];
+    Doc *d = doc_load_file(files[f], &lost, err, sizeof err);
+    Layout *L;
+    u8 *page;
+    u32 w, h;
+    if (!d) { good = 0; continue; }
+    L = lay_new(d, &fs);
+    page = pdf_page_rgb(L, 0, 72, &w, &h);
+    for (k = 0; page && k < 5; k++) {
+      u32 bw, bh;
+      i32 y1 = bands[k][1] < (i32)h ? bands[k][1] : (i32)h - 1;
+      u8 *band = pdf_page_rgb_band(L, 0, 72, bands[k][0], bands[k][1], &bw, &bh, NULL, NULL);
+      if (!band || bw != w || bh != (u32)(y1 - bands[k][0] + 1) ||
+          memcmp(band, page + (size_t)bands[k][0] * w * 3, (size_t)bw * bh * 3)) good = 0;
+      free(band);
+    }
+    if (!page) shown = 0;
+    free(page);
+    lay_free(L);
+    doc_free(d);
+  }
+  ok("band: the pages drawn whole", shown);
+  ok("band: each band of a page is exactly those rows of it (text, charts, pictures)", good);
+}
+
 void test_wpmac(void)
 {
+  test_band();
   test_rowpack();
   test_page_text();
   test_review();

@@ -74,6 +74,10 @@ typedef struct {
 } PdfTextRun;
 typedef int (*PdfTextFn)(void *ctx, const PdfTextRun *r);
 u8 *pdf_page_rgb_text(Layout *L, u32 page, int dpi, u32 *w, u32 *h, PdfTextFn fn, void *ctx);
+/* only rows y0..y1 of that picture (*h the band's height): the same pixels as those rows of the whole
+   page, drawn in less time and memory (a front end redraws the band an edit changed); fn is offered
+   every run of the page as above */
+u8 *pdf_page_rgb_band(Layout *L, u32 page, int dpi, i32 y0, i32 y1, u32 *w, u32 *h, PdfTextFn fn, void *ctx);
 /* RGB as a PNG file (deflated with core/zip.c), or as an IFF ILBM (24 bit planes, ByteRun1); dpi
    noted in it (PNG's pHYs). 0 if out of memory */
 int png_encode(Buf *out, const u8 *rgb, u32 w, u32 h, int dpi);

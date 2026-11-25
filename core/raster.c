@@ -616,15 +616,27 @@ static void run(R *r, const char *s, size_t len)
 u8 *raster_page(const char *content, size_t len, i32 pw, i32 ph, int dpi, const RFont *fonts, int nfonts,
                 const Image *const *imgs, int nimgs, u32 *w, u32 *h)
 {
+  return raster_page_band(content, len, pw, ph, dpi, fonts, nfonts, imgs, nimgs, 0, 0x7FFFFFFF, w, h);
+}
+u8 *raster_page_band(const char *content, size_t len, i32 pw, i32 ph, int dpi, const RFont *fonts, int nfonts,
+                     const Image *const *imgs, int nimgs, i32 y0, i32 y1, u32 *w, u32 *h)
+{
   R r;
   GState *g;
   int i;
+  i32 pageh;
   if (dpi < 18) dpi = 18;
   if (dpi > 600) dpi = 600;
   memset(&r, 0, sizeof r);
-  r.W = (i32)(((i64)pw * dpi + 720) / 1440); r.H = (i32)(((i64)ph * dpi + 720) / 1440);
+  r.W = (i32)(((i64)pw * dpi + 720) / 1440); pageh = (i32)(((i64)ph * dpi + 720) / 1440);
   if (r.W < 1) r.W = 1;
-  if (r.H < 1) r.H = 1;
+  if (pageh < 1) pageh = 1;
+  /* a band: the page's rows y0..y1, drawn as the page is but shifted up by y0 and clipped to them */
+  if (y0 < 0) y0 = 0;
+  if (y1 >= pageh) y1 = pageh - 1;
+  *w = (u32)r.W; *h = 0;
+  if (y1 < y0) return NULL;
+  r.H = y1 - y0 + 1;
   r.fonts = fonts; r.nfonts = nfonts; r.imgs = imgs; r.nimgs = nimgs;
   r.rgb = (u8 *)malloc((size_t)r.W * r.H * 3);
   r.px = (i32 *)malloc(MAXPTS * sizeof(i32)); r.py = (i32 *)malloc(MAXPTS * sizeof(i32));
@@ -636,7 +648,7 @@ u8 *raster_page(const char *content, size_t len, i32 pw, i32 ph, int dpi, const 
     memset(r.rgb, 255, (size_t)r.W * r.H * 3);
     g = &r.gs[0];
     /* points to pixels, y down from the top */
-    g->ctm.a = (i64)dpi * FX / 72; g->ctm.d = -g->ctm.a; g->ctm.f = (i64)r.H * FX;
+    g->ctm.a = (i64)dpi * FX / 72; g->ctm.d = -g->ctm.a; g->ctm.f = (i64)(pageh - y0) * FX;
     g->lw = FX; g->th = FX; g->font = -1;
     g->cx0 = 0; g->cy0 = 0; g->cx1 = r.W; g->cy1 = r.H;
     run(&r, content, len);

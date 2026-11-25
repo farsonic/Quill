@@ -1688,6 +1688,10 @@ int pdf_save_file(Layout *L, const char *path)
 u8 *pdf_page_rgb(Layout *L, u32 page, int dpi, u32 *w, u32 *h) { return pdf_page_rgb_text(L, page, dpi, w, h, NULL, NULL); }
 u8 *pdf_page_rgb_text(Layout *L, u32 page, int dpi, u32 *w, u32 *h, PdfTextFn fn, void *ctx)
 {
+  return pdf_page_rgb_band(L, page, dpi, 0, 0x7FFFFFFF, w, h, fn, ctx);
+}
+u8 *pdf_page_rgb_band(Layout *L, u32 page, int dpi, i32 y0, i32 y1, u32 *w, u32 *h, PdfTextFn fn, void *ctx)
+{
   Pdf p;
   Buf b;
   RFont rf[64];
@@ -1700,7 +1704,8 @@ u8 *pdf_page_rgb_text(Layout *L, u32 page, int dpi, u32 *w, u32 *h, PdfTextFn fn
   buf_init(&b);
   page_content(&p, page, &b);
   for (i = 0; i < p.nfonts; i++) { rf[i].face = p.fonts[i].face; rf[i].simple = p.fonts[i].kind == PF_SIMPLE; }
-  if (!b.oom) rgb = raster_page(b.data ? b.data : "", b.len, lay_page(L, page)->width, lay_page(L, page)->height, dpi, rf, p.nfonts, p.imgs, p.nimgs, w, h);
+  if (!b.oom) rgb = raster_page_band(b.data ? b.data : "", b.len, lay_page(L, page)->width, lay_page(L, page)->height, dpi, rf, p.nfonts, p.imgs,
+                                     p.nimgs, y0, y1, w, h);
   buf_free(&b);
   free(p.links);
   fonts_release(&p);
