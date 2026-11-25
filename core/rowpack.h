@@ -21,6 +21,9 @@ typedef struct {
 
 int    rgb_pack(PackedRGB *p, const u8 *rgb, u32 w, u32 h);      /* 0 if out of memory (p then empty) */
 void   rgb_unpack_row(const PackedRGB *p, u32 y, u8 *out);       /* w * 3 bytes */
+/* only pixels x0..x1 of row y, into out ((x1 - x0 + 1) * 3 bytes): the runs before x0 are skipped, and
+   nothing after x1 is read (a caret's one-pixel column costs a few runs, not a row) */
+void   rgb_unpack_span(const PackedRGB *p, u32 y, u32 x0, u32 x1, u8 *out);
 int    rgb_same_row(const PackedRGB *a, const PackedRGB *b, u32 y);   /* (pages of one size) */
 size_t rgb_pack_size(const PackedRGB *p);                        /* bytes held */
 void   rgb_pack_free(PackedRGB *p);

@@ -98,6 +98,31 @@ Pitfalls found:
 - Riptide's event loop drops high-level events; a program that wants them must take them itself before
   each turn (they stay queued until accepted).
 
+**Experimental: the Amiga's ribbon on the Mac (25 November 2026, branch `octavo-ribbon` from `mac-port`, with
+Riptide's `octavo-ribbon` branch: build with `RIPTIDE=`).** Octavo looking and working like Quill on the Amiga, the
+Guidelines set aside; docs/mac.md "The experimental ribbon tree" has the story, the figures and the pictures.
+`amiga/ribbon.c` (one hook: `RIBBON_CAN`), `theme.c`, `panes.c`, `backstage.c` and `wphooks.c` compile for the Mac
+against Riptide's MUI through `mac/ashim/` (NDK header names) and `mac/qm_ashim.c`; the work packages' ribbon groups
+come out of `amiga/wp_*.c` at build time (`mac/mkwpgroups.py`); `mac/qm_ribbon.c` feeds them and maps their commands
+(71 of the ribbon's 423 on the Mac, the rest dimmed). Memory and idle work, measured with `mac/qm_measure.c`: pages
+kept packed (`core/rowpack.c`), the layout's arrays trimmed (`core/layout.c`), `MAXFACES` 48, cold core files `-Os`,
+an idle timer that slows down, no second WaitNextEvent per loop. Open:
+
+- A long document (tests/data/wordcraft-long.docx, 158 pages) still doesn't fit: its layout is ~15 MB on the 68k,
+  mostly boxes each carrying a 78-byte CharFmt. A format index in Box (180 readers, 90 in amiga/view.c) or dropping
+  far paragraphs' boxes and laying them out again when drawn.
+- Typing redraws the whole page in memory; drawing only the changed band needs the raster and qm_qdtext by bands.
+- The navigation pane (reads the Amiga view's MUIA_Quill_ attributes), the word count, Tell Me, customizing, the
+  right-button menus; Latin-1 interface text outside the translated words shows as Mac Roman bytes (the File page's "Résumé" template).
+
+Pitfalls found:
+- Riptide's MUI for the Mac has its own theme module with Quill's theme's function names: the shim renames Quill's
+  (`qt_`). Riptide reports a screen height of 399 for every screen up to 560 lines (its own compact layout): read
+  GrayRgn for the real height.
+- The testbed's agent opens a document with the first application of its creator it finds: two Octavos on one
+  disk (same creator) get mixed up. One build per disk (orb/mkdisk.sh ONLY=).
+- A pop-up list that closes on deactivation also closed when Riptide's help bubble came up in front (fixed there).
+
 ## Merged into master (done)
 
 WP0 scaffolding · WP1 fields · WP5 comments and markup · WP8 proofing · WP9 character formatting ·

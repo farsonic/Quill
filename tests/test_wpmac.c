@@ -482,6 +482,16 @@ static int pack_round_trip(const u8 *rgb, u32 w, u32 h, size_t *packed)
   for (y = 0; good && y < h; y++) {
     rgb_unpack_row(&p, y, row);
     good = !memcmp(row, rgb + (size_t)y * w * 3, (size_t)w * 3) && rgb_same_row(&p, &q, y);
+    if (good && w > 2) {
+      /* spans: a pixel at each end and in the middle, and all but the ends */
+      u32 x0 = w / 3, x1 = w - 2;
+      rgb_unpack_span(&p, y, 0, 0, row);
+      good = !memcmp(row, rgb + (size_t)y * w * 3, 3);
+      rgb_unpack_span(&p, y, x0, x0, row);
+      good = good && !memcmp(row, rgb + ((size_t)y * w + x0) * 3, 3);
+      rgb_unpack_span(&p, y, 1, x1, row);
+      good = good && !memcmp(row, rgb + ((size_t)y * w + 1) * 3, (size_t)(x1) * 3);
+    }
   }
   if (packed) *packed = good ? rgb_pack_size(&p) : 0;
   if (good) { rgb_pack_free(&p); rgb_pack_free(&q); }

@@ -552,8 +552,8 @@ static void blit(struct qv_data *d, Object *obj, u32 k, long x0, long x1, long y
 			const unsigned char *sp;
 			long sx0, sx1;
 			int sel;
-			rgb_unpack_row(&c->pk, (u32)(y + r), d->line);
-			sp = d->line + x0 * 3;
+			rgb_unpack_span(&c->pk, (u32)(y + r), (u32)x0, (u32)x1, d->line);
+			sp = d->line;
 			sel = sel_span(d, &s, k, y + r, &sx0, &sx1);
 			unsigned long *dp = (unsigned long *)(base + r * rowb);
 			for (i = x0; i <= x1; i++, sp += 3) {

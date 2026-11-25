@@ -174,6 +174,7 @@ void qr_backstage(int on)
 	if (!pages || on == in_back)
 		return;
 	in_back = on;
+	mm_log("the File page %s", on ? "shown" : "left");
 	if (on && back) {
 		static struct MUIP_Back_Set bs;
 		static char info[200];
@@ -226,6 +227,7 @@ int qr_command(unsigned long id)
 	if (id < QM_AMIGA_ID)
 		return 0;
 	a = id - QM_AMIGA_ID;
+	mm_log("ribbon command %lu", a);
 	if (ribbon)
 		get(ribbon, MUIA_Ribbon_Value, &v);
 	if (in_back && a != ID_FILETAB && a != ID_BACKSTAGE && a != ID_INFO && a != ID_OPTIONS && a != ID_TEMPLATE && a != ID_RECENT)
@@ -388,9 +390,15 @@ Object *qr_make(Object *view)
 	if (!ribbon)
 		return NULL;
 	/* a screen under 400 lines (the compact Macs' 342) starts with the ribbon collapsed to its tabs, as
-	   the Amiga's does on demand (a tab double-clicked: WP26); a click on a tab shows its tools again */
-	if (mm_screen.Height < 400)
-		DoMethod(ribbon, MUIM_Ribbon_Collapse);
+	   the Amiga's does on demand (a tab double-clicked: WP26); a click on a tab shows its tools again.
+	   (The screen's height: the desktop's, below) */
+	{
+		/* the desktop's height (GrayRgn's box, low memory 0x9EE: rgnSize, then top, left, bottom, right);
+		   Riptide's screen says 399 for every screen up to 560 lines, for its own compact layout */
+		short **gray = *(short ***)0x9EE;
+		if (gray && *gray && (*gray)[3] - (*gray)[1] < 400)
+			DoMethod(ribbon, MUIM_Ribbon_Collapse);
+	}
 	{
 		/* how much of the Amiga's ribbon the Mac does (docs/mac.md quotes the log) */
 		RibbonCmd *cmds = malloc(700 * sizeof *cmds);

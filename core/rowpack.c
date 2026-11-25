@@ -71,6 +71,27 @@ void rgb_unpack_row(const PackedRGB *p, u32 y, u8 *out)
   }
 }
 
+void rgb_unpack_span(const PackedRGB *p, u32 y, u32 x0, u32 x1, u8 *out)
+{
+  const u8 *s = p->data + p->rowat[y], *e = p->data + p->rowat[y + 1];
+  u32 x = 0;
+  while (s < e && x <= x1) {
+    unsigned n = *s++, k, i;
+    if (n < 128) {
+      k = n + 1;
+      for (i = 0; i < k; i++, x++)
+        if (x >= x0 && x <= x1) { out[0] = s[3 * i]; out[1] = s[3 * i + 1]; out[2] = s[3 * i + 2]; out += 3; }
+      s += 3 * k;
+    } else {
+      k = n - 126;
+      if (x + k > x0)
+        for (i = x < x0 ? x0 - x : 0; i < k && x + i <= x1; i++) { out[0] = s[0]; out[1] = s[1]; out[2] = s[2]; out += 3; }
+      x += k;
+      s += 3;
+    }
+  }
+}
+
 int rgb_same_row(const PackedRGB *a, const PackedRGB *b, u32 y)
 {
   u32 la = a->rowat[y + 1] - a->rowat[y], lb = b->rowat[y + 1] - b->rowat[y];
