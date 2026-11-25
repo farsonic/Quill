@@ -235,8 +235,15 @@ struct MUIP_ContextMenuChoice { ULONG MethodID; Object *item; };
 #define theme_no_hinting         qt_theme_no_hinting
 #define theme_open_face          qt_theme_open_face
 #define theme_open_font          qt_theme_open_font
+#ifdef QM_RIBBON_PREVIEWS
+/* ribbon.c's font list and style pictures: each name in the Mac's own screen font (mac/qm_ashim.c), not
+   rasterised from the TrueType file, which would load every family's font (megabytes) to open the list */
+#define theme_preview            qm_preview
+#define theme_preview_width      qm_preview_width
+#else
 #define theme_preview            qt_theme_preview
 #define theme_preview_width      qt_theme_preview_width
+#endif
 #define theme_rect               qt_theme_rect
 #define theme_set_dark           qt_theme_set_dark
 #define theme_set_large          qt_theme_set_large
@@ -245,6 +252,24 @@ struct MUIP_ContextMenuChoice { ULONG MethodID; Object *item; };
 #define theme_text               qt_theme_text
 #define theme_textlen            qt_theme_textlen
 #define tpen                     qt_tpen
+
+/* Quill's Amiga files speak Latin-1, as on the Amiga: their tr() is the table's Latin-1 (mac/qm_lang.c),
+   and their text becomes Mac Roman where it is drawn and measured (mac/qm_ashim.c) */
+const char *qm_tr_l1(const char *english);
+const char *qm_tr_ctx_l1(const char *ctx, const char *english);
+LONG  qm_Text(struct RastPort *rp, CONST_STRPTR s, ULONG n);
+WORD  qm_TextLength(struct RastPort *rp, CONST_STRPTR s, ULONG n);
+void  qm_TextExtent(struct RastPort *rp, CONST_STRPTR s, ULONG n, struct TextExtent *te);
+ULONG qm_TextFit(struct RastPort *rp, CONST_STRPTR s, ULONG n, struct TextExtent *te, const struct TextExtent *cte,
+                 LONG dir, ULONG width, ULONG height);
+#define tr qm_tr_l1
+#define tr_ctx qm_tr_ctx_l1
+#ifndef QM_ASHIM_IMPL
+#define Text(rp, s, n) qm_Text(rp, s, n)
+#define TextLength(rp, s, n) qm_TextLength(rp, s, n)
+#define TextExtent(rp, s, n, te) qm_TextExtent(rp, s, n, te)       /* (not struct TextExtent: function-like) */
+#define TextFit(rp, s, n, te, c, d, w, h) qm_TextFit(rp, s, n, te, c, d, w, h)
+#endif
 
 /* ribbon.c dims a command the Mac does not have yet (mac/qm_ribbon.c) */
 int qr_can(unsigned long amiga_id);

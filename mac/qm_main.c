@@ -1498,6 +1498,12 @@ int main(void)
 	mm_gfx_lib_init();
 	mm_classes_init();
 	qm_ashim_init();
+#ifdef QM_TRACE_EVENTS
+	{
+		extern int mm_trace_events;     /* (development: Riptide's event trace in the log) */
+		mm_trace_events = 1;
+	}
+#endif
 	sb = (short *)((char *)*(void **)a5 - 116);       /* QuickDraw's screenBits.bounds */
 	mm_gfx_init(sb[2] - sb[0] - LM_MBARHEIGHT - 20 < 560);
 	mm_screen_init(*(void **)a5);

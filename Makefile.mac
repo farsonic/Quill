@@ -33,6 +33,9 @@ BASE    := -m68020 -O2 -ffreestanding -fno-builtin -fno-pic -fno-pie -ffixed-a5 
            -nostdinc -isystem $(GCCINC) -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-stack-protector \
            -ffunction-sections -fdata-sections -Wall -Wno-unused-parameter --param=min-pagesize=0 \
            -DMAXFACES=48
+ifeq ($(TRACE),1)
+BASE    += -DQM_TRACE_EVENTS
+endif
 ifeq ($(AURORA68),1)
 BASE    += -DAURORA68_LOG
 endif
@@ -96,7 +99,7 @@ $(GEN)/bsdsocket_calls.h $(GEN)/riptide_calls.h $(GEN)/usergroup_calls.h: $(GEN)
 
 $(B)/amiga/%.o: amiga/%.c $(HDRS) $(AHDRS) $(GEN_H)
 	@mkdir -p $(dir $@)
-	$(CC) $(AFE_CFLAGS) -c -o $@ $<
+	$(CC) $(AFE_CFLAGS) $(if $(filter ribbon,$*),-DQM_RIBBON_PREVIEWS) -c -o $@ $<
 $(B)/mac/qm_ribbon.o $(B)/mac/qm_ashim.o: $(B)/mac/%.o: mac/%.c $(HDRS) $(AHDRS) $(GEN_H)
 	@mkdir -p $(dir $@)
 	$(CC) $(AFE_CFLAGS) -c -o $@ $<

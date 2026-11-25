@@ -126,3 +126,28 @@ int lang_mac_system(void)
 			return regions[i].lang;
 	return LANG_EN;
 }
+
+/* The same in Latin-1, as the Amiga's tr() gives them: for Quill's Amiga files compiled into the
+   experimental ribbon tree (mac/ashim/qm_amiga.h), whose own strings are Latin-1 too; their text is
+   turned into Mac Roman where it is drawn (mac/qm_ashim.c qm_Text) */
+const char *qm_tr_l1(const char *english)
+{
+	const Words *const *w;
+	if (cur == LANG_EN || !english || !*english || !nby)
+		return english;
+	w = (const Words *const *)bsearch(english, byen, (size_t)nby, sizeof byen[0], cmp_key);
+	return w && (*w)->s[cur] ? (*w)->s[cur] : english;
+}
+
+const char *qm_tr_ctx_l1(const char *ctx, const char *english)
+{
+	char key[96];
+	const Words *const *w;
+	if (cur == LANG_EN || !english || !*english || !nby || strlen(ctx) + strlen(english) + 2 > sizeof key)
+		return qm_tr_l1(english);
+	strcpy(key, ctx);
+	strcat(key, ":");
+	strcat(key, english);
+	w = (const Words *const *)bsearch(key, byen, (size_t)nby, sizeof byen[0], cmp_key);
+	return w && (*w)->s[cur] ? (*w)->s[cur] : qm_tr_l1(english);
+}

@@ -11,6 +11,7 @@
  * its own menus' (mac/quill_mac.h); mac/qm_ribbon.c maps them.
  */
 #include <stdarg.h>
+#define QM_ASHIM_IMPL           /* (Text and the rest are Riptide's here: the wrappers below call them) */
 #include "qm_amiga.h"
 #include "wphooks.h"
 #include "lang.h"
@@ -297,7 +298,7 @@ void DisplayBeep(struct Screen *s)
 }
 
 /* ---- amiga/lang.c's beyond tr(): the codes and each language's name in itself ---- */
-const char *const ui_languages[UI_NLANG] = { "English", "Deutsch", "Fran\215ais", "Espa\226ol", "Italiano" };   /* (Mac Roman) */
+const char *const ui_languages[UI_NLANG] = { "English", "Deutsch", "Fran\347ais", "Espa\361ol", "Italiano" };   /* (Latin-1, as amiga/lang.c) */
 const char *lang_code(int lang)
 {
 	static const char *const codes[UI_NLANG] = { "en", "de", "fr", "es", "it" };
@@ -337,3 +338,125 @@ const char *wp31_status_lang(void) { return tr("English (United Kingdom)"); }
 /* Riptide's FindPort knows the TCP/IP stack's port (RiptidePrefs has it); Octavo has none, and
    theme.c only asks for AAText's */
 struct MsgPort *mm_riptide_port(void) { return NULL; }
+
+/* ---- ribbon.c's font previews (QM_RIBBON_PREVIEWS): a family's name in the Mac's screen font nearest
+   it (Times for serif families, Courier for fixed widths, Helvetica else) at the size asked, bold and
+   italic as the face is; drawn with QuickDraw, nothing loaded ---- */
+#include "../core/fonts.h"
+static int has_word(const char *s, const char *w)
+{
+	size_t n = strlen(w);
+	for (; *s; s++)
+		if (!Strnicmp((CONST_STRPTR)s, (CONST_STRPTR)w, (LONG)n))
+			return 1;
+	return 0;
+}
+static void preview_font(Face *f, LONG ppem64)
+{
+	const char *n = f ? f->family : "";
+	int num = has_word(n, "mono") || has_word(n, "courier") || has_word(n, "consolas") ? 22 :
+	          (has_word(n, "serif") && !has_word(n, "sans")) || has_word(n, "times") || has_word(n, "cambria") ||
+	          has_word(n, "caladea") || has_word(n, "georgia") || has_word(n, "garamond") ? 20 : 21;
+	int size = (int)((ppem64 + 32) / 64);
+	TextFont(num);
+	TextSize(size < 6 ? 6 : size > 48 ? 48 : size);
+	TextFace((f && f->bold ? 1 : 0) | (f && f->italic ? 2 : 0));
+}
+LONG qm_preview_width(Face *f, const char *text, LONG ppem64)
+{
+	LONG w;
+	preview_font(f, ppem64);
+	w = TextWidth(text, 0, (int)strlen(text));
+	mm_use_font(0);
+	return w;
+}
+int qm_preview(struct RastPort *rp, Face *f, const char *text, LONG ppem64, LONG x, LONG y, LONG maxw, LONG pen)
+{
+	void *port = mm_rp_port(rp);
+	ULONG rgb = mm_pen_rgb(pen);
+	int n = (int)strlen(text);
+	if (!port)
+		return 0;
+	SetPort(port);
+	preview_font(f, ppem64);
+	while (n > 0 && TextWidth(text, 0, n) > maxw)
+		n--;
+	if (mm_mono_port(port))
+		ForeColor(33);
+	else {
+		RGBColor c;
+		c.red = (unsigned short)(((rgb >> 16) & 0xFF) * 257);
+		c.green = (unsigned short)(((rgb >> 8) & 0xFF) * 257);
+		c.blue = (unsigned short)((rgb & 0xFF) * 257);
+		RGBForeColor(&c);
+	}
+	TextMode(1);
+	MoveTo((int)x, (int)y);
+	DrawText(text, 0, n);
+	ForeColor(33);
+	mm_use_font(0);
+	return 1;
+}
+
+/* ---- the Amiga files' Latin-1 text drawn and measured in Mac Roman: one table, made on first use ---- */
+void latin1_to_macroman(const char *s, char *out, int cap);
+static unsigned char l1mac[256];
+static void to_mac(CONST_STRPTR s, ULONG n, char *out)
+{
+	ULONG i;
+	if (!l1mac['A']) {
+		int c;
+		for (c = 0; c < 256; c++) {
+			char one[2], m[2];
+			one[0] = (char)(c ? c : ' ');
+			one[1] = 0;
+			latin1_to_macroman(one, m, 2);
+			l1mac[c] = (unsigned char)(c ? m[0] : 0);
+		}
+	}
+	for (i = 0; i < n; i++)
+		out[i] = (char)l1mac[(unsigned char)s[i]];
+}
+#define CHUNK 160
+LONG qm_Text(struct RastPort *rp, CONST_STRPTR s, ULONG n)
+{
+	char buf[CHUNK];
+	while (n > CHUNK) {
+		to_mac(s, CHUNK, buf);
+		Text(rp, (CONST_STRPTR)buf, CHUNK);
+		s += CHUNK;
+		n -= CHUNK;
+	}
+	to_mac(s, n, buf);
+	return Text(rp, (CONST_STRPTR)buf, n);
+}
+WORD qm_TextLength(struct RastPort *rp, CONST_STRPTR s, ULONG n)
+{
+	char buf[CHUNK];
+	WORD w = 0;
+	while (n > CHUNK) {
+		to_mac(s, CHUNK, buf);
+		w += TextLength(rp, (CONST_STRPTR)buf, CHUNK);
+		s += CHUNK;
+		n -= CHUNK;
+	}
+	to_mac(s, n, buf);
+	return (WORD)(w + TextLength(rp, (CONST_STRPTR)buf, n));
+}
+void qm_TextExtent(struct RastPort *rp, CONST_STRPTR s, ULONG n, struct TextExtent *te)
+{
+	char buf[CHUNK];
+	if (n > CHUNK)
+		n = CHUNK;
+	to_mac(s, n, buf);
+	TextExtent(rp, (CONST_STRPTR)buf, n, te);
+}
+ULONG qm_TextFit(struct RastPort *rp, CONST_STRPTR s, ULONG n, struct TextExtent *te, const struct TextExtent *cte,
+                 LONG dir, ULONG width, ULONG height)
+{
+	char buf[CHUNK];
+	if (n > CHUNK)
+		n = CHUNK;
+	to_mac(s, n, buf);
+	return TextFit(rp, (CONST_STRPTR)buf, n, te, cte, dir, width, height);
+}
