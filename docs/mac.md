@@ -414,10 +414,153 @@ as many families as the screen has room for. Alerts (Riptide's) and Standard Fil
 | ![Format with Layout's commands, scrolling](mac-512-format-menu.png) Format, scrolled to Layout's commands | ![Page Setup at 512 by 342](mac-512-pagesetup.png) Page Setup |
 | ![The Font menu with the sizes](mac-512-font-menu.png) The Font menu with the sizes | ![About Octavo](mac-512-about.png) About Octavo |
 
+## The experimental ribbon tree (branch `octavo-ribbon`, 25 November 2026)
+
+An experiment, asked for by the owner: an Octavo that looks and works like Quill on the Amiga (the ribbon's
+tabs and groups, the File page, the status bar) rather than like a 1992 Mac program, the Guidelines set
+aside for this tree; then made as small and as quiet as it can be, measured. It is a branch of its own
+(`octavo-ribbon`, from `mac-port`), built against Riptide's branch of the same name (`RIPTIDE=`). Nothing
+in `mac-port` changed.
+
+![The ribbon at 640 by 480, eight bits, charts.docx open](mac-ribbon-tree-insert.png)
+
+### Shared, not copied: the Amiga's own files compiled for the Mac
+
+The first aim was to compile the Amiga front end's own sources against Riptide's MUI for the Mac, so that
+the ribbon is described once. That worked for everything the ribbon, the status bar and the File page are
+made of:
+
+| | Files | How |
+|---|---|---|
+| **Unchanged** | `amiga/theme.c` (the theme's colours, the interface fonts, every icon), `amiga/panes.c` (the status bar; the navigation pane's class too), `amiga/backstage.c` (the File page), `amiga/wphooks.c`, and the headers `quill.h`, `ribbondef.h`, `ids.h`, `theme.h`, `wphooks.h`, `lang.h`, `wp_*.h` | compiled as they are |
+| **One hook** | `amiga/ribbon.c` (2,600 lines: tabs, groups, the lists, the styles gallery, collapsing, the Quick Access Toolbar, KeyTips) | `RIBBON_CAN(id)` in `item_enabled`: 1 on the Amiga; on the Mac, whether Octavo has the command yet (dimmed if not) |
+| **Data taken out at build time** | the 39 work packages' `amiga/wp_*.c` (27 of them give the ribbon groups) | `mac/mkwpgroups.py` keeps each file's defines, enums and the data its groups reach (items, lists, label arrays, icon strings), drops its code, and writes a `wpN_package` with no hooks; the generated files compile unchanged against the same headers |
+| **Shims** (`mac/ashim/`, `mac/qm_ashim.c`) | the NDK's header names (`<proto/graphics.h>`, `<libraries/mui.h>` ... 44 of them) | one header over Riptide's MUI: the MUI numbers and object macros Quill uses beyond Riptide's, `struct InputEvent`, `DiskFontHeader`; amiga.lib's varargs calls (`DoMethod`, `NewObject`, `SetAttrs` ...), utility.library's tags and `Stricmp`, `FilePart`, `MapRawKey`, `DoubleClick`, `MUI_AddClipping`; the work packages' hooks the Mac has no code for (customizing, Tell Me, the Developer tab, personal templates, AutoSave), answered as a fresh Quill would. Quill's `theme_*`/`tpen` clash with Riptide's own theme of the same names (Riptide draws its classes with it): the shim header renames Quill's to `qt_*`. The dispatchers are written for vbcc's registers (`__reg("a0")`): on the Mac they are C functions reached through `qm_cdispatch_thunk` (`mac/qm_thunks.S`), which takes BOOPSI's A0/A2/A1 off to the C function kept in the class hook's `h_SubEntry` |
+| **Added to Riptide** (its `octavo-ribbon` branch) | `src/mac/mui` | fonts by name and size (`OpenFont`, `OpenDiskFont`: a Mac family, the bitmap size whose line is nearest the height asked, bold for a name ending in B), `Text` and `TextLength` in the rastport's font and soft style, `TextExtent`, `TextFit`, `DrawEllipse`, `BltTemplate`; windows without a frame (the ribbon's lists); `MUIA_Window_Activate` notified (a list closes when another window comes forward); MUI 3's `MUI_RequestIDCMP`/`MUIM_HandleInput`; `MUIA_Parent`; IntuiMessages stamped with the time. RiptidePrefs, Riptide and Lagoon build unchanged against it |
+| **Written for the Mac** | `mac/qm_ribbon.c` (about 400 lines) | what the Amiga's `main.c` and `view.c` do for these classes: the window's contents (ribbon, page view, status bar in a group; the File page as the other page of a page group), the state they show (`MUIM_Ribbon_State`, `MUIM_Status_Set`, `MUIM_Back_Set` from the document and the caret), and every Amiga command mapped to the Octavo command that does it, or done there on the core (font, size, style, colour and highlight lists, the Layout tab's indent and spacing fields, zoom). The Amiga's ids reach Octavo's loop as `QM_AMIGA_ID` + their number (the shim's `DoMethod` adds it), Octavo's own are in `mac/qm_ids.h` |
+| **Kept from Octavo** | the page view, its rulers and scroll bars, the dialogs, the menus | the page view (`mac/qm_view.c`) is Octavo's: the Amiga's (`amiga/view.c`, layers and Amiga fonts) is not compiled; nor are `main.c`, `ruler.c` and the work packages' windows |
+
+### What works, and what does not yet
+
+Works (seen in the testbed): every tab of the Amiga (File, Home, Insert, Draw, Design, Layout, References,
+Mailings, Review, View, and the contextual ones as their state allows), its groups in the Amiga's order with
+their captions and icons, groups collapsing into one button when the window is narrow (the Amiga's own
+fitting), the Quick Access Toolbar, the commands the Mac has (Bold and the rest, typing into the document
+with the ribbon above it), the File page at 512 by 342 (New, Open, Save, Save As, Export PDF; Info; back
+with Esc), and the status bar (the page, the language, the view buttons, the zoom slider). A screen under 400 lines (the
+compact Mac's 342) starts with the ribbon collapsed to its tabs; a click on a tab shows its tools again,
+as a double-click does on the Amiga. Of the ribbon's 423 commands (Quill's tabs and the packages', each once, as `ribbon.c`'s `ribbon_commands` counts them; the log says so at start), 71 are on the Mac; the others are drawn dimmed. The menus stay and keep every command the ribbon has on the
+Mac (Style › All Caps, Clear Formatting and Format › Font Colour, Highlight are new, for the ribbon's).
+
+Not working yet: **the drop-down lists** (font, size, colours ...): the list's frameless window is made
+and shown, and the log has it activated and at once deactivated, so it closes again (a help bubble coming
+up in front was one cause, fixed in Riptide; another is still to be found). **The File page at 640 by 480,
+eight bits**: the log shows it switched to and drawn, but the screenshots show the document; at 512 by 342,
+one bit, it shows (picture below). Both want a session at the testbed's keyboard and mouse rather than
+scripted clicks.
+
+Missing: the commands of the Amiga that the Mac has no code for yet are on the ribbon but dimmed (the
+work packages' windows: mail merge, citations, the equation editor, shapes, SmartArt ...); the navigation
+pane (its class compiles, but it reads the Amiga view's attributes, which Octavo's view lacks); the word
+count in the status bar (shown as "..."); the Tell Me box and customizing the ribbon; right-button menus
+(the Mac has one button); KeyTips are compiled but not tried on a Mac keyboard. Interface text with
+Latin-1 characters outside Mac Roman's common set (the Symbol list's ©, the degree sign) is drawn as Mac
+Roman bytes in English: the Amiga's tables are Latin-1, and only translated words go through Octavo's
+conversion.
+
+### Memory and CPU: what was changed
+
+- **Pages kept packed.** The view kept the last three pages drawn as RGB, 1.4 MB each at 72 dpi (US
+  Letter): 4.2 MB. Each is now kept run-length packed by rows (`core/rowpack.c`, tested natively on
+  wordcraft-long.docx's pages: every row back as drawn; wordcraft-long.docx's first page, drawn smooth as the PDF has it: 281 KB of 1,420 KB), unpacked a row at a time as it is copied
+  to the screen, and an edit's changed rows are found by comparing packed rows.
+- **The layout's boxes at their size.** A long document's layout is mostly its boxes (a word or a space
+  each, with its format: 98 bytes on the 68k), in arrays that grew by doubling from 64. Each paragraph's are
+  trimmed to their size once laid out (`core/layout.c`): wordcraft-long.docx (158 pages, 155,632 boxes)
+  from 24.4 to 16.0 MB natively.
+- **A smaller FontSet.** Room for 48 faces on the Mac instead of 256 (`core/fonts.h` `MAXFACES`, set in
+  Makefile.mac): 45 KB instead of 230.
+- **Less code in the heap.** A classic Mac application's code is loaded into its heap. The core's files
+  that do not run while typing, drawing or scrolling (the file formats, charts, equations, citations ...)
+  are compiled for size (`-Os`), the rest for speed: the code from 2.36 to 2.04 MB.
+- **Idle.** The page view's timer ran ten times a second for ever; it now runs so only while there is
+  something to draw soon (typing, a drag, rulers to catch up) and otherwise at the caret's blink, changing
+  rate by being taken off and put back. Octavo's loop asked for Apple events with a second WaitNextEvent
+  each time round (a turn given to every other program); it now asks EventAvail first. Riptide's loop
+  sleeps up to two seconds with nothing due (it slept half a second at most).
+- **Lazy already.** The spelling list is read at the first Spelling…, hyphenation and the thesaurus are
+  not loaded at all, the ribbon's list window is made when a list is first opened, dialogs are made when
+  shown; the languages' words are made only for a language other than English.
+- **SIZE.** 8 MB preferred and 6 MB minimum (12 MB both before), written by `mac/mksize.py` from Makefile.mac's `SIZE_PREF` and `SIZE_MIN`: 2.8 MB are in use at launch and 4.6 MB with charts.docx shown, which leaves 3.5 MB free of 8 MB in the testbed. A long document needs more (Get Info): wordcraft-long.docx about 20 MB.
+
+### Measured
+
+In the Aurora68 testbed (QEMU, the solo board, System 7.1, a 68040 through Emu68, 640 by 480 at eight
+bits, 32 MB), one session per build, the figures written by Octavo itself into the log
+(`mac/qm_measure.c`: the Memory Manager's FreeMem and the heap's size; Microseconds around every
+WaitNextEvent; around each key's handling and each refresh of the window). *Before* is `mac-port` (the
+tool strip) built with the same measuring code; the ribbon tree before its optimisations is the first
+session; *after* is the ribbon tree as committed. The testbed's 68040 is emulated, so the times are for
+comparing builds, not what a real Mac takes.
+
+| | Before: `mac-port` (tool strip) | Ribbon tree, first build | Ribbon tree, after |
+|---|---|---|---|
+| Code (`.text`, in the heap) | 2.19 MB | 2.36 MB | 2.04 MB |
+| Partition (SIZE) | 12 MB | 12 MB | 8 MB (6 MB minimum) |
+| Heap in use at launch, untitled | 2,974 KB | 3,266 KB | 2,759 KB |
+| Heap in use, charts.docx shown (3 pages, charts) | 4,869 KB | — | 4,577 KB (3,287 KB with every page packed) |
+| wordcraft-long.docx (158 pages) | out of memory (7.9 MB malloc'd, nothing shown); the next document then "couldn't be read" | out of memory | out of memory in 12 MB (needs about 20 MB); the next document then opens (4.5 MB in use) |
+| Idle, untitled: wake-ups a second | 28–30 | 25–32 | 7.5–7.9 (the caret's blink, every 8 ticks in this System; nothing else) |
+| Idle, charts.docx: wake-ups a second; busy | 29–32; 3.0–3.5 % | — | 7.4–7.8; 3.1–3.6 % |
+| A key, handled (charts.docx) | 1.3–4.0 ms (the first 19 ms) | 2.7–6 ms | 1.6–5.7 ms (the first 204 ms) |
+| The window brought up to date after it | 283–393 ms (page drawn in 14–20 ticks) | — | 297–555 ms (16–29 ticks); 474–592 ms with every page packed |
+| The ribbon drawn whole (632 by 103) | — | — | 92–293 ms; collapsed (632 by 25) 45–150 ms; the status bar 14–42 ms |
+
+Idle CPU fell by three quarters in wake-ups but not in time: what is left is the caret's blink, which the
+baseline did too, and each blink copies its column again. Every page packed saves 1.3 MB more with
+charts.docx but made each redraw after typing a quarter of a second slower in the testbed; the page being
+typed in is therefore kept as drawn. The first key after opening a document costs 0.2 s in the ribbon tree
+(the ribbon's state changes: Undo becomes usable, and the ribbon is drawn again whole).
+
+Natively (the core alone, a PC), for the long document: read 9 ms, laid out 17 ms (+16.0 MB, 24.4 before
+the trimming), its first page drawn 5 ms; a key typed in its fourth paragraph and the layout brought up to
+date 0.9 ms (only that paragraph is laid out afresh: the layout keeps every other one), its page drawn
+again 3 ms.
+
+### Screenshots
+
+| | |
+|---|---|
+| ![Home, 640 x 480](mac-ribbon-tree-640.png) Home, charts.docx (the font field clicked) | ![Insert](mac-ribbon-tree-insert.png) Insert |
+| ![Layout](mac-ribbon-tree-layout.png) Layout | ![References](mac-ribbon-tree-references.png) References |
+| ![Review](mac-ribbon-tree-review.png) Review | ![View](mac-ribbon-tree-view.png) View |
+| ![Draw](mac-ribbon-tree-draw.png) Draw (dimmed: WP20's commands) | ![Mailings](mac-ribbon-tree-mailings.png) Mailings (from wp_mailings.c's tables, dimmed) |
+| ![Design](mac-ribbon-tree-design.png) Design | ![Collapsed to its tabs](mac-ribbon-tree-640-collapsed.png) Collapsed to its tabs (a tab double-clicked) |
+| ![512 x 342, collapsed](mac-ribbon-tree-512.png) 512 by 342, one bit: it starts collapsed | ![512 x 342, a tab open](mac-ribbon-tree-512-open.png) Home clicked: its groups as buttons |
+| ![512 x 342, Insert](mac-ribbon-tree-512-insert.png) Insert at 512 | ![The File page at 512](mac-ribbon-tree-512-backstage.png) The File page ("Résumé" shows the Latin-1 gap) |
+
+### Not done
+
+- **A long document needs more memory than the layout leaves.** wordcraft-long.docx (158 pages) needs
+  about 15 MB for its layout on the 68k even trimmed: its boxes each carry a copy of their format (78 bytes).
+  Keeping a format index in the box instead, or dropping the boxes of paragraphs far from the pages shown
+  and laying them out again when drawn, would bring it to a few MB; both touch every reader of `Box.f`
+  (about 180 places, 90 of them in the Amiga's view.c), so they were left for a branch of their own.
+- **Typing draws the whole page again** in memory once the keys pause, then copies only the rows that
+  changed. Drawing only the band of the changed lines needs the raster and the QuickDraw text pass (and its
+  caret map) to work by bands.
+- The ribbon redraws whole when its state changes (the Amiga's design); the times are in the log
+  (`draw 632x98 ...`).
+- The navigation pane, the word count, Tell Me, customizing, right-button menus; the dimmed commands.
+
 ## Building
 
     make -f Makefile.mac                     build/mac/Octavo.bin (MacBinary; Quill.bin before the rename)
     make -f Makefile.mac AURORA68=1 B=build/mac-a68    the log also goes to Aurora68's kernel log
+
+The experimental ribbon tree (branch `octavo-ribbon`) needs Riptide's `octavo-ribbon` branch:
+
+    make -f Makefile.mac RIPTIDE=/path/to/riptide-octavo-ribbon
 
 Needs the m68k ELF toolchain (`gcc-m68k-linux-gnu`, `binutils-m68k-linux-gnu`), Python 3 and Riptide's
 tree beside Quill's (`RIPTIDE ?= ../riptide`, branch `mac-port`). The icons are made by `mac/mkfinder.py`
