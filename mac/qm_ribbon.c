@@ -57,7 +57,7 @@ static const struct { UWORD a, m; } direct[] = {
 	{ ID_PREVCHANGE, OCT_PREVCHANGE }, { ID_NEXTCHANGE, OCT_NEXTCHANGE }, { ID_PAGENUM, OCT_PAGENUM },
 	{ ID_PAGESETUPDLG, OCT_PAGESETUP }, { ID_PARADLG, OCT_PARAGRAPH }, { ID_FONTDLG, OCT_FONTDLG },
 	{ ID_BOOKMARK, OCT_BOOKMARK }, { ID_XREF, OCT_XREF }, { ID_NOTE, OCT_FOOTNOTE },
-	{ ID_CAPS, OCT_CAPS }, { ID_CLEARFMT, OCT_CLEARFMT },
+	{ ID_CAPS, OCT_CAPS }, { ID_CLEARFMT, OCT_CLEARFMT }, { ID_SORT, OCT_SORT }, { ID_LINEBREAK, OCT_LINEBREAK }, { ID_ZOOM125, OCT_ZOOM125 },
 };
 #define NDIRECT ((int)(sizeof direct / sizeof direct[0]))
 /* the lists and commands done here (with the list's value) */
@@ -65,7 +65,7 @@ static const UWORD here_ids[] = {
 	ID_UNDO, ID_CUT, ID_COPY, ID_PASTE, ID_FONTDD, ID_SIZEDD, ID_STYLEPICK, ID_ZOOMDD, ID_BREAKSDD, ID_ORIENTDD,
 	ID_COLUMNSDD, ID_LINENUMDD, ID_ACCEPTDD, ID_REJECTDD, ID_DELTABLEDD, ID_SPACINGDD, ID_FONTCOLOR, ID_HIGHLIGHT,
 	ID_CLEARFMT, ID_INDENTL, ID_INDENTR, ID_SPACEB, ID_SPACEA, ID_FILETAB, ID_BACKSTAGE, ID_ZOOMSET, ID_CAPS,
-	ID_MARGINSDD, ID_PAPERDD, ID_LINEBREAK,
+	ID_MARGINSDD, ID_PAPERDD, ID_CASE,
 };
 #define NHERE ((int)(sizeof here_ids / sizeof here_ids[0]))
 
@@ -270,8 +270,8 @@ int qr_command(unsigned long id)
 		static const UWORD z[] = { OCT_ZOOMFIT, OCT_ZOOM50, OCT_ZOOM75, OCT_ZOOM100, 0, OCT_ZOOM150, OCT_ZOOM200 };
 		if (v >= 0 && v < 7 && z[v])
 			qm_command(z[v]);
-		else if (v == 4 && pageview)
-			qv_zoom(pageview, 125);
+		else if (v == 4)
+			qm_command(OCT_ZOOM125);
 		break;
 	}
 	case ID_ZOOMSET: {
@@ -288,8 +288,11 @@ int qr_command(unsigned long id)
 			qm_command((unsigned long)(OCT_BREAK0 + b[v]));
 		break;
 	}
-	case ID_LINEBREAK:
+	case ID_CASE:
+		if (v >= 0 && v < 5)
+			qm_command((unsigned long)(OCT_CASE0 + v));
 		break;
+
 	case ID_ORIENTDD: qm_command(v ? OCT_LANDSCAPE : OCT_PORTRAIT); break;
 	case ID_COLUMNSDD:
 		if (v >= 0 && v < 3)

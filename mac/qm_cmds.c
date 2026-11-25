@@ -724,6 +724,7 @@ void qc_menus(QcAdd add, int refs_in_insert, int layout_in_format)
 	add(NM_ITEM, "Breaks", NULL, 0, 0);
 	for (i = 0; i < NBREAKS; i++)
 		add(NM_SUB, break_names[i], NULL, 0, ID_BREAK0 + (unsigned long)i);
+	add(NM_SUB, "Line Break", NULL, 0, ID_LINEBREAK);        /* (the Amiga ribbon's, in the ribbon tree) */
 	add(NM_ITEM, (const char *)NM_BARLABEL, NULL, 0, 0);
 	add(NM_ITEM, "Date", NULL, 0, ID_DATE);
 	add(NM_ITEM, "Page Number", NULL, 0, ID_PAGENUM);

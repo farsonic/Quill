@@ -237,6 +237,13 @@ static void menu_styles(void)
 	BAR();
 	nm_add(NM_ITEM, "All Caps", NULL, CHECKIT, ID_CAPS);
 	nm_add(NM_ITEM, "Clear Formatting", NULL, 0, ID_CLEARFMT);
+	nm_add(NM_ITEM, "Change case", NULL, 0, 0);
+	{
+		static const char *const casen[5] = { "Sentence case.", "lowercase", "UPPERCASE", "Capitalise Each Word", "tOGGLE cASE" };
+		int k;
+		for (k = 0; k < 5; k++)
+			nm_add(NM_SUB, casen[k], NULL, 0, (ULONG)(ID_CASE0 + k));
+	}
 }
 
 /* Format > Font Colour and Highlight: the Amiga ribbon's colour lists (amiga/ribbon.c), as submenus */
@@ -298,6 +305,7 @@ static void menus_build(void)
 	nm_add(NM_ITEM, "Font Colour", NULL, 0, 0);
 	for (i = 0; i < NFCOLORS; i++)
 		nm_add(NM_SUB, fcolor_name[i], NULL, 0, (ULONG)(ID_FCOLOR0 + i));
+	nm_add(NM_ITEM, "Sort", NULL, 0, ID_SORT);
 	nm_add(NM_ITEM, "Highlight", NULL, 0, 0);
 	for (i = 0; i < NHILITES; i++)
 		nm_add(NM_SUB, hilite_name[i], NULL, 0, (ULONG)(ID_HILITE0 + i));
@@ -338,6 +346,7 @@ static void menus_build(void)
 	nm_add(NM_ITEM, "50%", NULL, CHECKIT, ID_ZOOM50);
 	nm_add(NM_ITEM, "75%", NULL, CHECKIT, ID_ZOOM75);
 	nm_add(NM_ITEM, "100%", NULL, CHECKIT | CHECKED, ID_ZOOM100);
+	nm_add(NM_ITEM, "125%", NULL, CHECKIT, ID_ZOOM125);
 	nm_add(NM_ITEM, "150%", NULL, CHECKIT, ID_ZOOM150);
 	nm_add(NM_ITEM, "200%", NULL, CHECKIT, ID_ZOOM200);
 	nm_add(NM_END, NULL, NULL, 0, 0);
@@ -531,6 +540,7 @@ unsigned qm_state(unsigned long id)
 		case ID_ZOOMFIT: case ID_ZOOM50: case ID_ZOOM75: case ID_ZOOM100: case ID_ZOOM150: case ID_ZOOM200:
 			on = zoom_row == (int)(id - ID_ZOOMFIT);
 			break;
+		case ID_ZOOM125: on = zoom_row == 125; break;
 		}
 	return QS_ENABLED | (on ? QS_CHECKED : 0);
 }
@@ -1188,6 +1198,12 @@ static void command(ULONG id)
 		qm_status();
 		return;
 	}
+	if (id >= ID_CASE0 && id < ID_CASE0 + 5) {
+		Pos a, b;
+		if (fmt_range(&a, &b) && doc_change_case(qd.doc, a, b, (int)(id - ID_CASE0)))
+			qv_changed(view, 0);
+		return;
+	}
 	if (id >= ID_FCOLOR0 && id < ID_FCOLOR0 + NFCOLORS) {
 		cf.color = (u32)fcolor_rgb[id - ID_FCOLOR0];
 		char_format(CM_COLOR, &cf);
@@ -1268,6 +1284,25 @@ static void command(ULONG id)
 	case ID_SUPER: char_flag(CF_SUPER); break;
 	case ID_SUB: char_flag(CF_SUB); break;
 	case ID_CAPS: char_flag(CF_CAPS); break;
+	case ID_SORT: {
+		/* the selected paragraphs A to Z (the Amiga's Sort button) */
+		u32 a, b;
+		sel_paras(&a, &b);
+		if (a < b && doc_sort(qd.doc, a, b)) {
+			qd.anchor.para = a;
+			qd.anchor.off = 0;
+			qd.caret = qd.anchor;
+			qv_changed(view, 1);
+		}
+		break;
+	}
+	case ID_LINEBREAK:
+		if (pos_cmp(qd.anchor, qd.caret))
+			qm_delete(pos_cmp(qd.anchor, qd.caret) < 0 ? qd.anchor : qd.caret, pos_cmp(qd.anchor, qd.caret) < 0 ? qd.caret : qd.anchor);
+		doc_insert(qd.doc, &qd.caret, "\v", 1, qm_typing_fmt());
+		qd.anchor = qd.caret;
+		qv_changed(view, 1);
+		break;
 	case ID_CLEARFMT:
 		/* back to the paragraph style's plain look (the Amiga's Clear All Formatting) */
 		cf.color = COLOR_AUTO;
@@ -1312,6 +1347,11 @@ static void command(ULONG id)
 	case ID_ZOOMFIT: case ID_ZOOM50: case ID_ZOOM75: case ID_ZOOM100: case ID_ZOOM150: case ID_ZOOM200:
 		zoom_row = (int)(id - ID_ZOOMFIT);
 		qv_zoom(view, zooms[zoom_row]);
+		qm_status();
+		break;
+	case ID_ZOOM125:
+		zoom_row = 125;         /* (not a row of zooms[]: the Amiga ribbon's 125%, added after them) */
+		qv_zoom(view, 125);
 		qm_status();
 		break;
 	}

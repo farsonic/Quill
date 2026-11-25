@@ -452,12 +452,22 @@ compact Mac's 342) starts with the ribbon collapsed to its tabs; a click on a ta
 as a double-click does on the Amiga. Of the ribbon's 423 commands (Quill's tabs and the packages', each once, as `ribbon.c`'s `ribbon_commands` counts them; the log says so at start), 71 are on the Mac; the others are drawn dimmed. The menus stay and keep every command the ribbon has on the
 Mac (Style › All Caps, Clear Formatting and Format › Font Colour, Highlight are new, for the ribbon's).
 
-Not working yet: **the drop-down lists** (font, size, colours ...): the list's frameless window is made
-and shown, and the log has it activated and at once deactivated, so it closes again (a help bubble coming
-up in front was one cause, fixed in Riptide; another is still to be found). **The File page at 640 by 480,
-eight bits**: the log shows it switched to and drawn, but the screenshots show the document; at 512 by 342,
-one bit, it shows (picture below). Both want a session at the testbed's keyboard and mouse rather than
-scripted clicks.
+**Second round (same night).** The drop-down lists open under their tool and stay (Escape or a click
+elsewhere sends them away; the click also counts, as on the Amiga). They had closed at once because the font
+list drew each family's name with Quill's TrueType rasteriser, loading every family's font (seconds and
+megabytes on a 68k): on the Mac the names are drawn in the nearest screen font by QuickDraw (`qm_preview`,
+for ribbon.c only, through the shim header). Riptide placed the list window centred, ignoring the place set
+just before opening it; it keeps it now. The File page shows at 640 by 480, eight bits (it had failed only
+because the lists had left Octavo busy). The Amiga files' text is Latin-1 as on the Amiga (their `tr()`
+gives the table's Latin-1, `mac/qm_lang.c` `qm_tr_l1`) and becomes Mac Roman where it is drawn: "Résumé" is
+right. When only states change (Bold where the caret is, Undo after the first key), ribbon.c draws again only
+the tools whose look changed, not the whole ribbon (the first key: 204 ms before, 45 ms now; this is in the
+shared file and helps the Amiga too). New commands, each also in a menu: Change Case (five forms), Sort,
+Line Break, 125%: 73 of the 423 are on the Mac.
+
+| ![The font list](mac-ribbon-tree-fontlist.png) The font list, names in the Mac's fonts | ![The size list](mac-ribbon-tree-sizelist.png) The size list |
+|---|---|
+| ![The File page at 640 by 480](mac-ribbon-tree-backstage.png) The File page, eight bits | |
 
 Missing: the commands of the Amiga that the Mac has no code for yet are on the ribbon but dimmed (the
 work packages' windows: mail merge, citations, the equation editor, shapes, SmartArt ...); the navigation
@@ -507,13 +517,13 @@ comparing builds, not what a real Mac takes.
 |---|---|---|---|
 | Code (`.text`, in the heap) | 2.19 MB | 2.36 MB | 2.04 MB |
 | Partition (SIZE) | 12 MB | 12 MB | 8 MB (6 MB minimum) |
-| Heap in use at launch, untitled | 2,974 KB | 3,266 KB | 2,759 KB |
+| Heap in use at launch, untitled | 2,974 KB | 3,266 KB | 2,759 KB (second round 2,754 KB) |
 | Heap in use, charts.docx shown (3 pages, charts) | 4,869 KB | — | 4,577 KB (3,287 KB with every page packed) |
 | wordcraft-long.docx (158 pages) | out of memory (7.9 MB malloc'd, nothing shown); the next document then "couldn't be read" | out of memory | out of memory in 12 MB (needs about 20 MB); the next document then opens (4.5 MB in use) |
 | Idle, untitled: wake-ups a second | 28–30 | 25–32 | 7.5–7.9 (the caret's blink, every 8 ticks in this System; nothing else) |
 | Idle, charts.docx: wake-ups a second; busy | 29–32; 3.0–3.5 % | — | 7.4–7.8; 3.1–3.6 % |
-| A key, handled (charts.docx) | 1.3–4.0 ms (the first 19 ms) | 2.7–6 ms | 1.6–5.7 ms (the first 204 ms) |
-| The window brought up to date after it | 283–393 ms (page drawn in 14–20 ticks) | — | 297–555 ms (16–29 ticks); 474–592 ms with every page packed |
+| A key, handled (charts.docx) | 1.3–4.0 ms (the first 19 ms) | 2.7–6 ms | 1.6–5.7 ms (the first 204 ms); second round 1.7–3.7 ms (the first 45 ms, Cmd-B 18 ms) |
+| The window brought up to date after it | 283–393 ms (page drawn in 14–20 ticks) | — | 297–555 ms (16–29 ticks); 474–592 ms with every page packed; second round 292–403 ms (15–23 ticks) |
 | The ribbon drawn whole (632 by 103) | — | — | 92–293 ms; collapsed (632 by 25) 45–150 ms; the status bar 14–42 ms |
 
 Idle CPU fell by three quarters in wake-ups but not in time: what is left is the caret's blink, which the
@@ -547,8 +557,10 @@ again 3 ms.
   and laying them out again when drawn, would bring it to a few MB; both touch every reader of `Box.f`
   (about 180 places, 90 of them in the Amiga's view.c), so they were left for a branch of their own.
 - **Typing draws the whole page again** in memory once the keys pause, then copies only the rows that
-  changed. Drawing only the band of the changed lines needs the raster and the QuickDraw text pass (and its
-  caret map) to work by bands.
+  changed: the redraw after a key is the baseline's (292–403 against 283–393 ms), not below it. Drawing only
+  the band of the changed lines needs `raster_page` to work on a band of rows (its clip and the CTM's offset),
+  the QuickDraw text pass to draw and merge only the runs in it, and its caret map (QtWords) to keep the other
+  runs' places from the page drawn before; not done.
 - The ribbon redraws whole when its state changes (the Amiga's design); the times are in the log
   (`draw 632x98 ...`).
 - The navigation pane, the word count, Tell Me, customizing, right-button menus; the dimmed commands.

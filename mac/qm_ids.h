@@ -29,7 +29,7 @@ enum {
 	/* View > Smooth Text */
 	QM_ID(SMOOTH),
 	/* the Amiga ribbon's Font group, in the menus too (the experimental ribbon tree) */
-	QM_ID(CAPS), QM_ID(CLEARFMT),
+	QM_ID(CAPS), QM_ID(CLEARFMT), QM_ID(SORT), QM_ID(LINEBREAK), QM_ID(ZOOM125),
 	QM_ID(BREAK0) = 120,            /* + Insert > Breaks' row (NBREAKS): page, column, section next page, continuous */
 	QM_ID(SYM0) = 130,              /* + Insert > Symbol's row */
 	QM_ID(COLS0) = 160,             /* + Layout > Columns' row: one, two, three */
@@ -40,5 +40,6 @@ enum {
 	QM_ID(STRIP0) = 270,            /* + View > Tool Strip's row: the strip shown (QS_) */
 	QM_ID(FCOLOR0) = 300,           /* + Format > Font Colour's row (NFCOLORS) */
 	QM_ID(HILITE0) = 330,           /* + Format > Highlight's row (NHILITES) */
+	QM_ID(CASE0) = 345,             /* + Format > Change Case's row (CASE_ order: sentence, lower, upper, each word, toggle) */
 	QM_ID(LAST) = 400
 };

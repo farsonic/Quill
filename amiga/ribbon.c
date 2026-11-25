@@ -2546,6 +2546,21 @@ static ULONG dispatch(__reg("a0") struct IClass *cl, __reg("a2") Object *obj, __
     if (!restyle && !relayout && m->on == d->st.on && m->on2 == d->st.on2 && m->rowh == d->st.rowh && m->colw == d->st.colw && m->vmode == d->st.vmode && m->size == d->st.size && m->style == d->st.style && m->left == d->st.left &&
         m->right == d->st.right && m->before == d->st.before && m->after == d->st.after && m->font && !strcmp(m->font, d->font) &&
         !memcmp(m->wpon, d->st.wpon, sizeof m->wpon)) return 0;
+    if (!restyle && !relayout && _win(obj) && d->shown && !d->mini && !d->kt && m->rowh == d->st.rowh && m->colw == d->st.colw && m->vmode == d->st.vmode &&
+        m->size == d->st.size && m->style == d->st.style && m->left == d->st.left && m->right == d->st.right && m->before == d->st.before &&
+        m->after == d->st.after && m->font && !strcmp(m->font, d->font) && !memcmp(m->wpon, d->st.wpon, sizeof m->wpon)) {
+      /* only states changed (a button on or off, usable or not: Bold where the caret now is, Undo after
+         the first key): only the tools whose look changed are drawn again, not the whole ribbon */
+      static u8 was[MAXI], qawas[MAXQA];
+      int k, n = d->nitem < MAXI ? d->nitem : MAXI, tabs = 0;
+      for (k = 0; k < n; k++) { const Item *it = nth_item(d, k, NULL); was[k] = (u8)(it ? item_on(d, it) * 2 + item_enabled(d, it) : 0); }
+      for (k = 0; k < nqa; k++) qawas[k] = (u8)(item_on(d, &qaitem[k]) * 2 + item_enabled(d, &qaitem[k]));
+      d->st.on = m->on; d->st.on2 = m->on2; d->st.doc = m->doc; d->st.fs = m->fs; d->st.stylesig = m->stylesig;
+      for (k = 0; k < nqa; k++) if (qawas[k] != (u8)(item_on(d, &qaitem[k]) * 2 + item_enabled(d, &qaitem[k]))) tabs = 1;
+      if (tabs) draw_tabs(d, obj);
+      for (k = 0; k < n; k++) { const Item *it = nth_item(d, k, NULL); if (it && was[k] != (u8)(item_on(d, it) * 2 + item_enabled(d, it))) draw_item(d, obj, k); }
+      return 0;
+    }
     d->st = *m;
     d->kt = 0;                                  /* (WP26: KeyTips end when anything changes) */
     if (m->font) { strncpy(d->font, m->font, sizeof d->font - 1); d->font[sizeof d->font - 1] = 0; }
