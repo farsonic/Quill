@@ -134,7 +134,13 @@ $(B)/rt/gen/toolbox_glue.o: $(GEN)/toolbox_glue.S
 	@mkdir -p $(dir $@)
 	$(CC) $(RT_CFLAGS) -c -o $@ $<
 
-# --size: the partition in KB. A US Letter page drawn at 100% is 1.4 MB of RGB and three are kept,
+# The partition (KB), measured in the testbed (docs/mac.md, "The experimental ribbon tree"): 2.8 MB in
+# use at launch (2 MB of it the code), 4.7 MB with charts.docx shown; 8 MB preferred leaves room for
+# documents of some tens of pages, 6 MB the least to start with. A long document needs more (Get Info):
+# its layout is most of it (wordcraft-long.docx, 158 pages: about 15 MB)
+SIZE_PREF ?= 8192
+SIZE_MIN  ?= 6144
+# --size: the partition in KB (was 12288). A US Letter page drawn at 100% is 1.4 MB of RGB and three are kept,
 # a .docx is unzipped in memory, and the fonts in use are loaded whole (one is 0.3-0.8 MB)
 $(B)/Octavo.elf: $(RT_OBJ) $(MAC_OBJ) $(AUI_OBJ) $(WPG_OBJ) $(CORE_OBJ) $(R)/src/mac/app/app.ld
 	$(LD) -T $(R)/src/mac/app/app.ld --emit-relocs --gc-sections --wrap=WaitNextEvent --no-warn-rwx-segments -z noexecstack -o $@ \
@@ -146,9 +152,10 @@ $(B)/Octavo.elf: $(RT_OBJ) $(MAC_OBJ) $(AUI_OBJ) $(WPG_OBJ) $(CORE_OBJ) $(R)/src
 # the Finder's resources (icons, the bundle, the files Quill opens: mac/mkfinder.py made them)
 FINDER  := $(shell sed 's|\([^:]*:[^:]*:\)|--rsrc \1mac/rsrc/|' mac/rsrc/list.txt)
 $(B)/Octavo.bin: $(B)/Octavo.elf $(R)/tools/elf2app.py mac/mksize.py $(wildcard mac/rsrc/*)
-	$(PYTHON) $(R)/tools/elf2app.py $< --name Octavo --creator OCTV --size 12288 --bundle $(FINDER) -o $@
-	@# high-level-event aware as well (0x0040): the Finder's Open Documents events (mac/qm_main.c)
-	$(PYTHON) mac/mksize.py $@ 0x58C0
+	$(PYTHON) $(R)/tools/elf2app.py $< --name Octavo --creator OCTV --size $(SIZE_PREF) --bundle $(FINDER) -o $@
+	@# high-level-event aware as well (0x0040): the Finder's Open Documents events (mac/qm_main.c);
+	@# and the partition the ribbon tree needs (measured: docs/mac.md, "The experimental ribbon tree")
+	$(PYTHON) mac/mksize.py $@ 0x58C0 $(SIZE_PREF) $(SIZE_MIN)
 
 clean-mac:
 	@mkdir -p build/old && mv $(B) build/old/mac-$$$$ 2>/dev/null || true

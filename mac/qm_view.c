@@ -54,11 +54,13 @@ enum { inUpButton = 20, inDownButton = 21, inPageUp = 22, inPageDown = 23, inThu
 #define IBEAM_CURSOR  1         /* the System's cursors ('CURS' resources) */
 #define LM_HILITERGB  ((const unsigned short *)0xDA0)   /* the highlight colour (Color control panel) */
 
-/* a page as drawn, kept: its RGB rows (pdf_page_rgb's, 3 bytes a pixel) run-length packed
-   (core/rowpack.c). A page of text is mostly runs of white, so it keeps in a tenth of its 1.4 MB or
-   less (US Letter at 72 dpi), and three pages fit in a partition of a few MB */
+/* a page as drawn, kept: the one drawn last as it is (RGB, 3 bytes a pixel, rows top down:
+   pdf_page_rgb's), so typing compares and copies its rows as before; the others with their rows
+   run-length packed (core/rowpack.c). A page of text packs to a fifth of its 1.4 MB or less (US
+   Letter at 72 dpi), so three pages kept take about 2 MB instead of 4.2 */
 typedef struct {
-	PackedRGB pk;               /* (pk.data NULL: nothing kept) */
+	unsigned char *raw;         /* as drawn, or NULL ... */
+	PackedRGB pk;               /* ... packed (neither: nothing kept) */
 	u32 page, w, h;
 	int dpi;
 	unsigned long ver;          /* Doc.ver it shows */
@@ -251,6 +253,8 @@ static void tick_rate(struct qv_data *d, Object *obj, int fast);
 
 static void cache_drop(Drawn *c)
 {
+	free(c->raw);
+	c->raw = NULL;
 	rgb_pack_free(&c->pk);
 	qt_words_free(c->words);
 	c->words = NULL;
@@ -282,7 +286,7 @@ static Drawn *cache_find(struct qv_data *d, u32 k)
 {
 	int i;
 	for (i = 0; i < NCACHE; i++)
-		if (d->cache[i].pk.data && d->cache[i].page == k && d->cache[i].dpi == d->dpi && d->cache[i].mono == d->mono) {
+		if ((d->cache[i].raw || d->cache[i].pk.data) && d->cache[i].page == k && d->cache[i].dpi == d->dpi && d->cache[i].mono == d->mono) {
 			d->cache[i].used = ++d->clock;
 			return &d->cache[i];
 		}
@@ -293,6 +297,19 @@ static Drawn *cache_find(struct qv_data *d, u32 k)
 static int inside(Object *obj, int x, int y)
 {
 	return x >= _mleft(obj) && x < _mleft(obj) + _mwidth(obj) && y >= _mtop(obj) && y < _mtop(obj) + _mheight(obj);
+}
+
+/* the row buffer (a packed row unpacked) at least w pixels long; 0 if out of memory */
+static int line_room(struct qv_data *d, u32 w)
+{
+	if (d->line_w >= w)
+		return 1;
+	free(d->line);
+	d->line_w = 0;
+	if (!(d->line = malloc((size_t)w * 3)))
+		return 0;
+	d->line_w = w;
+	return 1;
 }
 
 /* Page k drawn now if its picture is missing or older than the document; the rows that changed
@@ -325,36 +342,47 @@ static Drawn *page_drawn(struct qv_data *d, u32 k, long *y0, long *y1)
 		if (!rgb)
 			return NULL;
 	}
-	{
-		/* kept packed (core/rowpack.c): the full picture goes at once */
-		PackedRGB np;
-		int ok = rgb_pack(&np, rgb, w, h);
+	if (!line_room(d, w)) {
 		free(rgb);
-		if (!ok) {
-			qt_words_free(words);
-			return NULL;
+		qt_words_free(words);
+		return NULL;
+	}
+	if (old && old->w == w && old->h == h) {
+		/* the rows that differ, so only they are copied to the screen (a packed picture's rows
+		   unpacked to compare) */
+		long row = (long)w * 3, a = 0, b = (long)h - 1;
+		#define SAME(y) (old->raw ? !memcmp(old->raw + (y) * row, rgb + (y) * row, (size_t)row) : \
+		                 (rgb_unpack_row(&old->pk, (u32)(y), d->line), !memcmp(d->line, rgb + (y) * row, (size_t)row)))
+		while (a <= b && SAME(a))
+			a++;
+		while (b >= a && SAME(b))
+			b--;
+		#undef SAME
+		if (y0) { *y0 = a; *y1 = b; }
+	} else if (y0) {
+		*y0 = 0;
+		*y1 = (long)h - 1;
+	}
+	if (!c) {
+		/* the least recently used place */
+		c = &d->cache[0];
+		for (i = 1; i < NCACHE; i++)
+			if (!(d->cache[i].raw || d->cache[i].pk.data) || ((c->raw || c->pk.data) && d->cache[i].used < c->used))
+				c = &d->cache[i];
+	}
+	free(c->raw);
+	rgb_pack_free(&c->pk);
+	c->raw = rgb;
+	/* the other pages kept are packed: one page at most stays as drawn */
+	for (i = 0; i < NCACHE; i++) {
+		Drawn *o = &d->cache[i];
+		if (o != c && o->raw) {
+			if (rgb_pack(&o->pk, o->raw, o->w, o->h)) {
+				free(o->raw);
+				o->raw = NULL;
+			} else
+				cache_drop(o);
 		}
-		if (old && old->w == w && old->h == h) {
-			/* the rows that differ, so only they are copied to the screen */
-			long a = 0, b = (long)h - 1;
-			while (a <= b && rgb_same_row(&old->pk, &np, (u32)a))
-				a++;
-			while (b >= a && rgb_same_row(&old->pk, &np, (u32)b))
-				b--;
-			if (y0) { *y0 = a; *y1 = b; }
-		} else if (y0) {
-			*y0 = 0;
-			*y1 = (long)h - 1;
-		}
-		if (!c) {
-			/* the least recently used place */
-			c = &d->cache[0];
-			for (i = 1; i < NCACHE; i++)
-				if (!d->cache[i].pk.data || (c->pk.data && d->cache[i].used < c->used))
-					c = &d->cache[i];
-		}
-		rgb_pack_free(&c->pk);
-		c->pk = np;
 	}
 	qt_words_free(c->words);
 	c->words = words;
@@ -380,7 +408,7 @@ static Drawn *cache_now(struct qv_data *d, u32 k)
 {
 	int i;
 	for (i = 0; i < NCACHE; i++)
-		if (d->cache[i].pk.data && d->cache[i].page == k && d->cache[i].dpi == d->dpi && d->cache[i].mono == d->mono &&
+		if ((d->cache[i].raw || d->cache[i].pk.data) && d->cache[i].page == k && d->cache[i].dpi == d->dpi && d->cache[i].mono == d->mono &&
 		    d->cache[i].ver == qd.doc->ver)
 			return &d->cache[i];
 	return NULL;
@@ -509,13 +537,8 @@ static void blit(struct qv_data *d, Object *obj, u32 k, long x0, long x1, long y
 	if (y1 >= (long)c->h) y1 = (long)c->h - 1;
 	if (x0 > x1 || y0 > y1 || !gw_ready(d, (int)(x1 - x0 + 1)))
 		return;
-	if (d->line_w < c->w) {
-		free(d->line);
-		d->line_w = 0;
-		if (!(d->line = malloc((size_t)c->w * 3)))
-			return;
-		d->line_w = c->w;
-	}
+	if (!line_room(d, c->w))
+		return;
 	page_at(d, obj, k, &px0, &py0);
 	sel_now(d, &s);
 	if (!s.on && d->caret_on) {
@@ -552,8 +575,12 @@ static void blit(struct qv_data *d, Object *obj, u32 k, long x0, long x1, long y
 			const unsigned char *sp;
 			long sx0, sx1;
 			int sel;
-			rgb_unpack_span(&c->pk, (u32)(y + r), (u32)x0, (u32)x1, d->line);
-			sp = d->line;
+			if (c->raw)
+				sp = c->raw + ((y + r) * (long)c->w + x0) * 3;
+			else {
+				rgb_unpack_span(&c->pk, (u32)(y + r), (u32)x0, (u32)x1, d->line);
+				sp = d->line;
+			}
 			sel = sel_span(d, &s, k, y + r, &sx0, &sx1);
 			unsigned long *dp = (unsigned long *)(base + r * rowb);
 			for (i = x0; i <= x1; i++, sp += 3) {
